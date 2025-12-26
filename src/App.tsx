@@ -130,11 +130,12 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
       
       <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
         <button onClick={clearCanvas} style={{ flex: 1, padding: '6px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
+        <button onClick={processOCR} disabled={loading} style={{ flex: 1, padding: '6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>עבד מחדש</button>
         <button onClick={onCancel} style={{ flex: 1, padding: '6px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
-        {recognized && (
-          <button onClick={confirmValue} style={{ flex: 1, padding: '6px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>אישור</button>
-        )}
       </div>
+      {recognized && (
+        <button onClick={confirmValue} style={{ marginTop: '6px', width: '100%', padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>אישור - {recognized}</button>
+      )}
     </div>
   );
 };
