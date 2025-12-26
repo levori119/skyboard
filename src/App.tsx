@@ -10,6 +10,23 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
   const [loading, setLoading] = useState(false);
   const [recognized, setRecognized] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
+  const workerRef = useRef<any>(null);
+
+  useEffect(() => {
+    const initWorker = async () => {
+      const worker = await Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789',
+      });
+      workerRef.current = worker;
+    };
+    initWorker();
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+    };
+  }, []);
 
   const getCoords = (e: any) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -28,7 +45,7 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
     if (ctx) {
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 8;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000';
@@ -45,7 +62,7 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
       ctx.stroke(); 
     }
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(processOCR, 1000);
+    timerRef.current = setTimeout(processOCR, 800);
   };
 
   const stopDrawing = () => {
@@ -61,28 +78,60 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
     setRecognized(null);
   };
 
-  const processOCR = async () => {
-    if (!canvasRef.current) return;
-    setLoading(true);
-    
+  const preprocessCanvas = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return null;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
 
     const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width * 2;
-    tempCanvas.height = canvas.height * 2;
+    const scale = 3;
+    tempCanvas.width = canvas.width * scale;
+    tempCanvas.height = canvas.height * scale;
     const tempCtx = tempCanvas.getContext('2d');
-    if (tempCtx) {
-      tempCtx.fillStyle = '#ffffff';
-      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    if (!tempCtx) return null;
+
+    tempCtx.fillStyle = '#ffffff';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = data[i] * 0.3 + data[i+1] * 0.59 + data[i+2] * 0.11;
+      const value = gray < 180 ? 0 : 255;
+      data[i] = data[i+1] = data[i+2] = value;
     }
 
-    const dataUrl = tempCanvas.toDataURL('image/png');
+    tempCtx.putImageData(imageData, 0, 0);
+
+    const padding = 40;
+    const paddedCanvas = document.createElement('canvas');
+    paddedCanvas.width = tempCanvas.width + padding * 2;
+    paddedCanvas.height = tempCanvas.height + padding * 2;
+    const paddedCtx = paddedCanvas.getContext('2d');
+    if (paddedCtx) {
+      paddedCtx.fillStyle = '#ffffff';
+      paddedCtx.fillRect(0, 0, paddedCanvas.width, paddedCanvas.height);
+      paddedCtx.drawImage(tempCanvas, padding, padding);
+    }
+
+    return paddedCanvas.toDataURL('image/png');
+  };
+
+  const processOCR = async () => {
+    if (!canvasRef.current || !workerRef.current) return;
+    setLoading(true);
+    
+    const dataUrl = preprocessCanvas();
+    if (!dataUrl) {
+      setLoading(false);
+      return;
+    }
     
     try {
-      const result = await Tesseract.recognize(dataUrl, 'eng');
+      const result = await workerRef.current.recognize(dataUrl);
       const text = result.data.text.replace(/[^0-9]/g, '');
       setRecognized(text || null);
     } catch (err) {
@@ -102,16 +151,16 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
   }, []);
 
   return (
-    <div style={{ position: 'absolute', top: -10, right: '110%', zIndex: 1000, background: 'white', border: '2px solid #2563eb', padding: '12px', borderRadius: '10px', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', minWidth: '200px', direction: 'rtl' }}>
+    <div style={{ position: 'absolute', top: -10, right: '110%', zIndex: 1000, background: 'white', border: '2px solid #2563eb', padding: '12px', borderRadius: '10px', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', minWidth: '244px', direction: 'rtl' }}>
       <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
         {loading ? "מזהה..." : "כתוב מספר:"}
       </div>
       
       <canvas 
         ref={canvasRef} 
-        width={180} 
-        height={80} 
-        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block' }}
+        width={220} 
+        height={100} 
+        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '220px', height: '100px' }}
         onMouseDown={startDrawing} 
         onMouseMove={draw} 
         onMouseUp={stopDrawing}
