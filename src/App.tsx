@@ -8,53 +8,133 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recognized, setRecognized] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
 
-  const startDrawing = (e: any) => {
-    setIsDrawing(true);
+  const getCoords = (e: any) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    if (e.touches && e.touches[0]) {
+      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    }
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const startDrawing = (e: any) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    setRecognized(null);
+    const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 6;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = '#000';
     }
   };
 
   const draw = (e: any) => {
     if (!isDrawing) return;
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    e.preventDefault();
+    const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
-    if (ctx) { ctx.lineTo(x, y); ctx.stroke(); }
+    if (ctx) { 
+      ctx.lineTo(x, y); 
+      ctx.stroke(); 
+    }
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(processOCR, 1500);
+    timerRef.current = setTimeout(processOCR, 1000);
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx && canvasRef.current) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+    setRecognized(null);
   };
 
   const processOCR = async () => {
     if (!canvasRef.current) return;
     setLoading(true);
-    const dataUrl = canvasRef.current.toDataURL('image/png');
-    const result = await Tesseract.recognize(dataUrl, 'eng');
-    const text = result.data.text.replace(/[^0-9]/g, '');
-    onComplete(text || "???");
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width * 2;
+    tempCanvas.height = canvas.height * 2;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx) {
+      tempCtx.fillStyle = '#ffffff';
+      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    }
+
+    const dataUrl = tempCanvas.toDataURL('image/png');
+    
+    try {
+      const result = await Tesseract.recognize(dataUrl, 'eng');
+      const text = result.data.text.replace(/[^0-9]/g, '');
+      setRecognized(text || null);
+    } catch (err) {
+      console.error('OCR error:', err);
+    }
     setLoading(false);
   };
 
+  const confirmValue = () => {
+    if (recognized) {
+      onComplete(recognized);
+    }
+  };
+
+  useEffect(() => {
+    clearCanvas();
+  }, []);
+
   return (
-    <div style={{ position: 'absolute', top: 0, right: '110%', zIndex: 1000, background: 'white', border: '2px solid #2563eb', padding: '10px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', minWidth: '160px', direction: 'rtl' }}>
-      <div style={{fontSize: '12px', marginBottom: '5px', fontWeight: 'bold', color: '#2563eb'}}>
-        {loading ? "מעבד..." : "כתוב גובה:"}
+    <div style={{ position: 'absolute', top: -10, right: '110%', zIndex: 1000, background: 'white', border: '2px solid #2563eb', padding: '12px', borderRadius: '10px', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', minWidth: '200px', direction: 'rtl' }}>
+      <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
+        {loading ? "מזהה..." : "כתוב מספר:"}
       </div>
-      <canvas ref={canvasRef} width={150} height={100} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', touchAction: 'none' }}
-        onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={() => setIsDrawing(false)}
-        onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={() => setIsDrawing(false)} />
-      <button onClick={onCancel} style={{ marginTop: '8px', width: '100%', padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}>ביטול</button>
+      
+      <canvas 
+        ref={canvasRef} 
+        width={180} 
+        height={80} 
+        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block' }}
+        onMouseDown={startDrawing} 
+        onMouseMove={draw} 
+        onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+        onTouchStart={startDrawing} 
+        onTouchMove={draw} 
+        onTouchEnd={stopDrawing} 
+      />
+      
+      {recognized && (
+        <div style={{ marginTop: '8px', padding: '8px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '6px', textAlign: 'center' }}>
+          <span style={{ fontSize: '12px', color: '#065f46' }}>זוהה: </span>
+          <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#065f46' }}>{recognized}</span>
+        </div>
+      )}
+      
+      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+        <button onClick={clearCanvas} style={{ flex: 1, padding: '6px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
+        <button onClick={onCancel} style={{ flex: 1, padding: '6px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+        {recognized && (
+          <button onClick={confirmValue} style={{ flex: 1, padding: '6px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>אישור</button>
+        )}
+      </div>
     </div>
   );
 };
