@@ -3,27 +3,48 @@ import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
 
-// --- מערכת למידת ספרות ---
-const STORAGE_KEY = 'learned_digits';
+// --- מערכת למידת ספרות (עם DB) ---
+const API_URL = '/api';
 
-const getLearnedDigits = (): { digit: string; imageData: string }[] => {
+const getLearnedDigits = async (): Promise<{ digit: string; imageData: string }[]> => {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const res = await fetch(`${API_URL}/digits`);
+    if (!res.ok) return [];
+    return await res.json();
   } catch {
     return [];
   }
 };
 
-const saveLearnedDigit = (digit: string, imageData: string) => {
-  const existing = getLearnedDigits();
-  existing.push({ digit, imageData });
-  if (existing.length > 100) existing.shift();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+const saveLearnedDigit = async (digit: string, imageData: string) => {
+  try {
+    await fetch(`${API_URL}/digits`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ digit, imageData })
+    });
+  } catch (err) {
+    console.error('Failed to save digit:', err);
+  }
 };
 
-const clearLearnedDigits = () => {
-  localStorage.removeItem(STORAGE_KEY);
+const clearLearnedDigits = async () => {
+  try {
+    await fetch(`${API_URL}/digits`, { method: 'DELETE' });
+  } catch (err) {
+    console.error('Failed to clear digits:', err);
+  }
+};
+
+const getDigitsCount = async (): Promise<number> => {
+  try {
+    const res = await fetch(`${API_URL}/digits/count`);
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.count || 0;
+  } catch {
+    return 0;
+  }
 };
 
 const compareImages = (img1Data: ImageData, img2Data: ImageData): number => {
@@ -50,6 +71,16 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentDigit, setCurrentDigit] = useState(0);
   const [saved, setSaved] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const loadCount = async () => {
+    const count = await getDigitsCount();
+    setTotalCount(count);
+  };
+
+  useEffect(() => {
+    loadCount();
+  }, [saved]);
 
   const getCoords = (e: any) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -93,10 +124,10 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
     }
   };
 
-  const saveDigit = () => {
+  const saveDigit = async () => {
     if (!canvasRef.current) return;
     const imageData = canvasRef.current.toDataURL('image/png');
-    saveLearnedDigit(currentDigit.toString(), imageData);
+    await saveLearnedDigit(currentDigit.toString(), imageData);
     setSaved(s => s + 1);
     clearCanvas();
   };
@@ -104,6 +135,12 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   const nextDigit = () => {
     setCurrentDigit((currentDigit + 1) % 10);
     clearCanvas();
+  };
+
+  const handleClearAll = async () => {
+    await clearLearnedDigits();
+    setSaved(0);
+    setTotalCount(0);
   };
 
   useEffect(() => {
@@ -141,11 +178,11 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
         </div>
         
         <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
-          נשמרו: {saved} דוגמאות | סה"כ: {getLearnedDigits().length}
+          נשמרו בסשן: {saved} | סה"כ ב-DB: {totalCount}
         </div>
         
         <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
-          <button onClick={() => { clearLearnedDigits(); setSaved(0); }} style={{ flex: 1, padding: '8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>מחק הכל</button>
+          <button onClick={handleClearAll} style={{ flex: 1, padding: '8px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>מחק הכל</button>
           <button onClick={onClose} style={{ flex: 1, padding: '8px', background: '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>סיום</button>
         </div>
       </div>
@@ -271,10 +308,71 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
     return paddedCanvas.toDataURL('image/png');
   };
 
+  const matchWithLearnedDigits = async (): Promise<string | null> => {
+    if (!canvasRef.current) return null;
+    
+    const learnedDigits = await getLearnedDigits();
+    if (learnedDigits.length === 0) return null;
+
+    const currentCanvas = canvasRef.current;
+    const currentCtx = currentCanvas.getContext('2d');
+    if (!currentCtx) return null;
+
+    const normalizeCanvas = document.createElement('canvas');
+    normalizeCanvas.width = 50;
+    normalizeCanvas.height = 50;
+    const normalizeCtx = normalizeCanvas.getContext('2d');
+    if (!normalizeCtx) return null;
+
+    normalizeCtx.fillStyle = '#ffffff';
+    normalizeCtx.fillRect(0, 0, 50, 50);
+    normalizeCtx.drawImage(currentCanvas, 0, 0, 50, 50);
+    const currentData = normalizeCtx.getImageData(0, 0, 50, 50);
+
+    let bestMatch = { digit: '', score: 0 };
+
+    for (const learned of learnedDigits) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise<void>((resolve) => {
+        img.onload = () => {
+          normalizeCtx.fillStyle = '#ffffff';
+          normalizeCtx.fillRect(0, 0, 50, 50);
+          normalizeCtx.drawImage(img, 0, 0, 50, 50);
+          const learnedData = normalizeCtx.getImageData(0, 0, 50, 50);
+          
+          const score = compareImages(currentData, learnedData);
+          if (score > bestMatch.score) {
+            bestMatch = { digit: learned.digit, score };
+          }
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = learned.imageData;
+      });
+    }
+
+    return bestMatch.score > 0.6 ? bestMatch.digit : null;
+  };
+
   const processOCR = async () => {
-    if (!canvasRef.current || !workerRef.current) return;
+    if (!canvasRef.current) return;
     setLoading(true);
     
+    const learnedResult = await matchWithLearnedDigits();
+    
+    if (learnedResult) {
+      setRecognized(learnedResult);
+      setLoading(false);
+      return;
+    }
+
+    if (!workerRef.current) {
+      setLoading(false);
+      return;
+    }
+
     const dataUrl = preprocessCanvas();
     if (!dataUrl) {
       setLoading(false);
