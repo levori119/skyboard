@@ -84,9 +84,7 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
     try {
       const result = await Tesseract.recognize(dataUrl, 'eng');
       const text = result.data.text.replace(/[^0-9]/g, '');
-      if (text) {
-        onComplete(text);
-      }
+      setRecognized(text || null);
     } catch (err) {
       console.error('OCR error:', err);
     }
