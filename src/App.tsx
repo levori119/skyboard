@@ -91,17 +91,25 @@ const Strip = ({ s, onMove, onUpdate }: any) => {
     const handlePointerUp = (e: PointerEvent) => {
       setIsDragging(false);
       const mapArea = document.getElementById('map-area');
-      if (mapArea) {
+      const sidebar = document.getElementById('sidebar-area');
+      
+      if (mapArea && sidebar) {
         const mapRect = mapArea.getBoundingClientRect();
+        const sidebarRect = sidebar.getBoundingClientRect();
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
+        // בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
+        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
+            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+          onMove(s.id, 0, 0, false); // החזר לתפריט
+        }
         // בדיקה אם נשחרר בתוך אזור המפה
-        if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
+        else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
             e.clientY >= mapRect.top && e.clientY <= mapRect.bottom) {
           const x = dropX - mapRect.left;
           const y = dropY - mapRect.top;
-          onMove(s.id, x, y);
+          onMove(s.id, x, y, true);
         }
       }
     };
@@ -232,18 +240,18 @@ export default function App() {
           {strips.filter(s => s.onMap).map(s => (
             <Strip key={s.id} s={s} 
               onUpdate={(id: any, val: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, alt: val} : item))}
-              onMove={(id: any, x: any, y: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y} : item))} 
+              onMove={(id: any, x: any, y: any, toMap: boolean) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item))} 
             />
           ))}
         </div>
 
         {/* Sidebar - Right Side */}
-        <div style={{ width: 220, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
+        <div id="sidebar-area" style={{ width: 220, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
           {strips.filter(s => !s.onMap).map(s => (
             <Strip key={s.id} s={s} 
               onUpdate={(id: any, val: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, alt: val} : item))}
-              onMove={(id: any, x: any, y: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: true} : item))} 
+              onMove={(id: any, x: any, y: any, toMap: boolean) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item))} 
             />
           ))}
         </div>
