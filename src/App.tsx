@@ -576,6 +576,21 @@ export default function App() {
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [showLearn, setShowLearn] = useState(false);
 
+  useEffect(() => {
+    const loadStrips = async () => {
+      try {
+        const res = await fetch(`${API_URL}/strips`);
+        if (res.ok) {
+          const data = await res.json();
+          setStrips(data);
+        }
+      } catch (err) {
+        console.error('Failed to load strips:', err);
+      }
+    };
+    loadStrips();
+  }, []);
+
   const handleCsv = (e: any) => {
     const reader = new FileReader();
     reader.onload = (ev: any) => {
@@ -593,6 +608,32 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (ev: any) => setMapImg(ev.target.result);
     reader.readAsDataURL(e.target.files[0]);
+  };
+
+  const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
+    setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x, y, onMap: toMap })
+      });
+    } catch (err) {
+      console.error('Failed to update strip position:', err);
+    }
+  };
+
+  const handleAltUpdate = async (id: string, alt: string) => {
+    setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alt })
+      });
+    } catch (err) {
+      console.error('Failed to update strip altitude:', err);
+    }
   };
 
   return (
@@ -623,8 +664,8 @@ export default function App() {
           )}
           {strips.filter(s => s.onMap).map(s => (
             <Strip key={s.id} s={s} 
-              onUpdate={(id: any, val: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, alt: val} : item))}
-              onMove={(id: any, x: any, y: any, toMap: boolean) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item))} 
+              onUpdate={handleAltUpdate}
+              onMove={handleMove} 
             />
           ))}
         </div>
@@ -634,8 +675,8 @@ export default function App() {
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
           {strips.filter(s => !s.onMap).map(s => (
             <Strip key={s.id} s={s} 
-              onUpdate={(id: any, val: any) => setStrips(prev => prev.map(item => item.id === id ? {...item, alt: val} : item))}
-              onMove={(id: any, x: any, y: any, toMap: boolean) => setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item))} 
+              onUpdate={handleAltUpdate}
+              onMove={handleMove} 
             />
           ))}
         </div>
