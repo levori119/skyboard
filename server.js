@@ -520,11 +520,9 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
     
     const { strip_id, to_sector_id, target_x, target_y } = transfer.rows[0];
     
-    const hasTargetPosition = target_x > 0 || target_y > 0;
-    
     await pool.query(
       'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5 WHERE id = $6',
-      [to_sector_id, 'queued', hasTargetPosition, target_x || 0, target_y || 0, strip_id]
+      [to_sector_id, 'queued', false, target_x || 0, target_y || 0, strip_id]
     );
     
     await pool.query(
