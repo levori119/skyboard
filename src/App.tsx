@@ -1789,6 +1789,8 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
+  const [mapZoom, setMapZoom] = useState(1);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -2239,11 +2241,47 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
         {/* Map Area */}
         <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden', minHeight: 0 }}>
-          {mapImg ? (
-            <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
-          ) : (
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
-          )}
+          {/* Map Zoom Toolbar */}
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
+            <button
+              onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))}
+              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
+            >+</button>
+            <button
+              onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))}
+              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
+            >−</button>
+            <button
+              onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }}
+              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+            >איפוס</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 32, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}>▲</button>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 15, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>◀</button>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 15, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>▶</button>
+              </div>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 32, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}>▼</button>
+            </div>
+            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
+          </div>
+          
+          {/* Map Content with Transform */}
+          <div style={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%',
+            transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
+            transformOrigin: 'center center',
+            transition: 'transform 0.15s ease-out'
+          }}>
+            {mapImg ? (
+              <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+            ) : (
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
+            )}
           {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
             <Strip key={s.id} s={s} 
               onUpdate={handleAltUpdate}
@@ -2274,6 +2312,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onCancelTransfer={handleCancelTransfer}
             />
           ))}
+          </div>
           
           {/* Drawing Canvas Overlay */}
           <canvas
@@ -2298,7 +2337,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           <div style={{
             position: 'absolute',
             top: 10,
-            left: 10,
+            left: 60,
             background: 'rgba(15, 23, 42, 0.9)',
             borderRadius: '8px',
             padding: '8px',
