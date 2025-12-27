@@ -931,7 +931,8 @@ const DraggableMapMarker = ({
   onRemove, 
   onRename,
   strips,
-  onTransfer
+  onTransfer,
+  outgoingTransfers
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -939,6 +940,7 @@ const DraggableMapMarker = ({
   onRename: (newLabel: string) => void;
   strips: any[];
   onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
+  outgoingTransfers: any[];
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -1003,6 +1005,11 @@ const DraggableMapMarker = ({
   };
 
   const availableStrips = strips.filter((s: any) => !s.onMap && s.status !== 'pending_transfer');
+  
+  const markerTransfers = (outgoingTransfers || []).filter((t: any) => 
+    t.to_sector_id === marker.sectorId && 
+    (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label)
+  );
 
   return (
     <div
@@ -1085,17 +1092,39 @@ const DraggableMapMarker = ({
         data-marker-sector={marker.sectorId}
         data-marker-sublabel={marker.subLabel || ''}
         style={{
-          padding: '15px 10px',
+          padding: markerTransfers.length > 0 ? '6px' : '15px 10px',
           background: 'white',
           textAlign: 'center',
           color: '#64748b',
           fontSize: '12px',
           border: '2px dashed #cbd5e1',
           margin: '4px',
-          borderRadius: '4px'
+          borderRadius: '4px',
+          minHeight: '40px'
         }}
       >
-        גרור לכאן
+        {markerTransfers.length === 0 ? (
+          <span>גרור לכאן</span>
+        ) : (
+          <div style={{ textAlign: 'right' }}>
+            {markerTransfers.map((t: any) => (
+              <div key={t.id} style={{ 
+                background: '#fef3c7', 
+                border: '1px solid #f59e0b',
+                borderRadius: '3px',
+                padding: '4px 6px',
+                marginBottom: '4px',
+                fontSize: '10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
+                <span style={{ color: '#b45309' }}>{t.alt}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {showMenu && availableStrips.length > 0 && (
@@ -1400,6 +1429,10 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
+  const [showSubSectorManager, setShowSubSectorManager] = useState(false);
+  const [editingSubSector, setEditingSubSector] = useState<any>(null);
+  const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
+  const [newSubSectorLabel, setNewSubSectorLabel] = useState('');
 
   const loadData = async () => {
     try {
@@ -1520,6 +1553,49 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
+  const handleAddSubSector = async () => {
+    if (!newSubSectorNeighbor || !newSubSectorLabel.trim()) return;
+    try {
+      await fetch(`${API_URL}/sectors/${session.sectorId}/sub-sectors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          neighborId: newSubSectorNeighbor,
+          label: newSubSectorLabel.trim()
+        })
+      });
+      setNewSubSectorNeighbor(null);
+      setNewSubSectorLabel('');
+      loadData();
+    } catch (err) {
+      console.error('Failed to add sub-sector:', err);
+    }
+  };
+
+  const handleUpdateSubSector = async (subSectorId: number, label: string) => {
+    try {
+      await fetch(`${API_URL}/sub-sectors/${subSectorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label })
+      });
+      setEditingSubSector(null);
+      loadData();
+    } catch (err) {
+      console.error('Failed to update sub-sector:', err);
+    }
+  };
+
+  const handleDeleteSubSector = async (subSectorId: number) => {
+    if (!confirm('האם למחוק את תת-הסקטור?')) return;
+    try {
+      await fetch(`${API_URL}/sub-sectors/${subSectorId}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete sub-sector:', err);
+    }
+  };
+
   const handleCancelTransfer = async (transferId: string) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
@@ -1545,12 +1621,106 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
+          <button onClick={() => setShowSubSectorManager(true)} style={{ background: '#0891b2', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
+            ניהול תת-סקטורים
+          </button>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
           </button>
         </div>
       </header>
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} />}
+      
+      {showSubSectorManager && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', width: '500px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>ניהול תת-סקטורים</h2>
+              <button onClick={() => setShowSubSectorManager(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px' }}>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>הוסף תת-סקטור חדש</h3>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <select 
+                  value={newSubSectorNeighbor || ''} 
+                  onChange={(e) => setNewSubSectorNeighbor(parseInt(e.target.value) || null)}
+                  style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '120px' }}
+                >
+                  <option value="">בחר סקטור שכן</option>
+                  {neighbors.map(n => (
+                    <option key={n.id} value={n.id}>{n.label_he || n.name}</option>
+                  ))}
+                </select>
+                <input 
+                  type="text" 
+                  value={newSubSectorLabel}
+                  onChange={(e) => setNewSubSectorLabel(e.target.value)}
+                  placeholder="שם תת-סקטור"
+                  style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '100px' }}
+                />
+                <button 
+                  onClick={handleAddSubSector}
+                  disabled={!newSubSectorNeighbor || !newSubSectorLabel.trim()}
+                  style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: (!newSubSectorNeighbor || !newSubSectorLabel.trim()) ? 0.5 : 1 }}
+                >
+                  הוסף
+                </button>
+              </div>
+            </div>
+            
+            <div>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>תת-סקטורים קיימים</h3>
+              {neighbors.map(neighbor => {
+                const neighborSubs = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
+                if (neighborSubs.length === 0) return null;
+                return (
+                  <div key={neighbor.id} style={{ marginBottom: '15px' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#334155', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>
+                      {neighbor.label_he || neighbor.name}
+                    </div>
+                    {neighborSubs.map(ss => (
+                      <div key={ss.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px', background: '#f1f5f9', borderRadius: '4px', marginBottom: '6px' }}>
+                        {editingSubSector?.id === ss.id ? (
+                          <>
+                            <input 
+                              type="text" 
+                              value={editingSubSector.label}
+                              onChange={(e) => setEditingSubSector({...editingSubSector, label: e.target.value})}
+                              style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                            />
+                            <button onClick={() => handleUpdateSubSector(ss.id, editingSubSector.label)} style={{ padding: '4px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                              שמור
+                            </button>
+                            <button onClick={() => setEditingSubSector(null)} style={{ padding: '4px 10px', background: '#64748b', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                              ביטול
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ flex: 1, fontSize: '13px' }}>{ss.label}</span>
+                            <button onClick={() => setEditingSubSector({id: ss.id, label: ss.label})} style={{ padding: '4px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                              ערוך
+                            </button>
+                            <button onClick={() => handleDeleteSubSector(ss.id)} style={{ padding: '4px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                              מחק
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {subSectors.length === 0 && (
+                <div style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                  אין תת-סקטורים. הוסף חדש למעלה.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee' }}>
         {/* Neighbor Panels - Far Left */}
@@ -1622,6 +1792,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
               marker={marker}
               strips={strips}
+              outgoingTransfers={outgoingTransfers}
               onMove={(x, y) => {
                 setNeighborMarkers(prev => prev.map(m => 
                   m === marker ? { ...m, x, y } : m

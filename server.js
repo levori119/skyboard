@@ -402,6 +402,38 @@ app.post('/api/sectors/:id/sub-sectors', async (req, res) => {
   }
 });
 
+app.put('/api/sub-sectors/:id', async (req, res) => {
+  try {
+    const subSectorId = parseInt(req.params.id);
+    const { label, defaultX, defaultY } = req.body;
+    const result = await pool.query(
+      `UPDATE sub_sectors SET label = $1, default_x = $2, default_y = $3 WHERE id = $4 RETURNING *`,
+      [label, defaultX || 0.2, defaultY || 0.2, subSectorId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sub-sector not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating sub-sector:', err);
+    res.status(500).json({ error: 'Failed to update sub-sector' });
+  }
+});
+
+app.delete('/api/sub-sectors/:id', async (req, res) => {
+  try {
+    const subSectorId = parseInt(req.params.id);
+    const result = await pool.query('DELETE FROM sub_sectors WHERE id = $1 RETURNING *', [subSectorId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sub-sector not found' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting sub-sector:', err);
+    res.status(500).json({ error: 'Failed to delete sub-sector' });
+  }
+});
+
 // --- Transfer API ---
 app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
