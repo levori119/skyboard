@@ -1636,38 +1636,39 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
     <div ref={!isDragging ? containerRef : undefined} style={style} onContextMenu={handleContextMenu}>
       <div 
         onPointerDown={handlePointerDown}
-        style={{ width: 35, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px', userSelect: 'none' }}
+        style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none' }}
       >⋮</div>
-      <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
-          <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
-        </div>
-        {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {s.squadron}</div>}
-        <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
-          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, cursor: 'pointer', padding: '2px', background: '#f1f5f9' }}>
-            גובה: {s.alt}
+      <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{s.callSign}</div>
+            {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>/{s.squadron}</div>}
           </div>
-          <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
+          <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
         </div>
-        {onToggleAirborne && (
-          <button 
-            onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
-            style={{ 
-              marginTop: '4px', 
-              padding: '3px 6px', 
-              fontSize: '9px', 
-              background: s.airborne ? '#3b82f6' : '#94a3b8', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '3px', 
-              cursor: 'pointer',
-              width: '100%'
-            }}
-          >
-            {s.airborne ? 'באוויר' : 'טרם המראה'}
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '2px 6px', background: '#f1f5f9', borderRadius: '3px' }}>
+            גובה: {s.alt || '-'}
+          </div>
+          <div style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>{s.sq}</div>
+          {onToggleAirborne && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
+              style={{ 
+                padding: '2px 5px', 
+                fontSize: '9px', 
+                background: s.airborne ? '#3b82f6' : '#94a3b8', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '3px', 
+                cursor: 'pointer',
+                marginRight: 'auto'
+              }}
+            >
+              {s.airborne ? 'באוויר' : 'טרם המראה'}
+            </button>
+          )}
+        </div>
       </div>
       {edit && (
         <HandwritingOverlay 
