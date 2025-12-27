@@ -686,12 +686,20 @@ app.get('/api/defaults', async (req, res) => {
 
 app.post('/api/defaults', async (req, res) => {
   try {
-    const { key, value } = req.body;
-    await pool.query(
-      `INSERT INTO system_defaults (key, value, updated_at) VALUES ($1, $2, NOW())
-       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
-      [key, value]
-    );
+    const { workstationName, defaultSector, defaultMap } = req.body;
+    const updates = [
+      ['workstationName', workstationName || ''],
+      ['defaultSector', defaultSector || ''],
+      ['defaultMap', defaultMap || '']
+    ];
+    
+    for (const [key, value] of updates) {
+      await pool.query(
+        `INSERT INTO system_defaults (key, value, updated_at) VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+        [key, value]
+      );
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving default:', err);
