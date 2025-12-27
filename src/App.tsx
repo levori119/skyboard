@@ -1854,7 +1854,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     ctx.beginPath();
     ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
     ctx.strokeStyle = eraserMode ? 'rgba(0,0,0,1)' : penColor;
-    ctx.lineWidth = eraserMode ? penSize * 3 : penSize;
+    ctx.lineWidth = eraserMode ? penSize * 10 : penSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
@@ -2094,7 +2094,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               width: '100%',
               height: '100%',
               pointerEvents: drawingMode ? 'auto' : 'none',
-              cursor: drawingMode ? 'crosshair' : 'default',
+              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
               touchAction: 'none'
             }}
           />
