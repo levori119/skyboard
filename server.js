@@ -80,14 +80,32 @@ async function initDb() {
       to_sector_id INTEGER REFERENCES sectors(id),
       initiated_by VARCHAR(36) REFERENCES workstations(id),
       status VARCHAR(20) DEFAULT 'pending',
+      target_x REAL DEFAULT 0,
+      target_y REAL DEFAULT 0,
+      sub_sector_label VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sub_sectors (
+      id SERIAL PRIMARY KEY,
+      sector_id INTEGER REFERENCES sectors(id) ON DELETE CASCADE,
+      neighbor_id INTEGER REFERENCES sectors(id) ON DELETE CASCADE,
+      label VARCHAR(50) NOT NULL,
+      default_x REAL DEFAULT 0.2,
+      default_y REAL DEFAULT 0.2,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
   
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sector_id INTEGER REFERENCES sectors(id)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'queued'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS held_by_workstation VARCHAR(36)`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
   
   console.log('Database initialized');
 }
@@ -350,11 +368,45 @@ app.patch('/api/workstations/:id/heartbeat', async (req, res) => {
   }
 });
 
+// --- Sub-sectors API ---
+app.get('/api/sectors/:id/sub-sectors', async (req, res) => {
+  try {
+    const sectorId = parseInt(req.params.id);
+    const result = await pool.query(`
+      SELECT ss.*, s.name as neighbor_name, s.label_he as neighbor_label
+      FROM sub_sectors ss
+      JOIN sectors s ON ss.neighbor_id = s.id
+      WHERE ss.sector_id = $1
+      ORDER BY ss.id
+    `, [sectorId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching sub-sectors:', err);
+    res.status(500).json({ error: 'Failed to fetch sub-sectors' });
+  }
+});
+
+app.post('/api/sectors/:id/sub-sectors', async (req, res) => {
+  try {
+    const sectorId = parseInt(req.params.id);
+    const { neighborId, label, defaultX, defaultY } = req.body;
+    const result = await pool.query(
+      `INSERT INTO sub_sectors (sector_id, neighbor_id, label, default_x, default_y) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [sectorId, neighborId, label, defaultX || 0.2, defaultY || 0.2]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating sub-sector:', err);
+    res.status(500).json({ error: 'Failed to create sub-sector' });
+  }
+});
+
 // --- Transfer API ---
 app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(req.params.id.replace('s', ''));
-    const { toSectorId, workstationId } = req.body;
+    const { toSectorId, workstationId, targetX, targetY, subSectorLabel } = req.body;
     
     const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
     if (strip.rows.length === 0) {
@@ -369,9 +421,9 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     );
     
     const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status) 
-       VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId]
+      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label) 
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING *`,
+      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null]
     );
     
     res.json({ transfer: result.rows[0] });
@@ -385,7 +437,8 @@ app.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, sec.name as from_sector_name, sec.label_he as from_sector_label
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, sec.name as from_sector_name, sec.label_he as from_sector_label,
+             t.target_x, t.target_y, t.sub_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
       JOIN sectors sec ON t.from_sector_id = sec.id
@@ -426,11 +479,13 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
-    const { strip_id, to_sector_id } = transfer.rows[0];
+    const { strip_id, to_sector_id, target_x, target_y } = transfer.rows[0];
+    
+    const hasTargetPosition = target_x > 0 || target_y > 0;
     
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = FALSE, x = 0, y = 0 WHERE id = $3',
-      [to_sector_id, 'queued', strip_id]
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5 WHERE id = $6',
+      [to_sector_id, 'queued', hasTargetPosition, target_x || 0, target_y || 0, strip_id]
     );
     
     await pool.query(
