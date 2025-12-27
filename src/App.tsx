@@ -1337,7 +1337,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
         style={{ width: 35, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px', userSelect: 'none' }}
       >⋮</div>
       <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
-        <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+          <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
+        </div>
         <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
           <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, cursor: 'pointer', padding: '2px', background: '#f1f5f9' }}>
             גובה: {s.alt}
@@ -1395,7 +1398,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
           }}>
             <div style={{ width: 35, background: '#1e293b', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px' }}>⋮</div>
             <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+                <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
+              </div>
               <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
                 <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {s.alt}</div>
                 <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
