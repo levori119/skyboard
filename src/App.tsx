@@ -3,8 +3,188 @@ import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
 
-// --- מערכת למידת ספרות (עם DB) ---
 const API_URL = '/api';
+
+// --- ניהול סשן עמדה ---
+interface WorkstationSession {
+  workstationId: string;
+  workstationName: string;
+  sectorId: number;
+  sectorName: string;
+  sectorLabelHe: string;
+  authToken: string;
+}
+
+const getSession = (): WorkstationSession | null => {
+  try {
+    const data = sessionStorage.getItem('workstation_session');
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveSession = (session: WorkstationSession) => {
+  sessionStorage.setItem('workstation_session', JSON.stringify(session));
+};
+
+const clearSession = () => {
+  sessionStorage.removeItem('workstation_session');
+};
+
+// --- רכיב כניסה לעמדה ---
+const WorkstationLogin = ({ onLogin }: { onLogin: (session: WorkstationSession) => void }) => {
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [selectedSector, setSelectedSector] = useState<number | null>(null);
+  const [workstationName, setWorkstationName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadSectors = async () => {
+      try {
+        const res = await fetch(`${API_URL}/sectors`);
+        if (res.ok) {
+          const data = await res.json();
+          setSectors(data);
+        }
+      } catch (err) {
+        console.error('Failed to load sectors:', err);
+      }
+    };
+    loadSectors();
+  }, []);
+
+  const handleLogin = async () => {
+    if (!selectedSector || !workstationName.trim()) {
+      setError('נא למלא את כל השדות');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch(`${API_URL}/workstations/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: workstationName, sectorId: selectedSector })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const session: WorkstationSession = {
+          workstationId: data.workstation.id,
+          workstationName: data.workstation.name,
+          sectorId: data.sector.id,
+          sectorName: data.sector.name,
+          sectorLabelHe: data.sector.label_he,
+          authToken: data.authToken
+        };
+        saveSession(session);
+        onLogin(session);
+      } else {
+        setError('שגיאה בכניסה');
+      }
+    } catch (err) {
+      setError('שגיאת חיבור');
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+      direction: 'rtl'
+    }}>
+      <div style={{ 
+        background: 'white', 
+        padding: '40px', 
+        borderRadius: '16px', 
+        minWidth: '400px',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+      }}>
+        <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '28px' }}>BLUE TORCH</h1>
+        <p style={{ margin: '0 0 30px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#334155' }}>שם עמדה:</label>
+          <input
+            type="text"
+            value={workstationName}
+            onChange={(e) => setWorkstationName(e.target.value)}
+            placeholder="לדוגמה: עמדה 1"
+            style={{ 
+              width: '100%', 
+              padding: '12px', 
+              border: '2px solid #e2e8f0', 
+              borderRadius: '8px', 
+              fontSize: '16px',
+              boxSizing: 'border-box'
+            }}
+          />
+        </div>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#334155' }}>סקטור:</label>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {sectors.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedSector(s.id)}
+                style={{
+                  flex: 1,
+                  minWidth: '100px',
+                  padding: '15px',
+                  border: selectedSector === s.id ? '3px solid #2563eb' : '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  background: selectedSector === s.id ? '#dbeafe' : 'white',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  color: selectedSector === s.id ? '#1d4ed8' : '#334155'
+                }}
+              >
+                {s.label_he || s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error && (
+          <div style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
+            {error}
+          </div>
+        )}
+        
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          style={{
+            width: '100%',
+            padding: '15px',
+            background: loading ? '#94a3b8' : '#0f172a',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '18px',
+            fontWeight: 'bold',
+            cursor: loading ? 'default' : 'pointer'
+          }}
+        >
+          {loading ? 'מתחבר...' : 'כניסה'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- מערכת למידת ספרות (עם DB) ---
 
 const getLearnedDigits = async (): Promise<{ digit: string; imageData: string }[]> => {
   try {
@@ -571,38 +751,39 @@ const Strip = ({ s, onMove, onUpdate }: any) => {
   });
 };
 
-export default function App() {
+// --- דשבורד סקטור ---
+const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
+  const [neighbors, setNeighbors] = useState<any[]>([]);
+  const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
+  const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [showLearn, setShowLearn] = useState(false);
+  const [selectedNeighbor, setSelectedNeighbor] = useState<number | null>(null);
+
+  const loadData = async () => {
+    try {
+      const [stripsRes, neighborsRes, incomingRes, outgoingRes] = await Promise.all([
+        fetch(`${API_URL}/sectors/${session.sectorId}/strips`),
+        fetch(`${API_URL}/sectors/${session.sectorId}/neighbors`),
+        fetch(`${API_URL}/sectors/${session.sectorId}/incoming-transfers`),
+        fetch(`${API_URL}/sectors/${session.sectorId}/outgoing-transfers`)
+      ]);
+      
+      if (stripsRes.ok) setStrips(await stripsRes.json());
+      if (neighborsRes.ok) setNeighbors(await neighborsRes.json());
+      if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
+      if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
+    } catch (err) {
+      console.error('Failed to load data:', err);
+    }
+  };
 
   useEffect(() => {
-    const loadStrips = async () => {
-      try {
-        const res = await fetch(`${API_URL}/strips`);
-        if (res.ok) {
-          const data = await res.json();
-          setStrips(data);
-        }
-      } catch (err) {
-        console.error('Failed to load strips:', err);
-      }
-    };
-    loadStrips();
-  }, []);
-
-  const handleCsv = (e: any) => {
-    const reader = new FileReader();
-    reader.onload = (ev: any) => {
-      const rows = ev.target.result.split('\n').filter((r:any)=>r.trim());
-      const data = rows.slice(1).map((r: string, i: number) => {
-        const c = r.split(',');
-        return { id: c[0] || i.toString(), callSign: c[1] || "???", sq: c[2], alt: c[3] || "0", task: c[4], x: 0, y: 0, onMap: false };
-      });
-      setStrips(data);
-    };
-    reader.readAsText(e.target.files[0]);
-  };
+    loadData();
+    const interval = setInterval(loadData, 3000);
+    return () => clearInterval(interval);
+  }, [session.sectorId]);
 
   const handleMap = (e: any) => {
     const reader = new FileReader();
@@ -636,33 +817,114 @@ export default function App() {
     }
   };
 
+  const handleTransfer = async (stripId: string, toSectorId: number) => {
+    try {
+      await fetch(`${API_URL}/strips/${stripId}/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toSectorId, workstationId: session.workstationId })
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to initiate transfer:', err);
+    }
+  };
+
+  const handleAcceptTransfer = async (transferId: string) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/accept`, { method: 'POST' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to accept transfer:', err);
+    }
+  };
+
+  const handleRejectTransfer = async (transferId: string) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/reject`, { method: 'POST' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to reject transfer:', err);
+    }
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', gap: '20px', alignItems: 'center', direction: 'rtl' }}>
-        <b style={{fontSize: '18px'}}>BLUE TORCH</b>
+      <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <b style={{fontSize: '18px'}}>BLUE TORCH</b>
+          <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
+            {session.sectorLabelHe} | {session.workstationName}
+          </span>
+        </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{ background: '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-            טען CSV <input type="file" accept=".csv" onChange={handleCsv} style={{ display: 'none' }} />
-          </label>
           <label style={{ background: '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
             טען מפה <input type="file" accept="image/*" onChange={handleMap} style={{ display: 'none' }} />
           </label>
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
+          <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
+            יציאה
+          </button>
         </div>
       </header>
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} />}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee' }}>
-        {/* Map Area - Left Side */}
+        {/* Neighbor Panels - Far Left */}
+        <div style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+          <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים שכנים</h4>
+          </div>
+          {neighbors.map(n => (
+            <button
+              key={n.id}
+              onClick={() => setSelectedNeighbor(selectedNeighbor === n.id ? null : n.id)}
+              style={{
+                padding: '12px',
+                background: selectedNeighbor === n.id ? '#334155' : 'transparent',
+                border: 'none',
+                borderBottom: '1px solid #334155',
+                color: 'white',
+                cursor: 'pointer',
+                textAlign: 'right',
+                fontSize: '14px'
+              }}
+            >
+              {n.label_he || n.name}
+            </button>
+          ))}
+          
+          {incomingTransfers.length > 0 && (
+            <div style={{ padding: '10px', borderTop: '2px solid #f59e0b', marginTop: 'auto' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '12px', color: '#f59e0b' }}>העברות נכנסות ({incomingTransfers.length})</h4>
+              {incomingTransfers.map(t => (
+                <div key={t.id} style={{ background: '#334155', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>מ: {t.from_sector_label}</div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                    <button onClick={() => handleAcceptTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+                      קבל
+                    </button>
+                    <button onClick={() => handleRejectTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+                      דחה
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Map Area */}
         <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden' }}>
           {mapImg ? (
             <img src={mapImg} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           ) : (
             <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
           )}
-          {strips.filter(s => s.onMap).map(s => (
+          {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
             <Strip key={s.id} s={s} 
               onUpdate={handleAltUpdate}
               onMove={handleMove} 
@@ -671,16 +933,74 @@ export default function App() {
         </div>
 
         {/* Sidebar - Right Side */}
-        <div id="sidebar-area" style={{ width: 220, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
+        <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
-          {strips.filter(s => !s.onMap).map(s => (
-            <Strip key={s.id} s={s} 
-              onUpdate={handleAltUpdate}
-              onMove={handleMove} 
-            />
+          {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
+            <div key={s.id} style={{ marginBottom: '8px' }}>
+              <Strip s={s} 
+                onUpdate={handleAltUpdate}
+                onMove={handleMove} 
+              />
+              {selectedNeighbor && (
+                <button
+                  onClick={() => handleTransfer(s.id, selectedNeighbor)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '4px', 
+                    background: '#3b82f6', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    fontSize: '10px', 
+                    cursor: 'pointer',
+                    marginTop: '4px'
+                  }}
+                >
+                  העבר ל{neighbors.find(n => n.id === selectedNeighbor)?.label_he}
+                </button>
+              )}
+            </div>
           ))}
+
+          {outgoingTransfers.length > 0 && (
+            <>
+              <h4 style={{ margin: '20px 0 10px', fontSize: '14px', color: '#f59e0b' }}>בהעברה ({outgoingTransfers.length}):</h4>
+              {outgoingTransfers.map(t => (
+                <div key={t.id} style={{ 
+                  padding: '8px', 
+                  background: '#fef3c7', 
+                  border: '2px dashed #f59e0b', 
+                  borderRadius: '6px', 
+                  marginBottom: '8px' 
+                }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</div>
+                  <div style={{ fontSize: '10px', color: '#92400e' }}>→ {t.to_sector_label}</div>
+                  <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>
   );
+};
+
+export default function App() {
+  const [session, setSession] = useState<WorkstationSession | null>(getSession());
+
+  const handleLogin = (newSession: WorkstationSession) => {
+    setSession(newSession);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setSession(null);
+  };
+
+  if (!session) {
+    return <WorkstationLogin onLogin={handleLogin} />;
+  }
+
+  return <SectorDashboard session={session} onLogout={handleLogout} />;
 }
