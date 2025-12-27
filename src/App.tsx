@@ -936,7 +936,8 @@ const DraggableMapMarker = ({
   onRename,
   strips,
   onTransfer,
-  outgoingTransfers
+  outgoingTransfers,
+  onCancelTransfer
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -945,6 +946,7 @@ const DraggableMapMarker = ({
   strips: any[];
   onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
   outgoingTransfers: any[];
+  onCancelTransfer: (transferId: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -1126,6 +1128,22 @@ const DraggableMapMarker = ({
                 </div>
                 {t.squadron && <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 'bold' }}>טייסת: {t.squadron}</div>}
                 <div style={{ color: '#b45309', fontSize: '9px' }}>גובה: {t.alt}</div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                  style={{
+                    marginTop: '4px',
+                    width: '100%',
+                    padding: '3px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '3px',
+                    fontSize: '9px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  בטל העברה
+                </button>
               </div>
             ))}
           </div>
@@ -1827,6 +1845,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 ));
               }}
               onTransfer={handleTransfer}
+              onCancelTransfer={handleCancelTransfer}
             />
           ))}
         </div>
