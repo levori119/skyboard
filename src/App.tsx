@@ -2296,7 +2296,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
           </div>
           
-          {/* Map Image with Transform (zoom/pan applies only to map) */}
+          {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
           <div style={{ 
             position: 'absolute', 
             top: 0, 
@@ -2305,49 +2305,49 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             height: '100%',
             transform: `translate(${mapPan.x}px, ${mapPan.y}px) scale(${mapZoom})`,
             transformOrigin: 'center center',
-            transition: 'transform 0.15s ease-out',
-            pointerEvents: 'none'
+            transition: 'transform 0.15s ease-out'
           }}>
+            {/* Map Image */}
             {mapImg ? (
               <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
             ) : (
-              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>נא לטעון מפה</div>
             )}
+            
+            {/* Strips Layer */}
+            {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
+              <Strip key={s.id} s={s} 
+                onUpdate={handleAltUpdate}
+                onMove={handleMove}
+                neighbors={neighbors}
+                onTransfer={handleTransfer}
+                onToggleAirborne={handleToggleAirborne}
+              />
+            ))}
+            
+            {/* Markers Layer */}
+            {neighborMarkers.map((marker, idx) => (
+              <DraggableMapMarker
+                key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
+                marker={marker}
+                strips={strips}
+                outgoingTransfers={outgoingTransfers}
+                onMove={(x, y) => {
+                  setNeighborMarkers(prev => prev.map(m => 
+                    m === marker ? { ...m, x, y } : m
+                  ));
+                }}
+                onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
+                onRename={(newLabel) => {
+                  setNeighborMarkers(prev => prev.map(m => 
+                    m === marker ? { ...m, subLabel: newLabel } : m
+                  ));
+                }}
+                onTransfer={handleTransfer}
+                onCancelTransfer={handleCancelTransfer}
+              />
+            ))}
           </div>
-          
-          {/* Strips Layer (no zoom transform) */}
-          {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
-            <Strip key={s.id} s={s} 
-              onUpdate={handleAltUpdate}
-              onMove={handleMove}
-              neighbors={neighbors}
-              onTransfer={handleTransfer}
-              onToggleAirborne={handleToggleAirborne}
-            />
-          ))}
-          
-          {/* Markers Layer (no zoom transform) */}
-          {neighborMarkers.map((marker, idx) => (
-            <DraggableMapMarker
-              key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
-              marker={marker}
-              strips={strips}
-              outgoingTransfers={outgoingTransfers}
-              onMove={(x, y) => {
-                setNeighborMarkers(prev => prev.map(m => 
-                  m === marker ? { ...m, x, y } : m
-                ));
-              }}
-              onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
-              onRename={(newLabel) => {
-                setNeighborMarkers(prev => prev.map(m => 
-                  m === marker ? { ...m, subLabel: newLabel } : m
-                ));
-              }}
-              onTransfer={handleTransfer}
-              onCancelTransfer={handleCancelTransfer}
-            />
-          ))}
           
           {/* Drawing Canvas Overlay */}
           <canvas
