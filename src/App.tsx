@@ -618,14 +618,83 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
   );
 };
 
+// --- תפריט קליק ימני ---
+const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: { 
+  x: number; 
+  y: number; 
+  neighbors: any[]; 
+  onSelect: (sectorId: number) => void; 
+  onClose: () => void;
+}) => {
+  useEffect(() => {
+    const handleClick = () => onClose();
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [onClose]);
+
+  return createPortal(
+    <div 
+      style={{
+        position: 'fixed',
+        left: x,
+        top: y,
+        background: 'white',
+        border: '1px solid #cbd5e1',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: 10000,
+        minWidth: '150px',
+        direction: 'rtl',
+        overflow: 'hidden'
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div style={{ padding: '8px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
+        העבר לסקטור:
+      </div>
+      {neighbors.length === 0 ? (
+        <div style={{ padding: '10px 12px', fontSize: '12px', color: '#94a3b8' }}>אין סקטורים שכנים</div>
+      ) : (
+        neighbors.map(n => (
+          <button
+            key={n.id}
+            onClick={() => onSelect(n.id)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              border: 'none',
+              background: 'white',
+              cursor: 'pointer',
+              textAlign: 'right',
+              fontSize: '13px',
+              borderBottom: '1px solid #f1f5f9'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#dbeafe'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+          >
+            {n.label_he || n.name}
+          </button>
+        ))
+      )}
+    </div>,
+    document.body
+  );
+};
+
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
+  const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -651,12 +720,39 @@ const Strip = ({ s, onMove, onUpdate }: any) => {
       setIsDragging(false);
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
+      const neighborPanel = document.getElementById('neighbor-panel');
       
       if (mapArea && sidebar) {
         const mapRect = mapArea.getBoundingClientRect();
         const sidebarRect = sidebar.getBoundingClientRect();
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
+
+        // בדיקה אם נשחרר בתוך אזור הסקטורים השכנים - העברה
+        if (neighborPanel && neighbors && neighbors.length > 0) {
+          const neighborRect = neighborPanel.getBoundingClientRect();
+          if (e.clientX >= neighborRect.left && e.clientX <= neighborRect.right &&
+              e.clientY >= neighborRect.top && e.clientY <= neighborRect.bottom) {
+            // מצא את הכפתור הספציפי שעליו שחררנו
+            const neighborButtons = neighborPanel.querySelectorAll('[data-sector-id]');
+            for (const btn of neighborButtons) {
+              const btnRect = btn.getBoundingClientRect();
+              if (e.clientX >= btnRect.left && e.clientX <= btnRect.right &&
+                  e.clientY >= btnRect.top && e.clientY <= btnRect.bottom) {
+                const sectorId = parseInt(btn.getAttribute('data-sector-id') || '0');
+                if (sectorId && onTransfer) {
+                  onTransfer(s.id, sectorId);
+                  return;
+                }
+              }
+            }
+            // אם לא מצאנו כפתור ספציפי, העבר לראשון ברשימה
+            if (onTransfer) {
+              onTransfer(s.id, neighbors[0].id);
+              return;
+            }
+          }
+        }
 
         // בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
         if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
@@ -679,11 +775,11 @@ const Strip = ({ s, onMove, onUpdate }: any) => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
-  }, [isDragging, s.id, onMove]);
+  }, [isDragging, s.id, onMove, neighbors, onTransfer]);
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} style={style}>
+    <div ref={!isDragging ? containerRef : undefined} style={style} onContextMenu={handleContextMenu}>
       <div 
         onPointerDown={handlePointerDown}
         style={{ width: 35, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px', userSelect: 'none' }}
@@ -698,6 +794,18 @@ const Strip = ({ s, onMove, onUpdate }: any) => {
         </div>
         {edit && <HandwritingOverlay onCancel={() => setEdit(false)} onComplete={(val: any) => { onUpdate(s.id, val); setEdit(false); }} />}
       </div>
+      {contextMenu && (
+        <ContextMenu 
+          x={contextMenu.x} 
+          y={contextMenu.y} 
+          neighbors={neighbors || []} 
+          onSelect={(sectorId) => {
+            if (onTransfer) onTransfer(s.id, sectorId);
+            setContextMenu(null);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 
@@ -873,13 +981,15 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
       <div style={{ flex: 1, display: 'flex', background: '#eee' }}>
         {/* Neighbor Panels - Far Left */}
-        <div style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+        <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
             <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים שכנים</h4>
+            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור פמם לכאן להעברה</div>
           </div>
           {neighbors.map(n => (
             <button
               key={n.id}
+              data-sector-id={n.id}
               onClick={() => setSelectedNeighbor(selectedNeighbor === n.id ? null : n.id)}
               style={{
                 padding: '12px',
@@ -927,7 +1037,9 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
             <Strip key={s.id} s={s} 
               onUpdate={handleAltUpdate}
-              onMove={handleMove} 
+              onMove={handleMove}
+              neighbors={neighbors}
+              onTransfer={handleTransfer}
             />
           ))}
         </div>
@@ -935,30 +1047,15 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         {/* Sidebar - Right Side */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
+          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת סקטור יעד</div>
           {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
             <div key={s.id} style={{ marginBottom: '8px' }}>
               <Strip s={s} 
                 onUpdate={handleAltUpdate}
-                onMove={handleMove} 
+                onMove={handleMove}
+                neighbors={neighbors}
+                onTransfer={handleTransfer}
               />
-              {selectedNeighbor && (
-                <button
-                  onClick={() => handleTransfer(s.id, selectedNeighbor)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '4px', 
-                    background: '#3b82f6', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '4px', 
-                    fontSize: '10px', 
-                    cursor: 'pointer',
-                    marginTop: '4px'
-                  }}
-                >
-                  העבר ל{neighbors.find(n => n.id === selectedNeighbor)?.label_he}
-                </button>
-              )}
             </div>
           ))}
 
