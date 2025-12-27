@@ -41,18 +41,26 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const loadSectors = async () => {
+    const loadData = async () => {
       try {
-        const res = await fetch(`${API_URL}/sectors`);
-        if (res.ok) {
-          const data = await res.json();
+        const [sectorsRes, defaultsRes] = await Promise.all([
+          fetch(`${API_URL}/sectors`),
+          fetch(`${API_URL}/defaults`)
+        ]);
+        if (sectorsRes.ok) {
+          const data = await sectorsRes.json();
           setSectors(data);
         }
+        if (defaultsRes.ok) {
+          const defaults = await defaultsRes.json();
+          if (defaults.defaultWorkstation) setWorkstationName(defaults.defaultWorkstation);
+          if (defaults.defaultSector) setSelectedSector(parseInt(defaults.defaultSector));
+        }
       } catch (err) {
-        console.error('Failed to load sectors:', err);
+        console.error('Failed to load data:', err);
       }
     };
-    loadSectors();
+    loadData();
   }, []);
 
   const handleLogin = async () => {
@@ -1830,6 +1838,28 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
+  const loadDefaultMap = async () => {
+    try {
+      const defaultsRes = await fetch(`${API_URL}/defaults`);
+      if (defaultsRes.ok) {
+        const defaults = await defaultsRes.json();
+        if (defaults.defaultMap && !mapImg) {
+          const mapRes = await fetch(`${API_URL}/maps/${defaults.defaultMap}`);
+          if (mapRes.ok) {
+            const map = await mapRes.json();
+            setMapImg(map.image_data);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load default map:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadDefaultMap();
+  }, []);
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 3000);
@@ -2557,6 +2587,44 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
+  const [defaults, setDefaults] = useState<{defaultWorkstation?: string; defaultSector?: string; defaultMap?: string}>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [sectorsRes, mapsRes, defaultsRes] = await Promise.all([
+          fetch(`${API_URL}/sectors`),
+          fetch(`${API_URL}/maps`),
+          fetch(`${API_URL}/defaults`)
+        ]);
+        if (sectorsRes.ok) setSectors(await sectorsRes.json());
+        if (mapsRes.ok) setMaps(await mapsRes.json());
+        if (defaultsRes.ok) setDefaults(await defaultsRes.json());
+      } catch (err) {
+        console.error('Failed to load:', err);
+      }
+    };
+    load();
+  }, []);
+
+  const saveDefault = async (key: string, value: string) => {
+    setSaving(true);
+    try {
+      await fetch(`${API_URL}/defaults`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value })
+      });
+      setDefaults(prev => ({ ...prev, [key]: value }));
+    } catch (err) {
+      console.error('Failed to save default:', err);
+    }
+    setSaving(false);
+  };
+
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
       <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2568,7 +2636,61 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         </button>
       </header>
       
-      <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        {/* Defaults Section */}
+        <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px' }}>
+          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ברירות מחדל</h2>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ width: '120px', color: '#94a3b8' }}>שם עמדה:</label>
+              <input
+                type="text"
+                value={defaults.defaultWorkstation || ''}
+                onChange={(e) => setDefaults(prev => ({ ...prev, defaultWorkstation: e.target.value }))}
+                placeholder="לדוגמה: עמדה 1"
+                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
+              />
+              <button
+                onClick={() => saveDefault('defaultWorkstation', defaults.defaultWorkstation || '')}
+                disabled={saving}
+                style={{ padding: '10px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+              >
+                שמור
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ width: '120px', color: '#94a3b8' }}>סקטור:</label>
+              <select
+                value={defaults.defaultSector || ''}
+                onChange={(e) => { setDefaults(prev => ({ ...prev, defaultSector: e.target.value })); saveDefault('defaultSector', e.target.value); }}
+                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
+              >
+                <option value="">ללא ברירת מחדל</option>
+                {sectors.map(s => (
+                  <option key={s.id} value={s.id}>{s.label_he || s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <label style={{ width: '120px', color: '#94a3b8' }}>מפה:</label>
+              <select
+                value={defaults.defaultMap || ''}
+                onChange={(e) => { setDefaults(prev => ({ ...prev, defaultMap: e.target.value })); saveDefault('defaultMap', e.target.value); }}
+                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
+              >
+                <option value="">ללא ברירת מחדל</option>
+                {maps.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Maps Manager */}
         <MapsManager onClose={() => {}} onMapsUpdated={() => {}} isEmbedded={true} />
       </div>
     </div>

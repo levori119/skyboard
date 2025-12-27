@@ -671,6 +671,34 @@ app.delete('/api/maps/:id', async (req, res) => {
   }
 });
 
+// System Defaults API
+app.get('/api/defaults', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT key, value FROM system_defaults');
+    const defaults = {};
+    result.rows.forEach((r) => { defaults[r.key] = r.value; });
+    res.json(defaults);
+  } catch (err) {
+    console.error('Error fetching defaults:', err);
+    res.status(500).json({ error: 'Failed to fetch defaults' });
+  }
+});
+
+app.post('/api/defaults', async (req, res) => {
+  try {
+    const { key, value } = req.body;
+    await pool.query(
+      `INSERT INTO system_defaults (key, value, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()`,
+      [key, value]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving default:', err);
+    res.status(500).json({ error: 'Failed to save default' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API server running on port ${PORT}`);
