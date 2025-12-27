@@ -245,6 +245,145 @@ const compareImages = (img1Data: ImageData, img2Data: ImageData): number => {
   return total > 0 ? matches / total : 0;
 };
 
+// --- ניהול מפות ---
+const MapsManager = ({ onClose, onMapsUpdated }: { onClose: () => void; onMapsUpdated: () => void }) => {
+  const [maps, setMaps] = useState<{id: number; name: string; created_at: string}[]>([]);
+  const [newMapName, setNewMapName] = useState('');
+  const [newMapData, setNewMapData] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const loadMaps = async () => {
+    try {
+      const res = await fetch(`${API_URL}/maps`);
+      if (res.ok) setMaps(await res.json());
+    } catch (err) {
+      console.error('Failed to load maps:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadMaps();
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setNewMapData(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!newMapName.trim() || !newMapData) return;
+    setUploading(true);
+    try {
+      const res = await fetch(`${API_URL}/maps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newMapName.trim(), image_data: newMapData })
+      });
+      if (res.ok) {
+        setNewMapName('');
+        setNewMapData(null);
+        loadMaps();
+        onMapsUpdated();
+      }
+    } catch (err) {
+      console.error('Failed to upload map:', err);
+    }
+    setUploading(false);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('למחוק את המפה?')) return;
+    try {
+      await fetch(`${API_URL}/maps/${id}`, { method: 'DELETE' });
+      loadMaps();
+      onMapsUpdated();
+    } catch (err) {
+      console.error('Failed to delete map:', err);
+    }
+  };
+
+  return ReactDOM.createPortal(
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '24px', width: '600px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>ניהול מפות</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+        </div>
+
+        <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569' }}>העלאת מפה חדשה</h3>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={newMapName}
+              onChange={(e) => setNewMapName(e.target.value)}
+              placeholder="שם המפה"
+              style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px' }}
+            />
+            <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+              {newMapData ? 'קובץ נבחר ✓' : 'בחר קובץ JPG'}
+              <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+            </label>
+            <button
+              onClick={handleUpload}
+              disabled={!newMapName.trim() || !newMapData || uploading}
+              style={{
+                background: newMapName.trim() && newMapData ? '#059669' : '#94a3b8',
+                color: 'white',
+                padding: '8px 20px',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: newMapName.trim() && newMapData ? 'pointer' : 'not-allowed',
+                fontSize: '14px'
+              }}
+            >
+              {uploading ? 'מעלה...' : 'העלה'}
+            </button>
+          </div>
+          {newMapData && (
+            <div style={{ marginTop: '12px' }}>
+              <img src={newMapData} style={{ maxWidth: '200px', maxHeight: '100px', objectFit: 'contain', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
+            </div>
+          )}
+        </div>
+
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569' }}>מפות קיימות ({maps.length})</h3>
+        {maps.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>אין מפות עדיין</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {maps.map(map => (
+              <div key={map.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{map.name}</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
+                </div>
+                <button
+                  onClick={() => handleDelete(map.id)}
+                  style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                >
+                  מחק
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button onClick={onClose} style={{ background: '#1e293b', color: 'white', padding: '10px 30px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            סגור
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // --- רכיב לימוד ספרות ---
 const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1628,18 +1767,21 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(3);
   const [eraserMode, setEraserMode] = useState(false);
+  const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
+  const [showMapsManager, setShowMapsManager] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
   const loadData = async () => {
     try {
-      const [stripsRes, neighborsRes, subSectorsRes, incomingRes, outgoingRes] = await Promise.all([
+      const [stripsRes, neighborsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = await Promise.all([
         fetch(`${API_URL}/sectors/${session.sectorId}/strips`),
         fetch(`${API_URL}/sectors/${session.sectorId}/neighbors`),
         fetch(`${API_URL}/sectors/${session.sectorId}/sub-sectors`),
         fetch(`${API_URL}/sectors/${session.sectorId}/incoming-transfers`),
-        fetch(`${API_URL}/sectors/${session.sectorId}/outgoing-transfers`)
+        fetch(`${API_URL}/sectors/${session.sectorId}/outgoing-transfers`),
+        fetch(`${API_URL}/maps`)
       ]);
       
       if (stripsRes.ok) setStrips(await stripsRes.json());
@@ -1647,6 +1789,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
+      if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -1662,6 +1805,18 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     const reader = new FileReader();
     reader.onload = (ev: any) => setMapImg(ev.target.result);
     reader.readAsDataURL(e.target.files[0]);
+  };
+
+  const selectMap = async (mapId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}`);
+      if (res.ok) {
+        const map = await res.json();
+        setMapImg(map.image_data);
+      }
+    } catch (err) {
+      console.error('Failed to load map:', err);
+    }
   };
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
@@ -1900,10 +2055,20 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             {session.sectorLabelHe} | {session.workstationName}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <label style={{ background: '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-            טען מפה <input type="file" accept="image/*" onChange={handleMap} style={{ display: 'none' }} />
-          </label>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <select
+            onChange={(e) => e.target.value && selectMap(Number(e.target.value))}
+            style={{ background: '#334155', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer' }}
+            defaultValue=""
+          >
+            <option value="" disabled>בחר מפה</option>
+            {availableMaps.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <button onClick={() => setShowMapsManager(true)} style={{ background: '#059669', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
+            ניהול מפות
+          </button>
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
@@ -1916,6 +2081,13 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         </div>
       </header>
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} />}
+      
+      {showMapsManager && (
+        <MapsManager 
+          onClose={() => setShowMapsManager(false)} 
+          onMapsUpdated={loadData}
+        />
+      )}
       
       {showSubSectorManager && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

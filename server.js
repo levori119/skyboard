@@ -623,6 +623,54 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
   }
 });
 
+// Maps API
+app.get('/api/maps', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, name, created_at FROM maps ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching maps:', err);
+    res.status(500).json({ error: 'Failed to fetch maps' });
+  }
+});
+
+app.get('/api/maps/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM maps WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Map not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching map:', err);
+    res.status(500).json({ error: 'Failed to fetch map' });
+  }
+});
+
+app.post('/api/maps', async (req, res) => {
+  try {
+    const { name, image_data } = req.body;
+    const result = await pool.query(
+      'INSERT INTO maps (name, image_data) VALUES ($1, $2) RETURNING id, name, created_at',
+      [name, image_data]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating map:', err);
+    res.status(500).json({ error: 'Failed to create map' });
+  }
+});
+
+app.delete('/api/maps/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM maps WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting map:', err);
+    res.status(500).json({ error: 'Failed to delete map' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API server running on port ${PORT}`);
