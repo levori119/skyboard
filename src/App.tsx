@@ -723,6 +723,155 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
   );
 };
 
+// --- פאנל סקטור שכן ניתן לגרירה ---
+const DraggableNeighborPanel = ({ 
+  neighbor, 
+  subSectors,
+  onDropOnMap,
+  isExpanded,
+  onToggle 
+}: { 
+  neighbor: any; 
+  subSectors: any[];
+  onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [dragLabel, setDragLabel] = useState<string | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragPos({ x: e.clientX - 50, y: e.clientY - 20 });
+    setDragLabel(subLabel || null);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMove = (e: PointerEvent) => {
+      setDragPos({ x: e.clientX - 50, y: e.clientY - 20 });
+    };
+
+    const handleUp = (e: PointerEvent) => {
+      setIsDragging(false);
+      
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const rect = mapArea.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && 
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          onDropOnMap(neighbor.id, x, y, dragLabel || undefined);
+        }
+      }
+      setDragLabel(null);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [isDragging, neighbor.id, onDropOnMap, dragLabel]);
+
+  const neighborSubSectors = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
+  const hasSubSectors = neighborSubSectors.length > 0;
+
+  return (
+    <>
+      <div style={{ borderBottom: '1px solid #334155' }}>
+        <div
+          style={{
+            padding: '12px',
+            background: isExpanded ? '#334155' : 'transparent',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer'
+          }}
+        >
+          <div 
+            onPointerDown={(e) => handlePointerDown(e)}
+            style={{ 
+              flex: 1, 
+              textAlign: 'right', 
+              fontSize: '14px',
+              cursor: 'grab',
+              userSelect: 'none'
+            }}
+          >
+            {neighbor.label_he || neighbor.name}
+          </div>
+          {hasSubSectors && (
+            <button 
+              onClick={onToggle}
+              style={{ 
+                background: 'transparent', 
+                border: 'none', 
+                color: '#94a3b8', 
+                cursor: 'pointer',
+                fontSize: '12px',
+                padding: '4px'
+              }}
+            >
+              {isExpanded ? '▼' : '◀'}
+            </button>
+          )}
+        </div>
+        
+        {isExpanded && hasSubSectors && (
+          <div style={{ background: '#0f172a' }}>
+            {neighborSubSectors.map(ss => (
+              <div
+                key={ss.id}
+                onPointerDown={(e) => handlePointerDown(e, ss.label)}
+                style={{
+                  padding: '8px 12px 8px 24px',
+                  fontSize: '12px',
+                  color: '#94a3b8',
+                  borderTop: '1px solid #1e293b',
+                  cursor: 'grab',
+                  userSelect: 'none'
+                }}
+              >
+                ↳ {ss.label}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isDragging && createPortal(
+        <div style={{
+          position: 'fixed',
+          left: dragPos.x,
+          top: dragPos.y,
+          background: '#2563eb',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+          zIndex: 9999,
+          pointerEvents: 'none',
+          direction: 'rtl'
+        }}>
+          {dragLabel ? `${neighbor.label_he || neighbor.name} - ${dragLabel}` : (neighbor.label_he || neighbor.name)}
+          <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.8 }}>שחרר על המפה</div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
 // --- תפריט קליק ימני ---
 const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: { 
   x: number; 
@@ -983,23 +1132,27 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [neighbors, setNeighbors] = useState<any[]>([]);
+  const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [showLearn, setShowLearn] = useState(false);
-  const [selectedNeighbor, setSelectedNeighbor] = useState<number | null>(null);
+  const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
+  const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
 
   const loadData = async () => {
     try {
-      const [stripsRes, neighborsRes, incomingRes, outgoingRes] = await Promise.all([
+      const [stripsRes, neighborsRes, subSectorsRes, incomingRes, outgoingRes] = await Promise.all([
         fetch(`${API_URL}/sectors/${session.sectorId}/strips`),
         fetch(`${API_URL}/sectors/${session.sectorId}/neighbors`),
+        fetch(`${API_URL}/sectors/${session.sectorId}/sub-sectors`),
         fetch(`${API_URL}/sectors/${session.sectorId}/incoming-transfers`),
         fetch(`${API_URL}/sectors/${session.sectorId}/outgoing-transfers`)
       ]);
       
       if (stripsRes.ok) setStrips(await stripsRes.json());
       if (neighborsRes.ok) setNeighbors(await neighborsRes.json());
+      if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
     } catch (err) {
@@ -1045,17 +1198,52 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
-  const handleTransfer = async (stripId: string, toSectorId: number) => {
+  const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string) => {
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toSectorId, workstationId: session.workstationId })
+        body: JSON.stringify({ 
+          toSectorId, 
+          workstationId: session.workstationId,
+          targetX: targetX || 0,
+          targetY: targetY || 0,
+          subSectorLabel
+        })
       });
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
     }
+  };
+
+  const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
+    const availableStrips = strips.filter(s => !s.onMap && s.status !== 'pending_transfer');
+    if (availableStrips.length === 0) {
+      alert('אין פממים זמינים להעברה');
+      return;
+    }
+    if (availableStrips.length === 1) {
+      handleTransfer(availableStrips[0].id, sectorId, x, y, subLabel);
+    } else {
+      setPendingMapTransfer({ sectorId, x, y, subLabel });
+    }
+  };
+
+  const handleSelectStripForTransfer = (stripId: string) => {
+    if (pendingMapTransfer) {
+      handleTransfer(stripId, pendingMapTransfer.sectorId, pendingMapTransfer.x, pendingMapTransfer.y, pendingMapTransfer.subLabel);
+      setPendingMapTransfer(null);
+    }
+  };
+
+  const toggleNeighborExpanded = (neighborId: number) => {
+    setExpandedNeighbors(prev => {
+      const next = new Set(prev);
+      if (next.has(neighborId)) next.delete(neighborId);
+      else next.add(neighborId);
+      return next;
+    });
   };
 
   const handleAcceptTransfer = async (transferId: string) => {
@@ -1113,26 +1301,17 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
             <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים שכנים</h4>
-            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור פמם לכאן להעברה</div>
+            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
           </div>
           {neighbors.map(n => (
-            <button
+            <DraggableNeighborPanel
               key={n.id}
-              data-sector-id={n.id}
-              onClick={() => setSelectedNeighbor(selectedNeighbor === n.id ? null : n.id)}
-              style={{
-                padding: '12px',
-                background: selectedNeighbor === n.id ? '#334155' : 'transparent',
-                border: 'none',
-                borderBottom: '1px solid #334155',
-                color: 'white',
-                cursor: 'pointer',
-                textAlign: 'right',
-                fontSize: '14px'
-              }}
-            >
-              {n.label_he || n.name}
-            </button>
+              neighbor={n}
+              subSectors={subSectors}
+              onDropOnMap={handleNeighborDropOnMap}
+              isExpanded={expandedNeighbors.has(n.id)}
+              onToggle={() => toggleNeighborExpanded(n.id)}
+            />
           ))}
           
           {incomingTransfers.length > 0 && (
@@ -1144,7 +1323,15 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                     <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
                     <span style={{ fontSize: '11px', background: '#475569', padding: '2px 6px', borderRadius: '4px' }}>{t.alt}</span>
                   </div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>מ: {t.from_sector_label}</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                    מ: {t.from_sector_label}
+                    {t.sub_sector_label && <span style={{ color: '#60a5fa' }}> ({t.sub_sector_label})</span>}
+                  </div>
+                  {(t.target_x > 0 || t.target_y > 0) && (
+                    <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
+                      יופיע במיקום על המפה
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
                     <button onClick={() => handleAcceptTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
                       קבל
@@ -1221,6 +1408,72 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           )}
         </div>
       </div>
+
+      {/* Strip Selection Modal */}
+      {pendingMapTransfer && createPortal(
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '20px',
+            width: '300px',
+            direction: 'rtl'
+          }}>
+            <h3 style={{ margin: '0 0 15px', fontSize: '16px' }}>בחר פמם להעברה</h3>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '15px' }}>
+              יעד: {neighbors.find(n => n.id === pendingMapTransfer.sectorId)?.label_he || 'לא ידוע'}
+              {pendingMapTransfer.subLabel && ` (${pendingMapTransfer.subLabel})`}
+            </div>
+            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => handleSelectStripForTransfer(s.id)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '10px',
+                    marginBottom: '8px',
+                    background: '#f1f5f9',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    textAlign: 'right'
+                  }}
+                >
+                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>גובה: {s.alt} | {s.task}</div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPendingMapTransfer(null)}
+              style={{
+                marginTop: '15px',
+                width: '100%',
+                padding: '10px',
+                background: '#dc2626',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              ביטול
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
