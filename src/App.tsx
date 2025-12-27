@@ -1237,8 +1237,143 @@ const DraggableMapMarker = ({
   );
 };
 
+// --- רכיב העברה נכנסת ניתנת לגרירה ---
+const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap }: { 
+  transfer: any; 
+  onAccept: (id: string) => void; 
+  onReject: (id: string) => void;
+  onAcceptToMap: (id: string, x: number, y: number) => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startPosRef = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
+      setIsDragging(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      setDragPos({ 
+        x: e.clientX - startPosRef.current.x, 
+        y: e.clientY - startPosRef.current.y 
+      });
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      setIsDragging(false);
+      const mapArea = document.getElementById('map-area');
+      const sidebar = document.getElementById('sidebar-area');
+      
+      if (mapArea && sidebar) {
+        const mapRect = mapArea.getBoundingClientRect();
+        const sidebarRect = sidebar.getBoundingClientRect();
+        const dropX = e.clientX;
+        const dropY = e.clientY;
+
+        if (dropX >= sidebarRect.left && dropX <= sidebarRect.right &&
+            dropY >= sidebarRect.top && dropY <= sidebarRect.bottom) {
+          onAccept(transfer.id);
+        }
+        else if (dropX >= mapRect.left && dropX <= mapRect.right &&
+            dropY >= mapRect.top && dropY <= mapRect.bottom) {
+          const x = dropX - mapRect.left;
+          const y = dropY - mapRect.top;
+          onAcceptToMap(transfer.id, x, y);
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDragging, transfer.id, onAccept, onAcceptToMap]);
+
+  const content = (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
+        <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
+      </div>
+      {transfer.squadron && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
+      <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+        <span>גובה: {transfer.alt}</span>
+      </div>
+      <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+        מ: {transfer.from_sector_label}
+        {transfer.sub_sector_label && <span style={{ color: '#60a5fa' }}> ({transfer.sub_sector_label})</span>}
+      </div>
+    </>
+  );
+
+  const baseStyle: React.CSSProperties = {
+    background: '#334155', 
+    padding: '8px', 
+    borderRadius: '4px', 
+    marginBottom: '8px',
+    cursor: 'grab',
+    touchAction: 'none'
+  };
+
+  if (isDragging) {
+    return (
+      <>
+        <div ref={containerRef} style={{ ...baseStyle, opacity: 0.3 }}>{content}</div>
+        {createPortal(
+          <div style={{ 
+            ...baseStyle, 
+            position: 'fixed', 
+            left: dragPos.x, 
+            top: dragPos.y, 
+            zIndex: 9999,
+            pointerEvents: 'none',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
+            transform: 'rotate(2deg)',
+            width: 180
+          }}>
+            {content}
+            <div style={{ fontSize: '9px', color: '#10b981', marginTop: '6px', textAlign: 'center' }}>
+              גרור למפה או לממתינים
+            </div>
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div ref={containerRef} style={baseStyle} onPointerDown={handlePointerDown}>
+      {content}
+      <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px', textAlign: 'center' }}>
+        גרור למפה או לממתינים להצבה
+      </div>
+      <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+        <button onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+          לממתינים
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onReject(transfer.id); }} style={{ flex: 1, padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+          דחה
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -1376,6 +1511,24 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
           </div>
           <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
         </div>
+        {onToggleAirborne && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
+            style={{ 
+              marginTop: '4px', 
+              padding: '3px 6px', 
+              fontSize: '9px', 
+              background: s.airborne ? '#3b82f6' : '#94a3b8', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '3px', 
+              cursor: 'pointer',
+              width: '100%'
+            }}
+          >
+            {s.airborne ? 'באוויר' : 'טרם המראה'}
+          </button>
+        )}
       </div>
       {edit && (
         <HandwritingOverlay 
@@ -1400,7 +1553,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
   );
 
   const baseStyle: React.CSSProperties = {
-    width: 180, background: 'white', border: '2px solid black',
+    width: 180, 
+    background: s.airborne ? '#dbeafe' : 'white', 
+    border: s.airborne ? '2px solid #3b82f6' : '2px solid black',
     display: 'flex', flexDirection: 'row-reverse',
     marginBottom: '8px', touchAction: 'none'
   };
@@ -1595,6 +1750,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
+  const handleAcceptToMap = async (transferId: string, x: number, y: number) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ x, y })
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to accept transfer to map:', err);
+    }
+  };
+
   const handleAddSubSector = async () => {
     if (!newSubSectorNeighbor || !newSubSectorLabel.trim()) return;
     try {
@@ -1644,6 +1812,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       loadData();
     } catch (err) {
       console.error('Failed to cancel transfer:', err);
+    }
+  };
+
+  const handleToggleAirborne = async (id: string, airborne: boolean) => {
+    setStrips(prev => prev.map(item => item.id === id ? {...item, airborne} : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ airborne })
+      });
+    } catch (err) {
+      console.error('Failed to update airborne status:', err);
     }
   };
 
@@ -1847,33 +2028,13 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             <div style={{ padding: '10px', borderTop: '2px solid #f59e0b', marginTop: 'auto' }}>
               <h4 style={{ margin: '0 0 10px', fontSize: '12px', color: '#f59e0b' }}>העברות נכנסות ({incomingTransfers.length})</h4>
               {incomingTransfers.map(t => (
-                <div key={t.id} style={{ background: '#334155', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
-                    <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{t.sq}</span>
-                  </div>
-                  {t.squadron && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {t.squadron}</div>}
-                  <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                    <span>גובה: {t.alt}</span>
-                  </div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                    מ: {t.from_sector_label}
-                    {t.sub_sector_label && <span style={{ color: '#60a5fa' }}> ({t.sub_sector_label})</span>}
-                  </div>
-                  {(t.target_x > 0 || t.target_y > 0) && (
-                    <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
-                      יופיע במיקום על המפה
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
-                    <button onClick={() => handleAcceptTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-                      קבל
-                    </button>
-                    <button onClick={() => handleRejectTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
-                      דחה
-                    </button>
-                  </div>
-                </div>
+                <DraggableIncomingTransfer 
+                  key={t.id}
+                  transfer={t}
+                  onAccept={handleAcceptTransfer}
+                  onReject={handleRejectTransfer}
+                  onAcceptToMap={handleAcceptToMap}
+                />
               ))}
             </div>
           )}
@@ -1892,6 +2053,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onMove={handleMove}
               neighbors={neighbors}
               onTransfer={handleTransfer}
+              onToggleAirborne={handleToggleAirborne}
             />
           ))}
           {neighborMarkers.map((marker, idx) => (
@@ -2027,6 +2189,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 onMove={handleMove}
                 neighbors={neighbors}
                 onTransfer={handleTransfer}
+                onToggleAirborne={handleToggleAirborne}
               />
             </div>
           ))}

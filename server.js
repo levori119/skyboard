@@ -169,7 +169,8 @@ app.get('/api/strips', async (req, res) => {
       squadron: r.squadron,
       x: r.x,
       y: r.y,
-      onMap: r.on_map
+      onMap: r.on_map,
+      airborne: r.airborne
     })));
   } catch (err) {
     console.error('Error fetching strips:', err);
@@ -204,6 +205,7 @@ app.put('/api/strips/:id', async (req, res) => {
     if (y !== undefined) { updates.push(`y = $${paramIndex++}`); values.push(y); }
     if (onMap !== undefined) { updates.push(`on_map = $${paramIndex++}`); values.push(onMap); }
     if (alt !== undefined) { updates.push(`alt = $${paramIndex++}`); values.push(alt); }
+    if (req.body.airborne !== undefined) { updates.push(`airborne = $${paramIndex++}`); values.push(req.body.airborne); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -305,7 +307,8 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       status: r.status,
       x: r.x,
       y: r.y,
-      onMap: r.on_map
+      onMap: r.on_map,
+      airborne: r.airborne
     })));
   } catch (err) {
     console.error('Error fetching sector strips:', err);
@@ -536,6 +539,35 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
   } catch (err) {
     console.error('Error accepting transfer:', err);
     res.status(500).json({ error: 'Failed to accept transfer' });
+  }
+});
+
+app.post('/api/transfers/:id/accept-to-map', async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    const { x, y } = req.body;
+    
+    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    if (transfer.rows.length === 0) {
+      return res.status(404).json({ error: 'Transfer not found' });
+    }
+    
+    const { strip_id, to_sector_id } = transfer.rows[0];
+    
+    await pool.query(
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5 WHERE id = $6',
+      [to_sector_id, 'queued', true, x, y, strip_id]
+    );
+    
+    await pool.query(
+      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['accepted', transferId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error accepting transfer to map:', err);
+    res.status(500).json({ error: 'Failed to accept transfer to map' });
   }
 });
 
