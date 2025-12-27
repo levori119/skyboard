@@ -1006,71 +1006,97 @@ const DraggableMapMarker = ({
 
   return (
     <div
+      data-marker-sector={marker.sectorId}
+      data-marker-sublabel={marker.subLabel || ''}
       style={{
         position: 'absolute',
-        left: (isDragging ? dragPos.x : marker.x) - 30,
-        top: (isDragging ? dragPos.y : marker.y) - 15,
+        left: (isDragging ? dragPos.x : marker.x) - 75,
+        top: (isDragging ? dragPos.y : marker.y) - 40,
+        width: '150px',
         background: '#3b82f6',
-        color: 'white',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontWeight: 'bold',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-        cursor: isDragging ? 'grabbing' : 'grab',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         zIndex: 50,
         userSelect: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px'
+        direction: 'rtl',
+        overflow: 'hidden'
       }}
-      onPointerDown={handlePointerDown}
       onContextMenu={handleContextMenu}
     >
-      <span>
-        {marker.label}
-        {marker.subLabel && <span style={{ fontSize: '9px', opacity: 0.8 }}> ({marker.subLabel})</span>}
-      </span>
-      
-      <button
-        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-        onPointerDown={(e) => e.stopPropagation()}
+      <div 
+        onPointerDown={handlePointerDown}
         style={{
-          background: '#1d4ed8',
-          border: 'none',
-          color: 'white',
-          width: '18px',
-          height: '18px',
-          borderRadius: '50%',
-          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '6px 8px',
+          background: '#2563eb',
+          cursor: isDragging ? 'grabbing' : 'grab'
+        }}
+      >
+        <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
+          {marker.label}
+          {marker.subLabel && <span style={{ fontSize: '10px', opacity: 0.8 }}> ({marker.subLabel})</span>}
+        </span>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              background: '#1d4ed8',
+              border: 'none',
+              color: 'white',
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            +
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              background: '#dc2626',
+              border: 'none',
+              color: 'white',
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      
+      <div 
+        className="marker-drop-zone"
+        data-marker-sector={marker.sectorId}
+        data-marker-sublabel={marker.subLabel || ''}
+        style={{
+          padding: '15px 10px',
+          background: 'white',
+          textAlign: 'center',
+          color: '#64748b',
           fontSize: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
+          border: '2px dashed #cbd5e1',
+          margin: '4px',
+          borderRadius: '4px'
         }}
       >
-        +
-      </button>
-      
-      <button
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          background: '#dc2626',
-          border: 'none',
-          color: 'white',
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          cursor: 'pointer',
-          fontSize: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        ×
-      </button>
+        גרור לכאן
+      </div>
 
       {showMenu && availableStrips.length > 0 && (
         <div
@@ -1086,8 +1112,7 @@ const DraggableMapMarker = ({
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             padding: '4px',
             minWidth: '120px',
-            zIndex: 100,
-            direction: 'rtl'
+            zIndex: 100
           }}
         >
           <div style={{ fontSize: '10px', color: '#64748b', padding: '4px', borderBottom: '1px solid #e2e8f0' }}>
@@ -1131,8 +1156,7 @@ const DraggableMapMarker = ({
             borderRadius: '4px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             padding: '8px',
-            zIndex: 100,
-            direction: 'rtl'
+            zIndex: 100
           }}
         >
           <input
@@ -1212,12 +1236,28 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
+        // בדיקה אם נשחרר על סמן סקטור במפה - העברה
+        const markerDropZones = document.querySelectorAll('.marker-drop-zone');
+        for (const zone of markerDropZones) {
+          const zoneRect = zone.getBoundingClientRect();
+          if (e.clientX >= zoneRect.left && e.clientX <= zoneRect.right &&
+              e.clientY >= zoneRect.top && e.clientY <= zoneRect.bottom) {
+            const sectorId = parseInt(zone.getAttribute('data-marker-sector') || '0');
+            const subLabel = zone.getAttribute('data-marker-sublabel') || undefined;
+            if (sectorId && onTransfer) {
+              const x = e.clientX - mapRect.left;
+              const y = e.clientY - mapRect.top;
+              onTransfer(s.id, sectorId, x, y, subLabel || undefined);
+              return;
+            }
+          }
+        }
+
         // בדיקה אם נשחרר בתוך אזור הסקטורים השכנים - העברה
         if (neighborPanel && neighbors && neighbors.length > 0) {
           const neighborRect = neighborPanel.getBoundingClientRect();
           if (e.clientX >= neighborRect.left && e.clientX <= neighborRect.right &&
               e.clientY >= neighborRect.top && e.clientY <= neighborRect.bottom) {
-            // מצא את הכפתור הספציפי שעליו שחררנו
             const neighborButtons = neighborPanel.querySelectorAll('[data-sector-id]');
             for (const btn of neighborButtons) {
               const btnRect = btn.getBoundingClientRect();
@@ -1230,7 +1270,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
                 }
               }
             }
-            // אם לא מצאנו כפתור ספציפי, העבר לראשון ברשימה
             if (onTransfer) {
               onTransfer(s.id, neighbors[0].id);
               return;
@@ -1241,7 +1280,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
         // בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
         if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
             e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
-          onMove(s.id, 0, 0, false); // החזר לתפריט
+          onMove(s.id, 0, 0, false);
         }
         // בדיקה אם נשחרר בתוך אזור המפה
         else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
