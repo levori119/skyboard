@@ -956,6 +956,15 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
+  const handleCancelTransfer = async (transferId: string) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to cancel transfer:', err);
+    }
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
@@ -1011,8 +1020,11 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               <h4 style={{ margin: '0 0 10px', fontSize: '12px', color: '#f59e0b' }}>העברות נכנסות ({incomingTransfers.length})</h4>
               {incomingTransfers.map(t => (
                 <div key={t.id} style={{ background: '#334155', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>מ: {t.from_sector_label}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
+                    <span style={{ fontSize: '11px', background: '#475569', padding: '2px 6px', borderRadius: '4px' }}>{t.alt}</span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>מ: {t.from_sector_label}</div>
                   <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
                     <button onClick={() => handleAcceptTransfer(t.id)} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
                       קבל
@@ -1062,17 +1074,50 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           {outgoingTransfers.length > 0 && (
             <>
               <h4 style={{ margin: '20px 0 10px', fontSize: '14px', color: '#f59e0b' }}>בהעברה ({outgoingTransfers.length}):</h4>
-              {outgoingTransfers.map(t => (
-                <div key={t.id} style={{ 
-                  padding: '8px', 
-                  background: '#fef3c7', 
-                  border: '2px dashed #f59e0b', 
-                  borderRadius: '6px', 
-                  marginBottom: '8px' 
-                }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</div>
-                  <div style={{ fontSize: '10px', color: '#92400e' }}>→ {t.to_sector_label}</div>
-                  <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
+              {/* Group by destination sector */}
+              {Object.entries(
+                outgoingTransfers.reduce((groups: Record<string, any[]>, t) => {
+                  const key = t.to_sector_label || t.to_sector_name;
+                  if (!groups[key]) groups[key] = [];
+                  groups[key].push(t);
+                  return groups;
+                }, {})
+              ).map(([sectorLabel, transfers]) => (
+                <div key={sectorLabel} style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', marginBottom: '6px', borderBottom: '1px solid #fbbf24', paddingBottom: '4px' }}>
+                    → {sectorLabel}
+                  </div>
+                  {(transfers as any[]).map(t => (
+                    <div key={t.id} style={{ 
+                      padding: '8px', 
+                      background: '#fef3c7', 
+                      border: '2px dashed #f59e0b', 
+                      borderRadius: '6px', 
+                      marginBottom: '6px' 
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
+                        <span style={{ fontSize: '10px', background: '#fde68a', padding: '2px 6px', borderRadius: '4px', color: '#92400e' }}>{t.alt}</span>
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
+                      <button 
+                        onClick={() => handleCancelTransfer(t.id)} 
+                        style={{ 
+                          marginTop: '6px', 
+                          width: '100%', 
+                          padding: '4px', 
+                          background: '#dc2626', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '4px', 
+                          fontSize: '10px', 
+                          cursor: 'pointer' 
+                        }}
+                      >
+                        בטל העברה
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ))}
             </>

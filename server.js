@@ -471,6 +471,32 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
   }
 });
 
+app.post('/api/transfers/:id/cancel', async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    
+    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    if (transfer.rows.length === 0) {
+      return res.status(404).json({ error: 'Transfer not found' });
+    }
+    
+    await pool.query(
+      'UPDATE strips SET status = $1 WHERE id = $2',
+      ['queued', transfer.rows[0].strip_id]
+    );
+    
+    await pool.query(
+      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['cancelled', transferId]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error cancelling transfer:', err);
+    res.status(500).json({ error: 'Failed to cancel transfer' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API server running on port ${PORT}`);
