@@ -406,10 +406,17 @@ app.put('/api/sub-sectors/:id', async (req, res) => {
   try {
     const subSectorId = parseInt(req.params.id);
     const { label, defaultX, defaultY } = req.body;
-    const result = await pool.query(
-      `UPDATE sub_sectors SET label = $1, default_x = $2, default_y = $3 WHERE id = $4 RETURNING *`,
-      [label, defaultX || 0.2, defaultY || 0.2, subSectorId]
-    );
+    
+    let query, params;
+    if (defaultX !== undefined && defaultY !== undefined) {
+      query = `UPDATE sub_sectors SET label = $1, default_x = $2, default_y = $3 WHERE id = $4 RETURNING *`;
+      params = [label, defaultX, defaultY, subSectorId];
+    } else {
+      query = `UPDATE sub_sectors SET label = $1 WHERE id = $2 RETURNING *`;
+      params = [label, subSectorId];
+    }
+    
+    const result = await pool.query(query, params);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sub-sector not found' });
     }
