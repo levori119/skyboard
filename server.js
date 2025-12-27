@@ -13,6 +13,8 @@ const pool = new Pool({
 });
 
 async function initDb() {
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
+  
   await pool.query(`
     CREATE TABLE IF NOT EXISTS learned_digits (
       id SERIAL PRIMARY KEY,
