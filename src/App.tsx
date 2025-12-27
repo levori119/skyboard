@@ -2043,11 +2043,11 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         </div>
 
         {/* Map Area */}
-        <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden' }}>
+        <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden', minHeight: 0 }}>
           {mapImg ? (
-            <img src={mapImg} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
           ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>נא לטעון מפה</div>
           )}
           {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
             <Strip key={s.id} s={s} 
