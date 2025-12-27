@@ -1118,13 +1118,14 @@ const DraggableMapMarker = ({
                 borderRadius: '3px',
                 padding: '4px 6px',
                 marginBottom: '4px',
-                fontSize: '10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                fontSize: '10px'
               }}>
-                <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
-                <span style={{ color: '#b45309' }}>{t.alt}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
+                  <span style={{ background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px', fontSize: '9px' }}>{t.sq}</span>
+                </div>
+                {t.squadron && <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 'bold' }}>טייסת: {t.squadron}</div>}
+                <div style={{ color: '#b45309', fontSize: '9px' }}>גובה: {t.alt}</div>
               </div>
             ))}
           </div>
