@@ -1627,6 +1627,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [drawingMode, setDrawingMode] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(3);
+  const [eraserMode, setEraserMode] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
@@ -1851,8 +1852,9 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     const y = e.clientY - rect.top;
     
     ctx.beginPath();
-    ctx.strokeStyle = penColor;
-    ctx.lineWidth = penSize;
+    ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = eraserMode ? 'rgba(0,0,0,1)' : penColor;
+    ctx.lineWidth = eraserMode ? penSize * 3 : penSize;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
@@ -2132,19 +2134,35 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                   {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
                     <button
                       key={color}
-                      onClick={() => setPenColor(color)}
+                      onClick={() => { setPenColor(color); setEraserMode(false); }}
                       style={{
                         width: 24,
                         height: 24,
                         background: color,
-                        border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
+                        border: !eraserMode && penColor === color ? '3px solid #fff' : '1px solid #64748b',
                         borderRadius: '4px',
                         cursor: 'pointer',
-                        boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
+                        boxShadow: !eraserMode && penColor === color ? '0 0 0 2px #3b82f6' : 'none'
                       }}
                     />
                   ))}
                 </div>
+                
+                <button
+                  onClick={() => setEraserMode(!eraserMode)}
+                  style={{
+                    padding: '6px',
+                    background: eraserMode ? '#f59e0b' : '#475569',
+                    color: 'white',
+                    border: eraserMode ? '2px solid #fff' : 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: eraserMode ? 'bold' : 'normal'
+                  }}
+                >
+                  {eraserMode ? 'מחק פעיל' : 'מחק'}
+                </button>
                 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
