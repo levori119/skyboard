@@ -33,7 +33,7 @@ const clearSession = () => {
 };
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin }: { onLogin: (session: WorkstationSession) => void }) => {
+const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: () => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedSector, setSelectedSector] = useState<number | null>(null);
   const [workstationName, setWorkstationName] = useState('');
@@ -179,6 +179,25 @@ const WorkstationLogin = ({ onLogin }: { onLogin: (session: WorkstationSession) 
         >
           {loading ? 'מתחבר...' : 'כניסה'}
         </button>
+        
+        {onManagement && (
+          <button
+            onClick={onManagement}
+            style={{
+              width: '100%',
+              marginTop: '12px',
+              padding: '12px',
+              background: '#059669',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              cursor: 'pointer'
+            }}
+          >
+            ניהול מערכת
+          </button>
+        )}
       </div>
     </div>
   );
@@ -246,7 +265,7 @@ const compareImages = (img1Data: ImageData, img2Data: ImageData): number => {
 };
 
 // --- ניהול מפות ---
-const MapsManager = ({ onClose, onMapsUpdated }: { onClose: () => void; onMapsUpdated: () => void }) => {
+const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: () => void; onMapsUpdated: () => void; isEmbedded?: boolean }) => {
   const [maps, setMaps] = useState<{id: number; name: string; created_at: string}[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [newMapData, setNewMapData] = useState<string | null>(null);
@@ -306,79 +325,93 @@ const MapsManager = ({ onClose, onMapsUpdated }: { onClose: () => void; onMapsUp
     }
   };
 
-  return ReactDOM.createPortal(
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '24px', width: '600px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
+  const content = (
+    <div style={{ background: isEmbedded ? '#1e293b' : 'white', borderRadius: '12px', padding: '24px', width: isEmbedded ? '100%' : '600px', maxHeight: isEmbedded ? 'none' : '80vh', overflowY: 'auto', direction: 'rtl' }}>
+      {!isEmbedded && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>ניהול מפות</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
         </div>
+      )}
+      
+      {isEmbedded && <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>ניהול מפות</h2>}
 
-        <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569' }}>העלאת מפה חדשה</h3>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              type="text"
-              value={newMapName}
-              onChange={(e) => setNewMapName(e.target.value)}
-              placeholder="שם המפה"
-              style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px' }}
-            />
-            <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-              {newMapData ? 'קובץ נבחר ✓' : 'בחר קובץ JPG'}
-              <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-            </label>
-            <button
-              onClick={handleUpload}
-              disabled={!newMapName.trim() || !newMapData || uploading}
-              style={{
-                background: newMapName.trim() && newMapData ? '#059669' : '#94a3b8',
-                color: 'white',
-                padding: '8px 20px',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: newMapName.trim() && newMapData ? 'pointer' : 'not-allowed',
-                fontSize: '14px'
-              }}
-            >
-              {uploading ? 'מעלה...' : 'העלה'}
-            </button>
-          </div>
-          {newMapData && (
-            <div style={{ marginTop: '12px' }}>
-              <img src={newMapData} style={{ maxWidth: '200px', maxHeight: '100px', objectFit: 'contain', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
-            </div>
-          )}
+      <div style={{ background: isEmbedded ? '#334155' : '#f1f5f9', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>העלאת מפה חדשה</h3>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={newMapName}
+            onChange={(e) => setNewMapName(e.target.value)}
+            placeholder="שם המפה"
+            style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', background: 'white' }}
+          />
+          <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            {newMapData ? 'קובץ נבחר ✓' : 'בחר קובץ JPG'}
+            <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+          </label>
+          <button
+            onClick={handleUpload}
+            disabled={!newMapName.trim() || !newMapData || uploading}
+            style={{
+              background: newMapName.trim() && newMapData ? '#059669' : '#94a3b8',
+              color: 'white',
+              padding: '8px 20px',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: newMapName.trim() && newMapData ? 'pointer' : 'not-allowed',
+              fontSize: '14px'
+            }}
+          >
+            {uploading ? 'מעלה...' : 'העלה'}
+          </button>
         </div>
-
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569' }}>מפות קיימות ({maps.length})</h3>
-        {maps.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>אין מפות עדיין</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {maps.map(map => (
-              <div key={map.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold', color: '#1e293b' }}>{map.name}</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
-                </div>
-                <button
-                  onClick={() => handleDelete(map.id)}
-                  style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-                >
-                  מחק
-                </button>
-              </div>
-            ))}
+        {newMapData && (
+          <div style={{ marginTop: '12px' }}>
+            <img src={newMapData} style={{ maxWidth: '200px', maxHeight: '100px', objectFit: 'contain', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
           </div>
         )}
+      </div>
 
+      <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>מפות קיימות ({maps.length})</h3>
+      {maps.length === 0 ? (
+        <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>אין מפות עדיין</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {maps.map(map => (
+            <div key={map.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: isEmbedded ? '#475569' : '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              <div>
+                <div style={{ fontWeight: 'bold', color: isEmbedded ? 'white' : '#1e293b' }}>{map.name}</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
+              </div>
+              <button
+                onClick={() => handleDelete(map.id)}
+                style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+              >
+                מחק
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isEmbedded && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <button onClick={onClose} style={{ background: '#1e293b', color: 'white', padding: '10px 30px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
             סגור
           </button>
         </div>
-      </div>
+      )}
+    </div>
+  );
+
+  if (isEmbedded) {
+    return content;
+  }
+
+  return ReactDOM.createPortal(
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {content}
     </div>,
     document.body
   );
@@ -1769,7 +1802,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [penSize, setPenSize] = useState(3);
   const [eraserMode, setEraserMode] = useState(false);
   const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
-  const [showMapsManager, setShowMapsManager] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
@@ -2067,9 +2099,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               <option key={m.id} value={m.id}>{m.name}</option>
             ))}
           </select>
-          <button onClick={() => setShowMapsManager(true)} style={{ background: '#059669', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
-            ניהול מפות
-          </button>
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
@@ -2082,13 +2111,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         </div>
       </header>
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} />}
-      
-      {showMapsManager && (
-        <MapsManager 
-          onClose={() => setShowMapsManager(false)} 
-          onMapsUpdated={loadData}
-        />
-      )}
       
       {showSubSectorManager && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2489,20 +2511,47 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   );
 };
 
+// --- דף ניהול ---
+const ManagementPage = ({ onBack }: { onBack: () => void }) => {
+  return (
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
+      <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <h1 style={{ margin: 0, fontSize: '20px' }}>ניהול מערכת</h1>
+        </div>
+        <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+          חזרה לכניסה
+        </button>
+      </header>
+      
+      <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto' }}>
+        <MapsManager onClose={() => {}} onMapsUpdated={() => {}} isEmbedded={true} />
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
+  const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
 
   const handleLogin = (newSession: WorkstationSession) => {
     setSession(newSession);
+    setPage('dashboard');
   };
 
   const handleLogout = () => {
     clearSession();
     setSession(null);
+    setPage('login');
   };
 
-  if (!session) {
-    return <WorkstationLogin onLogin={handleLogin} />;
+  if (page === 'management') {
+    return <ManagementPage onBack={() => setPage('login')} />;
+  }
+
+  if (!session || page === 'login') {
+    return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} />;
   }
 
   return <SectorDashboard session={session} onLogout={handleLogout} />;
