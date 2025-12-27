@@ -935,6 +935,238 @@ const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: {
   );
 };
 
+// --- Draggable Map Marker component ---
+const DraggableMapMarker = ({ 
+  marker, 
+  onMove, 
+  onRemove, 
+  onRename,
+  strips,
+  onTransfer
+}: { 
+  marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
+  onMove: (x: number, y: number) => void;
+  onRemove: () => void;
+  onRename: (newLabel: string) => void;
+  strips: any[];
+  onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
+  const [showMenu, setShowMenu] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [tempName, setTempName] = useState(marker.subLabel || '');
+  const startPosRef = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+    e.preventDefault();
+    e.stopPropagation();
+    startPosRef.current = { x: e.clientX - marker.x, y: e.clientY - marker.y };
+    setDragPos({ x: marker.x, y: marker.y });
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMoveEvent = (e: PointerEvent) => {
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const rect = mapArea.getBoundingClientRect();
+        setDragPos({ 
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
+      }
+    };
+
+    const handleUp = (e: PointerEvent) => {
+      setIsDragging(false);
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const rect = mapArea.getBoundingClientRect();
+        const newX = e.clientX - rect.left;
+        const newY = e.clientY - rect.top;
+        if (newX >= 0 && newX <= rect.width && newY >= 0 && newY <= rect.height) {
+          onMove(newX, newY);
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', handleMoveEvent);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMoveEvent);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [isDragging, onMove]);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setTempName(marker.subLabel || marker.label);
+    setEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    onRename(tempName);
+    setEditingName(false);
+  };
+
+  const availableStrips = strips.filter((s: any) => !s.onMap && s.status !== 'pending_transfer');
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: (isDragging ? dragPos.x : marker.x) - 30,
+        top: (isDragging ? dragPos.y : marker.y) - 15,
+        background: '#3b82f6',
+        color: 'white',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontWeight: 'bold',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        zIndex: 50,
+        userSelect: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
+      }}
+      onPointerDown={handlePointerDown}
+      onContextMenu={handleContextMenu}
+    >
+      <span>
+        {marker.label}
+        {marker.subLabel && <span style={{ fontSize: '9px', opacity: 0.8 }}> ({marker.subLabel})</span>}
+      </span>
+      
+      <button
+        onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{
+          background: '#1d4ed8',
+          border: 'none',
+          color: 'white',
+          width: '18px',
+          height: '18px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        +
+      </button>
+      
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        style={{
+          background: '#dc2626',
+          border: 'none',
+          color: 'white',
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          fontSize: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        ×
+      </button>
+
+      {showMenu && availableStrips.length > 0 && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            background: 'white',
+            border: '1px solid #e2e8f0',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '4px',
+            minWidth: '120px',
+            zIndex: 100,
+            direction: 'rtl'
+          }}
+        >
+          <div style={{ fontSize: '10px', color: '#64748b', padding: '4px', borderBottom: '1px solid #e2e8f0' }}>
+            בחר פמם להעברה:
+          </div>
+          {availableStrips.map((s: any) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                onTransfer(s.id, marker.sectorId, marker.x, marker.y, marker.subLabel);
+                setShowMenu(false);
+              }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '6px 8px',
+                background: 'transparent',
+                border: 'none',
+                textAlign: 'right',
+                cursor: 'pointer',
+                fontSize: '11px',
+                color: '#1e293b'
+              }}
+            >
+              {s.callsign} - {s.alt}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {editingName && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            background: 'white',
+            border: '1px solid #e2e8f0',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '8px',
+            zIndex: 100,
+            direction: 'rtl'
+          }}
+        >
+          <input
+            type="text"
+            value={tempName}
+            onChange={(e) => setTempName(e.target.value)}
+            style={{ padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', width: '100px', fontSize: '11px' }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+            <button onClick={handleSaveName} style={{ flex: 1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+              שמור
+            </button>
+            <button onClick={() => setEditingName(false)} style={{ flex: 1, padding: '4px', background: '#64748b', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}>
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- רכיב פ"מ (Strip) ---
 const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
   const controls = useDragControls();
@@ -1358,26 +1590,23 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             />
           ))}
           {neighborMarkers.map((marker, idx) => (
-            <div key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
-              style={{
-                position: 'absolute',
-                left: marker.x - 30,
-                top: marker.y - 15,
-                background: '#3b82f6',
-                color: 'white',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                fontWeight: 'bold',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                cursor: 'pointer',
-                zIndex: 50
+            <DraggableMapMarker
+              key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
+              marker={marker}
+              strips={strips}
+              onMove={(x, y) => {
+                setNeighborMarkers(prev => prev.map(m => 
+                  m === marker ? { ...m, x, y } : m
+                ));
               }}
-              onClick={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
-            >
-              {marker.label}
-              {marker.subLabel && <span style={{ fontSize: '9px', opacity: 0.8 }}> ({marker.subLabel})</span>}
-            </div>
+              onRemove={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
+              onRename={(newLabel) => {
+                setNeighborMarkers(prev => prev.map(m => 
+                  m === marker ? { ...m, subLabel: newLabel } : m
+                ));
+              }}
+              onTransfer={handleTransfer}
+            />
           ))}
         </div>
 
