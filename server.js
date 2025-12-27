@@ -166,6 +166,7 @@ app.get('/api/strips', async (req, res) => {
       sq: r.sq,
       alt: r.alt,
       task: r.task,
+      squadron: r.squadron,
       x: r.x,
       y: r.y,
       onMap: r.on_map
@@ -178,10 +179,10 @@ app.get('/api/strips', async (req, res) => {
 
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task } = req.body;
+    const { callSign, sq, alt, task, squadron } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task) VALUES ($1, $2, $3, $4) RETURNING id',
-      [callSign, sq, alt, task]
+      'INSERT INTO strips (callsign, sq, alt, task, squadron) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [callSign, sq, alt, task, squadron]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
@@ -299,6 +300,7 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       sq: r.sq,
       alt: r.alt,
       task: r.task,
+      squadron: r.squadron,
       sectorId: r.sector_id,
       status: r.status,
       x: r.x,
@@ -476,7 +478,7 @@ app.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, sec.name as from_sector_name, sec.label_he as from_sector_label,
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, sec.name as from_sector_name, sec.label_he as from_sector_label,
              t.target_x, t.target_y, t.sub_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
@@ -495,7 +497,7 @@ app.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, sec.name as to_sector_name, sec.label_he as to_sector_label
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, sec.name as to_sector_name, sec.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
       JOIN sectors sec ON t.to_sector_id = sec.id

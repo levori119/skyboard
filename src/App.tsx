@@ -684,15 +684,19 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
+        <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
+      </div>
+      {transfer.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <span 
           ref={altRef}
           onClick={handleEditClick} 
           style={{ fontSize: '10px', background: '#fde68a', padding: '2px 6px', borderRadius: '4px', color: '#92400e', cursor: 'pointer', border: '1px solid #f59e0b' }}
         >
-          {transfer.alt}
+          גובה: {transfer.alt}
         </span>
+        <span style={{ fontSize: '10px', color: '#92400e' }}>ממתין לאישור...</span>
       </div>
-      <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
       <button 
         onClick={() => onCancel(transfer.id)} 
         style={{ 
@@ -1341,6 +1345,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
           <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
           <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
         </div>
+        {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {s.squadron}</div>}
         <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
           <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, cursor: 'pointer', padding: '2px', background: '#f1f5f9' }}>
             גובה: {s.alt}
@@ -1402,6 +1407,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
                 <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
                 <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
               </div>
+              {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {s.squadron}</div>}
               <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
                 <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {s.alt}</div>
                 <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
@@ -1753,7 +1759,11 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 <div key={t.id} style={{ background: '#334155', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
-                    <span style={{ fontSize: '11px', background: '#475569', padding: '2px 6px', borderRadius: '4px' }}>{t.alt}</span>
+                    <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{t.sq}</span>
+                  </div>
+                  {t.squadron && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {t.squadron}</div>}
+                  <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                    <span>גובה: {t.alt}</span>
                   </div>
                   <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
                     מ: {t.from_sector_label}
