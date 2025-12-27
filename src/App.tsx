@@ -1469,6 +1469,12 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
   const [newSubSectorLabel, setNewSubSectorLabel] = useState('');
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [penColor, setPenColor] = useState('#ef4444');
+  const [penSize, setPenSize] = useState(3);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+  const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
   const loadData = async () => {
     try {
@@ -1640,6 +1646,67 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       console.error('Failed to cancel transfer:', err);
     }
   };
+
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingMode) return;
+    isDrawingRef.current = true;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    lastPosRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  };
+
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingMode || !isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !lastPosRef.current) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.strokeStyle = penColor;
+    ctx.lineWidth = penSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.moveTo(lastPosRef.current.x, lastPosRef.current.y);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    
+    lastPosRef.current = { x, y };
+  };
+
+  const stopDrawing = () => {
+    isDrawingRef.current = false;
+    lastPosRef.current = null;
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (canvas && ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  useEffect(() => {
+    const resizeCanvas = () => {
+      const canvas = canvasRef.current;
+      const mapArea = document.getElementById('map-area');
+      if (canvas && mapArea) {
+        canvas.width = mapArea.clientWidth;
+        canvas.height = mapArea.clientHeight;
+      }
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1848,6 +1915,105 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onCancelTransfer={handleCancelTransfer}
             />
           ))}
+          
+          {/* Drawing Canvas Overlay */}
+          <canvas
+            ref={canvasRef}
+            onPointerDown={startDrawing}
+            onPointerMove={draw}
+            onPointerUp={stopDrawing}
+            onPointerLeave={stopDrawing}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: drawingMode ? 'auto' : 'none',
+              cursor: drawingMode ? 'crosshair' : 'default',
+              touchAction: 'none'
+            }}
+          />
+          
+          {/* Drawing Toolbar */}
+          <div style={{
+            position: 'absolute',
+            top: 10,
+            left: 10,
+            background: 'rgba(15, 23, 42, 0.9)',
+            borderRadius: '8px',
+            padding: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            zIndex: 1000
+          }}>
+            <button
+              onClick={() => setDrawingMode(!drawingMode)}
+              style={{
+                padding: '8px 12px',
+                background: drawingMode ? '#10b981' : '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+            >
+              {drawingMode ? 'סיום ציור' : 'מצב ציור'}
+            </button>
+            
+            {drawingMode && (
+              <>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
+                    <button
+                      key={color}
+                      onClick={() => setPenColor(color)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        background: color,
+                        border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
+                      }}
+                    />
+                  ))}
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={penSize}
+                    onChange={(e) => setPenSize(Number(e.target.value))}
+                    style={{ flex: 1, cursor: 'pointer' }}
+                  />
+                  <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
+                </div>
+                
+                <button
+                  onClick={clearCanvas}
+                  style={{
+                    padding: '6px',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px'
+                  }}
+                >
+                  נקה הכל
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Sidebar - Right Side */}
