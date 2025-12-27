@@ -372,7 +372,7 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
 };
 
 // --- רכיב כתיבה (OCR) ---
-const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
+const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: (val: string) => void; onCancel: () => void; anchorRect?: DOMRect | null }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -579,8 +579,46 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
     clearCanvas();
   }, []);
 
-  return (
-    <div style={{ position: 'absolute', top: -10, right: '110%', zIndex: 1000, background: 'white', border: '2px solid #2563eb', padding: '12px', borderRadius: '10px', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', minWidth: '244px', direction: 'rtl' }}>
+  // Calculate position - show to the right of the element, or centered if no anchor
+  const getPosition = () => {
+    if (anchorRect) {
+      let top = anchorRect.top;
+      let left = anchorRect.right + 10;
+      
+      // If would go off right edge, show to the left instead
+      if (left + 260 > window.innerWidth) {
+        left = anchorRect.left - 270;
+      }
+      // If would go off left edge, center it
+      if (left < 10) {
+        left = Math.max(10, (window.innerWidth - 260) / 2);
+      }
+      // If would go off bottom, move up
+      if (top + 300 > window.innerHeight) {
+        top = Math.max(10, window.innerHeight - 310);
+      }
+      return { top, left };
+    }
+    return { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+  };
+
+  const pos = getPosition();
+
+  return createPortal(
+    <div style={{ 
+      position: 'fixed', 
+      top: typeof pos.top === 'number' ? pos.top : pos.top,
+      left: typeof pos.left === 'number' ? pos.left : pos.left,
+      transform: (pos as any).transform || 'none',
+      zIndex: 10001, 
+      background: 'white', 
+      border: '2px solid #2563eb', 
+      padding: '12px', 
+      borderRadius: '10px', 
+      boxShadow: '0 6px 20px rgba(0,0,0,0.25)', 
+      minWidth: '244px', 
+      direction: 'rtl' 
+    }}>
       <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
         {loading ? "מזהה..." : "כתוב מספר:"}
       </div>
@@ -613,6 +651,73 @@ const HandwritingOverlay = ({ onComplete, onCancel }: any) => {
       </div>
       {recognized && (
         <button onClick={confirmValue} style={{ marginTop: '6px', width: '100%', padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>אישור - {recognized}</button>
+      )}
+    </div>,
+    document.body
+  );
+};
+
+// --- רכיב עריכת פמם בהעברה ---
+const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: { 
+  transfer: any; 
+  onAltUpdate: (stripId: string, alt: string) => void;
+  onCancel: (transferId: string) => void;
+}) => {
+  const [edit, setEdit] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const altRef = useRef<HTMLSpanElement>(null);
+
+  const handleEditClick = () => {
+    if (altRef.current) {
+      setAnchorRect(altRef.current.getBoundingClientRect());
+    }
+    setEdit(true);
+  };
+
+  return (
+    <div style={{ 
+      padding: '8px', 
+      background: '#fef3c7', 
+      border: '2px dashed #f59e0b', 
+      borderRadius: '6px', 
+      marginBottom: '6px' 
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
+        <span 
+          ref={altRef}
+          onClick={handleEditClick} 
+          style={{ fontSize: '10px', background: '#fde68a', padding: '2px 6px', borderRadius: '4px', color: '#92400e', cursor: 'pointer', border: '1px solid #f59e0b' }}
+        >
+          {transfer.alt}
+        </span>
+      </div>
+      <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
+      <button 
+        onClick={() => onCancel(transfer.id)} 
+        style={{ 
+          marginTop: '6px', 
+          width: '100%', 
+          padding: '4px', 
+          background: '#dc2626', 
+          color: 'white', 
+          border: 'none', 
+          borderRadius: '4px', 
+          fontSize: '10px', 
+          cursor: 'pointer' 
+        }}
+      >
+        בטל העברה
+      </button>
+      {edit && (
+        <HandwritingOverlay 
+          onCancel={() => setEdit(false)} 
+          onComplete={(val: string) => { 
+            onAltUpdate(transfer.strip_id, val); 
+            setEdit(false); 
+          }} 
+          anchorRect={anchorRect}
+        />
       )}
     </div>
   );
@@ -688,12 +793,21 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleEditClick = () => {
+    if (altRef.current) {
+      setAnchorRect(altRef.current.getBoundingClientRect());
+    }
+    setEdit(true);
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -787,13 +901,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer }: any) => {
       <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
         <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
         <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
-          <div onClick={() => setEdit(true)} style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, cursor: 'pointer', padding: '2px', background: '#f1f5f9' }}>
+          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, cursor: 'pointer', padding: '2px', background: '#f1f5f9' }}>
             גובה: {s.alt}
           </div>
           <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
         </div>
-        {edit && <HandwritingOverlay onCancel={() => setEdit(false)} onComplete={(val: any) => { onUpdate(s.id, val); setEdit(false); }} />}
       </div>
+      {edit && (
+        <HandwritingOverlay 
+          onCancel={() => setEdit(false)} 
+          onComplete={(val: string) => { onUpdate(s.id, val); setEdit(false); }} 
+          anchorRect={anchorRect}
+        />
+      )}
       {contextMenu && (
         <ContextMenu 
           x={contextMenu.x} 
@@ -1088,35 +1208,12 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                     → {sectorLabel}
                   </div>
                   {(transfers as any[]).map(t => (
-                    <div key={t.id} style={{ 
-                      padding: '8px', 
-                      background: '#fef3c7', 
-                      border: '2px dashed #f59e0b', 
-                      borderRadius: '6px', 
-                      marginBottom: '6px' 
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{t.callsign}</span>
-                        <span style={{ fontSize: '10px', background: '#fde68a', padding: '2px 6px', borderRadius: '4px', color: '#92400e' }}>{t.alt}</span>
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#92400e', marginTop: '4px' }}>ממתין לאישור...</div>
-                      <button 
-                        onClick={() => handleCancelTransfer(t.id)} 
-                        style={{ 
-                          marginTop: '6px', 
-                          width: '100%', 
-                          padding: '4px', 
-                          background: '#dc2626', 
-                          color: 'white', 
-                          border: 'none', 
-                          borderRadius: '4px', 
-                          fontSize: '10px', 
-                          cursor: 'pointer' 
-                        }}
-                      >
-                        בטל העברה
-                      </button>
-                    </div>
+                    <TransferStripEditor 
+                      key={t.id}
+                      transfer={t}
+                      onAltUpdate={handleAltUpdate}
+                      onCancel={handleCancelTransfer}
+                    />
                   ))}
                 </div>
               ))}
