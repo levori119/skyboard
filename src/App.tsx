@@ -1170,7 +1170,12 @@ const DraggableMapMarker = ({
                 color: '#1e293b'
               }}
             >
-              {s.callsign} - {s.alt}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{s.callsign}</span>
+                <span style={{ background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px', fontSize: '9px' }}>{s.sq}</span>
+              </div>
+              {s.squadron && <div style={{ fontSize: '9px', color: '#7c3aed' }}>טייסת: {s.squadron}</div>}
+              <div style={{ fontSize: '9px', color: '#64748b' }}>גובה: {s.alt}</div>
             </button>
           ))}
         </div>
@@ -1911,8 +1916,12 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                     textAlign: 'right'
                   }}
                 >
-                  <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>גובה: {s.alt} | {s.task}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}</div>
+                    <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{s.sq}</div>
+                  </div>
+                  {s.squadron && <div style={{ fontSize: '11px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {s.squadron}</div>}
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {s.alt} | {s.task}</div>
                 </button>
               ))}
             </div>
