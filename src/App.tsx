@@ -1139,6 +1139,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
+  const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
 
   const loadData = async () => {
     try {
@@ -1218,16 +1219,11 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   };
 
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
-    const availableStrips = strips.filter(s => !s.onMap && s.status !== 'pending_transfer');
-    if (availableStrips.length === 0) {
-      alert('אין פממים זמינים להעברה');
-      return;
-    }
-    if (availableStrips.length === 1) {
-      handleTransfer(availableStrips[0].id, sectorId, x, y, subLabel);
-    } else {
-      setPendingMapTransfer({ sectorId, x, y, subLabel });
-    }
+    const neighbor = neighbors.find(n => n.id === sectorId);
+    const label = subLabel || neighbor?.label || 'סקטור';
+    setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), 
+      { sectorId, x, y, subLabel, label }
+    ]);
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -1360,6 +1356,28 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               neighbors={neighbors}
               onTransfer={handleTransfer}
             />
+          ))}
+          {neighborMarkers.map((marker, idx) => (
+            <div key={`marker-${marker.sectorId}-${marker.subLabel || idx}`}
+              style={{
+                position: 'absolute',
+                left: marker.x - 30,
+                top: marker.y - 15,
+                background: '#3b82f6',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                cursor: 'pointer',
+                zIndex: 50
+              }}
+              onClick={() => setNeighborMarkers(prev => prev.filter(m => m !== marker))}
+            >
+              {marker.label}
+              {marker.subLabel && <span style={{ fontSize: '9px', opacity: 0.8 }}> ({marker.subLabel})</span>}
+            </div>
           ))}
         </div>
 
