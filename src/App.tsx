@@ -230,34 +230,34 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
             </div>
             
-            {/* Workstation Presets */}
+            {/* Workstation Presets Dropdown */}
             {workstationPresets.length > 0 && (
               <div style={{ marginBottom: '25px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>עמדות מוגדרות:</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
+                <select
+                  onChange={(e) => {
+                    const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
+                    if (preset) handlePresetLogin(preset);
+                  }}
+                  defaultValue=""
+                  style={{
+                    width: '100%',
+                    padding: '15px',
+                    border: '2px solid #2563eb',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    background: 'white',
+                    cursor: 'pointer',
+                    direction: 'rtl'
+                  }}
+                >
+                  <option value="" disabled>-- בחר עמדה --</option>
                   {workstationPresets.map((preset: any) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => handlePresetLogin(preset)}
-                      style={{
-                        padding: '15px',
-                        background: '#f1f5f9',
-                        border: '2px solid #e2e8f0',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        textAlign: 'right',
-                        fontSize: '16px'
-                      }}
-                    >
-                      <strong>{preset.name}</strong>
-                      <span style={{ color: '#64748b', marginRight: '10px' }}>
-                        {(preset.relevant_sectors || []).length > 0 
-                          ? `(${(preset.relevant_sectors as number[]).map((id: number) => sectors.find((s: any) => s.id === id)?.label_he || sectors.find((s: any) => s.id === id)?.name).filter(Boolean).join(', ')})`
-                          : '(ללא סקטורים)'}
-                      </span>
-                    </button>
+                    <option key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
             )}
             
