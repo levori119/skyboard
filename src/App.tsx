@@ -2716,21 +2716,17 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [allSubSectors, setAllSubSectors] = useState<any[]>([]);
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
-  const [newSectorName, setNewSectorName] = useState('');
-  const [newSectorLabel, setNewSectorLabel] = useState('');
+  const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '' });
   
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
   const [presetForm, setPresetForm] = useState({
     name: '',
-    sector_id: '',
     map_id: '',
-    my_sub_sectors: [] as string[],
-    neighbor_sub_sectors: [] as string[]
+    relevant_sectors: [] as number[]
   });
 
   const loadData = async () => {
@@ -2740,20 +2736,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`)
       ]);
-      if (sectorsRes.ok) {
-        const sectorsData = await sectorsRes.json();
-        setSectors(sectorsData);
-        // Load sub-sectors for each sector
-        const allSubs: any[] = [];
-        for (const sector of sectorsData) {
-          const subsRes = await fetch(`${API_URL}/sectors/${sector.id}/sub-sectors`);
-          if (subsRes.ok) {
-            const subs = await subsRes.json();
-            allSubs.push(...subs.map((s: any) => ({ ...s, sectorId: sector.id, sectorLabel: sector.label_he || sector.name })));
-          }
-        }
-        setAllSubSectors(allSubs);
-      }
+      if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
     } catch (err) {
@@ -2766,34 +2749,37 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   }, []);
 
   // Sector management
-  const createSector = async () => {
-    if (!newSectorName.trim()) return;
+  const saveSector = async () => {
+    if (!sectorForm.name.trim()) return;
     try {
-      await fetch(`${API_URL}/sectors`, {
-        method: 'POST',
+      const method = editingSector ? 'PUT' : 'POST';
+      const url = editingSector ? `${API_URL}/sectors/${editingSector.id}` : `${API_URL}/sectors`;
+      await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSectorName, label_he: newSectorLabel || newSectorName })
+        body: JSON.stringify({ 
+          name: sectorForm.name, 
+          label_he: sectorForm.label_he || sectorForm.name,
+          category: sectorForm.category,
+          notes: sectorForm.notes
+        })
       });
-      setNewSectorName('');
-      setNewSectorLabel('');
+      setEditingSector(null);
+      setSectorForm({ name: '', label_he: '', category: '', notes: '' });
       loadData();
     } catch (err) {
-      console.error('Failed to create sector:', err);
+      console.error('Failed to save sector:', err);
     }
   };
 
-  const updateSector = async (id: number, name: string, label_he: string) => {
-    try {
-      await fetch(`${API_URL}/sectors/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, label_he })
-      });
-      setEditingSector(null);
-      loadData();
-    } catch (err) {
-      console.error('Failed to update sector:', err);
-    }
+  const editSector = (sector: any) => {
+    setEditingSector(sector);
+    setSectorForm({
+      name: sector.name,
+      label_he: sector.label_he || '',
+      category: sector.category || '',
+      notes: sector.notes || ''
+    });
   };
 
   const deleteSector = async (id: number) => {
@@ -2817,14 +2803,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: presetForm.name,
-          sector_id: presetForm.sector_id ? parseInt(presetForm.sector_id) : null,
           map_id: presetForm.map_id ? parseInt(presetForm.map_id) : null,
-          my_sub_sectors: presetForm.my_sub_sectors,
-          neighbor_sub_sectors: presetForm.neighbor_sub_sectors
+          relevant_sectors: presetForm.relevant_sectors
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', sector_id: '', map_id: '', my_sub_sectors: [], neighbor_sub_sectors: [] });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -2835,11 +2819,18 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     setEditingPreset(preset);
     setPresetForm({
       name: preset.name,
-      sector_id: preset.sector_id?.toString() || '',
       map_id: preset.map_id?.toString() || '',
-      my_sub_sectors: preset.my_sub_sectors || [],
-      neighbor_sub_sectors: preset.neighbor_sub_sectors || []
+      relevant_sectors: preset.relevant_sectors || []
     });
+  };
+
+  const toggleSectorSelection = (sectorId: number) => {
+    setPresetForm(p => ({
+      ...p,
+      relevant_sectors: p.relevant_sectors.includes(sectorId) 
+        ? p.relevant_sectors.filter(id => id !== sectorId)
+        : [...p.relevant_sectors, sectorId]
+    }));
   };
 
   const deletePreset = async (id: number) => {
@@ -2906,20 +2897,6 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </div>
                   
                   <div>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>סקטור:</label>
-                    <select
-                      value={presetForm.sector_id}
-                      onChange={(e) => setPresetForm(p => ({ ...p, sector_id: e.target.value }))}
-                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px' }}
-                    >
-                      <option value="">בחר סקטור</option>
-                      {sectors.map(s => (
-                        <option key={s.id} value={s.id}>{s.label_he || s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מפה:</label>
                     <select
                       value={presetForm.map_id}
@@ -2935,14 +2912,34 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                 </div>
                 
                 <div style={{ marginTop: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>התתי-סקטורים שלי (יוצגו לסקטורים שכנים):</label>
-                  <input
-                    type="text"
-                    value={presetForm.my_sub_sectors.join(', ')}
-                    onChange={(e) => setPresetForm(p => ({ ...p, my_sub_sectors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
-                    placeholder="תת-סקטור 1, תת-סקטור 2..."
-                    style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
-                  />
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>סקטורים רלוונטיים (לחץ לבחירה):</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {sectors.map(sector => {
+                      const isSelected = presetForm.relevant_sectors.includes(sector.id);
+                      return (
+                        <button
+                          key={sector.id}
+                          onClick={() => toggleSectorSelection(sector.id)}
+                          style={{
+                            padding: '8px 16px',
+                            border: isSelected ? '2px solid #3b82f6' : '2px solid #475569',
+                            borderRadius: '20px',
+                            background: isSelected ? '#1e40af' : '#334155',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {sector.label_he || sector.name}
+                          {sector.category && <span style={{ color: '#94a3b8', marginRight: '6px' }}>({sector.category})</span>}
+                        </button>
+                      );
+                    })}
+                    {sectors.length === 0 && (
+                      <span style={{ color: '#64748b', fontSize: '14px' }}>אין סקטורים מוגדרים. הוסף סקטורים בלשונית "סקטורים".</span>
+                    )}
+                  </div>
                 </div>
                 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
@@ -2954,7 +2951,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', sector_id: '', map_id: '', my_sub_sectors: [], neighbor_sub_sectors: [] }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [] }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
@@ -2965,22 +2962,27 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
               
               {/* Presets List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {presets.map(preset => (
-                  <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
-                      <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
-                        סקטור: {sectors.find(s => s.id === preset.sector_id)?.label_he || 'לא מוגדר'} | 
-                        מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
-                        {preset.my_sub_sectors?.length > 0 && ` | תתי-סקטורים: ${preset.my_sub_sectors.join(', ')}`}
+                {presets.map(preset => {
+                  const relevantSectorNames = (preset.relevant_sectors || [])
+                    .map((id: number) => sectors.find(s => s.id === id)?.label_he || sectors.find(s => s.id === id)?.name)
+                    .filter(Boolean)
+                    .join(', ');
+                  return (
+                    <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
+                        <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
+                          מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
+                          {relevantSectorNames && ` | סקטורים: ${relevantSectorNames}`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                        <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
-                      <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {presets.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
                     אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.
@@ -2995,36 +2997,68 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
             <div>
               <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול סקטורים</h2>
               
-              {/* New Sector Form */}
+              {/* Sector Form */}
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>סקטור חדש</h3>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
+                  {editingSector ? 'עריכת סקטור' : 'סקטור חדש'}
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>קוד:</label>
                     <input
                       type="text"
-                      value={newSectorName}
-                      onChange={(e) => setNewSectorName(e.target.value)}
+                      value={sectorForm.name}
+                      onChange={(e) => setSectorForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="NORTH"
                       style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שם בעברית:</label>
                     <input
                       type="text"
-                      value={newSectorLabel}
-                      onChange={(e) => setNewSectorLabel(e.target.value)}
+                      value={sectorForm.label_he}
+                      onChange={(e) => setSectorForm(f => ({ ...f, label_he: e.target.value }))}
                       placeholder="צפון"
                       style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
                     />
                   </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>קטגוריה:</label>
+                    <input
+                      type="text"
+                      value={sectorForm.category}
+                      onChange={(e) => setSectorForm(f => ({ ...f, category: e.target.value }))}
+                      placeholder="למשל: מרחב, גישה, מסלול..."
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>הערות (להעברת מידע בין עמדות):</label>
+                  <textarea
+                    value={sectorForm.notes}
+                    onChange={(e) => setSectorForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="לדוגמה: זוגי צפוני, אי-זוגי דרומה..."
+                    rows={3}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box', resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                   <button
-                    onClick={createSector}
-                    style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', height: 'fit-content' }}
+                    onClick={saveSector}
+                    style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
                   >
-                    הוספה
+                    {editingSector ? 'עדכון' : 'הוספה'}
                   </button>
+                  {editingSector && (
+                    <button
+                      onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '' }); }}
+                      style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ביטול
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -3032,37 +3066,33 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {sectors.map(sector => (
                   <div key={sector.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
-                    {editingSector?.id === sector.id ? (
-                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <input
-                          type="text"
-                          value={editingSector.name}
-                          onChange={(e) => setEditingSector({ ...editingSector, name: e.target.value })}
-                          style={{ flex: 1, padding: '8px', border: '1px solid #475569', borderRadius: '4px', background: '#1e293b', color: 'white', fontSize: '14px' }}
-                        />
-                        <input
-                          type="text"
-                          value={editingSector.label_he}
-                          onChange={(e) => setEditingSector({ ...editingSector, label_he: e.target.value })}
-                          style={{ flex: 1, padding: '8px', border: '1px solid #475569', borderRadius: '4px', background: '#1e293b', color: 'white', fontSize: '14px' }}
-                        />
-                        <button onClick={() => updateSector(sector.id, editingSector.name, editingSector.label_he)} style={{ padding: '6px 15px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>שמור</button>
-                        <button onClick={() => setEditingSector(null)} style={{ padding: '6px 15px', background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                           <strong style={{ fontSize: '16px' }}>{sector.label_he || sector.name}</strong>
-                          <span style={{ color: '#64748b', marginRight: '10px', fontSize: '14px' }}>({sector.name})</span>
+                          <span style={{ color: '#64748b', fontSize: '14px' }}>({sector.name})</span>
+                          {sector.category && (
+                            <span style={{ background: '#7c3aed', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' }}>{sector.category}</span>
+                          )}
                         </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => setEditingSector({ ...sector })} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
-                          <button onClick={() => deleteSector(sector.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
-                        </div>
+                        {sector.notes && (
+                          <div style={{ marginTop: '8px', padding: '10px', background: '#1e293b', borderRadius: '6px', color: '#94a3b8', fontSize: '13px', borderRight: '3px solid #f59e0b' }}>
+                            {sector.notes}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      <div style={{ display: 'flex', gap: '8px', marginRight: '15px' }}>
+                        <button onClick={() => editSector(sector)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                        <button onClick={() => deleteSector(sector.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                      </div>
+                    </div>
                   </div>
                 ))}
+                {sectors.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
+                    אין סקטורים מוגדרים. הוסף סקטור חדש למעלה.
+                  </div>
+                )}
               </div>
             </div>
           )}

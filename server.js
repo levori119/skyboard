@@ -733,11 +733,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors } = req.body;
+    const { name, map_id, relevant_sectors } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, sector_id, map_id, JSON.stringify(my_sub_sectors || []), JSON.stringify(neighbor_sub_sectors || [])]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors) 
+       VALUES ($1, $2, $3) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || [])]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -748,10 +748,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors } = req.body;
+    const { name, map_id, relevant_sectors } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, sector_id = $2, map_id = $3, my_sub_sectors = $4, neighbor_sub_sectors = $5 WHERE id = $6 RETURNING *`,
-      [name, sector_id, map_id, JSON.stringify(my_sub_sectors || []), JSON.stringify(neighbor_sub_sectors || []), req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3 WHERE id = $4 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -776,10 +776,10 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
 // Sectors CRUD API
 app.post('/api/sectors', async (req, res) => {
   try {
-    const { name, label_he } = req.body;
+    const { name, label_he, category, notes } = req.body;
     const result = await pool.query(
-      'INSERT INTO sectors (name, label_he) VALUES ($1, $2) RETURNING *',
-      [name, label_he]
+      'INSERT INTO sectors (name, label_he, category, notes) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, label_he, category || null, notes || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -790,10 +790,10 @@ app.post('/api/sectors', async (req, res) => {
 
 app.put('/api/sectors/:id', async (req, res) => {
   try {
-    const { name, label_he } = req.body;
+    const { name, label_he, category, notes } = req.body;
     const result = await pool.query(
-      'UPDATE sectors SET name = $1, label_he = $2 WHERE id = $3 RETURNING *',
-      [name, label_he, req.params.id]
+      'UPDATE sectors SET name = $1, label_he = $2, category = $3, notes = $4 WHERE id = $5 RETURNING *',
+      [name, label_he, category || null, notes || null, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sector not found' });
