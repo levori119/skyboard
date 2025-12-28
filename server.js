@@ -107,6 +107,19 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
   
+  // Workstation presets table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workstation_presets (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      sector_id INTEGER REFERENCES sectors(id) ON DELETE SET NULL,
+      map_id INTEGER,
+      my_sub_sectors JSONB DEFAULT '[]',
+      neighbor_sub_sectors JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
   console.log('Database initialized');
 }
 
@@ -704,6 +717,132 @@ app.post('/api/defaults', async (req, res) => {
   } catch (err) {
     console.error('Error saving default:', err);
     res.status(500).json({ error: 'Failed to save default' });
+  }
+});
+
+// Workstation Presets API
+app.get('/api/workstation-presets', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching workstation presets:', err);
+    res.status(500).json({ error: 'Failed to fetch workstation presets' });
+  }
+});
+
+app.post('/api/workstation-presets', async (req, res) => {
+  try {
+    const { name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors } = req.body;
+    const result = await pool.query(
+      `INSERT INTO workstation_presets (name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, sector_id, map_id, JSON.stringify(my_sub_sectors || []), JSON.stringify(neighbor_sub_sectors || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating workstation preset:', err);
+    res.status(500).json({ error: 'Failed to create workstation preset' });
+  }
+});
+
+app.put('/api/workstation-presets/:id', async (req, res) => {
+  try {
+    const { name, sector_id, map_id, my_sub_sectors, neighbor_sub_sectors } = req.body;
+    const result = await pool.query(
+      `UPDATE workstation_presets SET name = $1, sector_id = $2, map_id = $3, my_sub_sectors = $4, neighbor_sub_sectors = $5 WHERE id = $6 RETURNING *`,
+      [name, sector_id, map_id, JSON.stringify(my_sub_sectors || []), JSON.stringify(neighbor_sub_sectors || []), req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Preset not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating workstation preset:', err);
+    res.status(500).json({ error: 'Failed to update workstation preset' });
+  }
+});
+
+app.delete('/api/workstation-presets/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM workstation_presets WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting workstation preset:', err);
+    res.status(500).json({ error: 'Failed to delete workstation preset' });
+  }
+});
+
+// Sectors CRUD API
+app.post('/api/sectors', async (req, res) => {
+  try {
+    const { name, label_he } = req.body;
+    const result = await pool.query(
+      'INSERT INTO sectors (name, label_he) VALUES ($1, $2) RETURNING *',
+      [name, label_he]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating sector:', err);
+    res.status(500).json({ error: 'Failed to create sector' });
+  }
+});
+
+app.put('/api/sectors/:id', async (req, res) => {
+  try {
+    const { name, label_he } = req.body;
+    const result = await pool.query(
+      'UPDATE sectors SET name = $1, label_he = $2 WHERE id = $3 RETURNING *',
+      [name, label_he, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sector not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating sector:', err);
+    res.status(500).json({ error: 'Failed to update sector' });
+  }
+});
+
+app.delete('/api/sectors/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM sectors WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting sector:', err);
+    res.status(500).json({ error: 'Failed to delete sector' });
+  }
+});
+
+// Sector neighbors management
+app.post('/api/sectors/:id/neighbors', async (req, res) => {
+  try {
+    const { neighbor_id } = req.body;
+    await pool.query(
+      'INSERT INTO sector_neighbors (sector_id, neighbor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.params.id, neighbor_id]
+    );
+    // Add reverse relationship
+    await pool.query(
+      'INSERT INTO sector_neighbors (sector_id, neighbor_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [neighbor_id, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error adding sector neighbor:', err);
+    res.status(500).json({ error: 'Failed to add sector neighbor' });
+  }
+});
+
+app.delete('/api/sectors/:id/neighbors/:neighborId', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM sector_neighbors WHERE sector_id = $1 AND neighbor_id = $2', [req.params.id, req.params.neighborId]);
+    await pool.query('DELETE FROM sector_neighbors WHERE sector_id = $1 AND neighbor_id = $2', [req.params.neighborId, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error removing sector neighbor:', err);
+    res.status(500).json({ error: 'Failed to remove sector neighbor' });
   }
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
@@ -39,22 +40,23 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [workstationName, setWorkstationName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
+  const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sectorsRes, defaultsRes] = await Promise.all([
+        const [sectorsRes, presetsRes] = await Promise.all([
           fetch(`${API_URL}/sectors`),
-          fetch(`${API_URL}/defaults`)
+          fetch(`${API_URL}/workstation-presets`)
         ]);
         if (sectorsRes.ok) {
           const data = await sectorsRes.json();
           setSectors(data);
         }
-        if (defaultsRes.ok) {
-          const defaults = await defaultsRes.json();
-          if (defaults.defaultWorkstation) setWorkstationName(defaults.defaultWorkstation);
-          if (defaults.defaultSector) setSelectedSector(parseInt(defaults.defaultSector));
+        if (presetsRes.ok) {
+          const presets = await presetsRes.json();
+          setWorkstationPresets(presets);
         }
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -62,6 +64,37 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     };
     loadData();
   }, []);
+
+  const handlePresetLogin = async (preset: any) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/workstations/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: preset.name, sectorId: preset.sector_id, presetId: preset.id })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const session: WorkstationSession = {
+          workstationId: data.workstation.id,
+          workstationName: data.workstation.name,
+          sectorId: data.sector.id,
+          sectorName: data.sector.name,
+          sectorLabelHe: data.sector.label_he,
+          authToken: data.authToken
+        };
+        saveSession(session);
+        onLogin(session);
+      } else {
+        setError('שגיאה בכניסה');
+      }
+    } catch (err) {
+      setError('שגיאת חיבור');
+    }
+    setLoading(false);
+  };
 
   const handleLogin = async () => {
     if (!selectedSector || !workstationName.trim()) {
@@ -114,99 +147,191 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         background: 'white', 
         padding: '40px', 
         borderRadius: '16px', 
-        minWidth: '400px',
+        minWidth: '450px',
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
-        <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '28px' }}>BLUE TORCH</h1>
-        <p style={{ margin: '0 0 30px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
+        <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '32px' }}>BLUE TORCH</h1>
+        <p style={{ margin: '0 0 40px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
         
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#334155' }}>שם עמדה:</label>
-          <input
-            type="text"
-            value={workstationName}
-            onChange={(e) => setWorkstationName(e.target.value)}
-            placeholder="לדוגמה: עמדה 1"
-            style={{ 
-              width: '100%', 
-              padding: '12px', 
-              border: '2px solid #e2e8f0', 
-              borderRadius: '8px', 
-              fontSize: '16px',
-              boxSizing: 'border-box'
-            }}
-          />
-        </div>
-        
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#334155' }}>סקטור:</label>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {sectors.map(s => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedSector(s.id)}
-                style={{
-                  flex: 1,
-                  minWidth: '100px',
-                  padding: '15px',
-                  border: selectedSector === s.id ? '3px solid #2563eb' : '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  background: selectedSector === s.id ? '#dbeafe' : 'white',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  color: selectedSector === s.id ? '#1d4ed8' : '#334155'
-                }}
-              >
-                {s.label_he || s.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {error && (
-          <div style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
-            {error}
-          </div>
-        )}
-        
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          style={{
-            width: '100%',
-            padding: '15px',
-            background: loading ? '#94a3b8' : '#0f172a',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            cursor: loading ? 'default' : 'pointer'
-          }}
-        >
-          {loading ? 'מתחבר...' : 'כניסה'}
-        </button>
-        
-        {onManagement && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <button
-            onClick={onManagement}
+            onClick={() => setShowWorkstationSelect(true)}
             style={{
-              width: '100%',
-              marginTop: '12px',
-              padding: '12px',
-              background: '#059669',
+              padding: '25px',
+              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
               color: 'white',
               border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              cursor: 'pointer'
+              borderRadius: '12px',
+              fontSize: '20px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
             }}
           >
-            ניהול מערכת
+            <span style={{ fontSize: '28px' }}>🖥️</span>
+            בחירת עמדה
           </button>
-        )}
+          
+          {onManagement && (
+            <button
+              onClick={onManagement}
+              style={{
+                padding: '25px',
+                background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
+              }}
+            >
+              <span style={{ fontSize: '28px' }}>⚙️</span>
+              ניהול מערכת
+            </button>
+          )}
+        </div>
       </div>
+      
+      {/* Workstation Selection Modal */}
+      {showWorkstationSelect && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: '30px',
+            borderRadius: '16px',
+            minWidth: '500px',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: '#0f172a' }}>בחירת עמדה</h2>
+              <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+            </div>
+            
+            {/* Workstation Presets */}
+            {workstationPresets.length > 0 && (
+              <div style={{ marginBottom: '25px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>עמדות מוגדרות:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {workstationPresets.map((preset: any) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePresetLogin(preset)}
+                      style={{
+                        padding: '15px',
+                        background: '#f1f5f9',
+                        border: '2px solid #e2e8f0',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        textAlign: 'right',
+                        fontSize: '16px'
+                      }}
+                    >
+                      <strong>{preset.name}</strong>
+                      <span style={{ color: '#64748b', marginRight: '10px' }}>
+                        ({sectors.find((s: any) => s.id === preset.sector_id)?.label_he || 'לא מוגדר'})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>או הגדר עמדה חדשה:</label>
+              
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', color: '#64748b' }}>שם עמדה:</label>
+                <input
+                  type="text"
+                  value={workstationName}
+                  onChange={(e) => setWorkstationName(e.target.value)}
+                  placeholder="לדוגמה: עמדה 1"
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    border: '2px solid #e2e8f0', 
+                    borderRadius: '8px', 
+                    fontSize: '16px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: '#64748b' }}>סקטור:</label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {sectors.map((s: any) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedSector(s.id)}
+                      style={{
+                        flex: 1,
+                        minWidth: '100px',
+                        padding: '12px',
+                        border: selectedSector === s.id ? '3px solid #2563eb' : '2px solid #e2e8f0',
+                        borderRadius: '8px',
+                        background: selectedSector === s.id ? '#dbeafe' : 'white',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 'bold',
+                        color: selectedSector === s.id ? '#1d4ed8' : '#334155'
+                      }}
+                    >
+                      {s.label_he || s.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {error && (
+                <div style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px', textAlign: 'center' }}>
+                  {error}
+                </div>
+              )}
+              
+              <button
+                onClick={handleLogin}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '15px',
+                  background: loading ? '#94a3b8' : '#0f172a',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: loading ? 'default' : 'pointer'
+                }}
+              >
+                {loading ? 'מתחבר...' : 'כניסה'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2587,111 +2712,366 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets'>('presets');
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
-  const [defaults, setDefaults] = useState<{defaultWorkstation?: string; defaultSector?: string; defaultMap?: string}>({});
-  const [saving, setSaving] = useState(false);
+  const [presets, setPresets] = useState<any[]>([]);
+  const [allSubSectors, setAllSubSectors] = useState<any[]>([]);
+  
+  // Sector editing
+  const [editingSector, setEditingSector] = useState<any | null>(null);
+  const [newSectorName, setNewSectorName] = useState('');
+  const [newSectorLabel, setNewSectorLabel] = useState('');
+  
+  // Preset editing
+  const [editingPreset, setEditingPreset] = useState<any | null>(null);
+  const [presetForm, setPresetForm] = useState({
+    name: '',
+    sector_id: '',
+    map_id: '',
+    my_sub_sectors: [] as string[],
+    neighbor_sub_sectors: [] as string[]
+  });
+
+  const loadData = async () => {
+    try {
+      const [sectorsRes, mapsRes, presetsRes] = await Promise.all([
+        fetch(`${API_URL}/sectors`),
+        fetch(`${API_URL}/maps`),
+        fetch(`${API_URL}/workstation-presets`)
+      ]);
+      if (sectorsRes.ok) {
+        const sectorsData = await sectorsRes.json();
+        setSectors(sectorsData);
+        // Load sub-sectors for each sector
+        const allSubs: any[] = [];
+        for (const sector of sectorsData) {
+          const subsRes = await fetch(`${API_URL}/sectors/${sector.id}/sub-sectors`);
+          if (subsRes.ok) {
+            const subs = await subsRes.json();
+            allSubs.push(...subs.map((s: any) => ({ ...s, sectorId: sector.id, sectorLabel: sector.label_he || sector.name })));
+          }
+        }
+        setAllSubSectors(allSubs);
+      }
+      if (mapsRes.ok) setMaps(await mapsRes.json());
+      if (presetsRes.ok) setPresets(await presetsRes.json());
+    } catch (err) {
+      console.error('Failed to load:', err);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [sectorsRes, mapsRes, defaultsRes] = await Promise.all([
-          fetch(`${API_URL}/sectors`),
-          fetch(`${API_URL}/maps`),
-          fetch(`${API_URL}/defaults`)
-        ]);
-        if (sectorsRes.ok) setSectors(await sectorsRes.json());
-        if (mapsRes.ok) setMaps(await mapsRes.json());
-        if (defaultsRes.ok) setDefaults(await defaultsRes.json());
-      } catch (err) {
-        console.error('Failed to load:', err);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
-  const saveDefault = async (key: string, value: string) => {
-    setSaving(true);
+  // Sector management
+  const createSector = async () => {
+    if (!newSectorName.trim()) return;
     try {
-      await fetch(`${API_URL}/defaults`, {
+      await fetch(`${API_URL}/sectors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value })
+        body: JSON.stringify({ name: newSectorName, label_he: newSectorLabel || newSectorName })
       });
-      setDefaults(prev => ({ ...prev, [key]: value }));
+      setNewSectorName('');
+      setNewSectorLabel('');
+      loadData();
     } catch (err) {
-      console.error('Failed to save default:', err);
+      console.error('Failed to create sector:', err);
     }
-    setSaving(false);
   };
+
+  const updateSector = async (id: number, name: string, label_he: string) => {
+    try {
+      await fetch(`${API_URL}/sectors/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, label_he })
+      });
+      setEditingSector(null);
+      loadData();
+    } catch (err) {
+      console.error('Failed to update sector:', err);
+    }
+  };
+
+  const deleteSector = async (id: number) => {
+    if (!confirm('למחוק סקטור זה?')) return;
+    try {
+      await fetch(`${API_URL}/sectors/${id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete sector:', err);
+    }
+  };
+
+  // Preset management
+  const savePreset = async () => {
+    if (!presetForm.name.trim()) return;
+    try {
+      const method = editingPreset ? 'PUT' : 'POST';
+      const url = editingPreset ? `${API_URL}/workstation-presets/${editingPreset.id}` : `${API_URL}/workstation-presets`;
+      await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: presetForm.name,
+          sector_id: presetForm.sector_id ? parseInt(presetForm.sector_id) : null,
+          map_id: presetForm.map_id ? parseInt(presetForm.map_id) : null,
+          my_sub_sectors: presetForm.my_sub_sectors,
+          neighbor_sub_sectors: presetForm.neighbor_sub_sectors
+        })
+      });
+      setEditingPreset(null);
+      setPresetForm({ name: '', sector_id: '', map_id: '', my_sub_sectors: [], neighbor_sub_sectors: [] });
+      loadData();
+    } catch (err) {
+      console.error('Failed to save preset:', err);
+    }
+  };
+
+  const editPreset = (preset: any) => {
+    setEditingPreset(preset);
+    setPresetForm({
+      name: preset.name,
+      sector_id: preset.sector_id?.toString() || '',
+      map_id: preset.map_id?.toString() || '',
+      my_sub_sectors: preset.my_sub_sectors || [],
+      neighbor_sub_sectors: preset.neighbor_sub_sectors || []
+    });
+  };
+
+  const deletePreset = async (id: number) => {
+    if (!confirm('למחוק עמדה זו?')) return;
+    try {
+      await fetch(`${API_URL}/workstation-presets/${id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete preset:', err);
+    }
+  };
+
+  const tabStyle = (active: boolean) => ({
+    padding: '12px 24px',
+    background: active ? '#3b82f6' : '#334155',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px 8px 0 0',
+    cursor: 'pointer',
+    fontSize: '16px',
+    fontWeight: active ? 'bold' : 'normal' as const
+  });
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
       <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <h1 style={{ margin: 0, fontSize: '20px' }}>ניהול מערכת</h1>
-        </div>
-        <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-          חזרה לכניסה
+        <h1 style={{ margin: 0, fontSize: '22px' }}>ניהול מערכת</h1>
+        <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+          חזרה
         </button>
       </header>
+
+      {/* Tabs */}
+      <div style={{ padding: '20px 30px 0', display: 'flex', gap: '4px' }}>
+        <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>
+        <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>סקטורים</button>
+        <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
+      </div>
       
-      <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '30px' }}>
-        {/* Defaults Section */}
-        <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px' }}>
-          <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ברירות מחדל</h2>
+      <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
+        <div style={{ background: '#1e293b', borderRadius: '0 0 12px 12px', padding: '24px', minHeight: '500px' }}>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={{ width: '120px', color: '#94a3b8' }}>שם עמדה:</label>
-              <input
-                type="text"
-                value={defaults.defaultWorkstation || ''}
-                onChange={(e) => setDefaults(prev => ({ ...prev, defaultWorkstation: e.target.value }))}
-                placeholder="לדוגמה: עמדה 1"
-                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
-              />
-              <button
-                onClick={() => saveDefault('defaultWorkstation', defaults.defaultWorkstation || '')}
-                disabled={saving}
-                style={{ padding: '10px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
-              >
-                שמור
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={{ width: '120px', color: '#94a3b8' }}>סקטור:</label>
-              <select
-                value={defaults.defaultSector || ''}
-                onChange={(e) => { setDefaults(prev => ({ ...prev, defaultSector: e.target.value })); saveDefault('defaultSector', e.target.value); }}
-                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
-              >
-                <option value="">ללא ברירת מחדל</option>
-                {sectors.map(s => (
-                  <option key={s.id} value={s.id}>{s.label_he || s.name}</option>
+          {/* Presets Tab */}
+          {activeTab === 'presets' && (
+            <div>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>הגדרת עמדות</h2>
+              
+              {/* Preset Form */}
+              <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
+                  {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שם עמדה:</label>
+                    <input
+                      type="text"
+                      value={presetForm.name}
+                      onChange={(e) => setPresetForm(p => ({ ...p, name: e.target.value }))}
+                      placeholder="לדוגמה: מרחבי 305"
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>סקטור:</label>
+                    <select
+                      value={presetForm.sector_id}
+                      onChange={(e) => setPresetForm(p => ({ ...p, sector_id: e.target.value }))}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px' }}
+                    >
+                      <option value="">בחר סקטור</option>
+                      {sectors.map(s => (
+                        <option key={s.id} value={s.id}>{s.label_he || s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מפה:</label>
+                    <select
+                      value={presetForm.map_id}
+                      onChange={(e) => setPresetForm(p => ({ ...p, map_id: e.target.value }))}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px' }}
+                    >
+                      <option value="">בחר מפה</option>
+                      {maps.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>התתי-סקטורים שלי (יוצגו לסקטורים שכנים):</label>
+                  <input
+                    type="text"
+                    value={presetForm.my_sub_sectors.join(', ')}
+                    onChange={(e) => setPresetForm(p => ({ ...p, my_sub_sectors: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                    placeholder="תת-סקטור 1, תת-סקטור 2..."
+                    style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                  <button
+                    onClick={savePreset}
+                    style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                  >
+                    {editingPreset ? 'עדכון' : 'הוספה'}
+                  </button>
+                  {editingPreset && (
+                    <button
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', sector_id: '', map_id: '', my_sub_sectors: [], neighbor_sub_sectors: [] }); }}
+                      style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ביטול
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Presets List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {presets.map(preset => (
+                  <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
+                      <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
+                        סקטור: {sectors.find(s => s.id === preset.sector_id)?.label_he || 'לא מוגדר'} | 
+                        מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
+                        {preset.my_sub_sectors?.length > 0 && ` | תתי-סקטורים: ${preset.my_sub_sectors.join(', ')}`}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                      <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                    </div>
+                  </div>
                 ))}
-              </select>
+                {presets.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
+                    אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.
+                  </div>
+                )}
+              </div>
             </div>
+          )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <label style={{ width: '120px', color: '#94a3b8' }}>מפה:</label>
-              <select
-                value={defaults.defaultMap || ''}
-                onChange={(e) => { setDefaults(prev => ({ ...prev, defaultMap: e.target.value })); saveDefault('defaultMap', e.target.value); }}
-                style={{ flex: 1, padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: 'white', fontSize: '14px' }}
-              >
-                <option value="">ללא ברירת מחדל</option>
-                {maps.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
+          {/* Sectors Tab */}
+          {activeTab === 'sectors' && (
+            <div>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול סקטורים</h2>
+              
+              {/* New Sector Form */}
+              <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>סקטור חדש</h3>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>קוד:</label>
+                    <input
+                      type="text"
+                      value={newSectorName}
+                      onChange={(e) => setNewSectorName(e.target.value)}
+                      placeholder="NORTH"
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שם בעברית:</label>
+                    <input
+                      type="text"
+                      value={newSectorLabel}
+                      onChange={(e) => setNewSectorLabel(e.target.value)}
+                      placeholder="צפון"
+                      style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <button
+                    onClick={createSector}
+                    style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', height: 'fit-content' }}
+                  >
+                    הוספה
+                  </button>
+                </div>
+              </div>
+              
+              {/* Sectors List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {sectors.map(sector => (
+                  <div key={sector.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
+                    {editingSector?.id === sector.id ? (
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          value={editingSector.name}
+                          onChange={(e) => setEditingSector({ ...editingSector, name: e.target.value })}
+                          style={{ flex: 1, padding: '8px', border: '1px solid #475569', borderRadius: '4px', background: '#1e293b', color: 'white', fontSize: '14px' }}
+                        />
+                        <input
+                          type="text"
+                          value={editingSector.label_he}
+                          onChange={(e) => setEditingSector({ ...editingSector, label_he: e.target.value })}
+                          style={{ flex: 1, padding: '8px', border: '1px solid #475569', borderRadius: '4px', background: '#1e293b', color: 'white', fontSize: '14px' }}
+                        />
+                        <button onClick={() => updateSector(sector.id, editingSector.name, editingSector.label_he)} style={{ padding: '6px 15px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>שמור</button>
+                        <button onClick={() => setEditingSector(null)} style={{ padding: '6px 15px', background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ fontSize: '16px' }}>{sector.label_he || sector.name}</strong>
+                          <span style={{ color: '#64748b', marginRight: '10px', fontSize: '14px' }}>({sector.name})</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => setEditingSector({ ...sector })} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                          <button onClick={() => deleteSector(sector.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </select>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Maps Tab */}
+          {activeTab === 'maps' && (
+            <MapsManager onClose={() => {}} onMapsUpdated={loadData} isEmbedded={true} />
+          )}
         </div>
-
-        {/* Maps Manager */}
-        <MapsManager onClose={() => {}} onMapsUpdated={() => {}} isEmbedded={true} />
       </div>
     </div>
   );
