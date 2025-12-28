@@ -31,13 +31,16 @@ Preferred communication style: Simple, everyday language.
 
 ### Database Schema
 - `learned_digits` - Stores OCR training data (digit, image_data, timestamp)
-- `sectors` - Geographic/operational sectors (name, Hebrew label, map asset)
+- `sectors` - Geographic/operational sectors (name, Hebrew label, category, notes)
 - `sector_neighbors` - Many-to-many relationship for adjacent sectors
-- `workstations` - Work positions with UUID primary keys, linked to sectors
+- `workstations` - Work positions with UUID primary keys
+- `workstation_presets` - Preset configurations (name, map_id, relevant_sectors JSONB array)
+- `maps` - Map assets for display in sectors
 
 ## Session Management
 - Client-side session storage for workstation authentication
-- Sessions store workstation ID, name, sector info, and auth token
+- Sessions store workstation ID, name, relevant sectors array, map ID, and auth token
+- Workstations can have multiple relevant sectors for inter-workstation coordination
 - No persistent server-side session storage observed
 
 ## Key Features
