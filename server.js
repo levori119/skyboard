@@ -107,6 +107,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
   
+  // Sectors new columns
+  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
+  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
+  
   // Workstation presets table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS workstation_presets (
@@ -119,6 +123,9 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  
+  // Add relevant_sectors column
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
   
   console.log('Database initialized');
 }
@@ -254,19 +261,6 @@ app.get('/api/sectors', async (req, res) => {
   }
 });
 
-app.post('/api/sectors', async (req, res) => {
-  try {
-    const { name, labelHe, mapAsset } = req.body;
-    const result = await pool.query(
-      'INSERT INTO sectors (name, label_he, map_asset) VALUES ($1, $2, $3) RETURNING *',
-      [name, labelHe, mapAsset]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error creating sector:', err);
-    res.status(500).json({ error: 'Failed to create sector' });
-  }
-});
 
 app.get('/api/sectors/:id/neighbors', async (req, res) => {
   try {
@@ -332,20 +326,17 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
 // --- Workstations API ---
 app.post('/api/workstations/login', async (req, res) => {
   try {
-    const { name, sectorId } = req.body;
+    const { name } = req.body;
     const authToken = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
     
     const result = await pool.query(
-      `INSERT INTO workstations (name, sector_id, auth_token, is_active, last_seen) 
-       VALUES ($1, $2, $3, TRUE, CURRENT_TIMESTAMP) RETURNING *`,
-      [name, sectorId, authToken]
+      `INSERT INTO workstations (name, auth_token, is_active, last_seen) 
+       VALUES ($1, $2, TRUE, CURRENT_TIMESTAMP) RETURNING *`,
+      [name, authToken]
     );
-    
-    const sector = await pool.query('SELECT * FROM sectors WHERE id = $1', [sectorId]);
     
     res.json({
       workstation: result.rows[0],
-      sector: sector.rows[0],
       authToken
     });
   } catch (err) {

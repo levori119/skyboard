@@ -10,9 +10,8 @@ const API_URL = '/api';
 interface WorkstationSession {
   workstationId: string;
   workstationName: string;
-  sectorId: number;
-  sectorName: string;
-  sectorLabelHe: string;
+  relevantSectors: { id: number; name: string; label_he: string; category?: string; notes?: string }[];
+  mapId?: number;
   authToken: string;
 }
 
@@ -69,10 +68,13 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setLoading(true);
     setError('');
     try {
+      const relevantSectorIds: number[] = preset.relevant_sectors || [];
+      const relevantSectorsList = sectors.filter(s => relevantSectorIds.includes(s.id));
+      
       const res = await fetch(`${API_URL}/workstations/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: preset.name, sectorId: preset.sector_id, presetId: preset.id })
+        body: JSON.stringify({ name: preset.name, presetId: preset.id })
       });
 
       if (res.ok) {
@@ -80,9 +82,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         const session: WorkstationSession = {
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
-          sectorId: data.sector.id,
-          sectorName: data.sector.name,
-          sectorLabelHe: data.sector.label_he,
+          relevantSectors: relevantSectorsList,
+          mapId: preset.map_id,
           authToken: data.authToken
         };
         saveSession(session);
@@ -106,10 +107,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setError('');
 
     try {
+      const selectedSectorObj = sectors.find(s => s.id === selectedSector);
+      
       const res = await fetch(`${API_URL}/workstations/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: workstationName, sectorId: selectedSector })
+        body: JSON.stringify({ name: workstationName })
       });
 
       if (res.ok) {
@@ -117,9 +120,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         const session: WorkstationSession = {
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
-          sectorId: data.sector.id,
-          sectorName: data.sector.name,
-          sectorLabelHe: data.sector.label_he,
+          relevantSectors: selectedSectorObj ? [selectedSectorObj] : [],
           authToken: data.authToken
         };
         saveSession(session);
@@ -250,7 +251,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                     >
                       <strong>{preset.name}</strong>
                       <span style={{ color: '#64748b', marginRight: '10px' }}>
-                        ({sectors.find((s: any) => s.id === preset.sector_id)?.label_he || 'לא מוגדר'})
+                        {(preset.relevant_sectors || []).length > 0 
+                          ? `(${(preset.relevant_sectors as number[]).map((id: number) => sectors.find((s: any) => s.id === id)?.label_he || sectors.find((s: any) => s.id === id)?.name).filter(Boolean).join(', ')})`
+                          : '(ללא סקטורים)'}
                       </span>
                     </button>
                   ))}
@@ -1941,14 +1944,18 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
+  const primarySector = session.relevantSectors[0];
+  const primarySectorId = primarySector?.id;
+
   const loadData = async () => {
+    if (!primarySectorId) return;
     try {
       const [stripsRes, neighborsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = await Promise.all([
-        fetch(`${API_URL}/sectors/${session.sectorId}/strips`),
-        fetch(`${API_URL}/sectors/${session.sectorId}/neighbors`),
-        fetch(`${API_URL}/sectors/${session.sectorId}/sub-sectors`),
-        fetch(`${API_URL}/sectors/${session.sectorId}/incoming-transfers`),
-        fetch(`${API_URL}/sectors/${session.sectorId}/outgoing-transfers`),
+        fetch(`${API_URL}/sectors/${primarySectorId}/strips`),
+        fetch(`${API_URL}/sectors/${primarySectorId}/neighbors`),
+        fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
+        fetch(`${API_URL}/sectors/${primarySectorId}/incoming-transfers`),
+        fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`),
         fetch(`${API_URL}/maps`)
       ]);
       
@@ -1965,6 +1972,14 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
   const loadDefaultMap = async () => {
     try {
+      if (session.mapId) {
+        const mapRes = await fetch(`${API_URL}/maps/${session.mapId}`);
+        if (mapRes.ok) {
+          const map = await mapRes.json();
+          setMapImg(map.image_data);
+          return;
+        }
+      }
       const defaultsRes = await fetch(`${API_URL}/defaults`);
       if (defaultsRes.ok) {
         const defaults = await defaultsRes.json();
@@ -1983,13 +1998,13 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
   useEffect(() => {
     loadDefaultMap();
-  }, []);
+  }, [session.mapId]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
-  }, [session.sectorId]);
+  }, [primarySectorId]);
 
   const handleMap = (e: any) => {
     const reader = new FileReader();
@@ -2110,9 +2125,9 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   };
 
   const handleAddSubSector = async () => {
-    if (!newSubSectorNeighbor || !newSubSectorLabel.trim()) return;
+    if (!newSubSectorNeighbor || !newSubSectorLabel.trim() || !primarySectorId) return;
     try {
-      await fetch(`${API_URL}/sectors/${session.sectorId}/sub-sectors`, {
+      await fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2242,7 +2257,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <b style={{fontSize: '18px'}}>BLUE TORCH</b>
           <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
-            {session.sectorLabelHe} | {session.workstationName}
+            {session.relevantSectors.map(s => s.label_he || s.name).join(', ') || 'ללא סקטורים'} | {session.workstationName}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
