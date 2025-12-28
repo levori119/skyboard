@@ -2257,7 +2257,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <b style={{fontSize: '18px'}}>BLUE TORCH</b>
           <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
-            {session.relevantSectors.map(s => s.label_he || s.name).join(', ') || 'ללא סקטורים'} | {session.workstationName}
+            {session.workstationName}
           </span>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
