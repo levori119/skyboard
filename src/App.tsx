@@ -1099,14 +1099,15 @@ const DraggableNeighborPanel = ({
     <>
       <div style={{ borderBottom: '1px solid #334155' }}>
         <div
-          onClick={onToggle}
+          onPointerDown={(e) => handlePointerDown(e)}
           style={{
             padding: '12px',
             background: isExpanded ? '#334155' : 'transparent',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            cursor: 'pointer'
+            cursor: 'grab',
+            userSelect: 'none'
           }}
         >
           <div 
@@ -1120,7 +1121,10 @@ const DraggableNeighborPanel = ({
             {neighbor.label_he || neighbor.name}
           </div>
           {hasSubSectors && (
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+            <span 
+              onClick={(e) => { e.stopPropagation(); onToggle(); }}
+              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+            >
               {isExpanded ? '▼' : '◀'}
             </span>
           )}
