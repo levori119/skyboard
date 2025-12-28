@@ -1920,7 +1920,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
 // --- דשבורד סקטור ---
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
-  const [neighbors, setNeighbors] = useState<any[]>([]);
+  const neighbors = session.relevantSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
@@ -1950,9 +1950,8 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const loadData = async () => {
     if (!primarySectorId) return;
     try {
-      const [stripsRes, neighborsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = await Promise.all([
+      const [stripsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = await Promise.all([
         fetch(`${API_URL}/sectors/${primarySectorId}/strips`),
-        fetch(`${API_URL}/sectors/${primarySectorId}/neighbors`),
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
         fetch(`${API_URL}/sectors/${primarySectorId}/incoming-transfers`),
         fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`),
@@ -1960,7 +1959,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       ]);
       
       if (stripsRes.ok) setStrips(await stripsRes.json());
-      if (neighborsRes.ok) setNeighbors(await neighborsRes.json());
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
@@ -2071,7 +2069,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
     const neighbor = neighbors.find(n => n.id === sectorId);
-    const label = subLabel || neighbor?.label || 'סקטור';
+    const label = subLabel || neighbor?.label_he || neighbor?.name || 'סקטור';
     setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), 
       { sectorId, x, y, subLabel, label }
     ]);
