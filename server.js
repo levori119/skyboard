@@ -198,12 +198,46 @@ app.get('/api/strips', async (req, res) => {
   }
 });
 
+app.get('/api/strips/all', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM strips ORDER BY id');
+    res.json(result.rows.map(r => ({
+      id: 's' + r.id,
+      call_sign: r.callsign,
+      sq: r.sq,
+      alt: r.alt,
+      task: r.task,
+      squadron: r.squadron,
+      sector_id: r.sector_id,
+      x: r.x,
+      y: r.y,
+      on_map: r.on_map,
+      airborne: r.airborne
+    })));
+  } catch (err) {
+    console.error('Error fetching all strips:', err);
+    res.status(500).json({ error: 'Failed to fetch strips' });
+  }
+});
+
+app.post('/api/strips/:id/assign', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id.replace('s', ''));
+    const { sectorId } = req.body;
+    await pool.query('UPDATE strips SET sector_id = $1 WHERE id = $2', [sectorId, id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error assigning strip:', err);
+    res.status(500).json({ error: 'Failed to assign strip' });
+  }
+});
+
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task, squadron } = req.body;
+    const { callSign, sq, alt, task, squadron, sectorId } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [callSign, sq, alt, task, squadron]
+      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [callSign, sq, alt, task, squadron, sectorId || null]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {

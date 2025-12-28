@@ -33,7 +33,7 @@ const clearSession = () => {
 };
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: () => void }) => {
+const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: (session: WorkstationSession) => void; onManagement?: () => void; onDistribution?: () => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedSector, setSelectedSector] = useState<number | null>(null);
   const [workstationName, setWorkstationName] = useState('');
@@ -176,6 +176,30 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             <span style={{ fontSize: '28px' }}>🖥️</span>
             בחירת עמדה
           </button>
+          
+          {onDistribution && (
+            <button
+              onClick={onDistribution}
+              style={{
+                padding: '25px',
+                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+              }}
+            >
+              <span style={{ fontSize: '28px' }}>📋</span>
+              חלוקה כללית
+            </button>
+          )}
           
           {onManagement && (
             <button
@@ -2727,6 +2751,278 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   );
 };
 
+// --- מסך חלוקה כללית ---
+const StripDistribution = ({ onBack }: { onBack: () => void }) => {
+  const [strips, setStrips] = useState<any[]>([]);
+  const [presets, setPresets] = useState<any[]>([]);
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '' });
+
+  const loadData = async () => {
+    try {
+      const [stripsRes, presetsRes, sectorsRes] = await Promise.all([
+        fetch(`${API_URL}/strips/all`),
+        fetch(`${API_URL}/workstation-presets`),
+        fetch(`${API_URL}/sectors`)
+      ]);
+      if (stripsRes.ok) setStrips(await stripsRes.json());
+      if (presetsRes.ok) setPresets(await presetsRes.json());
+      if (sectorsRes.ok) setSectors(await sectorsRes.json());
+    } catch (err) {
+      console.error('Failed to load:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const assignStrip = async (stripId: string, sectorId: number) => {
+    try {
+      await fetch(`${API_URL}/strips/${stripId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectorId })
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to assign strip:', err);
+    }
+  };
+
+  const createStrip = async () => {
+    if (!newStrip.callSign.trim() || !newStrip.sq.trim()) return;
+    try {
+      await fetch(`${API_URL}/strips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newStrip,
+          sectorId: null
+        })
+      });
+      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to create strip:', err);
+    }
+  };
+
+  const deleteStrip = async (stripId: string) => {
+    try {
+      await fetch(`${API_URL}/strips/${stripId}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete strip:', err);
+    }
+  };
+
+  const getSectorName = (sectorId: number | null) => {
+    if (!sectorId) return 'לא משויך';
+    const sector = sectors.find(s => s.id === sectorId);
+    return sector?.label_he || sector?.name || 'לא ידוע';
+  };
+
+  const getPresetSectors = (preset: any) => {
+    const sectorIds = preset.relevant_sectors || [];
+    return sectorIds.map((id: number) => sectors.find(s => s.id === id)).filter(Boolean);
+  };
+
+  const unassignedStrips = strips.filter(s => !s.sector_id);
+  const assignedStrips = strips.filter(s => s.sector_id);
+
+  return (
+    <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+      <header style={{ padding: '15px 30px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <h1 style={{ margin: 0, color: 'white', fontSize: '24px' }}>חלוקה כללית</h1>
+          <span style={{ color: '#94a3b8', fontSize: '14px' }}>סה"כ {strips.length} פממים</span>
+        </div>
+        <button
+          onClick={onBack}
+          style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
+        >
+          חזרה למסך ראשי
+        </button>
+      </header>
+
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left Panel - Create New Strip */}
+        <div style={{ width: '300px', background: '#1e293b', padding: '20px', borderLeft: '1px solid #334155', overflowY: 'auto' }}>
+          <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '16px' }}>הוספת פמם חדש</h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <input
+              type="text"
+              placeholder="קריאה (Call Sign)"
+              value={newStrip.callSign}
+              onChange={e => setNewStrip({ ...newStrip, callSign: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <input
+              type="text"
+              placeholder="SQ"
+              value={newStrip.sq}
+              onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <input
+              type="text"
+              placeholder="גובה"
+              value={newStrip.alt}
+              onChange={e => setNewStrip({ ...newStrip, alt: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <input
+              type="text"
+              placeholder="משימה"
+              value={newStrip.task}
+              onChange={e => setNewStrip({ ...newStrip, task: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <input
+              type="text"
+              placeholder="טייסת"
+              value={newStrip.squadron}
+              onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <button
+              onClick={createStrip}
+              style={{ padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+            >
+              הוסף פמם
+            </button>
+          </div>
+
+          <div style={{ marginTop: '30px', borderTop: '1px solid #334155', paddingTop: '20px' }}>
+            <h3 style={{ color: 'white', margin: '0 0 15px', fontSize: '16px' }}>פממים לא משויכים ({unassignedStrips.length})</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {unassignedStrips.map(strip => (
+                <div
+                  key={strip.id}
+                  style={{ background: '#334155', padding: '10px', borderRadius: '6px', color: 'white', fontSize: '13px' }}
+                >
+                  <div style={{ fontWeight: 'bold' }}>{strip.call_sign}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>SQ: {strip.sq} | גובה: {strip.alt}</div>
+                </div>
+              ))}
+              {unassignedStrips.length === 0 && (
+                <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center' }}>כל הפממים משויכים</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Area - Strips by Preset */}
+        <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {presets.map(preset => (
+              <button
+                key={preset.id}
+                onClick={() => setSelectedPreset(selectedPreset === preset.id ? null : preset.id)}
+                style={{
+                  padding: '12px 20px',
+                  background: selectedPreset === preset.id ? '#3b82f6' : '#334155',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+            {(selectedPreset ? presets.filter(p => p.id === selectedPreset) : presets).map(preset => {
+              const presetSectors = getPresetSectors(preset);
+              const presetStrips = strips.filter(s => presetSectors.some((sec: any) => sec.id === s.sector_id));
+              
+              return (
+                <div key={preset.id} style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ background: '#334155', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>{preset.name}</h3>
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>{presetStrips.length} פממים</span>
+                  </div>
+                  
+                  <div style={{ padding: '15px' }}>
+                    {presetSectors.map((sector: any) => {
+                      const sectorStrips = strips.filter(s => s.sector_id === sector.id);
+                      return (
+                        <div key={sector.id} style={{ marginBottom: '15px' }}>
+                          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{sector.label_he || sector.name}</span>
+                            <span>{sectorStrips.length}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {sectorStrips.map(strip => (
+                              <div
+                                key={strip.id}
+                                style={{ 
+                                  background: '#0f172a', 
+                                  padding: '10px', 
+                                  borderRadius: '6px', 
+                                  display: 'flex', 
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <div>
+                                  <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{strip.call_sign}</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px' }}>SQ: {strip.sq} | {strip.alt}</div>
+                                </div>
+                                <button
+                                  onClick={() => deleteStrip(strip.id)}
+                                  style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+                                >
+                                  מחק
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Drop zone for unassigned strips */}
+                          {unassignedStrips.length > 0 && (
+                            <select
+                              onChange={e => {
+                                if (e.target.value) {
+                                  assignStrip(e.target.value, sector.id);
+                                  e.target.value = '';
+                                }
+                              }}
+                              defaultValue=""
+                              style={{ marginTop: '8px', width: '100%', padding: '8px', borderRadius: '4px', border: 'none', fontSize: '12px', background: '#334155', color: 'white' }}
+                            >
+                              <option value="" disabled>+ הוסף פמם לסקטור</option>
+                              {unassignedStrips.map(s => (
+                                <option key={s.id} value={s.id}>{s.call_sign} ({s.sq})</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })}
+                    
+                    {presetSectors.length === 0 && (
+                      <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                        לא הוגדרו סקטורים לעמדה זו
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets'>('presets');
@@ -3126,7 +3422,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
-  const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
+  const [page, setPage] = useState<'login' | 'dashboard' | 'management' | 'distribution'>('login');
 
   const handleLogin = (newSession: WorkstationSession) => {
     setSession(newSession);
@@ -3143,8 +3439,12 @@ export default function App() {
     return <ManagementPage onBack={() => setPage('login')} />;
   }
 
+  if (page === 'distribution') {
+    return <StripDistribution onBack={() => setPage('login')} />;
+  }
+
   if (!session || page === 'login') {
-    return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} />;
+    return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} onDistribution={() => setPage('distribution')} />;
   }
 
   return <SectorDashboard session={session} onLogout={handleLogout} />;
