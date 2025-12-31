@@ -1065,13 +1065,15 @@ const DraggableNeighborPanel = ({
   subSectors,
   onDropOnMap,
   isExpanded,
-  onToggle 
+  onToggle,
+  isPrimary = false
 }: { 
   neighbor: any; 
   subSectors: any[];
   onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string) => void;
   isExpanded: boolean;
   onToggle: () => void;
+  isPrimary?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -1121,12 +1123,12 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ borderBottom: '1px solid #334155' }}>
+      <div style={{ borderBottom: '1px solid #334155', borderRight: isPrimary ? '3px solid #22c55e' : 'none' }}>
         <div
           onPointerDown={(e) => handlePointerDown(e)}
           style={{
             padding: '12px',
-            background: isExpanded ? '#334155' : 'transparent',
+            background: isPrimary ? '#1e3a2f' : (isExpanded ? '#334155' : 'transparent'),
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1139,10 +1141,13 @@ const DraggableNeighborPanel = ({
               flex: 1, 
               textAlign: 'right', 
               fontSize: '14px',
-              userSelect: 'none'
+              userSelect: 'none',
+              fontWeight: isPrimary ? 'bold' : 'normal',
+              color: isPrimary ? '#22c55e' : 'white'
             }}
           >
             {neighbor.label_he || neighbor.name}
+            {isPrimary && <span style={{ fontSize: '10px', marginRight: '6px', color: '#94a3b8' }}>(ראשי)</span>}
           </div>
           {hasSubSectors && (
             <span 
@@ -1948,6 +1953,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
 // --- דשבורד סקטור ---
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
+  const allSectors = session.relevantSectors;
   const neighbors = session.relevantSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -2402,13 +2408,13 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee' }}>
-        {/* Neighbor Panels - Far Left */}
+        {/* Sector Panels - Far Left */}
         <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
-            <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים שכנים</h4>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים</h4>
             <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
           </div>
-          {neighbors.map(n => (
+          {allSectors.map((n, idx) => (
             <DraggableNeighborPanel
               key={n.id}
               neighbor={n}
@@ -2416,6 +2422,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
               onToggle={() => toggleNeighborExpanded(n.id)}
+              isPrimary={idx === 0}
             />
           ))}
           
