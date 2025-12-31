@@ -2204,29 +2204,83 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const loadData = async () => {
     if (!primarySectorId) return;
     try {
-      const requests = [
-        fetch(`${API_URL}/sectors/${primarySectorId}/strips`),
+      // Load strips from ALL relevant sectors, not just primary
+      const allSectorIds = allSectors.map(s => s.id);
+      const stripRequests = allSectorIds.map(sectorId => 
+        fetch(`${API_URL}/sectors/${sectorId}/strips`)
+      );
+      
+      // Load incoming/outgoing transfers from ALL sectors
+      const incomingRequests = allSectorIds.map(sectorId => 
+        fetch(`${API_URL}/sectors/${sectorId}/incoming-transfers`)
+      );
+      const outgoingRequests = allSectorIds.map(sectorId => 
+        fetch(`${API_URL}/sectors/${sectorId}/outgoing-transfers`)
+      );
+      
+      const otherRequests = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
-        fetch(`${API_URL}/sectors/${primarySectorId}/incoming-transfers`),
-        fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`),
         fetch(`${API_URL}/maps`)
       ];
       
       if (session.presetId) {
-        requests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
+        otherRequests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
       }
       
-      const results = await Promise.all(requests);
-      const [stripsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = results;
+      const [stripResults, incomingResults, outgoingResults, otherResults] = await Promise.all([
+        Promise.all(stripRequests),
+        Promise.all(incomingRequests),
+        Promise.all(outgoingRequests),
+        Promise.all(otherRequests)
+      ]);
       
-      if (stripsRes.ok) setStrips(await stripsRes.json());
+      // Combine all strips from all sectors
+      const allStripsData: any[] = [];
+      for (const res of stripResults) {
+        if (res.ok) {
+          const data = await res.json();
+          allStripsData.push(...data);
+        }
+      }
+      // Remove duplicates by id
+      const uniqueStrips = allStripsData.filter((strip, index, self) => 
+        index === self.findIndex(s => s.id === strip.id)
+      );
+      setStrips(uniqueStrips);
+      
+      // Combine all incoming transfers
+      const allIncoming: any[] = [];
+      for (const res of incomingResults) {
+        if (res.ok) {
+          const data = await res.json();
+          allIncoming.push(...data);
+        }
+      }
+      const uniqueIncoming = allIncoming.filter((t, index, self) => 
+        index === self.findIndex(x => x.id === t.id)
+      );
+      setIncomingTransfers(uniqueIncoming);
+      
+      // Combine all outgoing transfers
+      const allOutgoing: any[] = [];
+      for (const res of outgoingResults) {
+        if (res.ok) {
+          const data = await res.json();
+          allOutgoing.push(...data);
+        }
+      }
+      const uniqueOutgoing = allOutgoing.filter((t, index, self) => 
+        index === self.findIndex(x => x.id === t.id)
+      );
+      setOutgoingTransfers(uniqueOutgoing);
+      
+      const [subSectorsRes, mapsRes] = otherResults;
+      
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
-      if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
-      if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
       
-      if (session.presetId && results[5]) {
-        const waitingRes = results[5];
+      if (session.presetId && otherResults[2]) {
+        const waitingRes = otherResults[2];
         if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
       }
     } catch (err) {
