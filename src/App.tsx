@@ -1497,7 +1497,11 @@ const DraggableMapMarker = ({
   strips,
   onTransfer,
   outgoingTransfers,
-  onCancelTransfer
+  incomingTransfers,
+  onCancelTransfer,
+  onAcceptTransfer,
+  onRejectTransfer,
+  onAcceptToMap
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -1506,7 +1510,11 @@ const DraggableMapMarker = ({
   strips: any[];
   onTransfer: (stripId: string, sectorId: number, x: number, y: number, subLabel?: string) => void;
   outgoingTransfers: any[];
+  incomingTransfers: any[];
   onCancelTransfer: (transferId: string) => void;
+  onAcceptTransfer: (transferId: string) => void;
+  onRejectTransfer: (transferId: string) => void;
+  onAcceptToMap: (transferId: string, x: number, y: number) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -1572,10 +1580,19 @@ const DraggableMapMarker = ({
 
   const availableStrips = strips.filter((s: any) => !s.onMap && s.status !== 'pending_transfer');
   
-  const markerTransfers = (outgoingTransfers || []).filter((t: any) => 
+  // Filter outgoing transfers for this marker
+  const markerOutgoing = (outgoingTransfers || []).filter((t: any) => 
     t.to_sector_id === marker.sectorId && 
     (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label)
   );
+  
+  // Filter incoming transfers for this marker
+  const markerIncoming = (incomingTransfers || []).filter((t: any) => 
+    t.to_sector_id === marker.sectorId && 
+    (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label)
+  );
+  
+  const hasTransfers = markerOutgoing.length > 0 || markerIncoming.length > 0;
 
   return (
     <div
@@ -1583,9 +1600,9 @@ const DraggableMapMarker = ({
       data-marker-sublabel={marker.subLabel || ''}
       style={{
         position: 'absolute',
-        left: (isDragging ? dragPos.x : marker.x) - 75,
+        left: (isDragging ? dragPos.x : marker.x) - 100,
         top: (isDragging ? dragPos.y : marker.y) - 40,
-        width: '150px',
+        width: '200px',
         background: '#3b82f6',
         borderRadius: '8px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
@@ -1653,61 +1670,101 @@ const DraggableMapMarker = ({
         </div>
       </div>
       
-      <div 
-        className="marker-drop-zone"
-        data-marker-sector={marker.sectorId}
-        data-marker-sublabel={marker.subLabel || ''}
-        style={{
-          padding: markerTransfers.length > 0 ? '6px' : '15px 10px',
-          background: 'white',
-          textAlign: 'center',
-          color: '#64748b',
-          fontSize: '12px',
-          border: '2px dashed #cbd5e1',
-          margin: '4px',
-          borderRadius: '4px',
-          minHeight: '40px'
-        }}
-      >
-        {markerTransfers.length === 0 ? (
-          <span>גרור לכאן</span>
-        ) : (
-          <div style={{ textAlign: 'right' }}>
-            {markerTransfers.map((t: any) => (
-              <div key={t.id} style={{ 
-                background: '#fef3c7', 
-                border: '1px solid #f59e0b',
-                borderRadius: '3px',
-                padding: '4px 6px',
-                marginBottom: '4px',
-                fontSize: '10px'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
-                  <span style={{ background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px', fontSize: '9px' }}>{t.sq}</span>
-                </div>
-                {t.squadron && <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 'bold' }}>טייסת: {t.squadron}</div>}
-                <div style={{ color: '#b45309', fontSize: '9px' }}>גובה: {t.alt}</div>
+      {/* Two-column layout for העברה/קבלה */}
+      <div style={{ display: 'flex', background: '#0f172a', borderTop: '1px solid #334155' }}>
+        {/* העברה - Outgoing */}
+        <div style={{ flex: 1, borderLeft: '1px solid #334155', padding: '6px', minHeight: '60px' }}>
+          <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+            העברה: ({markerOutgoing.length})
+          </div>
+          {markerOutgoing.map((t: any) => (
+            <div key={t.id} style={{ 
+              background: '#fef3c7', 
+              border: '1px solid #f59e0b',
+              borderRadius: '3px',
+              padding: '4px',
+              marginBottom: '4px',
+              fontSize: '9px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
+                <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
+              </div>
+              <div style={{ color: '#b45309', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                style={{
+                  marginTop: '3px',
+                  width: '100%',
+                  padding: '2px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '2px',
+                  fontSize: '8px',
+                  cursor: 'pointer'
+                }}
+              >
+                בטל העברה
+              </button>
+            </div>
+          ))}
+        </div>
+        
+        {/* קבלה - Incoming */}
+        <div style={{ flex: 1, padding: '6px', minHeight: '60px' }}>
+          <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+            קבלה ({markerIncoming.length})
+          </div>
+          {markerIncoming.map((t: any) => (
+            <div key={t.id} style={{ 
+              background: '#dcfce7', 
+              border: '1px solid #22c55e',
+              borderRadius: '3px',
+              padding: '4px',
+              marginBottom: '4px',
+              fontSize: '9px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 'bold', color: '#166534' }}>{t.callsign}</span>
+                <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
+              </div>
+              <div style={{ color: '#15803d', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                  onClick={(e) => { e.stopPropagation(); onAcceptTransfer(t.id); }}
                   style={{
-                    marginTop: '4px',
-                    width: '100%',
-                    padding: '3px',
-                    background: '#ef4444',
+                    flex: 1,
+                    padding: '2px',
+                    background: '#22c55e',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '3px',
-                    fontSize: '9px',
+                    borderRadius: '2px',
+                    fontSize: '8px',
                     cursor: 'pointer'
                   }}
                 >
-                  בטל העברה
+                  קבל
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRejectTransfer(t.id); }}
+                  style={{
+                    flex: 1,
+                    padding: '2px',
+                    background: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '2px',
+                    fontSize: '8px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  דחה
                 </button>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {showMenu && availableStrips.length > 0 && (
@@ -2774,6 +2831,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 marker={marker}
                 strips={strips}
                 outgoingTransfers={outgoingTransfers}
+                incomingTransfers={incomingTransfers}
                 onMove={(x, y) => {
                   setNeighborMarkers(prev => prev.map(m => 
                     m === marker ? { ...m, x, y } : m
@@ -2787,6 +2845,9 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 }}
                 onTransfer={handleTransfer}
                 onCancelTransfer={handleCancelTransfer}
+                onAcceptTransfer={handleAcceptTransfer}
+                onRejectTransfer={handleRejectTransfer}
+                onAcceptToMap={handleAcceptToMap}
               />
             ))}
             
