@@ -309,7 +309,7 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
               </div>
               
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: '#64748b' }}>סקטור:</label>
+                <label style={{ display: 'block', marginBottom: '8px', color: '#64748b' }}>נקודת העברה:</label>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   {sectors.map((s: any) => (
                     <button
@@ -1061,7 +1061,7 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
   );
 };
 
-// --- פאנל סקטור עם עמודות העברה/קבלה ---
+// --- פאנל נקודת העברה עם עמודות העברה/קבלה ---
 const DraggableNeighborPanel = ({ 
   neighbor, 
   subSectors,
@@ -1457,10 +1457,10 @@ const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: {
       onClick={(e) => e.stopPropagation()}
     >
       <div style={{ padding: '8px 12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>
-        העבר לסקטור:
+        העבר לנקודת העברה:
       </div>
       {neighbors.length === 0 ? (
-        <div style={{ padding: '10px 12px', fontSize: '12px', color: '#94a3b8' }}>אין סקטורים שכנים</div>
+        <div style={{ padding: '10px 12px', fontSize: '12px', color: '#94a3b8' }}>אין נקודות העברה נוספות</div>
       ) : (
         neighbors.map(n => (
           <button
@@ -1988,7 +1988,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
-        // בדיקה אם נשחרר על סמן סקטור במפה - העברה
+        // בדיקה אם נשחרר על סמן נקודת העברה במפה - העברה
         const markerDropZones = document.querySelectorAll('.marker-drop-zone');
         for (const zone of markerDropZones) {
           const zoneRect = zone.getBoundingClientRect();
@@ -2005,7 +2005,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
           }
         }
 
-        // בדיקה אם נשחרר בתוך אזור הסקטורים השכנים - העברה
+        // בדיקה אם נשחרר בתוך אזור נקודות ההעברה - העברה
         if (neighborPanel && neighbors && neighbors.length > 0) {
           const neighborRect = neighborPanel.getBoundingClientRect();
           if (e.clientX >= neighborRect.left && e.clientX <= neighborRect.right &&
@@ -2169,7 +2169,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
   });
 };
 
-// --- דשבורד סקטור ---
+// --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
@@ -2389,7 +2389,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
     const sector = allSectors.find(n => n.id === sectorId);
-    const label = subLabel || sector?.label_he || sector?.name || 'סקטור';
+    const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
     setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), 
       { sectorId, x, y, subLabel, label }
     ]);
@@ -2476,7 +2476,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   };
 
   const handleDeleteSubSector = async (subSectorId: number) => {
-    if (!confirm('האם למחוק את תת-הסקטור?')) return;
+    if (!confirm('האם למחוק את תת-נקודת ההעברה?')) return;
     try {
       await fetch(`${API_URL}/sub-sectors/${subSectorId}`, { method: 'DELETE' });
       loadData();
@@ -2607,7 +2607,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             למד כתב יד
           </button>
           <button onClick={() => setShowSubSectorManager(true)} style={{ background: '#0891b2', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
-            ניהול תת-סקטורים
+            ניהול תת-נקודות
           </button>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
@@ -2620,19 +2620,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', width: '500px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px' }}>ניהול תת-סקטורים</h2>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>ניהול תת-נקודות העברה</h2>
               <button onClick={() => setShowSubSectorManager(false)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
             </div>
             
             <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '8px' }}>
-              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>הוסף תת-סקטור חדש</h3>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>הוסף תת-נקודה חדשה</h3>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <select 
                   value={newSubSectorNeighbor || ''} 
                   onChange={(e) => setNewSubSectorNeighbor(parseInt(e.target.value) || null)}
                   style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '120px' }}
                 >
-                  <option value="">בחר סקטור שכן</option>
+                  <option value="">בחר נקודת העברה</option>
                   {neighbors.map(n => (
                     <option key={n.id} value={n.id}>{n.label_he || n.name}</option>
                   ))}
@@ -2641,7 +2641,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                   type="text" 
                   value={newSubSectorLabel}
                   onChange={(e) => setNewSubSectorLabel(e.target.value)}
-                  placeholder="שם תת-סקטור"
+                  placeholder="שם תת-נקודה"
                   style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', flex: 1, minWidth: '100px' }}
                 />
                 <button 
@@ -2655,7 +2655,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             </div>
             
             <div>
-              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>תת-סקטורים קיימים</h3>
+              <h3 style={{ margin: '0 0 10px', fontSize: '14px' }}>תת-נקודות קיימות</h3>
               {neighbors.map(neighbor => {
                 const neighborSubs = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
                 if (neighborSubs.length === 0) return null;
@@ -2699,7 +2699,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               })}
               {subSectors.length === 0 && (
                 <div style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
-                  אין תת-סקטורים. הוסף חדש למעלה.
+                  אין תת-נקודות. הוסף חדשה למעלה.
                 </div>
               )}
             </div>
@@ -2711,7 +2711,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         {/* Sector Panels - Far Left */}
         <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
-            <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים</h4>
+            <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
             <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
           </div>
           {allSectors.map(n => (
@@ -2931,7 +2931,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         {/* Sidebar - Right Side */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length + waitingStrips.length}):</h4>
-          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת סקטור יעד</div>
+          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
           
           {/* Waiting strips from General Distribution - shown first with purple border */}
           {waitingStrips.map(s => (
@@ -3400,7 +3400,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   };
 
   const deleteSector = async (id: number) => {
-    if (!confirm('למחוק סקטור זה?')) return;
+    if (!confirm('למחוק נקודת העברה זו?')) return;
     try {
       await fetch(`${API_URL}/sectors/${id}`, { method: 'DELETE' });
       loadData();
@@ -3483,7 +3483,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       {/* Tabs */}
       <div style={{ padding: '20px 30px 0', display: 'flex', gap: '4px' }}>
         <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>
-        <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>סקטורים</button>
+        <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>נקודות העברה</button>
         <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
         <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
       </div>
@@ -3530,7 +3530,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                 </div>
                 
                 <div style={{ marginTop: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>סקטורים רלוונטיים (לחץ לבחירה):</label>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {sectors.map(sector => {
                       const isSelected = presetForm.relevant_sectors.includes(sector.id);
@@ -3555,7 +3555,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                       );
                     })}
                     {sectors.length === 0 && (
-                      <span style={{ color: '#64748b', fontSize: '14px' }}>אין סקטורים מוגדרים. הוסף סקטורים בלשונית "סקטורים".</span>
+                      <span style={{ color: '#64748b', fontSize: '14px' }}>אין נקודות העברה מוגדרות. הוסף נקודות בלשונית "נקודות העברה".</span>
                     )}
                   </div>
                 </div>
@@ -3591,7 +3591,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                         <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
                         <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
                           מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
-                          {relevantSectorNames && ` | סקטורים: ${relevantSectorNames}`}
+                          {relevantSectorNames && ` | נקודות העברה: ${relevantSectorNames}`}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
@@ -3613,12 +3613,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           {/* Sectors Tab */}
           {activeTab === 'sectors' && (
             <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול סקטורים</h2>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול נקודות העברה</h2>
               
               {/* Sector Form */}
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingSector ? 'עריכת סקטור' : 'סקטור חדש'}
+                  {editingSector ? 'עריכת נקודת העברה' : 'נקודת העברה חדשה'}
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                   <div>
@@ -3708,7 +3708,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                 ))}
                 {sectors.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    אין סקטורים מוגדרים. הוסף סקטור חדש למעלה.
+                    אין נקודות העברה מוגדרות. הוסף נקודה חדשה למעלה.
                   </div>
                 )}
               </div>

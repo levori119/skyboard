@@ -1,8 +1,14 @@
 # Overview
 
-This is a React TypeScript application built with Vite, designed as a flight strip management system (likely for air traffic control or military aviation operations). The application features a drag-and-drop interface for managing flight strips across different sectors and workstations, with OCR capabilities for digit recognition using Tesseract.js.
+This is a React TypeScript application built with Vite, designed as a flight strip management system called "BLUE TORCH" (לפיד כחול) for military aviation operations. The application features a drag-and-drop interface for managing flight strips (פממים) across different workstations, with OCR capabilities for digit recognition using Tesseract.js.
 
-The system supports Hebrew language labels and appears to be designed for tablet use, with session-based workstation authentication and real-time collaboration features.
+The system is fully in Hebrew (RTL) and designed for tablet use, with session-based workstation authentication and real-time collaboration features.
+
+## Terminology
+- **עמדה (Workstation)**: Defined by name, map, and transfer points (נקודות העברה)
+- **נקודת העברה (Transfer Point)**: What was previously called "סקטור" (sector) - geographic/operational areas for aircraft handoff
+- **פמם (Strip)**: Flight strip representing an aircraft
+- **העברה (Transfer)**: Handoff of a strip between transfer points
 
 # User Preferences
 
