@@ -2907,50 +2907,12 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           </div>
         </div>
 
-        {/* Sidebar - Right Side */}
+        {/* Sidebar - Right Side - Shows active strips (not on map) */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length + waitingStrips.length}):</h4>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length}):</h4>
           <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
           
-          {/* Waiting strips from General Distribution - shown first with purple border */}
-          {waitingStrips.map(s => (
-            <div key={s.id} style={{ marginBottom: '8px' }}>
-              <div style={{ 
-                background: 'white', 
-                padding: '8px', 
-                borderRadius: '6px',
-                border: '2px solid #7c3aed',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{s.callSign}</div>
-                  <div style={{ fontSize: '9px', background: '#7c3aed', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>חלוקה</div>
-                </div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {s.squadron && `טייסת: ${s.squadron} | `}גובה: {s.alt}
-                </div>
-                {s.task && <div style={{ fontSize: '10px', color: '#64748b' }}>{s.task}</div>}
-                <button
-                  onClick={() => handleAssignWaitingStrip(s.id)}
-                  style={{
-                    marginTop: '6px',
-                    width: '100%',
-                    padding: '6px',
-                    background: '#22c55e',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  הכנס לעמדה
-                </button>
-              </div>
-            </div>
-          ))}
-          
-          {/* Regular strips waiting for placement */}
+          {/* Active strips (not on map) */}
           {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
             <div key={s.id} style={{ marginBottom: '8px' }}>
               <Strip s={s} 
@@ -2962,35 +2924,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               />
             </div>
           ))}
-
-          {outgoingTransfers.length > 0 && (
-            <>
-              <h4 style={{ margin: '20px 0 10px', fontSize: '14px', color: '#f59e0b' }}>בהעברה ({outgoingTransfers.length}):</h4>
-              {/* Group by destination sector */}
-              {Object.entries(
-                outgoingTransfers.reduce((groups: Record<string, any[]>, t) => {
-                  const key = t.to_sector_label || t.to_sector_name;
-                  if (!groups[key]) groups[key] = [];
-                  groups[key].push(t);
-                  return groups;
-                }, {})
-              ).map(([sectorLabel, transfers]) => (
-                <div key={sectorLabel} style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#b45309', marginBottom: '6px', borderBottom: '1px solid #fbbf24', paddingBottom: '4px' }}>
-                    → {sectorLabel}
-                  </div>
-                  {(transfers as any[]).map(t => (
-                    <TransferStripEditor 
-                      key={t.id}
-                      transfer={t}
-                      onAltUpdate={handleAltUpdate}
-                      onCancel={handleCancelTransfer}
-                    />
-                  ))}
-                </div>
-              ))}
-            </>
-          )}
         </div>
       </div>
 
