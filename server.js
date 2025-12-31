@@ -209,6 +209,7 @@ app.get('/api/strips/all', async (req, res) => {
       task: r.task,
       squadron: r.squadron,
       sector_id: r.sector_id,
+      workstation_preset_id: r.workstation_preset_id,
       x: r.x,
       y: r.y,
       on_map: r.on_map,
@@ -229,6 +230,18 @@ app.post('/api/strips/:id/assign', async (req, res) => {
   } catch (err) {
     console.error('Error assigning strip:', err);
     res.status(500).json({ error: 'Failed to assign strip' });
+  }
+});
+
+app.post('/api/strips/:id/assign-workstation', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id.replace('s', ''));
+    const { workstationPresetId } = req.body;
+    await pool.query('UPDATE strips SET workstation_preset_id = $1 WHERE id = $2', [workstationPresetId, id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error assigning strip to workstation:', err);
+    res.status(500).json({ error: 'Failed to assign strip to workstation' });
   }
 });
 

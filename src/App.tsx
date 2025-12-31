@@ -2756,20 +2756,16 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [sectors, setSectors] = useState<any[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
   const [newStrip, setNewStrip] = useState({ callSign: '', alt: '', task: '', squadron: '' });
 
   const loadData = async () => {
     try {
-      const [stripsRes, presetsRes, sectorsRes] = await Promise.all([
+      const [stripsRes, presetsRes] = await Promise.all([
         fetch(`${API_URL}/strips/all`),
-        fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/sectors`)
+        fetch(`${API_URL}/workstation-presets`)
       ]);
       if (stripsRes.ok) setStrips(await stripsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
-      if (sectorsRes.ok) setSectors(await sectorsRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -2779,12 +2775,12 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
     loadData();
   }, []);
 
-  const assignStrip = async (stripId: string, sectorId: number) => {
+  const assignStripToWorkstation = async (stripId: string, workstationPresetId: number | null) => {
     try {
-      await fetch(`${API_URL}/strips/${stripId}/assign`, {
+      await fetch(`${API_URL}/strips/${stripId}/assign-workstation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sectorId })
+        body: JSON.stringify({ workstationPresetId })
       });
       loadData();
     } catch (err) {
@@ -2819,19 +2815,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const getSectorName = (sectorId: number | null) => {
-    if (!sectorId) return 'לא משויך';
-    const sector = sectors.find(s => s.id === sectorId);
-    return sector?.label_he || sector?.name || 'לא ידוע';
-  };
-
-  const getPresetSectors = (preset: any) => {
-    const sectorIds = preset.relevant_sectors || [];
-    return sectorIds.map((id: number) => sectors.find(s => s.id === id)).filter(Boolean);
-  };
-
-  const unassignedStrips = strips.filter(s => !s.sector_id);
-  const assignedStrips = strips.filter(s => s.sector_id);
+  const unassignedStrips = strips.filter(s => !s.workstation_preset_id);
 
   return (
     <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
@@ -2856,7 +2840,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <input
               type="text"
-              placeholder="קריאה (Call Sign)"
+              placeholder="או״ק (Call Sign)"
               value={newStrip.callSign}
               onChange={e => setNewStrip({ ...newStrip, callSign: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
@@ -2900,6 +2884,20 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                 >
                   <div style={{ fontWeight: 'bold' }}>{strip.call_sign}</div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}גובה: {strip.alt}</div>
+                  <select
+                    onChange={e => {
+                      if (e.target.value) {
+                        assignStripToWorkstation(strip.id, parseInt(e.target.value));
+                      }
+                    }}
+                    defaultValue=""
+                    style={{ marginTop: '6px', width: '100%', padding: '6px', borderRadius: '4px', border: 'none', fontSize: '11px', background: '#1e293b', color: 'white' }}
+                  >
+                    <option value="" disabled>שייך לעמדה...</option>
+                    {presets.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
               {unassignedStrips.length === 0 && (
@@ -2909,102 +2907,77 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           </div>
         </div>
 
-        {/* Main Area - Strips by Preset */}
+        {/* Main Area - Strips by Workstation */}
         <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            {presets.map(preset => (
-              <button
-                key={preset.id}
-                onClick={() => setSelectedPreset(selectedPreset === preset.id ? null : preset.id)}
-                style={{
-                  padding: '12px 20px',
-                  background: selectedPreset === preset.id ? '#3b82f6' : '#334155',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                {preset.name}
-              </button>
-            ))}
-          </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-            {(selectedPreset ? presets.filter(p => p.id === selectedPreset) : presets).map(preset => {
-              const presetSectors = getPresetSectors(preset);
-              const presetStrips = strips.filter(s => presetSectors.some((sec: any) => sec.id === s.sector_id));
+            {presets.map(preset => {
+              const workstationStrips = strips.filter(s => s.workstation_preset_id === preset.id);
               
               return (
                 <div key={preset.id} style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
                   <div style={{ background: '#334155', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>{preset.name}</h3>
-                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>{presetStrips.length} פממים</span>
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>{workstationStrips.length} פממים</span>
                   </div>
                   
                   <div style={{ padding: '15px' }}>
-                    {presetSectors.map((sector: any) => {
-                      const sectorStrips = strips.filter(s => s.sector_id === sector.id);
-                      return (
-                        <div key={sector.id} style={{ marginBottom: '15px' }}>
-                          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                            <span>{sector.label_he || sector.name}</span>
-                            <span>{sectorStrips.length}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {workstationStrips.map(strip => (
+                        <div
+                          key={strip.id}
+                          style={{ 
+                            background: '#0f172a', 
+                            padding: '10px', 
+                            borderRadius: '6px', 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div>
+                            <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{strip.call_sign}</div>
+                            <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}{strip.alt}</div>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {sectorStrips.map(strip => (
-                              <div
-                                key={strip.id}
-                                style={{ 
-                                  background: '#0f172a', 
-                                  padding: '10px', 
-                                  borderRadius: '6px', 
-                                  display: 'flex', 
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center'
-                                }}
-                              >
-                                <div>
-                                  <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{strip.call_sign}</div>
-                                  <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}{strip.alt}</div>
-                                </div>
-                                <button
-                                  onClick={() => deleteStrip(strip.id)}
-                                  style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                                >
-                                  מחק
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          {/* Drop zone for unassigned strips */}
-                          {unassignedStrips.length > 0 && (
-                            <select
-                              onChange={e => {
-                                if (e.target.value) {
-                                  assignStrip(e.target.value, sector.id);
-                                  e.target.value = '';
-                                }
-                              }}
-                              defaultValue=""
-                              style={{ marginTop: '8px', width: '100%', padding: '8px', borderRadius: '4px', border: 'none', fontSize: '12px', background: '#334155', color: 'white' }}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => assignStripToWorkstation(strip.id, null)}
+                              style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
                             >
-                              <option value="" disabled>+ הוסף פמם לסקטור</option>
-                              {unassignedStrips.map(s => (
-                                <option key={s.id} value={s.id}>{s.call_sign}{s.squadron ? ` (${s.squadron})` : ''}</option>
-                              ))}
-                            </select>
-                          )}
+                              הסר
+                            </button>
+                            <button
+                              onClick={() => deleteStrip(strip.id)}
+                              style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+                            >
+                              מחק
+                            </button>
+                          </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                      {workstationStrips.length === 0 && (
+                        <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>
+                          אין פממים משויכים
+                        </div>
+                      )}
+                    </div>
                     
-                    {presetSectors.length === 0 && (
-                      <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
-                        לא הוגדרו סקטורים לעמדה זו
-                      </div>
+                    {/* Add strip to workstation */}
+                    {unassignedStrips.length > 0 && (
+                      <select
+                        onChange={e => {
+                          if (e.target.value) {
+                            assignStripToWorkstation(e.target.value, preset.id);
+                            e.target.value = '';
+                          }
+                        }}
+                        defaultValue=""
+                        style={{ marginTop: '12px', width: '100%', padding: '8px', borderRadius: '4px', border: 'none', fontSize: '12px', background: '#334155', color: 'white' }}
+                      >
+                        <option value="" disabled>+ הוסף פמם לעמדה</option>
+                        {unassignedStrips.map(s => (
+                          <option key={s.id} value={s.id}>{s.call_sign}{s.squadron ? ` (${s.squadron})` : ''}</option>
+                        ))}
+                      </select>
                     )}
                   </div>
                 </div>
