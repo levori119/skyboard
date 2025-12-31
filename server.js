@@ -556,6 +556,27 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     
     const fromSectorId = strip.rows[0].sector_id;
     
+    // Auto-resolve target workstation if not provided
+    let resolvedToWorkstationId = toWorkstationId;
+    if (!resolvedToWorkstationId && fromWorkstationId) {
+      // Find workstations that have the target sector in their relevant_sectors
+      const presetsResult = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+      const presetsWithSector = presetsResult.rows
+        .map(row => ({
+          ...row,
+          relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : 
+            (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : [])
+        }))
+        .filter(preset => 
+          preset.relevant_sectors.includes(toSectorId) && 
+          preset.id !== fromWorkstationId
+        );
+      
+      if (presetsWithSector.length > 0) {
+        resolvedToWorkstationId = presetsWithSector[0].id;
+      }
+    }
+    
     await pool.query(
       'UPDATE strips SET status = $1 WHERE id = $2',
       ['pending_transfer', stripId]
@@ -564,7 +585,7 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id) 
        VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9) RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, toWorkstationId || null]
+      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null]
     );
     
     res.json({ transfer: result.rows[0] });
@@ -873,6 +894,25 @@ app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
   } catch (err) {
     console.error('Error fetching waiting strips:', err);
     res.status(500).json({ error: 'Failed to fetch waiting strips' });
+  }
+});
+
+// Get workstations that have a specific sector in their relevant_sectors
+app.get('/api/sectors/:sectorId/workstations', async (req, res) => {
+  try {
+    const sectorId = parseInt(req.params.sectorId);
+    const result = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+    const presets = result.rows
+      .map(row => ({
+        ...row,
+        relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : 
+          (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : [])
+      }))
+      .filter(preset => preset.relevant_sectors.includes(sectorId));
+    res.json(presets);
+  } catch (err) {
+    console.error('Error fetching workstations by sector:', err);
+    res.status(500).json({ error: 'Failed to fetch workstations' });
   }
 });
 

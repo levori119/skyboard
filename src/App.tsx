@@ -2202,7 +2202,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const primarySectorId = primarySector?.id;
 
   const loadData = async () => {
-    if (!primarySectorId) return;
+    if (!primarySectorId || !session.presetId) return;
     try {
       // Load strips from ALL relevant sectors, not just primary
       const allSectorIds = allSectors.map(s => s.id);
@@ -2210,27 +2210,18 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         fetch(`${API_URL}/sectors/${sectorId}/strips`)
       );
       
-      // Load incoming/outgoing transfers from ALL sectors
-      const incomingRequests = allSectorIds.map(sectorId => 
-        fetch(`${API_URL}/sectors/${sectorId}/incoming-transfers`)
-      );
-      const outgoingRequests = allSectorIds.map(sectorId => 
-        fetch(`${API_URL}/sectors/${sectorId}/outgoing-transfers`)
-      );
-      
+      // Load transfers using workstation-based endpoints (not sector-based)
+      // This ensures each workstation only sees its own incoming/outgoing transfers
       const otherRequests = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
-        fetch(`${API_URL}/maps`)
+        fetch(`${API_URL}/maps`),
+        fetch(`${API_URL}/workstations/${session.presetId}/incoming-transfers`),
+        fetch(`${API_URL}/workstations/${session.presetId}/outgoing-transfers`),
+        fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`)
       ];
       
-      if (session.presetId) {
-        otherRequests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
-      }
-      
-      const [stripResults, incomingResults, outgoingResults, otherResults] = await Promise.all([
+      const [stripResults, otherResults] = await Promise.all([
         Promise.all(stripRequests),
-        Promise.all(incomingRequests),
-        Promise.all(outgoingRequests),
         Promise.all(otherRequests)
       ]);
       
@@ -2248,41 +2239,13 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       );
       setStrips(uniqueStrips);
       
-      // Combine all incoming transfers
-      const allIncoming: any[] = [];
-      for (const res of incomingResults) {
-        if (res.ok) {
-          const data = await res.json();
-          allIncoming.push(...data);
-        }
-      }
-      const uniqueIncoming = allIncoming.filter((t, index, self) => 
-        index === self.findIndex(x => x.id === t.id)
-      );
-      setIncomingTransfers(uniqueIncoming);
-      
-      // Combine all outgoing transfers
-      const allOutgoing: any[] = [];
-      for (const res of outgoingResults) {
-        if (res.ok) {
-          const data = await res.json();
-          allOutgoing.push(...data);
-        }
-      }
-      const uniqueOutgoing = allOutgoing.filter((t, index, self) => 
-        index === self.findIndex(x => x.id === t.id)
-      );
-      setOutgoingTransfers(uniqueOutgoing);
-      
-      const [subSectorsRes, mapsRes] = otherResults;
+      const [subSectorsRes, mapsRes, incomingRes, outgoingRes, waitingRes] = otherResults;
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
-      
-      if (session.presetId && otherResults[2]) {
-        const waitingRes = otherResults[2];
-        if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
-      }
+      if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
+      if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
+      if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -2368,7 +2331,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
     }
   };
 
-  const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string) => {
+  const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
@@ -2378,7 +2341,9 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           workstationId: session.workstationId,
           targetX: targetX || 0,
           targetY: targetY || 0,
-          subSectorLabel
+          subSectorLabel,
+          fromWorkstationId: session.presetId,
+          toWorkstationId: toWorkstationId || null
         })
       });
       loadData();
