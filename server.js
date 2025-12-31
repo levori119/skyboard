@@ -685,11 +685,13 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
-    const { strip_id, to_sector_id, target_x, target_y } = transfer.rows[0];
+    const { strip_id, to_sector_id, to_workstation_id, target_x, target_y } = transfer.rows[0];
     
+    // Update strip: move to target sector AND assign to receiving workstation
+    // This ensures the strip disappears from the sending workstation
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5 WHERE id = $6',
-      [to_sector_id, 'queued', false, target_x || 0, target_y || 0, strip_id]
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6 WHERE id = $7',
+      [to_sector_id, 'queued', false, target_x || 0, target_y || 0, to_workstation_id, strip_id]
     );
     
     await pool.query(
@@ -714,11 +716,12 @@ app.post('/api/transfers/:id/accept-to-map', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
-    const { strip_id, to_sector_id } = transfer.rows[0];
+    const { strip_id, to_sector_id, to_workstation_id } = transfer.rows[0];
     
+    // Update strip: move to target sector AND assign to receiving workstation
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5 WHERE id = $6',
-      [to_sector_id, 'queued', true, x, y, strip_id]
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6 WHERE id = $7',
+      [to_sector_id, 'queued', true, x, y, to_workstation_id, strip_id]
     );
     
     await pool.query(
@@ -866,6 +869,64 @@ app.post('/api/defaults', async (req, res) => {
   } catch (err) {
     console.error('Error saving default:', err);
     res.status(500).json({ error: 'Failed to save default' });
+  }
+});
+
+// Get strips for a workstation - filters by sectors AND held_by_workstation
+app.get('/api/workstations/:presetId/strips', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.presetId);
+    
+    // Get the workstation's relevant sectors
+    const presetResult = await pool.query('SELECT relevant_sectors FROM workstation_presets WHERE id = $1', [presetId]);
+    if (presetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Workstation preset not found' });
+    }
+    
+    let relevantSectors = presetResult.rows[0].relevant_sectors;
+    if (typeof relevantSectors === 'string') {
+      relevantSectors = JSON.parse(relevantSectors);
+    }
+    if (!Array.isArray(relevantSectors) || relevantSectors.length === 0) {
+      return res.json([]);
+    }
+    
+    // Get workstation UUID from preset
+    const wsResult = await pool.query(
+      'SELECT id FROM workstations WHERE name = (SELECT name FROM workstation_presets WHERE id = $1)',
+      [presetId]
+    );
+    const workstationUuid = wsResult.rows.length > 0 ? wsResult.rows[0].id : null;
+    
+    // Get strips that:
+    // 1. Are in one of the workstation's sectors
+    // 2. AND (held_by_workstation is NULL OR held_by_workstation = this workstation's UUID OR held_by_workstation = presetId as string)
+    const result = await pool.query(`
+      SELECT * FROM strips 
+      WHERE sector_id = ANY($1::int[])
+        AND (held_by_workstation IS NULL 
+             OR held_by_workstation = $2 
+             OR held_by_workstation = $3)
+      ORDER BY id
+    `, [relevantSectors, workstationUuid, String(presetId)]);
+    
+    res.json(result.rows.map(r => ({
+      id: 's' + r.id,
+      callSign: r.callsign,
+      sq: r.sq,
+      alt: r.alt,
+      task: r.task,
+      squadron: r.squadron,
+      sectorId: r.sector_id,
+      status: r.status,
+      x: r.x,
+      y: r.y,
+      onMap: r.on_map,
+      airborne: r.airborne
+    })));
+  } catch (err) {
+    console.error('Error fetching workstation strips:', err);
+    res.status(500).json({ error: 'Failed to fetch workstation strips' });
   }
 });
 

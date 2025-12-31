@@ -2204,15 +2204,10 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const loadData = async () => {
     if (!primarySectorId) return;
     try {
-      // Load strips from ALL relevant sectors, not just primary
-      const allSectorIds = allSectors.map(s => s.id);
-      const stripRequests = allSectorIds.map(sectorId => 
-        fetch(`${API_URL}/sectors/${sectorId}/strips`)
-      );
-      
-      // Use workstation-based endpoints if presetId exists, otherwise fall back to sector-based
       const hasPreset = !!session.presetId;
-      const otherRequests = [
+      
+      // Build all requests
+      const requests: Promise<Response>[] = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
         fetch(`${API_URL}/maps`),
         hasPreset 
@@ -2223,39 +2218,47 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           : fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`)
       ];
       
+      // Use workstation-scoped strips endpoint if presetId exists (filters by held_by_workstation)
+      // Otherwise fall back to per-sector fetching
       if (hasPreset) {
-        otherRequests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
-      }
-      
-      const [stripResults, otherResults] = await Promise.all([
-        Promise.all(stripRequests),
-        Promise.all(otherRequests)
-      ]);
-      
-      // Combine all strips from all sectors
-      const allStripsData: any[] = [];
-      for (const res of stripResults) {
-        if (res.ok) {
-          const data = await res.json();
-          allStripsData.push(...data);
+        requests.push(fetch(`${API_URL}/workstations/${session.presetId}/strips`));
+        requests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
+      } else {
+        // Fallback: fetch strips from all relevant sectors (for ad-hoc sessions)
+        const allSectorIds = allSectors.map(s => s.id);
+        for (const sectorId of allSectorIds) {
+          requests.push(fetch(`${API_URL}/sectors/${sectorId}/strips`));
         }
       }
-      // Remove duplicates by id
-      const uniqueStrips = allStripsData.filter((strip, index, self) => 
-        index === self.findIndex(s => s.id === strip.id)
-      );
-      setStrips(uniqueStrips);
       
-      const [subSectorsRes, mapsRes, incomingRes, outgoingRes] = otherResults;
+      const results = await Promise.all(requests);
+      
+      const [subSectorsRes, mapsRes, incomingRes, outgoingRes] = results;
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
       
-      if (hasPreset && otherResults[4]) {
-        const waitingRes = otherResults[4];
+      if (hasPreset) {
+        const stripsRes = results[4];
+        const waitingRes = results[5];
+        if (stripsRes.ok) setStrips(await stripsRes.json());
         if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
+      } else {
+        // Combine strips from all sector requests (fallback for ad-hoc sessions)
+        const allStripsData: any[] = [];
+        for (let i = 4; i < results.length; i++) {
+          if (results[i].ok) {
+            const data = await results[i].json();
+            allStripsData.push(...data);
+          }
+        }
+        // Remove duplicates by id
+        const uniqueStrips = allStripsData.filter((strip, index, self) => 
+          index === self.findIndex(s => s.id === strip.id)
+        );
+        setStrips(uniqueStrips);
       }
     } catch (err) {
       console.error('Failed to load data:', err);
