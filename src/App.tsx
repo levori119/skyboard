@@ -2663,49 +2663,48 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
         {/* Sidebar - Right Side */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
-          {/* Waiting strips from General Distribution */}
-          {waitingStrips.length > 0 && (
-            <>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#7c3aed' }}>ממתינים להבצסה ({waitingStrips.length}):</h4>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>לחץ "הבצס" לשייך לסקטור</div>
-              {waitingStrips.map(s => (
-                <div key={s.id} style={{ 
-                  marginBottom: '8px', 
-                  background: '#ede9fe', 
-                  padding: '8px', 
-                  borderRadius: '6px',
-                  border: '2px dashed #7c3aed'
-                }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{s.callSign}</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>
-                    {s.squadron && `טייסת: ${s.squadron} | `}גובה: {s.alt}
-                  </div>
-                  {s.task && <div style={{ fontSize: '10px', color: '#64748b' }}>{s.task}</div>}
-                  <button
-                    onClick={() => handleAssignWaitingStrip(s.id)}
-                    style={{
-                      marginTop: '6px',
-                      width: '100%',
-                      padding: '6px',
-                      background: '#7c3aed',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    הבצס לסקטור
-                  </button>
-                </div>
-              ))}
-              <div style={{ borderBottom: '1px solid #e2e8f0', margin: '15px 0' }}></div>
-            </>
-          )}
-
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length + waitingStrips.length}):</h4>
           <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת סקטור יעד</div>
+          
+          {/* Waiting strips from General Distribution - shown first with purple border */}
+          {waitingStrips.map(s => (
+            <div key={s.id} style={{ marginBottom: '8px' }}>
+              <div style={{ 
+                background: 'white', 
+                padding: '8px', 
+                borderRadius: '6px',
+                border: '2px solid #7c3aed',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{s.callSign}</div>
+                  <div style={{ fontSize: '9px', background: '#7c3aed', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>חלוקה</div>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  {s.squadron && `טייסת: ${s.squadron} | `}גובה: {s.alt}
+                </div>
+                {s.task && <div style={{ fontSize: '10px', color: '#64748b' }}>{s.task}</div>}
+                <button
+                  onClick={() => handleAssignWaitingStrip(s.id)}
+                  style={{
+                    marginTop: '6px',
+                    width: '100%',
+                    padding: '6px',
+                    background: '#22c55e',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  הכנס לעמדה
+                </button>
+              </div>
+            </div>
+          ))}
+          
+          {/* Regular strips waiting for placement */}
           {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
             <div key={s.id} style={{ marginBottom: '8px' }}>
               <Strip s={s} 
