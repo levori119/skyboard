@@ -1,364 +1,189 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import { motion, useDragControls } from 'framer-motion';
-import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
 
 const API_URL = '/api';
 
-// --- ניהול סשן עמדה ---
-interface WorkstationSession {
-  workstationId: string;
-  workstationName: string;
-  relevantSectors: { id: number; name: string; label_he: string; category?: string; notes?: string }[];
-  mapId?: number;
-  authToken: string;
-}
-
-const getSession = (): WorkstationSession | null => {
-  try {
-    const data = sessionStorage.getItem('workstation_session');
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveSession = (session: WorkstationSession) => {
-  sessionStorage.setItem('workstation_session', JSON.stringify(session));
-};
-
-const clearSession = () => {
-  sessionStorage.removeItem('workstation_session');
-};
-
-// --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: (session: WorkstationSession) => void; onManagement?: () => void; onDistribution?: () => void }) => {
-  const [sectors, setSectors] = useState<any[]>([]);
-  const [selectedSector, setSelectedSector] = useState<number | null>(null);
-  const [workstationName, setWorkstationName] = useState('');
+// --- רכיב כתיבה ידנית (Handwriting Overlay) ---
+const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: any) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
-  const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
+  const [recognized, setRecognized] = useState<string | null>(null);
+  const workerRef = useRef<any>(null);
+  const timerRef = useRef<any>(null);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [sectorsRes, presetsRes] = await Promise.all([
-          fetch(`${API_URL}/sectors`),
-          fetch(`${API_URL}/workstation-presets`)
-        ]);
-        if (sectorsRes.ok) {
-          const data = await sectorsRes.json();
-          setSectors(data);
-        }
-        if (presetsRes.ok) {
-          const presets = await presetsRes.json();
-          setWorkstationPresets(presets);
-        }
-      } catch (err) {
-        console.error('Failed to load data:', err);
-      }
+    const init = async () => {
+      const worker = await Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: '10' as any,
+      });
+      workerRef.current = worker;
     };
-    loadData();
+    init();
+    return () => { workerRef.current?.terminate(); };
   }, []);
 
-  const handlePresetLogin = async (preset: any) => {
+  const processOCR = async () => {
+    if (!canvasRef.current || !workerRef.current) return;
     setLoading(true);
-    setError('');
-    try {
-      const relevantSectorIds: number[] = preset.relevant_sectors || [];
-      const relevantSectorsList = sectors.filter(s => relevantSectorIds.includes(s.id));
-
-      const res = await fetch(`${API_URL}/workstations/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: preset.name, presetId: preset.id })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const session: WorkstationSession = {
-          workstationId: data.workstation.id,
-          workstationName: data.workstation.name,
-          relevantSectors: relevantSectorsList,
-          mapId: preset.map_id,
-          authToken: data.authToken
-        };
-        saveSession(session);
-        onLogin(session);
-      } else {
-        setError('שגיאה בכניסה');
-      }
-    } catch (err) {
-      setError('שגיאת חיבור');
-    }
-    setLoading(false);
-  };
-
-  const handleLogin = async () => {
-    if (!selectedSector || !workstationName.trim()) {
-      setError('נא למלא את כל השדות');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const selectedSectorObj = sectors.find(s => s.id === selectedSector);
-
-      const res = await fetch(`${API_URL}/workstations/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: workstationName })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const session: WorkstationSession = {
-          workstationId: data.workstation.id,
-          workstationName: data.workstation.name,
-          relevantSectors: selectedSectorObj ? [selectedSectorObj] : [],
-          authToken: data.authToken
-        };
-        saveSession(session);
-        onLogin(session);
-      } else {
-        setError('שגיאה בכניסה');
-      }
-    } catch (err) {
-      setError('שגיאת חיבור');
-    }
-
+    const canvas = canvasRef.current;
+    const { data } = await workerRef.current.recognize(canvas.toDataURL());
+    const text = data.text.replace(/[^0-9]/g, '').trim();
+    setRecognized(text || null);
     setLoading(false);
   };
 
   return (
-    <div style={{ 
-      height: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-      direction: 'rtl'
+    <div style={{
+      position: 'absolute', top: 0, right: '110%',
+      background: 'white', padding: '10px', borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: '160px'
     }}>
-      <div style={{ 
-        background: 'white', 
-        padding: '40px', 
-        borderRadius: '16px', 
-        minWidth: '450px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
-      }}>
-        <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '32px' }}>BLUE TORCH</h1>
-        <p style={{ margin: '0 0 40px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <button
-            onClick={() => setShowWorkstationSelect(true)}
-            style={{
-              padding: '25px',
-              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
-            }}
-          >
-            <span style={{ fontSize: '28px' }}>🖥️</span>
-            בחירת עמדה
-          </button>
-
-          {onDistribution && (
-            <button
-              onClick={onDistribution}
-              style={{
-                padding: '25px',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '20px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-              }}
-            >
-              <span style={{ fontSize: '28px' }}>📋</span>
-              חלוקה כללית
-            </button>
-          )}
-
-          {onManagement && (
-            <button
-              onClick={onManagement}
-              style={{
-                padding: '25px',
-                background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '20px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
-              }}
-            >
-              <span style={{ fontSize: '28px' }}>⚙️</span>
-              ניהול מערכת
-            </button>
-          )}
-        </div>
+      <div style={{fontSize: '12px', marginBottom: '5px', fontWeight: 'bold', color: '#2563eb'}}>
+        {loading ? "מעבד..." : "גובה:"} {recognized && <span style={{color:'green'}}>{recognized}</span>}
       </div>
-
-      {/* Workstation Selection Modal */}
-      {showWorkstationSelect && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: 'white',
-            padding: '30px',
-            borderRadius: '16px',
-            minWidth: '500px',
-            maxHeight: '80vh',
-            overflow: 'auto'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#0f172a' }}>בחירת עמדה</h2>
-              <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
-            </div>
-
-            {/* Workstation Presets Dropdown */}
-            {workstationPresets.length > 0 && (
-              <div style={{ marginBottom: '25px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
-                <select
-                  onChange={(e) => {
-                    const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
-                    if (preset) handlePresetLogin(preset);
-                  }}
-                  defaultValue=""
-                  style={{
-                    width: '100%',
-                    padding: '15px',
-                    border: '2px solid #2563eb',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    background: 'white',
-                    cursor: 'pointer',
-                    direction: 'rtl'
-                  }}
-                >
-                  <option value="" disabled>-- בחר עמדה --</option>
-                  {workstationPresets.map((preset: any) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>או הגדר עמדה חדשה:</label>
-
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', color: '#64748b' }}>שם עמדה:</label>
-                <input
-                  type="text"
-                  value={workstationName}
-                  onChange={(e) => setWorkstationName(e.target.value)}
-                  placeholder="לדוגמה: עמדה 1"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '2px solid #e2e8f0', 
-                    borderRadius: '8px', 
-                    fontSize: '16px',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: '#64748b' }}>סקטור:</label>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {sectors.map((s: any) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelectedSector(s.id)}
-                      style={{
-                        flex: 1,
-                        minWidth: '100px',
-                        padding: '12px',
-                        border: selectedSector === s.id ? '3px solid #2563eb' : '2px solid #e2e8f0',
-                        borderRadius: '8px',
-                        background: selectedSector === s.id ? '#dbeafe' : 'white',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        color: selectedSector === s.id ? '#1d4ed8' : '#334155'
-                      }}
-                    >
-                      {s.label_he || s.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {error && (
-                <div style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px', textAlign: 'center' }}>
-                  {error}
-                </div>
-              )}
-
-              <button
-                onClick={handleLogin}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '15px',
-                  background: loading ? '#94a3b8' : '#0f172a',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  cursor: loading ? 'default' : 'pointer'
-                }}
-              >
-                {loading ? 'מתחבר...' : 'כניסה'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <canvas
+        ref={canvasRef} width={150} height={100}
+        style={{ background: '#f8fafc', border: '1px solid #cbd5e1', touchAction: 'none' }}
+        onMouseDown={(e) => {
+          setIsDrawing(true);
+          const ctx = canvasRef.current?.getContext('2d');
+          ctx?.beginPath();
+          ctx?.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+        }}
+        onMouseMove={(e) => {
+          if (!isDrawing) return;
+          const ctx = canvasRef.current?.getContext('2d');
+          if (ctx) {
+            ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
+            ctx.lineWidth = 4; ctx.stroke();
+          }
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(processOCR, 1000);
+        }}
+        onMouseUp={() => setIsDrawing(false)}
+      />
+      <div style={{display:'flex', gap:'4px', marginTop:'8px'}}>
+        <button onClick={onCancel} style={{ flex:1, padding: '4px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}>ביטול</button>
+        <button onClick={() => onComplete(recognized)} disabled={!recognized} style={{ flex:1, padding: '4px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px' }}>אשר</button>
+      </div>
     </div>
   );
 };
+
+// --- רכיב סטריפ (Strip) ---
+const Strip = ({ s, onMove, onUpdate }: any) => {
+  const controls = useDragControls();
+  const [edit, setEdit] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <motion.div
+      ref={containerRef}
+      drag
+      dragControls={controls}
+      dragListener={false}
+      dragMomentum={false}
+      onDragEnd={() => {
+        const mapArea = document.getElementById('map-area');
+        if (mapArea && containerRef.current) {
+          const mapRect = mapArea.getBoundingClientRect();
+          const stripRect = containerRef.current.getBoundingClientRect();
+          onMove(s.id, stripRect.left - mapRect.left, stripRect.top - mapRect.top);
+        }
+      }}
+      style={{
+        width: 180, background: 'white', border: '2px solid black',
+        position: s.onMap ? 'absolute' : 'relative',
+        left: s.onMap ? s.x : 0, top: s.onMap ? s.y : 0,
+        display: 'flex', flexDirection: 'row-reverse', marginBottom: '8px', zIndex: 50
+      }}
+    >
+      <div onPointerDown={(e) => controls.start(e)} style={{ width: 30, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>⋮</div>
+      <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right', position: 'relative' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+        <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
+          <div onClick={() => setEdit(true)} style={{ fontSize: '10px', border: '1px solid #ddd', flex: 1, cursor: 'pointer', padding: '2px' }}>גובה: {s.alt}</div>
+          <div style={{ fontSize: '10px', flex: 1, color: '#666' }}>{s.task}</div>
+        </div>
+        {edit && <HandwritingOverlay onCancel={() => setEdit(false)} onComplete={(val: any) => { onUpdate(s.id, val); setEdit(false); }} />}
+      </div>
+    </motion.div>
+  );
+};
+
+// --- האפליקציה המאוחדת ---
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [strips, setStrips] = useState<any[]>([]);
+  const [mapImg, setMapImg] = useState<string | null>(null);
+
+  // לוגיקת CSV
+  const handleCsv = (e: any) => {
+    const reader = new FileReader();
+    reader.onload = (ev: any) => {
+      const rows = ev.target.result.split('\n').filter((r: any) => r.trim());
+      const data = rows.slice(1).map((r: string) => {
+        const c = r.split(',');
+        return { id: Math.random().toString(), callSign: c[1], sq: c[2], alt: c[3] || "0", task: c[4], x: 0, y: 0, onMap: false };
+      });
+      setStrips(data);
+    };
+    reader.readAsText(e.target.files[0]);
+  };
+
+  // לוגיקת מפה
+  const handleMap = (e: any) => {
+    const reader = new FileReader();
+    reader.onload = (ev: any) => setMapImg(ev.target.result);
+    reader.readAsDataURL(e.target.files[0]);
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0f172a', direction: 'rtl' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '16px', textAlign: 'center' }}>
+          <h1>BLUE TORCH</h1>
+          <button onClick={() => setIsLoggedIn(true)} style={{ padding: '10px 40px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>כניסה לעמדה</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+      <header style={{ padding: '10px', background: '#0f172a', color: 'white', display: 'flex', gap: '15px' }}>
+        <b>BLUE TORCH</b>
+        <input type="file" accept=".csv" onChange={handleCsv} style={{ fontSize: '12px' }} />
+        <input type="file" accept="image/*" onChange={handleMap} style={{ fontSize: '12px' }} />
+      </header>
+
+      <div style={{ flex: 1, display: 'flex', background: '#f1f5f9', overflow: 'hidden' }}>
+        {/* אזור המפה */}
+        <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden' }}>
+          {mapImg && <img src={mapImg} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />}
+          {strips.filter(s => s.onMap).map(s => (
+            <Strip key={s.id} s={s} 
+              onUpdate={(id: any, val: any) => setStrips(prev => prev.map(i => i.id === id ? {...i, alt: val} : i))}
+              onMove={(id: any, x: any, y: any) => setStrips(prev => prev.map(i => i.id === id ? {...i, x, y} : i))}
+            />
+          ))}
+        </div>
+
+        {/* רשימת המתנה (Sidebar) */}
+        <div style={{ width: 200, background: 'white', borderLeft: '1px solid #ccc', padding: '10px', overflowY: 'auto' }}>
+          <h4 style={{marginTop: 0}}>ממתינים:</h4>
+          {strips.filter(s => !s.onMap).map(s => (
+            <Strip key={s.id} s={s} 
+              onUpdate={(id: any, val: any) => setStrips(prev => prev.map(i => i.id === id ? {...i, alt: val} : i))}
+              onMove={(id: any, x: any, y: any) => setStrips(prev => prev.map(i => i.id === id ? {...i, x, y, onMap: true} : i))}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
