@@ -3018,7 +3018,8 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips'>('presets');
+  const [csvImportResult, setCsvImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
@@ -3174,6 +3175,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>
         <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>סקטורים</button>
         <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
+        <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
@@ -3406,6 +3408,112 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           {/* Maps Tab */}
           {activeTab === 'maps' && (
             <MapsManager onClose={() => {}} onMapsUpdated={loadData} isEmbedded={true} />
+          )}
+
+          {/* Strips Tab */}
+          {activeTab === 'strips' && (
+            <div>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>טעינת פממים מקובץ CSV</h2>
+              
+              <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
+                <p style={{ color: '#94a3b8', marginBottom: '15px', fontSize: '14px' }}>
+                  טען פממים מקובץ CSV. הקובץ צריך לכלול כותרות: callSign, squadron, alt, task<br/>
+                  <strong>או"ק הוא שדה חד-ערכי - אם קיים פמם עם אותה קריאה, הרשומה החדשה תידלג.</strong>
+                </p>
+                
+                <input
+                  type="file"
+                  accept=".csv"
+                  id="csvFileInput"
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    const text = await file.text();
+                    const lines = text.split('\n').filter(line => line.trim());
+                    if (lines.length < 2) {
+                      alert('הקובץ ריק או חסר נתונים');
+                      return;
+                    }
+                    
+                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                    const callSignIdx = headers.findIndex(h => h === 'callsign' || h === 'call_sign' || h === 'קריאה');
+                    const squadronIdx = headers.findIndex(h => h === 'squadron' || h === 'טייסת');
+                    const altIdx = headers.findIndex(h => h === 'alt' || h === 'גובה');
+                    const taskIdx = headers.findIndex(h => h === 'task' || h === 'משימה');
+                    
+                    if (callSignIdx === -1) {
+                      alert('חסרה עמודת callSign בקובץ');
+                      return;
+                    }
+                    
+                    const strips = [];
+                    for (let i = 1; i < lines.length; i++) {
+                      const values = lines[i].split(',').map(v => v.trim());
+                      if (values[callSignIdx]) {
+                        strips.push({
+                          callSign: values[callSignIdx],
+                          squadron: squadronIdx >= 0 ? values[squadronIdx] || '' : '',
+                          alt: altIdx >= 0 ? values[altIdx] || '' : '',
+                          task: taskIdx >= 0 ? values[taskIdx] || '' : ''
+                        });
+                      }
+                    }
+                    
+                    try {
+                      const res = await fetch(`${API_URL}/strips/import`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ strips })
+                      });
+                      const result = await res.json();
+                      setCsvImportResult(result);
+                    } catch (err) {
+                      console.error('Import error:', err);
+                      alert('שגיאה בטעינת הקובץ');
+                    }
+                    
+                    e.target.value = '';
+                  }}
+                />
+                
+                <button
+                  onClick={() => document.getElementById('csvFileInput')?.click()}
+                  style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
+                >
+                  בחר קובץ CSV
+                </button>
+                
+                {csvImportResult && (
+                  <div style={{ marginTop: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px' }}>
+                    <div style={{ color: '#22c55e', marginBottom: '8px', fontSize: '15px' }}>
+                      נטענו בהצלחה: {csvImportResult.imported} פממים
+                    </div>
+                    {csvImportResult.skipped > 0 && (
+                      <div style={{ color: '#f59e0b', marginBottom: '8px', fontSize: '14px' }}>
+                        נדלגו (כפילויות): {csvImportResult.skipped} פממים
+                      </div>
+                    )}
+                    {csvImportResult.errors.length > 0 && (
+                      <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                        שגיאות: {csvImportResult.errors.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>דוגמה לפורמט הקובץ:</h3>
+                <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '13px', overflow: 'auto', color: '#e2e8f0' }}>
+{`callSign,squadron,alt,task
+BLUE01,101,FL350,CAP
+HAWK23,105,FL280,ESCORT
+VIPER07,117,FL400,STRIKE`}
+                </pre>
+              </div>
+            </div>
           )}
         </div>
       </div>

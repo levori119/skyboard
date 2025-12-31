@@ -284,6 +284,50 @@ app.delete('/api/strips/:id', async (req, res) => {
   }
 });
 
+app.post('/api/strips/import', async (req, res) => {
+  try {
+    const { strips } = req.body;
+    if (!Array.isArray(strips)) {
+      return res.status(400).json({ error: 'Invalid strips data' });
+    }
+    
+    const existingResult = await pool.query('SELECT callsign FROM strips');
+    const existingCallSigns = new Set(existingResult.rows.map(r => r.callsign?.toLowerCase()));
+    
+    let imported = 0;
+    let skipped = 0;
+    const errors = [];
+    
+    for (const strip of strips) {
+      if (!strip.callSign) {
+        errors.push('Missing callSign');
+        continue;
+      }
+      
+      if (existingCallSigns.has(strip.callSign.toLowerCase())) {
+        skipped++;
+        continue;
+      }
+      
+      try {
+        await pool.query(
+          'INSERT INTO strips (callsign, squadron, alt, task) VALUES ($1, $2, $3, $4)',
+          [strip.callSign, strip.squadron || '', strip.alt || '', strip.task || '']
+        );
+        existingCallSigns.add(strip.callSign.toLowerCase());
+        imported++;
+      } catch (err) {
+        errors.push(`Failed to import ${strip.callSign}: ${err.message}`);
+      }
+    }
+    
+    res.json({ imported, skipped, errors });
+  } catch (err) {
+    console.error('Error importing strips:', err);
+    res.status(500).json({ error: 'Failed to import strips' });
+  }
+});
+
 // --- Sectors API ---
 app.get('/api/sectors', async (req, res) => {
   try {
