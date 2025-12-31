@@ -1059,21 +1059,19 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
   );
 };
 
-// --- פאנל סקטור שכן ניתן לגרירה ---
+// --- פאנל סקטור ניתן לגרירה ---
 const DraggableNeighborPanel = ({ 
   neighbor, 
   subSectors,
   onDropOnMap,
   isExpanded,
-  onToggle,
-  isPrimary = false
+  onToggle
 }: { 
   neighbor: any; 
   subSectors: any[];
   onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string) => void;
   isExpanded: boolean;
   onToggle: () => void;
-  isPrimary?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -1123,12 +1121,12 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ borderBottom: '1px solid #334155', borderRight: isPrimary ? '3px solid #22c55e' : 'none' }}>
+      <div style={{ borderBottom: '1px solid #334155' }}>
         <div
           onPointerDown={(e) => handlePointerDown(e)}
           style={{
             padding: '12px',
-            background: isPrimary ? '#1e3a2f' : (isExpanded ? '#334155' : 'transparent'),
+            background: isExpanded ? '#334155' : 'transparent',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1141,13 +1139,10 @@ const DraggableNeighborPanel = ({
               flex: 1, 
               textAlign: 'right', 
               fontSize: '14px',
-              userSelect: 'none',
-              fontWeight: isPrimary ? 'bold' : 'normal',
-              color: isPrimary ? '#22c55e' : 'white'
+              userSelect: 'none'
             }}
           >
             {neighbor.label_he || neighbor.name}
-            {isPrimary && <span style={{ fontSize: '10px', marginRight: '6px', color: '#94a3b8' }}>(ראשי)</span>}
           </div>
           {hasSubSectors && (
             <span 
@@ -2414,7 +2409,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
             <h4 style={{ margin: 0, fontSize: '14px' }}>סקטורים</h4>
             <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
           </div>
-          {allSectors.map((n, idx) => (
+          {allSectors.map(n => (
             <DraggableNeighborPanel
               key={n.id}
               neighbor={n}
@@ -2422,7 +2417,6 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
               onToggle={() => toggleNeighborExpanded(n.id)}
-              isPrimary={idx === 0}
             />
           ))}
           
