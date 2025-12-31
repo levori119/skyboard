@@ -1670,8 +1670,13 @@ const DraggableMapMarker = ({
         </div>
       </div>
       
-      {/* Two-column layout for העברה/קבלה */}
-      <div style={{ display: 'flex', background: '#0f172a', borderTop: '1px solid #334155' }}>
+      {/* Two-column layout for העברה/קבלה - with drop zone for strip transfers */}
+      <div 
+        className="marker-drop-zone"
+        data-marker-sector={marker.sectorId}
+        data-marker-sublabel={marker.subLabel || ''}
+        style={{ display: 'flex', background: '#0f172a', borderTop: '1px solid #334155' }}
+      >
         {/* העברה - Outgoing */}
         <div style={{ flex: 1, borderLeft: '1px solid #334155', padding: '6px', minHeight: '60px' }}>
           <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
