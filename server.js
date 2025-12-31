@@ -793,7 +793,12 @@ app.post('/api/defaults', async (req, res) => {
 app.get('/api/workstation-presets', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
-    res.json(result.rows);
+    const presets = result.rows.map(row => ({
+      ...row,
+      relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : 
+        (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : [])
+    }));
+    res.json(presets);
   } catch (err) {
     console.error('Error fetching workstation presets:', err);
     res.status(500).json({ error: 'Failed to fetch workstation presets' });
