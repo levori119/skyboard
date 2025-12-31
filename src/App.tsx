@@ -2757,7 +2757,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [presets, setPresets] = useState<any[]>([]);
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
-  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '' });
+  const [newStrip, setNewStrip] = useState({ callSign: '', alt: '', task: '', squadron: '' });
 
   const loadData = async () => {
     try {
@@ -2792,7 +2792,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   };
 
   const createStrip = async () => {
-    if (!newStrip.callSign.trim() || !newStrip.sq.trim()) return;
+    if (!newStrip.callSign.trim()) return;
     try {
       await fetch(`${API_URL}/strips`, {
         method: 'POST',
@@ -2802,7 +2802,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           sectorId: null
         })
       });
-      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '' });
+      setNewStrip({ callSign: '', alt: '', task: '', squadron: '' });
       loadData();
     } catch (err) {
       console.error('Failed to create strip:', err);
@@ -2862,9 +2862,9 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
             />
             <input
               type="text"
-              placeholder="SQ"
-              value={newStrip.sq}
-              onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
+              placeholder="טייסת"
+              value={newStrip.squadron}
+              onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
             <input
@@ -2879,13 +2879,6 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               placeholder="משימה"
               value={newStrip.task}
               onChange={e => setNewStrip({ ...newStrip, task: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="טייסת"
-              value={newStrip.squadron}
-              onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
             <button
@@ -2905,7 +2898,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   style={{ background: '#334155', padding: '10px', borderRadius: '6px', color: 'white', fontSize: '13px' }}
                 >
                   <div style={{ fontWeight: 'bold' }}>{strip.call_sign}</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>SQ: {strip.sq} | גובה: {strip.alt}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}גובה: {strip.alt}</div>
                 </div>
               ))}
               {unassignedStrips.length === 0 && (
@@ -2973,7 +2966,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                               >
                                 <div>
                                   <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{strip.call_sign}</div>
-                                  <div style={{ color: '#64748b', fontSize: '11px' }}>SQ: {strip.sq} | {strip.alt}</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}{strip.alt}</div>
                                 </div>
                                 <button
                                   onClick={() => deleteStrip(strip.id)}
@@ -2999,7 +2992,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                             >
                               <option value="" disabled>+ הוסף פמם לסקטור</option>
                               {unassignedStrips.map(s => (
-                                <option key={s.id} value={s.id}>{s.call_sign} ({s.sq})</option>
+                                <option key={s.id} value={s.id}>{s.call_sign}{s.squadron ? ` (${s.squadron})` : ''}</option>
                               ))}
                             </select>
                           )}
