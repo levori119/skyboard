@@ -2202,7 +2202,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const primarySectorId = primarySector?.id;
 
   const loadData = async () => {
-    if (!primarySectorId || !session.presetId) return;
+    if (!primarySectorId) return;
     try {
       // Load strips from ALL relevant sectors, not just primary
       const allSectorIds = allSectors.map(s => s.id);
@@ -2210,15 +2210,22 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
         fetch(`${API_URL}/sectors/${sectorId}/strips`)
       );
       
-      // Load transfers using workstation-based endpoints (not sector-based)
-      // This ensures each workstation only sees its own incoming/outgoing transfers
+      // Use workstation-based endpoints if presetId exists, otherwise fall back to sector-based
+      const hasPreset = !!session.presetId;
       const otherRequests = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
         fetch(`${API_URL}/maps`),
-        fetch(`${API_URL}/workstations/${session.presetId}/incoming-transfers`),
-        fetch(`${API_URL}/workstations/${session.presetId}/outgoing-transfers`),
-        fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`)
+        hasPreset 
+          ? fetch(`${API_URL}/workstations/${session.presetId}/incoming-transfers`)
+          : fetch(`${API_URL}/sectors/${primarySectorId}/incoming-transfers`),
+        hasPreset
+          ? fetch(`${API_URL}/workstations/${session.presetId}/outgoing-transfers`)
+          : fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`)
       ];
+      
+      if (hasPreset) {
+        otherRequests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
+      }
       
       const [stripResults, otherResults] = await Promise.all([
         Promise.all(stripRequests),
@@ -2239,13 +2246,17 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       );
       setStrips(uniqueStrips);
       
-      const [subSectorsRes, mapsRes, incomingRes, outgoingRes, waitingRes] = otherResults;
+      const [subSectorsRes, mapsRes, incomingRes, outgoingRes] = otherResults;
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
-      if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
+      
+      if (hasPreset && otherResults[4]) {
+        const waitingRes = otherResults[4];
+        if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
+      }
     } catch (err) {
       console.error('Failed to load data:', err);
     }
