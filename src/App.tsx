@@ -1330,6 +1330,19 @@ const DraggableIncomingTransferMini = ({
 
     const handleUp = (e: PointerEvent) => {
       setIsDragging(false);
+      
+      // Check if dropped on sidebar (right side) - auto accept to workstation
+      const sidebarArea = document.getElementById('sidebar-area');
+      if (sidebarArea) {
+        const sidebarRect = sidebarArea.getBoundingClientRect();
+        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right && 
+            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+          onAccept(transfer.id);
+          return;
+        }
+      }
+      
+      // Check if dropped on map
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
@@ -1417,7 +1430,7 @@ const DraggableIncomingTransferMini = ({
           direction: 'rtl'
         }}>
           {transfer.callsign}
-          <div style={{ fontSize: '9px', opacity: 0.8 }}>גרור למפה</div>
+          <div style={{ fontSize: '9px', opacity: 0.8 }}>גרור למפה או לפ"מ פעילים</div>
         </div>,
         document.body
       )}
@@ -1501,7 +1514,9 @@ const DraggableMapMarker = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
-  onAcceptToMap
+  onAcceptToMap,
+  notes,
+  onUpdateNotes
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -1515,12 +1530,16 @@ const DraggableMapMarker = ({
   onAcceptTransfer: (transferId: string) => void;
   onRejectTransfer: (transferId: string) => void;
   onAcceptToMap: (transferId: string, x: number, y: number) => void;
+  notes?: string;
+  onUpdateNotes?: (sectorId: number, notes: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
   const [showMenu, setShowMenu] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [editingNotes, setEditingNotes] = useState(false);
   const [tempName, setTempName] = useState(marker.subLabel || '');
+  const [tempNotes, setTempNotes] = useState(notes || '');
   const startPosRef = useRef({ x: 0, y: 0 });
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -1771,6 +1790,61 @@ const DraggableMapMarker = ({
           ))}
         </div>
       </div>
+      
+      {/* Notes section */}
+      {(notes || editingNotes) && (
+        <div style={{ background: '#1e293b', padding: '6px', borderTop: '1px solid #334155' }}>
+          {editingNotes ? (
+            <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+              <textarea
+                value={tempNotes}
+                onChange={(e) => setTempNotes(e.target.value)}
+                style={{ width: '100%', padding: '4px', border: '1px solid #475569', borderRadius: '4px', background: '#0f172a', color: 'white', fontSize: '10px', resize: 'none', boxSizing: 'border-box' }}
+                rows={2}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                <button 
+                  onClick={() => { 
+                    if (onUpdateNotes) onUpdateNotes(marker.sectorId, tempNotes);
+                    setEditingNotes(false);
+                  }} 
+                  style={{ flex: 1, padding: '3px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+                >
+                  שמור
+                </button>
+                <button 
+                  onClick={() => { setTempNotes(notes || ''); setEditingNotes(false); }} 
+                  style={{ flex: 1, padding: '3px', background: '#64748b', color: 'white', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
+              style={{ fontSize: '9px', color: '#94a3b8', cursor: 'pointer' }}
+              title="לחץ לעריכה"
+            >
+              📝 {notes}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Add notes button if no notes */}
+      {!notes && !editingNotes && onUpdateNotes && (
+        <div style={{ background: '#1e293b', padding: '4px', borderTop: '1px solid #334155', textAlign: 'center' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '9px', cursor: 'pointer' }}
+          >
+            + הוסף הערה
+          </button>
+        </div>
+      )}
 
       {showMenu && availableStrips.length > 0 && (
         <div
@@ -1995,7 +2069,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2005,6 +2079,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
   const startPosRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [tempNotes, setTempNotes] = useState(s.notes || '');
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -2152,6 +2228,54 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
             </button>
           )}
         </div>
+        {/* Notes section */}
+        {(s.notes || editingNotes) ? (
+          editingNotes ? (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px' }}>
+              <textarea
+                value={tempNotes}
+                onChange={(e) => setTempNotes(e.target.value)}
+                style={{ width: '100%', padding: '3px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', resize: 'none', boxSizing: 'border-box' }}
+                rows={2}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: '3px', marginTop: '3px' }}>
+                <button 
+                  onClick={() => { 
+                    if (onUpdateNotes) onUpdateNotes(s.id, tempNotes);
+                    setEditingNotes(false);
+                  }} 
+                  style={{ flex: 1, padding: '2px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', fontSize: '8px', cursor: 'pointer' }}
+                >
+                  שמור
+                </button>
+                <button 
+                  onClick={() => { setTempNotes(s.notes || ''); setEditingNotes(false); }} 
+                  style={{ flex: 1, padding: '2px', background: '#64748b', color: 'white', border: 'none', borderRadius: '3px', fontSize: '8px', cursor: 'pointer' }}
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
+              style={{ marginTop: '4px', fontSize: '9px', color: '#64748b', cursor: 'pointer', background: '#f8fafc', padding: '2px 4px', borderRadius: '3px' }}
+              title="לחץ לעריכה"
+            >
+              📝 {s.notes}
+            </div>
+          )
+        ) : onUpdateNotes && (
+          <div style={{ marginTop: '4px', textAlign: 'center' }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
+              style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer' }}
+            >
+              + הערה
+            </button>
+          </div>
+        )}
       </div>
       {edit && (
         <HandwritingOverlay 
@@ -2482,6 +2606,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       console.error('Failed to accept transfer to map:', err);
     }
   };
+  
+  const handleUpdateSectorNotes = async (sectorId: number, newNotes: string) => {
+    try {
+      await fetch(`${API_URL}/sectors/${sectorId}/notes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: newNotes })
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to update sector notes:', err);
+    }
+  };
 
   const handleAddSubSector = async () => {
     if (!newSubSectorNeighbor || !newSubSectorLabel.trim() || !primarySectorId) return;
@@ -2545,6 +2682,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       });
     } catch (err) {
       console.error('Failed to update airborne status:', err);
+    }
+  };
+
+  const handleUpdateStripNotes = async (id: string, notes: string) => {
+    setStrips(prev => prev.map(item => item.id === id ? {...item, notes} : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      });
+    } catch (err) {
+      console.error('Failed to update strip notes:', err);
     }
   };
 
@@ -2826,6 +2976,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 neighbors={neighbors}
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
+                onUpdateNotes={handleUpdateStripNotes}
               />
             ))}
             
@@ -2853,6 +3004,8 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 onAcceptTransfer={handleAcceptTransfer}
                 onRejectTransfer={handleRejectTransfer}
                 onAcceptToMap={handleAcceptToMap}
+                notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
+                onUpdateNotes={handleUpdateSectorNotes}
               />
             ))}
             
@@ -2987,6 +3140,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 neighbors={neighbors}
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
+                onUpdateNotes={handleUpdateStripNotes}
               />
             </div>
           ))}

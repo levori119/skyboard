@@ -103,6 +103,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sector_id INTEGER REFERENCES sectors(id)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'queued'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS held_by_workstation VARCHAR(36)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS notes TEXT`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
@@ -192,7 +193,8 @@ app.get('/api/strips', async (req, res) => {
       x: r.x,
       y: r.y,
       onMap: r.on_map,
-      airborne: r.airborne
+      airborne: r.airborne,
+      notes: r.notes
     })));
   } catch (err) {
     console.error('Error fetching strips:', err);
@@ -264,7 +266,7 @@ app.post('/api/strips', async (req, res) => {
 app.put('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
-    const { x, y, onMap, alt } = req.body;
+    const { x, y, onMap, alt, notes } = req.body;
     
     const updates = [];
     const values = [];
@@ -275,6 +277,7 @@ app.put('/api/strips/:id', async (req, res) => {
     if (onMap !== undefined) { updates.push(`on_map = $${paramIndex++}`); values.push(onMap); }
     if (alt !== undefined) { updates.push(`alt = $${paramIndex++}`); values.push(alt); }
     if (req.body.airborne !== undefined) { updates.push(`airborne = $${paramIndex++}`); values.push(req.body.airborne); }
+    if (notes !== undefined) { updates.push(`notes = $${paramIndex++}`); values.push(notes); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -408,7 +411,8 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       x: r.x,
       y: r.y,
       onMap: r.on_map,
-      airborne: r.airborne
+      airborne: r.airborne,
+      notes: r.notes
     })));
   } catch (err) {
     console.error('Error fetching sector strips:', err);
@@ -922,7 +926,8 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       x: r.x,
       y: r.y,
       onMap: r.on_map,
-      airborne: r.airborne
+      airborne: r.airborne,
+      notes: r.notes
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
@@ -950,7 +955,8 @@ app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
       x: r.x,
       y: r.y,
       onMap: r.on_map,
-      airborne: r.airborne
+      airborne: r.airborne,
+      notes: r.notes
     })));
   } catch (err) {
     console.error('Error fetching waiting strips:', err);
@@ -1074,6 +1080,24 @@ app.delete('/api/sectors/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting sector:', err);
     res.status(500).json({ error: 'Failed to delete sector' });
+  }
+});
+
+// Update sector notes only (for workstation use)
+app.put('/api/sectors/:id/notes', async (req, res) => {
+  try {
+    const { notes } = req.body;
+    const result = await pool.query(
+      'UPDATE sectors SET notes = $1 WHERE id = $2 RETURNING *',
+      [notes || null, req.params.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sector not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating sector notes:', err);
+    res.status(500).json({ error: 'Failed to update sector notes' });
   }
 });
 
