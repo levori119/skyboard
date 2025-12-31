@@ -106,6 +106,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_workstation_id INTEGER`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_workstation_id INTEGER`);
   
   // Sectors new columns
   await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
@@ -545,7 +547,7 @@ app.delete('/api/sub-sectors/:id', async (req, res) => {
 app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(req.params.id.replace('s', ''));
-    const { toSectorId, workstationId, targetX, targetY, subSectorLabel } = req.body;
+    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId } = req.body;
     
     const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
     if (strip.rows.length === 0) {
@@ -560,9 +562,9 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     );
     
     const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label) 
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null]
+      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id) 
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9) RETURNING *`,
+      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, toWorkstationId || null]
     );
     
     res.json({ transfer: result.rows[0] });
@@ -605,6 +607,50 @@ app.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching outgoing transfers:', err);
+    res.status(500).json({ error: 'Failed to fetch outgoing transfers' });
+  }
+});
+
+// Workstation-based transfer endpoints (filter by workstation, not just sector)
+app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.presetId);
+    const result = await pool.query(`
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, 
+             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
+             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label,
+             t.target_x, t.target_y, t.sub_sector_label
+      FROM strip_transfers t
+      JOIN strips s ON t.strip_id = s.id
+      JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      WHERE t.to_workstation_id = $1 AND t.status = 'pending'
+      ORDER BY t.created_at
+    `, [presetId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching workstation incoming transfers:', err);
+    res.status(500).json({ error: 'Failed to fetch incoming transfers' });
+  }
+});
+
+app.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.presetId);
+    const result = await pool.query(`
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, 
+             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
+             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
+      FROM strip_transfers t
+      JOIN strips s ON t.strip_id = s.id
+      JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      WHERE t.from_workstation_id = $1 AND t.status = 'pending'
+      ORDER BY t.created_at
+    `, [presetId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching workstation outgoing transfers:', err);
     res.status(500).json({ error: 'Failed to fetch outgoing transfers' });
   }
 });
