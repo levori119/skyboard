@@ -1156,12 +1156,15 @@ const DraggableNeighborPanel = ({
             style={{ 
               flex: 1, 
               textAlign: 'right', 
-              fontSize: '13px',
-              fontWeight: 'bold',
               userSelect: 'none'
             }}
           >
-            {neighbor.label_he || neighbor.name}
+            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
+            {neighbor.notes && (
+              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
+                {neighbor.notes}
+              </div>
+            )}
           </div>
           {(hasSubSectors || hasTransfers) && (
             <span 
