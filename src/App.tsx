@@ -1061,23 +1061,38 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
   );
 };
 
-// --- פאנל סקטור ניתן לגרירה ---
+// --- פאנל סקטור עם עמודות העברה/קבלה ---
 const DraggableNeighborPanel = ({ 
   neighbor, 
   subSectors,
   onDropOnMap,
   isExpanded,
-  onToggle
+  onToggle,
+  outgoingTransfers,
+  incomingTransfers,
+  onCancelTransfer,
+  onAcceptTransfer,
+  onRejectTransfer,
+  onAcceptToMap
 }: { 
   neighbor: any; 
   subSectors: any[];
   onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string) => void;
   isExpanded: boolean;
   onToggle: () => void;
+  outgoingTransfers: any[];
+  incomingTransfers: any[];
+  onCancelTransfer: (id: string) => void;
+  onAcceptTransfer: (id: string) => void;
+  onRejectTransfer: (id: string) => void;
+  onAcceptToMap: (id: string, x: number, y: number) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dragLabel, setDragLabel] = useState<string | null>(null);
+
+  const sectorOutgoing = outgoingTransfers.filter(t => t.to_sector_id === neighbor.id);
+  const sectorIncoming = incomingTransfers.filter(t => t.from_sector_id === neighbor.id);
 
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
@@ -1120,6 +1135,7 @@ const DraggableNeighborPanel = ({
 
   const neighborSubSectors = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
   const hasSubSectors = neighborSubSectors.length > 0;
+  const hasTransfers = sectorOutgoing.length > 0 || sectorIncoming.length > 0;
 
   return (
     <>
@@ -1127,7 +1143,7 @@ const DraggableNeighborPanel = ({
         <div
           onPointerDown={(e) => handlePointerDown(e)}
           style={{
-            padding: '12px',
+            padding: '8px 12px',
             background: isExpanded ? '#334155' : 'transparent',
             display: 'flex',
             justifyContent: 'space-between',
@@ -1140,31 +1156,45 @@ const DraggableNeighborPanel = ({
             style={{ 
               flex: 1, 
               textAlign: 'right', 
-              fontSize: '14px',
+              fontSize: '13px',
+              fontWeight: 'bold',
               userSelect: 'none'
             }}
           >
             {neighbor.label_he || neighbor.name}
           </div>
-          {hasSubSectors && (
+          {(hasSubSectors || hasTransfers) && (
             <span 
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
               style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
             >
               {isExpanded ? '▼' : '◀'}
+              {hasTransfers && !isExpanded && (
+                <span style={{ 
+                  marginRight: '4px', 
+                  background: '#f59e0b', 
+                  color: '#1e293b', 
+                  padding: '1px 5px', 
+                  borderRadius: '8px', 
+                  fontSize: '10px',
+                  fontWeight: 'bold'
+                }}>
+                  {sectorOutgoing.length + sectorIncoming.length}
+                </span>
+              )}
             </span>
           )}
         </div>
         
-        {isExpanded && hasSubSectors && (
+        {isExpanded && (
           <div style={{ background: '#0f172a' }}>
-            {neighborSubSectors.map(ss => (
+            {hasSubSectors && neighborSubSectors.map(ss => (
               <div
                 key={ss.id}
                 onPointerDown={(e) => handlePointerDown(e, ss.label)}
                 style={{
-                  padding: '8px 12px 8px 24px',
-                  fontSize: '12px',
+                  padding: '6px 12px 6px 24px',
+                  fontSize: '11px',
                   color: '#94a3b8',
                   borderTop: '1px solid #1e293b',
                   cursor: 'grab',
@@ -1174,6 +1204,69 @@ const DraggableNeighborPanel = ({
                 ↳ {ss.label}
               </div>
             ))}
+            
+            {/* 2 Columns: Transfer / Receive */}
+            {hasTransfers && (
+              <div style={{ display: 'flex', borderTop: '1px solid #334155' }}>
+                {/* העברה - Outgoing */}
+                <div style={{ flex: 1, borderLeft: '1px solid #334155', padding: '6px' }}>
+                  <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+                    העברה ({sectorOutgoing.length})
+                  </div>
+                  {sectorOutgoing.map(t => (
+                    <div key={t.id} style={{ 
+                      background: '#fef3c7', 
+                      border: '1px solid #f59e0b',
+                      borderRadius: '4px',
+                      padding: '4px',
+                      marginBottom: '4px',
+                      fontSize: '9px'
+                    }}>
+                      <div style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</div>
+                      <div style={{ color: '#b45309' }}>גובה: {t.alt}</div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                        style={{
+                          marginTop: '3px',
+                          width: '100%',
+                          padding: '2px',
+                          background: '#dc2626',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          fontSize: '9px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        בטל
+                      </button>
+                    </div>
+                  ))}
+                  {sectorOutgoing.length === 0 && (
+                    <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'center' }}>אין</div>
+                  )}
+                </div>
+                
+                {/* קבלה - Incoming */}
+                <div style={{ flex: 1, padding: '6px' }}>
+                  <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+                    קבלה ({sectorIncoming.length})
+                  </div>
+                  {sectorIncoming.map(t => (
+                    <DraggableIncomingTransferMini
+                      key={t.id}
+                      transfer={t}
+                      onAccept={onAcceptTransfer}
+                      onReject={onRejectTransfer}
+                      onAcceptToMap={onAcceptToMap}
+                    />
+                  ))}
+                  {sectorIncoming.length === 0 && (
+                    <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'center' }}>אין</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1196,6 +1289,132 @@ const DraggableNeighborPanel = ({
         }}>
           {dragLabel ? `${neighbor.label_he || neighbor.name} - ${dragLabel}` : (neighbor.label_he || neighbor.name)}
           <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.8 }}>שחרר על המפה</div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
+// Mini version of incoming transfer for sector panel
+const DraggableIncomingTransferMini = ({
+  transfer,
+  onAccept,
+  onReject,
+  onAcceptToMap
+}: {
+  transfer: any;
+  onAccept: (id: string) => void;
+  onReject: (id: string) => void;
+  onAcceptToMap: (id: string, x: number, y: number) => void;
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMove = (e: PointerEvent) => {
+      setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
+    };
+
+    const handleUp = (e: PointerEvent) => {
+      setIsDragging(false);
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const rect = mapArea.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && 
+            e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          onAcceptToMap(transfer.id, x, y);
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [isDragging, transfer.id, onAcceptToMap]);
+
+  return (
+    <>
+      <div 
+        onPointerDown={handlePointerDown}
+        style={{ 
+          background: '#dcfce7', 
+          border: '1px solid #22c55e',
+          borderRadius: '4px',
+          padding: '4px',
+          marginBottom: '4px',
+          fontSize: '9px',
+          cursor: 'grab'
+        }}
+      >
+        <div style={{ fontWeight: 'bold', color: '#166534' }}>{transfer.callsign}</div>
+        <div style={{ color: '#15803d' }}>גובה: {transfer.alt}</div>
+        <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }}
+            style={{
+              flex: 1,
+              padding: '2px',
+              background: '#22c55e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              fontSize: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            קבל
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onReject(transfer.id); }}
+            style={{
+              flex: 1,
+              padding: '2px',
+              background: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              fontSize: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            דחה
+          </button>
+        </div>
+      </div>
+      
+      {isDragging && createPortal(
+        <div style={{
+          position: 'fixed',
+          left: dragPos.x,
+          top: dragPos.y,
+          background: '#22c55e',
+          color: 'white',
+          padding: '8px 16px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+          zIndex: 9999,
+          pointerEvents: 'none',
+          direction: 'rtl'
+        }}>
+          {transfer.callsign}
+          <div style={{ fontSize: '9px', opacity: 0.8 }}>גרור למפה</div>
         </div>,
         document.body
       )}
@@ -2112,8 +2331,8 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   };
 
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
-    const neighbor = neighbors.find(n => n.id === sectorId);
-    const label = subLabel || neighbor?.label_he || neighbor?.name || 'סקטור';
+    const sector = allSectors.find(n => n.id === sectorId);
+    const label = subLabel || sector?.label_he || sector?.name || 'סקטור';
     setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), 
       { sectorId, x, y, subLabel, label }
     ]);
@@ -2446,23 +2665,14 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
               onDropOnMap={handleNeighborDropOnMap}
               isExpanded={expandedNeighbors.has(n.id)}
               onToggle={() => toggleNeighborExpanded(n.id)}
+              outgoingTransfers={outgoingTransfers}
+              incomingTransfers={incomingTransfers}
+              onCancelTransfer={handleCancelTransfer}
+              onAcceptTransfer={handleAcceptTransfer}
+              onRejectTransfer={handleRejectTransfer}
+              onAcceptToMap={handleAcceptToMap}
             />
           ))}
-          
-          {incomingTransfers.length > 0 && (
-            <div style={{ padding: '10px', borderTop: '2px solid #f59e0b', marginTop: 'auto' }}>
-              <h4 style={{ margin: '0 0 10px', fontSize: '12px', color: '#f59e0b' }}>העברות נכנסות ({incomingTransfers.length})</h4>
-              {incomingTransfers.map(t => (
-                <DraggableIncomingTransfer 
-                  key={t.id}
-                  transfer={t}
-                  onAccept={handleAcceptTransfer}
-                  onReject={handleRejectTransfer}
-                  onAcceptToMap={handleAcceptToMap}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Map Area */}
