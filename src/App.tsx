@@ -12,6 +12,7 @@ interface WorkstationSession {
   workstationName: string;
   relevantSectors: { id: number; name: string; label_he: string; category?: string; notes?: string }[];
   mapId?: number;
+  presetId?: number;
   authToken: string;
 }
 
@@ -84,6 +85,7 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
           workstationName: data.workstation.name,
           relevantSectors: relevantSectorsList,
           mapId: preset.map_id,
+          presetId: preset.id,
           authToken: data.authToken
         };
         saveSession(session);
@@ -1948,6 +1950,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne }:
 // --- דשבורד סקטור ---
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
+  const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const allSectors = session.relevantSectors;
   const neighbors = session.relevantSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
@@ -1979,19 +1982,31 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const loadData = async () => {
     if (!primarySectorId) return;
     try {
-      const [stripsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = await Promise.all([
+      const requests = [
         fetch(`${API_URL}/sectors/${primarySectorId}/strips`),
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
         fetch(`${API_URL}/sectors/${primarySectorId}/incoming-transfers`),
         fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`),
         fetch(`${API_URL}/maps`)
-      ]);
+      ];
+      
+      if (session.presetId) {
+        requests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
+      }
+      
+      const results = await Promise.all(requests);
+      const [stripsRes, subSectorsRes, incomingRes, outgoingRes, mapsRes] = results;
       
       if (stripsRes.ok) setStrips(await stripsRes.json());
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
+      
+      if (session.presetId && results[5]) {
+        const waitingRes = results[5];
+        if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
+      }
     } catch (err) {
       console.error('Failed to load data:', err);
     }
@@ -2213,6 +2228,20 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
       });
     } catch (err) {
       console.error('Failed to update airborne status:', err);
+    }
+  };
+
+  const handleAssignWaitingStrip = async (stripId: string) => {
+    if (!primarySectorId) return;
+    try {
+      await fetch(`${API_URL}/strips/${stripId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectorId: primarySectorId })
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to assign waiting strip:', err);
     }
   };
 
@@ -2634,6 +2663,47 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
 
         {/* Sidebar - Right Side */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
+          {/* Waiting strips from General Distribution */}
+          {waitingStrips.length > 0 && (
+            <>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#7c3aed' }}>ממתינים להבצסה ({waitingStrips.length}):</h4>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>לחץ "הבצס" לשייך לסקטור</div>
+              {waitingStrips.map(s => (
+                <div key={s.id} style={{ 
+                  marginBottom: '8px', 
+                  background: '#ede9fe', 
+                  padding: '8px', 
+                  borderRadius: '6px',
+                  border: '2px dashed #7c3aed'
+                }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#1e293b' }}>{s.callSign}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    {s.squadron && `טייסת: ${s.squadron} | `}גובה: {s.alt}
+                  </div>
+                  {s.task && <div style={{ fontSize: '10px', color: '#64748b' }}>{s.task}</div>}
+                  <button
+                    onClick={() => handleAssignWaitingStrip(s.id)}
+                    style={{
+                      marginTop: '6px',
+                      width: '100%',
+                      padding: '6px',
+                      background: '#7c3aed',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    הבצס לסקטור
+                  </button>
+                </div>
+              ))}
+              <div style={{ borderBottom: '1px solid #e2e8f0', margin: '15px 0' }}></div>
+            </>
+          )}
+
           <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>ממתינים להצבה:</h4>
           <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת סקטור יעד</div>
           {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (

@@ -802,6 +802,34 @@ app.post('/api/defaults', async (req, res) => {
   }
 });
 
+// Get strips waiting for a workstation preset
+app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.id);
+    const result = await pool.query(
+      'SELECT * FROM strips WHERE workstation_preset_id = $1 AND (sector_id IS NULL OR on_map = false) ORDER BY id',
+      [presetId]
+    );
+    res.json(result.rows.map(r => ({
+      id: 's' + r.id,
+      callSign: r.callsign,
+      sq: r.sq,
+      alt: r.alt,
+      task: r.task,
+      squadron: r.squadron,
+      sectorId: r.sector_id,
+      workstationPresetId: r.workstation_preset_id,
+      x: r.x,
+      y: r.y,
+      onMap: r.on_map,
+      airborne: r.airborne
+    })));
+  } catch (err) {
+    console.error('Error fetching waiting strips:', err);
+    res.status(500).json({ error: 'Failed to fetch waiting strips' });
+  }
+});
+
 // Workstation Presets API
 app.get('/api/workstation-presets', async (req, res) => {
   try {
