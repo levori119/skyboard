@@ -1075,7 +1075,13 @@ app.put('/api/sectors/:id', async (req, res) => {
 
 app.delete('/api/sectors/:id', async (req, res) => {
   try {
-    await pool.query('DELETE FROM sectors WHERE id = $1', [req.params.id]);
+    const sectorId = req.params.id;
+    // Clean up related records first
+    await pool.query('UPDATE workstations SET sector_id = NULL WHERE sector_id = $1', [sectorId]);
+    await pool.query('UPDATE strips SET sector_id = NULL WHERE sector_id = $1', [sectorId]);
+    await pool.query('DELETE FROM strip_transfers WHERE from_sector_id = $1 OR to_sector_id = $1', [sectorId]);
+    // Now delete the sector (sector_neighbors and sub_sectors have CASCADE)
+    await pool.query('DELETE FROM sectors WHERE id = $1', [sectorId]);
     res.json({ success: true });
   } catch (err) {
     console.error('Error deleting sector:', err);
