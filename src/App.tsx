@@ -1542,6 +1542,11 @@ const DraggableMapMarker = ({
   const [tempNotes, setTempNotes] = useState(notes || '');
   const startPosRef = useRef({ x: 0, y: 0 });
 
+  // Sync tempNotes when notes prop changes
+  useEffect(() => {
+    setTempNotes(notes || '');
+  }, [notes]);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).tagName === 'BUTTON') return;
     e.preventDefault();
@@ -2081,6 +2086,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
+
+  // Sync tempNotes when notes prop changes
+  useEffect(() => {
+    setTempNotes(s.notes || '');
+  }, [s.notes]);
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
