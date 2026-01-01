@@ -1516,7 +1516,8 @@ const DraggableMapMarker = ({
   onRejectTransfer,
   onAcceptToMap,
   notes,
-  onUpdateNotes
+  onUpdateNotes,
+  zoom = 1
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -1532,6 +1533,7 @@ const DraggableMapMarker = ({
   onAcceptToMap: (transferId: string, x: number, y: number) => void;
   notes?: string;
   onUpdateNotes?: (sectorId: number, notes: string) => void;
+  zoom?: number;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -1633,7 +1635,9 @@ const DraggableMapMarker = ({
         zIndex: 50,
         userSelect: 'none',
         direction: 'rtl',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        transform: `scale(${1/zoom})`,
+        transformOrigin: 'center center'
       }}
       onContextMenu={handleContextMenu}
     >
@@ -2074,7 +2078,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, zoom = 1 }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2322,7 +2326,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     return (
       <>
         {/* Placeholder במקום המקורי */}
-        <div style={{ ...baseStyle, opacity: 0.3, position: s.onMap ? 'absolute' : 'relative', left: s.onMap ? s.x : 0, top: s.onMap ? s.y : 0 }}>
+        <div style={{ ...baseStyle, opacity: 0.3, position: s.onMap ? 'absolute' : 'relative', left: s.onMap ? s.x : 0, top: s.onMap ? s.y : 0, transform: s.onMap ? `scale(${1/zoom})` : undefined, transformOrigin: 'top left' }}>
           {stripContent({ ...baseStyle, opacity: 0.3 })}
         </div>
         {/* רכיב גרירה שעוקב אחרי העכבר */}
@@ -2361,7 +2365,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     position: s.onMap ? 'absolute' : 'relative',
     left: s.onMap ? s.x : 0, 
     top: s.onMap ? s.y : 0,
-    zIndex: 50
+    zIndex: 50,
+    transform: s.onMap ? `scale(${1/zoom})` : undefined,
+    transformOrigin: 'top left'
   });
 };
 
@@ -2987,6 +2993,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
+                zoom={mapZoom}
               />
             ))}
             
@@ -3016,6 +3023,7 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
                 onAcceptToMap={handleAcceptToMap}
                 notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
                 onUpdateNotes={handleUpdateSectorNotes}
+                zoom={mapZoom}
               />
             ))}
             
