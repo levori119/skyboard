@@ -2375,8 +2375,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
-  const allSectors = session.relevantSectors;
-  const neighbors = session.relevantSectors.slice(1);
+  const [allSectors, setAllSectors] = useState(session.relevantSectors);
+  const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
@@ -2624,13 +2624,14 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   };
   
   const handleUpdateSectorNotes = async (sectorId: number, newNotes: string) => {
+    // Update local state immediately
+    setAllSectors(prev => prev.map(s => s.id === sectorId ? {...s, notes: newNotes} : s));
     try {
       await fetch(`${API_URL}/sectors/${sectorId}/notes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: newNotes })
       });
-      loadData();
     } catch (err) {
       console.error('Failed to update sector notes:', err);
     }
