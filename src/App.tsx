@@ -2467,7 +2467,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 };
 
 // --- דשבורד עמדה ---
-const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; onLogout: () => void }) => {
+const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
@@ -2494,9 +2494,27 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
+  const [showCrewSwap, setShowCrewSwap] = useState(false);
+  const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
+
+  const loadCrewMembers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/crew-members`);
+      if (res.ok) setAvailableCrewMembers(await res.json());
+    } catch (err) {
+      console.error('Failed to load crew members:', err);
+    }
+  };
+
+  const handleCrewSwap = (member: CrewMember) => {
+    setShowCrewSwap(false);
+    if (onCrewChange) {
+      onCrewChange(member);
+    }
+  };
 
   const loadData = async () => {
     if (!primarySectorId) return;
@@ -2894,6 +2912,19 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
             {session.workstationName}
           </span>
+          {session.crewMember && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#10b981', padding: '4px 12px', borderRadius: '4px', fontSize: '13px' }}>
+                {session.crewMember.name}
+              </span>
+              <button 
+                onClick={() => { loadCrewMembers(); setShowCrewSwap(true); }}
+                style={{ background: '#f59e0b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', border: 'none', color: '#1e293b', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                החלף
+              </button>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <select
@@ -2917,7 +2948,46 @@ const SectorDashboard = ({ session, onLogout }: { session: WorkstationSession; o
           </button>
         </div>
       </header>
-      {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} />}
+      {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} crewMemberId={session.crewMember?.id} crewMemberName={session.crewMember?.name} />}
+      
+      {/* Crew Swap Modal */}
+      {showCrewSwap && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '25px', width: '350px', direction: 'rtl' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#1e293b' }}>החלפת איש צוות</h3>
+              <button onClick={() => setShowCrewSwap(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+            </div>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '15px' }}>בחר איש צוות חדש. העמדה תישאר פעילה עם נתוני כתב היד של איש הצוות החדש.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+              {availableCrewMembers.map(cm => (
+                <button
+                  key={cm.id}
+                  onClick={() => handleCrewSwap(cm)}
+                  disabled={session.crewMember?.id === cm.id}
+                  style={{
+                    padding: '12px 15px',
+                    background: session.crewMember?.id === cm.id ? '#e2e8f0' : '#f1f5f9',
+                    color: session.crewMember?.id === cm.id ? '#94a3b8' : '#1e293b',
+                    border: session.crewMember?.id === cm.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '15px',
+                    fontWeight: 'bold',
+                    cursor: session.crewMember?.id === cm.id ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <span>{cm.name}</span>
+                  {session.crewMember?.id === cm.id && <span style={{ fontSize: '11px', color: '#3b82f6' }}>נוכחי</span>}
+                  {cm.is_admin && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#eab308', color: '#1e293b', padding: '2px 6px', borderRadius: '10px' }}>מנהל</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       
       {showSubSectorManager && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -4204,6 +4274,14 @@ export default function App() {
     setPage('login');
   };
 
+  const handleCrewChange = (newCrewMember: CrewMember) => {
+    if (session) {
+      const updatedSession = { ...session, crewMember: newCrewMember };
+      saveSession(updatedSession);
+      setSession(updatedSession);
+    }
+  };
+
   if (page === 'management') {
     return <ManagementPage onBack={() => setPage('login')} />;
   }
@@ -4216,5 +4294,5 @@ export default function App() {
     return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} onDistribution={() => setPage('distribution')} />;
   }
 
-  return <SectorDashboard session={session} onLogout={handleLogout} />;
+  return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} />;
 }
