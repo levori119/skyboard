@@ -7,6 +7,12 @@ import Tesseract from 'tesseract.js';
 const API_URL = '/api';
 
 // --- ניהול סשן עמדה ---
+interface CrewMember {
+  id: number;
+  name: string;
+  is_admin: boolean;
+}
+
 interface WorkstationSession {
   workstationId: string;
   workstationName: string;
@@ -14,6 +20,7 @@ interface WorkstationSession {
   mapId?: number;
   presetId?: number;
   authToken: string;
+  crewMember?: CrewMember;
 }
 
 const getSession = (): WorkstationSession | null => {
@@ -42,13 +49,18 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
+  const [showCrewSelect, setShowCrewSelect] = useState(false);
+  const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [sectorsRes, presetsRes] = await Promise.all([
+        const [sectorsRes, presetsRes, crewRes] = await Promise.all([
           fetch(`${API_URL}/sectors`),
-          fetch(`${API_URL}/workstation-presets`)
+          fetch(`${API_URL}/workstation-presets`),
+          fetch(`${API_URL}/crew-members`)
         ]);
         if (sectorsRes.ok) {
           const data = await sectorsRes.json();
@@ -58,6 +70,10 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
           const presets = await presetsRes.json();
           setWorkstationPresets(presets);
         }
+        if (crewRes.ok) {
+          const crew = await crewRes.json();
+          setCrewMembers(crew);
+        }
       } catch (err) {
         console.error('Failed to load data:', err);
       }
@@ -66,6 +82,10 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
   }, []);
 
   const handlePresetLogin = async (preset: any) => {
+    if (!selectedCrewMember) {
+      setError('נא לבחור איש צוות');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -86,7 +106,8 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
           relevantSectors: relevantSectorsList,
           mapId: preset.map_id,
           presetId: preset.id,
-          authToken: data.authToken
+          authToken: data.authToken,
+          crewMember: selectedCrewMember
         };
         saveSession(session);
         onLogin(session);
@@ -154,79 +175,141 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
         <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '32px' }}>BLUE TORCH</h1>
-        <p style={{ margin: '0 0 40px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
+        <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <button
-            onClick={() => setShowWorkstationSelect(true)}
-            style={{
-              padding: '25px',
-              background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '20px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
-            }}
-          >
-            <span style={{ fontSize: '28px' }}>🖥️</span>
-            בחירת עמדה
-          </button>
-          
-          {onDistribution && (
-            <button
-              onClick={onDistribution}
-              style={{
-                padding: '25px',
-                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '20px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-              }}
-            >
-              <span style={{ fontSize: '28px' }}>📋</span>
-              חלוקה כללית
-            </button>
-          )}
-          
-          {onManagement && (
-            <button
-              onClick={onManagement}
-              style={{
-                padding: '25px',
-                background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '20px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
-              }}
-            >
-              <span style={{ fontSize: '28px' }}>⚙️</span>
-              ניהול מערכת
-            </button>
-          )}
-        </div>
+        {!selectedCrewMember ? (
+          <>
+            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>בחר איש צוות:</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+              {crewMembers.map(cm => (
+                <button
+                  key={cm.id}
+                  onClick={() => setSelectedCrewMember(cm)}
+                  style={{
+                    padding: '15px 20px',
+                    background: 'linear-gradient(135deg, #334155 0%, #475569 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px'
+                  }}
+                >
+                  <span>{cm.name}</span>
+                  {cm.is_admin && <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>מנהל</span>}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ background: '#dbeafe', padding: '10px 15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>איש צוות: {selectedCrewMember.name}</span>
+              <button onClick={() => setSelectedCrewMember(null)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>החלף</button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button
+                onClick={() => setShowWorkstationSelect(true)}
+                style={{
+                  padding: '20px',
+                  background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)'
+                }}
+              >
+                <span style={{ fontSize: '24px' }}>🖥️</span>
+                בחירת עמדה
+              </button>
+              
+              <button
+                onClick={() => setShowHandwritingCalibration(true)}
+                style={{
+                  padding: '20px',
+                  background: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: '0 4px 15px rgba(6, 182, 212, 0.4)'
+                }}
+              >
+                <span style={{ fontSize: '24px' }}>✍️</span>
+                התאמת כתב יד
+              </button>
+              
+              {selectedCrewMember.is_admin && onDistribution && (
+                <button
+                  onClick={onDistribution}
+                  style={{
+                    padding: '20px',
+                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
+                  }}
+                >
+                  <span style={{ fontSize: '24px' }}>📋</span>
+                  חלוקה כללית
+                </button>
+              )}
+              
+              {selectedCrewMember.is_admin && onManagement && (
+                <button
+                  onClick={onManagement}
+                  style={{
+                    padding: '20px',
+                    background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
+                  }}
+                >
+                  <span style={{ fontSize: '24px' }}>⚙️</span>
+                  ניהול מערכת
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        
+        {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
       </div>
       
       {/* Workstation Selection Modal */}
