@@ -140,11 +140,26 @@ async function initDb() {
     )
   `);
   
+  // Add new columns to crew_members
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS first_name VARCHAR(50)`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS personal_id VARCHAR(20)`);
+  
+  // Junction table for crew member approved workstations
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crew_member_workstations (
+      id SERIAL PRIMARY KEY,
+      crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE,
+      workstation_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      UNIQUE(crew_member_id, workstation_preset_id)
+    )
+  `);
+  
   // Add crew_member_id to learned_digits
   await pool.query(`ALTER TABLE learned_digits ADD COLUMN IF NOT EXISTS crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE`);
   
   // Insert default admin
-  await pool.query(`INSERT INTO crew_members (name, is_admin) VALUES ('אורי לב', TRUE) ON CONFLICT (name) DO NOTHING`);
+  await pool.query(`INSERT INTO crew_members (name, first_name, last_name, is_admin) VALUES ('אורי לב', 'אורי', 'לב', TRUE) ON CONFLICT (name) DO NOTHING`);
   
   console.log('Database initialized');
 }
@@ -154,7 +169,16 @@ initDb().catch(console.error);
 // --- Crew Members API ---
 app.get('/api/crew-members', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM crew_members ORDER BY name');
+    const result = await pool.query(`
+      SELECT cm.*, 
+        COALESCE(
+          (SELECT json_agg(cmw.workstation_preset_id) 
+           FROM crew_member_workstations cmw 
+           WHERE cmw.crew_member_id = cm.id), '[]'
+        ) as approved_workstations
+      FROM crew_members cm 
+      ORDER BY cm.last_name, cm.first_name
+    `);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching crew members:', err);
@@ -164,12 +188,25 @@ app.get('/api/crew-members', async (req, res) => {
 
 app.post('/api/crew-members', async (req, res) => {
   try {
-    const { name, is_admin } = req.body;
+    const { first_name, last_name, personal_id, is_admin, approved_workstations } = req.body;
+    const name = `${first_name} ${last_name}`.trim();
     const result = await pool.query(
-      'INSERT INTO crew_members (name, is_admin) VALUES ($1, $2) RETURNING *',
-      [name, is_admin || false]
+      'INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, first_name, last_name, personal_id, is_admin || false]
     );
-    res.json(result.rows[0]);
+    const crewMemberId = result.rows[0].id;
+    
+    // Add approved workstations
+    if (approved_workstations && approved_workstations.length > 0) {
+      for (const wsId of approved_workstations) {
+        await pool.query(
+          'INSERT INTO crew_member_workstations (crew_member_id, workstation_preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [crewMemberId, wsId]
+        );
+      }
+    }
+    
+    res.json({ ...result.rows[0], approved_workstations: approved_workstations || [] });
   } catch (err) {
     console.error('Error creating crew member:', err);
     res.status(500).json({ error: 'Failed to create crew member' });
@@ -178,11 +215,24 @@ app.post('/api/crew-members', async (req, res) => {
 
 app.put('/api/crew-members/:id', async (req, res) => {
   try {
-    const { name, is_admin } = req.body;
+    const { first_name, last_name, personal_id, is_admin, approved_workstations } = req.body;
+    const name = `${first_name} ${last_name}`.trim();
     await pool.query(
-      'UPDATE crew_members SET name = $1, is_admin = $2 WHERE id = $3',
-      [name, is_admin, req.params.id]
+      'UPDATE crew_members SET name = $1, first_name = $2, last_name = $3, personal_id = $4, is_admin = $5 WHERE id = $6',
+      [name, first_name, last_name, personal_id, is_admin, req.params.id]
     );
+    
+    // Update approved workstations
+    await pool.query('DELETE FROM crew_member_workstations WHERE crew_member_id = $1', [req.params.id]);
+    if (approved_workstations && approved_workstations.length > 0) {
+      for (const wsId of approved_workstations) {
+        await pool.query(
+          'INSERT INTO crew_member_workstations (crew_member_id, workstation_preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [req.params.id, wsId]
+        );
+      }
+    }
+    
     res.json({ success: true });
   } catch (err) {
     console.error('Error updating crew member:', err);

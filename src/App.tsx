@@ -10,7 +10,11 @@ const API_URL = '/api';
 interface CrewMember {
   id: number;
   name: string;
+  first_name?: string;
+  last_name?: string;
+  personal_id?: string;
   is_admin: boolean;
+  approved_workstations?: number[];
 }
 
 interface WorkstationSession {
@@ -3658,7 +3662,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
-  const [crewMemberForm, setCrewMemberForm] = useState({ name: '', is_admin: false });
+  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, approved_workstations: [] as number[] });
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
@@ -3691,7 +3695,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
   // Crew member management
   const saveCrewMember = async () => {
-    if (!crewMemberForm.name.trim()) return;
+    if (!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()) return;
     try {
       const method = editingCrewMember ? 'PUT' : 'POST';
       const url = editingCrewMember ? `${API_URL}/crew-members/${editingCrewMember.id}` : `${API_URL}/crew-members`;
@@ -3701,7 +3705,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         body: JSON.stringify(crewMemberForm)
       });
       setEditingCrewMember(null);
-      setCrewMemberForm({ name: '', is_admin: false });
+      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, approved_workstations: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save crew member:', err);
@@ -3710,7 +3714,13 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
   const editCrewMember = (member: CrewMember) => {
     setEditingCrewMember(member);
-    setCrewMemberForm({ name: member.name, is_admin: member.is_admin });
+    setCrewMemberForm({ 
+      first_name: member.first_name || '', 
+      last_name: member.last_name || '', 
+      personal_id: member.personal_id || '',
+      is_admin: member.is_admin,
+      approved_workstations: member.approved_workstations || []
+    });
   };
 
   const deleteCrewMember = async (id: number) => {
@@ -3721,6 +3731,15 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     } catch (err) {
       console.error('Failed to delete crew member:', err);
     }
+  };
+  
+  const toggleWorkstationApproval = (presetId: number) => {
+    setCrewMemberForm(f => ({
+      ...f,
+      approved_workstations: f.approved_workstations.includes(presetId)
+        ? f.approved_workstations.filter(id => id !== presetId)
+        : [...f.approved_workstations, presetId]
+    }));
   };
 
   useEffect(() => {
@@ -4192,67 +4211,122 @@ VIPER07,117,FL400,STRIKE`}
           {/* Crew Members Tab */}
           {activeTab === 'crew' && (
             <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול אנשי צוות</h2>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול משתמשים</h2>
               
               {/* Crew Member Form */}
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
-                  {editingCrewMember ? 'עריכת איש צוות' : 'איש צוות חדש'}
+                  {editingCrewMember ? 'עריכת משתמש' : 'משתמש חדש'}
                 </h3>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    placeholder="שם"
-                    value={crewMemberForm.name}
-                    onChange={(e) => setCrewMemberForm(f => ({ ...f, name: e.target.value }))}
-                    style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '200px' }}
-                  />
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     <input
-                      type="checkbox"
-                      checked={crewMemberForm.is_admin}
-                      onChange={(e) => setCrewMemberForm(f => ({ ...f, is_admin: e.target.checked }))}
-                      style={{ width: '18px', height: '18px' }}
+                      type="text"
+                      placeholder="שם פרטי"
+                      value={crewMemberForm.first_name}
+                      onChange={(e) => setCrewMemberForm(f => ({ ...f, first_name: e.target.value }))}
+                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
                     />
-                    מנהל מערכת
-                  </label>
-                  <button
-                    onClick={saveCrewMember}
-                    disabled={!crewMemberForm.name.trim()}
-                    style={{ padding: '10px 25px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: crewMemberForm.name.trim() ? 1 : 0.5 }}
-                  >
-                    {editingCrewMember ? 'עדכון' : 'הוספה'}
-                  </button>
-                  {editingCrewMember && (
+                    <input
+                      type="text"
+                      placeholder="שם משפחה"
+                      value={crewMemberForm.last_name}
+                      onChange={(e) => setCrewMemberForm(f => ({ ...f, last_name: e.target.value }))}
+                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '150px' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="מ.א"
+                      value={crewMemberForm.personal_id}
+                      onChange={(e) => setCrewMemberForm(f => ({ ...f, personal_id: e.target.value }))}
+                      style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '120px' }}
+                    />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={crewMemberForm.is_admin}
+                        onChange={(e) => setCrewMemberForm(f => ({ ...f, is_admin: e.target.checked }))}
+                        style={{ width: '18px', height: '18px' }}
+                      />
+                      מנהל מערכת
+                    </label>
+                  </div>
+                  
+                  {/* Approved Workstations Multi-Select */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>עמדות מאושרות:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {presets.map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => toggleWorkstationApproval(preset.id)}
+                          style={{
+                            padding: '6px 12px',
+                            background: crewMemberForm.approved_workstations.includes(preset.id) ? '#3b82f6' : '#334155',
+                            color: 'white',
+                            border: crewMemberForm.approved_workstations.includes(preset.id) ? '2px solid #60a5fa' : '1px solid #475569',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '13px'
+                          }}
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                      {presets.length === 0 && <span style={{ color: '#64748b', fontSize: '13px' }}>אין עמדות מוגדרות</span>}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '10px' }}>
                     <button
-                      onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ name: '', is_admin: false }); }}
-                      style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                      onClick={saveCrewMember}
+                      disabled={!crewMemberForm.first_name.trim() || !crewMemberForm.last_name.trim()}
+                      style={{ padding: '10px 25px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: (crewMemberForm.first_name.trim() && crewMemberForm.last_name.trim()) ? 1 : 0.5 }}
                     >
-                      ביטול
+                      {editingCrewMember ? 'עדכון' : 'הוספה'}
                     </button>
-                  )}
+                    {editingCrewMember && (
+                      <button
+                        onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, approved_workstations: [] }); }}
+                        style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                      >
+                        ביטול
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Crew Members List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {crewMembers.map(member => (
-                  <div key={member.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.name}</span>
-                      {member.is_admin && (
-                        <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>מנהל</span>
-                      )}
+                  <div key={member.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.first_name} {member.last_name}</span>
+                        {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>מ.א: {member.personal_id}</span>}
+                        {member.is_admin && (
+                          <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>מנהל</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => editCrewMember(member)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                        <button onClick={() => deleteCrewMember(member.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => editCrewMember(member)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
-                      <button onClick={() => deleteCrewMember(member.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
-                    </div>
+                    {member.approved_workstations && member.approved_workstations.length > 0 && (
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        עמדות: {member.approved_workstations.map(wsId => {
+                          const preset = presets.find(p => p.id === wsId);
+                          return preset?.name || wsId;
+                        }).join(', ')}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {crewMembers.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    אין אנשי צוות מוגדרים. הוסף איש צוות חדש למעלה.
+                    אין משתמשים מוגדרים. הוסף משתמש חדש למעלה.
                   </div>
                 )}
               </div>
