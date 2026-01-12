@@ -221,13 +221,13 @@ app.get('/api/digits', async (req, res) => {
 
 app.post('/api/digits', async (req, res) => {
   try {
-    const { digit, imageData, crewMemberId } = req.body;
+    const { digit, imageData, crew_member_id } = req.body;
     if (!digit || !imageData) {
       return res.status(400).json({ error: 'Missing digit or imageData' });
     }
     await pool.query(
       'INSERT INTO learned_digits (digit, image_data, crew_member_id) VALUES ($1, $2, $3)',
-      [digit, imageData, crewMemberId || null]
+      [digit, imageData, crew_member_id || null]
     );
     res.json({ success: true });
   } catch (err) {

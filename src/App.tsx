@@ -444,15 +444,25 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
           </div>
         </div>
       )}
+      
+      {/* Handwriting Calibration Modal */}
+      {showHandwritingCalibration && selectedCrewMember && (
+        <LearnDigitsOverlay 
+          onClose={() => setShowHandwritingCalibration(false)} 
+          crewMemberId={selectedCrewMember.id}
+          crewMemberName={selectedCrewMember.name}
+        />
+      )}
     </div>
   );
 };
 
 // --- מערכת למידת ספרות (עם DB) ---
 
-const getLearnedDigits = async (): Promise<{ digit: string; imageData: string }[]> => {
+const getLearnedDigits = async (crewMemberId?: number): Promise<{ digit: string; imageData: string }[]> => {
   try {
-    const res = await fetch(`${API_URL}/digits`);
+    const url = crewMemberId ? `${API_URL}/digits?crew_member_id=${crewMemberId}` : `${API_URL}/digits`;
+    const res = await fetch(url);
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -460,29 +470,31 @@ const getLearnedDigits = async (): Promise<{ digit: string; imageData: string }[
   }
 };
 
-const saveLearnedDigit = async (digit: string, imageData: string) => {
+const saveLearnedDigit = async (digit: string, imageData: string, crewMemberId?: number) => {
   try {
     await fetch(`${API_URL}/digits`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ digit, imageData })
+      body: JSON.stringify({ digit, imageData, crew_member_id: crewMemberId })
     });
   } catch (err) {
     console.error('Failed to save digit:', err);
   }
 };
 
-const clearLearnedDigits = async () => {
+const clearLearnedDigits = async (crewMemberId?: number) => {
   try {
-    await fetch(`${API_URL}/digits`, { method: 'DELETE' });
+    const url = crewMemberId ? `${API_URL}/digits?crew_member_id=${crewMemberId}` : `${API_URL}/digits`;
+    await fetch(url, { method: 'DELETE' });
   } catch (err) {
     console.error('Failed to clear digits:', err);
   }
 };
 
-const getDigitsCount = async (): Promise<number> => {
+const getDigitsCount = async (crewMemberId?: number): Promise<number> => {
   try {
-    const res = await fetch(`${API_URL}/digits/count`);
+    const url = crewMemberId ? `${API_URL}/digits/count?crew_member_id=${crewMemberId}` : `${API_URL}/digits/count`;
+    const res = await fetch(url);
     if (!res.ok) return 0;
     const data = await res.json();
     return data.count || 0;
@@ -663,7 +675,7 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
 };
 
 // --- רכיב לימוד ספרות ---
-const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
+const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose: () => void; crewMemberId?: number; crewMemberName?: string }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentDigit, setCurrentDigit] = useState(0);
@@ -671,13 +683,13 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   const [totalCount, setTotalCount] = useState(0);
 
   const loadCount = async () => {
-    const count = await getDigitsCount();
+    const count = await getDigitsCount(crewMemberId);
     setTotalCount(count);
   };
 
   useEffect(() => {
     loadCount();
-  }, [saved]);
+  }, [saved, crewMemberId]);
 
   const getCoords = (e: any) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -724,7 +736,7 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   const saveDigit = async () => {
     if (!canvasRef.current) return;
     const imageData = canvasRef.current.toDataURL('image/png');
-    await saveLearnedDigit(currentDigit.toString(), imageData);
+    await saveLearnedDigit(currentDigit.toString(), imageData, crewMemberId);
     setSaved(s => s + 1);
     clearCanvas();
   };
@@ -735,7 +747,7 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   };
 
   const handleClearAll = async () => {
-    await clearLearnedDigits();
+    await clearLearnedDigits(crewMemberId);
     setSaved(0);
     setTotalCount(0);
   };
@@ -747,7 +759,7 @@ const LearnDigitsOverlay = ({ onClose }: { onClose: () => void }) => {
   return createPortal(
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
       <div style={{ background: 'white', padding: '20px', borderRadius: '12px', direction: 'rtl', minWidth: '300px' }}>
-        <h3 style={{ margin: '0 0 15px', color: '#1e293b', textAlign: 'center' }}>לימוד כתב יד</h3>
+        <h3 style={{ margin: '0 0 15px', color: '#1e293b', textAlign: 'center' }}>לימוד כתב יד {crewMemberName ? `- ${crewMemberName}` : ''}</h3>
         
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
           <span style={{ fontSize: '14px', color: '#64748b' }}>כתוב את הספרה: </span>
@@ -3562,11 +3574,16 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew'>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
+  const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  
+  // Crew member editing
+  const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
+  const [crewMemberForm, setCrewMemberForm] = useState({ name: '', is_admin: false });
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
@@ -3582,16 +3599,52 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, crewRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
-        fetch(`${API_URL}/workstation-presets`)
+        fetch(`${API_URL}/workstation-presets`),
+        fetch(`${API_URL}/crew-members`)
       ]);
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
+      if (crewRes.ok) setCrewMembers(await crewRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
+    }
+  };
+
+  // Crew member management
+  const saveCrewMember = async () => {
+    if (!crewMemberForm.name.trim()) return;
+    try {
+      const method = editingCrewMember ? 'PUT' : 'POST';
+      const url = editingCrewMember ? `${API_URL}/crew-members/${editingCrewMember.id}` : `${API_URL}/crew-members`;
+      await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(crewMemberForm)
+      });
+      setEditingCrewMember(null);
+      setCrewMemberForm({ name: '', is_admin: false });
+      loadData();
+    } catch (err) {
+      console.error('Failed to save crew member:', err);
+    }
+  };
+
+  const editCrewMember = (member: CrewMember) => {
+    setEditingCrewMember(member);
+    setCrewMemberForm({ name: member.name, is_admin: member.is_admin });
+  };
+
+  const deleteCrewMember = async (id: number) => {
+    if (!confirm('למחוק איש צוות זה? הפעולה תמחק גם את נתוני כתב היד שלו.')) return;
+    try {
+      await fetch(`${API_URL}/crew-members/${id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete crew member:', err);
     }
   };
 
@@ -3720,6 +3773,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>נקודות העברה</button>
         <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
         <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
+        <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
@@ -4056,6 +4110,76 @@ BLUE01,101,FL350,CAP
 HAWK23,105,FL280,ESCORT
 VIPER07,117,FL400,STRIKE`}
                 </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Crew Members Tab */}
+          {activeTab === 'crew' && (
+            <div>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>ניהול אנשי צוות</h2>
+              
+              {/* Crew Member Form */}
+              <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
+                  {editingCrewMember ? 'עריכת איש צוות' : 'איש צוות חדש'}
+                </h3>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="שם"
+                    value={crewMemberForm.name}
+                    onChange={(e) => setCrewMemberForm(f => ({ ...f, name: e.target.value }))}
+                    style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '200px' }}
+                  />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={crewMemberForm.is_admin}
+                      onChange={(e) => setCrewMemberForm(f => ({ ...f, is_admin: e.target.checked }))}
+                      style={{ width: '18px', height: '18px' }}
+                    />
+                    מנהל מערכת
+                  </label>
+                  <button
+                    onClick={saveCrewMember}
+                    disabled={!crewMemberForm.name.trim()}
+                    style={{ padding: '10px 25px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: crewMemberForm.name.trim() ? 1 : 0.5 }}
+                  >
+                    {editingCrewMember ? 'עדכון' : 'הוספה'}
+                  </button>
+                  {editingCrewMember && (
+                    <button
+                      onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ name: '', is_admin: false }); }}
+                      style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                    >
+                      ביטול
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Crew Members List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {crewMembers.map(member => (
+                  <div key={member.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{member.name}</span>
+                      {member.is_admin && (
+                        <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>מנהל</span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => editCrewMember(member)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                      <button onClick={() => deleteCrewMember(member.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                    </div>
+                  </div>
+                ))}
+                {crewMembers.length === 0 && (
+                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
+                    אין אנשי צוות מוגדרים. הוסף איש צוות חדש למעלה.
+                  </div>
+                )}
               </div>
             </div>
           )}
