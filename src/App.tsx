@@ -55,6 +55,8 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
+  const [crewSearchQuery, setCrewSearchQuery] = useState('');
+  const [showCrewDropdown, setShowCrewDropdown] = useState(false);
   const [showCrewSelect, setShowCrewSelect] = useState(false);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
 
@@ -189,36 +191,97 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
         {!selectedCrewMember ? (
           <>
             <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>בחר איש צוות:</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
-              {crewMembers.map(cm => (
-                <button
-                  key={cm.id}
-                  onClick={() => setSelectedCrewMember(cm)}
-                  style={{
-                    padding: '15px 20px',
-                    background: 'linear-gradient(135deg, #334155 0%, #475569 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '10px',
-                    fontSize: '18px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px'
-                  }}
-                >
-                  <span>{cm.name}</span>
-                  {cm.is_admin && <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>מנהל</span>}
-                </button>
-              ))}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="חפש לפי שם..."
+                value={crewSearchQuery}
+                onChange={(e) => { setCrewSearchQuery(e.target.value); setShowCrewDropdown(true); }}
+                onFocus={() => setShowCrewDropdown(true)}
+                style={{
+                  width: '100%',
+                  padding: '15px 20px',
+                  borderRadius: '10px',
+                  border: '2px solid #e2e8f0',
+                  fontSize: '16px',
+                  boxSizing: 'border-box',
+                  direction: 'rtl'
+                }}
+              />
+              {showCrewDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: 'white',
+                  border: '2px solid #e2e8f0',
+                  borderTop: 'none',
+                  borderRadius: '0 0 10px 10px',
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  zIndex: 100,
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                }}>
+                  {crewMembers
+                    .filter(cm => {
+                      const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
+                      return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
+                             (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
+                    })
+                    .map(cm => (
+                      <button
+                        key={cm.id}
+                        onClick={() => {
+                          setSelectedCrewMember(cm);
+                          setCrewSearchQuery('');
+                          setShowCrewDropdown(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 20px',
+                          background: 'white',
+                          border: 'none',
+                          borderBottom: '1px solid #e2e8f0',
+                          fontSize: '16px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '10px',
+                          textAlign: 'right'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      >
+                        <span style={{ color: '#1e293b', fontWeight: '500' }}>
+                          {cm.first_name && cm.last_name ? `${cm.first_name} ${cm.last_name}` : cm.name}
+                          {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginRight: '8px' }}>({cm.personal_id})</span>}
+                        </span>
+                        {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>מנהל</span>}
+                      </button>
+                    ))}
+                  {crewMembers.filter(cm => {
+                    const fullName = `${cm.first_name || ''} ${cm.last_name || ''}`.trim() || cm.name;
+                    return fullName.toLowerCase().includes(crewSearchQuery.toLowerCase()) ||
+                           (cm.personal_id && cm.personal_id.includes(crewSearchQuery));
+                  }).length === 0 && (
+                    <div style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>לא נמצאו תוצאות</div>
+                  )}
+                </div>
+              )}
             </div>
+            {showCrewDropdown && (
+              <div 
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }} 
+                onClick={() => setShowCrewDropdown(false)}
+              />
+            )}
           </>
         ) : (
           <>
             <div style={{ background: '#dbeafe', padding: '10px 15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>איש צוות: {selectedCrewMember.name}</span>
+              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>איש צוות: {selectedCrewMember.first_name && selectedCrewMember.last_name ? `${selectedCrewMember.first_name} ${selectedCrewMember.last_name}` : selectedCrewMember.name}</span>
               <button onClick={() => setSelectedCrewMember(null)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>החלף</button>
             </div>
             
