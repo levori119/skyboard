@@ -121,6 +121,10 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
   };
 
   const handleLogin = async () => {
+    if (!selectedCrewMember) {
+      setError('נא לבחור איש צוות');
+      return;
+    }
     if (!selectedSector || !workstationName.trim()) {
       setError('נא למלא את כל השדות');
       return;
@@ -144,7 +148,8 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
           workstationId: data.workstation.id,
           workstationName: data.workstation.name,
           relevantSectors: selectedSectorObj ? [selectedSectorObj] : [],
-          authToken: data.authToken
+          authToken: data.authToken,
+          crewMember: selectedCrewMember
         };
         saveSession(session);
         onLogin(session);

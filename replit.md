@@ -36,18 +36,29 @@ Preferred communication style: Simple, everyday language.
 - **Extensions**: Uses `pgcrypto` for UUID generation
 
 ### Database Schema
-- `learned_digits` - Stores OCR training data (digit, image_data, timestamp)
+- `crew_members` - Personnel with individual handwriting profiles (name, is_admin flag)
+- `learned_digits` - OCR training data (digit, image_data, crew_member_id foreign key)
 - `sectors` - Geographic/operational sectors (name, Hebrew label, category, notes)
 - `sector_neighbors` - Many-to-many relationship for adjacent sectors
 - `workstations` - Work positions with UUID primary keys
 - `workstation_presets` - Preset configurations (name, map_id, relevant_sectors JSONB array)
 - `maps` - Map assets for display in sectors
+- `strips` - Flight strips with notes field and sector assignment
+- `transfers` - Handoff records between transfer points
+
+## Crew Member System
+- Each crew member has their own personalized handwriting recognition database
+- Login flow requires selecting crew member before accessing workstation options
+- Admin users (is_admin=true) have access to distribution and management features
+- Hot-swap capability: change crew member at active workstation without losing display state
+- Default admin user "אורי לב" seeded on database initialization
+- Handwriting calibration accessible from login screen for each crew member
 
 ## Session Management
 - Client-side session storage for workstation authentication
-- Sessions store workstation ID, name, relevant sectors array, map ID, and auth token
+- Sessions store workstation ID, name, relevant sectors array, map ID, auth token, and crew member info
 - Workstations can have multiple relevant sectors for inter-workstation coordination
-- No persistent server-side session storage observed
+- Crew member context persists across session and enables personalized digit recognition
 
 ## Key Features
 - Drag-and-drop flight strips with touch/tablet optimization
