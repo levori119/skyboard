@@ -130,14 +130,88 @@ async function initDb() {
   // Add relevant_sectors column
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
   
+  // Crew members table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS crew_members (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE,
+      is_admin BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
+  // Add crew_member_id to learned_digits
+  await pool.query(`ALTER TABLE learned_digits ADD COLUMN IF NOT EXISTS crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE`);
+  
+  // Insert default admin
+  await pool.query(`INSERT INTO crew_members (name, is_admin) VALUES ('אורי לב', TRUE) ON CONFLICT (name) DO NOTHING`);
+  
   console.log('Database initialized');
 }
 
 initDb().catch(console.error);
 
+// --- Crew Members API ---
+app.get('/api/crew-members', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM crew_members ORDER BY name');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching crew members:', err);
+    res.status(500).json({ error: 'Failed to fetch crew members' });
+  }
+});
+
+app.post('/api/crew-members', async (req, res) => {
+  try {
+    const { name, is_admin } = req.body;
+    const result = await pool.query(
+      'INSERT INTO crew_members (name, is_admin) VALUES ($1, $2) RETURNING *',
+      [name, is_admin || false]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating crew member:', err);
+    res.status(500).json({ error: 'Failed to create crew member' });
+  }
+});
+
+app.put('/api/crew-members/:id', async (req, res) => {
+  try {
+    const { name, is_admin } = req.body;
+    await pool.query(
+      'UPDATE crew_members SET name = $1, is_admin = $2 WHERE id = $3',
+      [name, is_admin, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating crew member:', err);
+    res.status(500).json({ error: 'Failed to update crew member' });
+  }
+});
+
+app.delete('/api/crew-members/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM crew_members WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting crew member:', err);
+    res.status(500).json({ error: 'Failed to delete crew member' });
+  }
+});
+
+// --- Digits API (per crew member) ---
 app.get('/api/digits', async (req, res) => {
   try {
-    const result = await pool.query('SELECT digit, image_data FROM learned_digits ORDER BY id DESC LIMIT 200');
+    const crewMemberId = req.query.crew_member_id;
+    let query = 'SELECT digit, image_data FROM learned_digits';
+    let params = [];
+    if (crewMemberId) {
+      query += ' WHERE crew_member_id = $1';
+      params.push(crewMemberId);
+    }
+    query += ' ORDER BY id DESC LIMIT 200';
+    const result = await pool.query(query, params);
     res.json(result.rows.map(r => ({ digit: r.digit, imageData: r.image_data })));
   } catch (err) {
     console.error('Error fetching digits:', err);
@@ -147,11 +221,14 @@ app.get('/api/digits', async (req, res) => {
 
 app.post('/api/digits', async (req, res) => {
   try {
-    const { digit, imageData } = req.body;
+    const { digit, imageData, crewMemberId } = req.body;
     if (!digit || !imageData) {
       return res.status(400).json({ error: 'Missing digit or imageData' });
     }
-    await pool.query('INSERT INTO learned_digits (digit, image_data) VALUES ($1, $2)', [digit, imageData]);
+    await pool.query(
+      'INSERT INTO learned_digits (digit, image_data, crew_member_id) VALUES ($1, $2, $3)',
+      [digit, imageData, crewMemberId || null]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error('Error saving digit:', err);
@@ -161,7 +238,12 @@ app.post('/api/digits', async (req, res) => {
 
 app.delete('/api/digits', async (req, res) => {
   try {
-    await pool.query('DELETE FROM learned_digits');
+    const crewMemberId = req.query.crew_member_id;
+    if (crewMemberId) {
+      await pool.query('DELETE FROM learned_digits WHERE crew_member_id = $1', [crewMemberId]);
+    } else {
+      await pool.query('DELETE FROM learned_digits');
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('Error clearing digits:', err);
@@ -171,7 +253,14 @@ app.delete('/api/digits', async (req, res) => {
 
 app.get('/api/digits/count', async (req, res) => {
   try {
-    const result = await pool.query('SELECT COUNT(*) as count FROM learned_digits');
+    const crewMemberId = req.query.crew_member_id;
+    let query = 'SELECT COUNT(*) as count FROM learned_digits';
+    let params = [];
+    if (crewMemberId) {
+      query += ' WHERE crew_member_id = $1';
+      params.push(crewMemberId);
+    }
+    const result = await pool.query(query, params);
     res.json({ count: parseInt(result.rows[0].count) });
   } catch (err) {
     console.error('Error counting digits:', err);
