@@ -2658,6 +2658,79 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   });
 };
 
+// --- קנבס כתב יד לטבלה ---
+const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
+  const hwRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const lastRef = useRef<{x:number;y:number}|null>(null);
+
+  useEffect(() => {
+    const ctx = hwRef.current?.getContext('2d');
+    if (ctx && hwRef.current) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, hwRef.current.width, hwRef.current.height);
+    }
+  }, []);
+
+  const getXY = (e: any) => {
+    const rect = hwRef.current!.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  };
+  const onDown = (e: any) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    const {x,y} = getXY(e);
+    lastRef.current = {x,y};
+    const ctx = hwRef.current?.getContext('2d');
+    if (ctx) { ctx.beginPath(); ctx.moveTo(x,y); }
+  };
+  const onMove = (e: any) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const {x,y} = getXY(e);
+    const ctx = hwRef.current?.getContext('2d');
+    if (ctx) {
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineTo(x,y);
+      ctx.stroke();
+    }
+    lastRef.current = {x,y};
+  };
+  const onUp = () => setIsDrawing(false);
+  const clearHw = () => {
+    const ctx = hwRef.current?.getContext('2d');
+    if (ctx && hwRef.current) { ctx.fillStyle='#fff'; ctx.fillRect(0,0,hwRef.current.width,hwRef.current.height); }
+  };
+  const confirm = () => {
+    const dataUrl = hwRef.current?.toDataURL('image/png') || '';
+    onConfirm(dataUrl);
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'white', borderRadius:'12px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px', alignItems:'center', minWidth:'340px' }}>
+        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl' }}>כתיבה חופשית – הערות</div>
+        <canvas
+          ref={hwRef}
+          width={480}
+          height={220}
+          style={{ border:'2px solid #cbd5e1', borderRadius:'8px', cursor:'crosshair', touchAction:'none', background:'#fff' }}
+          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+        />
+        <div style={{ display:'flex', gap:'10px', direction:'rtl' }}>
+          <button onClick={confirm} style={{ padding:'8px 22px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold' }}>קבל</button>
+          <button onClick={clearHw} style={{ padding:'8px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>נקה</button>
+          <button onClick={onCancel} style={{ padding:'8px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
@@ -2690,9 +2763,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
   const [tableMode, setTableMode] = useState(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
+  const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
+  const [tableSortBySector, setTableSortBySector] = useState(false);
+  const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
+  const [tableDragRow, setTableDragRow] = useState<string | null>(null);
+  const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
+  const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
+
+  // Sync row order when strips change
+  useEffect(() => {
+    setTableRowOrder(prev => {
+      const existingSet = new Set(prev);
+      const newIds = strips.filter(s => !existingSet.has(s.id)).map(s => s.id);
+      const filtered = prev.filter(id => strips.some(s => s.id === id));
+      return [...filtered, ...newIds];
+    });
+  }, [strips.map(s => s.id).join(',')]);
+
+  // Computed strips order for table display
+  const tableDisplayStrips = (() => {
+    if (tableSortBySector) {
+      return [...strips].sort((a, b) => {
+        const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
+        const sB = allSectors.find(sec => sec.id === b.sectorId)?.name || '';
+        return sA.localeCompare(sB, 'he');
+      });
+    }
+    const ordered = tableRowOrder.map(id => strips.find(s => s.id === id)).filter(Boolean) as any[];
+    const extra = strips.filter(s => !tableRowOrder.includes(s.id));
+    return [...ordered, ...extra];
+  })();
 
   const loadCrewMembers = async () => {
     try {
@@ -3328,33 +3431,78 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         <div id="map-area" style={{ flex: 1, position: 'relative', background: tableMode ? '#0f172a' : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0 }}>
           {/* Table Mode */}
           {tableMode && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
+            <>
+            <table
+              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
+              onDragOver={e => e.preventDefault()}
+            >
               <thead>
                 <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
+                  <th style={{ padding: '8px 6px', width: '28px', color: '#475569', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px' }}>או"ק</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>טייסת</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>חימושים</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>מטרות ונק' מכוון</th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>שקדיה</th>
+                  <th
+                    style={{ padding: '10px 12px', textAlign: 'right', color: tableSortBySector ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setTableSortBySector(v => !v)}
+                    title={tableSortBySector ? 'לחץ לביטול מיון' : 'לחץ למיון לפי אזור'}
+                  >
+                    אזור {tableSortBySector ? '↑' : '⇅'}
+                  </th>
                   <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '200px' }}>הערות</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px' }}>העבר</th>
                 </tr>
               </thead>
               <tbody>
-                {strips.map((s, idx) => {
+                {tableDisplayStrips.map((s, idx) => {
                   const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
                   const targets: any[] = Array.isArray(s.targets) ? s.targets : [];
                   const currentNote = tableEditingNotes[s.id] !== undefined ? tableEditingNotes[s.id] : (s.notes || '');
                   const isEven = idx % 2 === 0;
+                  const isNoteImage = currentNote.startsWith('data:image');
+                  const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
+                  const isDragOver = tableDragOverRow === s.id;
                   return (
-                    <tr key={s.id} style={{ background: isEven ? '#1e293b' : '#0f172a', borderBottom: '1px solid #334155' }}>
+                    <tr
+                      key={s.id}
+                      draggable={!tableSortBySector}
+                      onDragStart={() => { setTableDragRow(s.id); setTableSortBySector(false); }}
+                      onDragOver={e => { e.preventDefault(); setTableDragOverRow(s.id); }}
+                      onDragLeave={() => setTableDragOverRow(null)}
+                      onDrop={() => {
+                        if (tableDragRow && tableDragRow !== s.id) {
+                          setTableRowOrder(prev => {
+                            const arr = [...prev];
+                            const fi = arr.indexOf(tableDragRow);
+                            const ti = arr.indexOf(s.id);
+                            if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableDragRow); }
+                            return arr;
+                          });
+                        }
+                        setTableDragRow(null); setTableDragOverRow(null);
+                      }}
+                      style={{
+                        background: isDragOver ? '#1d4ed8' : (isEven ? '#1e293b' : '#0f172a'),
+                        borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
+                        opacity: tableDragRow === s.id ? 0.5 : 1,
+                        transition: 'background 0.1s'
+                      }}
+                    >
+                      {/* Drag Handle */}
+                      <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: tableSortBySector ? 'not-allowed' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
+                      {/* או"ק */}
                       <td style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                         <div>{s.callSign}</div>
                         {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
                       </td>
+                      {/* טייסת */}
                       <td style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
                         <div>{s.squadron || '—'}</div>
                         {s.alt && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>גובה: {s.alt}</div>}
                       </td>
+                      {/* חימושים */}
                       <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                         {weapons.length === 0
                           ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
@@ -3365,6 +3513,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                         }
                       </td>
+                      {/* מטרות */}
                       <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                         {targets.length === 0
                           ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
@@ -3375,41 +3524,87 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                         }
                       </td>
-                      <td style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>
-                        {s.shkadia || '—'}
-                      </td>
+                      {/* שקדיה */}
+                      <td style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>{s.shkadia || '—'}</td>
+                      {/* אזור */}
+                      <td style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
+                      {/* הערות */}
                       <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                        <textarea
-                          value={currentNote}
-                          onChange={e => setTableEditingNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
-                          onBlur={async () => {
-                            const note = tableEditingNotes[s.id];
-                            if (note !== undefined && note !== (s.notes || '')) {
-                              await fetch(`${API_URL}/strips/${s.id}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ notes: note })
-                              });
-                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: note } : st));
-                            }
+                        {isNoteImage ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
+                            <button
+                              onClick={() => {
+                                setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
+                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
+                                setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
+                              }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                            >מחק</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+                            <textarea
+                              value={currentNote}
+                              onChange={e => setTableEditingNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              onBlur={async () => {
+                                const note = tableEditingNotes[s.id];
+                                if (note !== undefined && note !== (s.notes || '')) {
+                                  await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: note }) });
+                                  setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: note } : st));
+                                }
+                              }}
+                              placeholder="הערות..."
+                              rows={2}
+                              style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0 }}
+                            />
+                            <button
+                              onClick={() => setTableHandwritingId(s.id)}
+                              title="כתב יד"
+                              style={{ padding: '4px 7px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
+                            >✏️</button>
+                          </div>
+                        )}
+                      </td>
+                      {/* העבר */}
+                      <td style={{ padding: '8px', verticalAlign: 'top', position: 'relative' }}>
+                        <select
+                          value=""
+                          onChange={async e => {
+                            const secId = Number(e.target.value);
+                            if (secId) await handleTransfer(s.id, secId);
+                            setTableTransferOpen(null);
                           }}
-                          placeholder="הערות חופשיות..."
-                          rows={3}
-                          style={{
-                            width: '100%', background: '#0f172a', border: '1px solid #334155',
-                            borderRadius: '4px', color: 'white', padding: '6px 8px', fontSize: '12px',
-                            resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box'
-                          }}
-                        />
+                          style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
+                        >
+                          <option value="">בחר...</option>
+                          {allSectors.map(sec => (
+                            <option key={sec.id} value={sec.id}>{sec.name}</option>
+                          ))}
+                        </select>
                       </td>
                     </tr>
                   );
                 })}
                 {strips.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
+                  <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
                 )}
               </tbody>
             </table>
+            {/* Handwriting modal */}
+            {tableHandwritingId && (
+              <TableHandwritingCanvas
+                existing={tableEditingNotes[tableHandwritingId] || strips.find(s => s.id === tableHandwritingId)?.notes || ''}
+                onConfirm={async (dataUrl) => {
+                  setTableEditingNotes(prev => ({ ...prev, [tableHandwritingId]: dataUrl }));
+                  await fetch(`${API_URL}/strips/${tableHandwritingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: dataUrl }) });
+                  setStrips(prev => prev.map(st => st.id === tableHandwritingId ? { ...st, notes: dataUrl } : st));
+                  setTableHandwritingId(null);
+                }}
+                onCancel={() => setTableHandwritingId(null)}
+              />
+            )}
+            </>
           )}
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
