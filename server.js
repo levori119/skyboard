@@ -568,7 +568,11 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       y: r.y,
       onMap: r.on_map,
       airborne: r.airborne,
-      notes: r.notes
+      notes: r.notes,
+      weapons: r.weapons || [],
+      targets: r.targets || [],
+      systems: r.systems || [],
+      shkadia: r.shkadia
     })));
   } catch (err) {
     console.error('Error fetching sector strips:', err);
@@ -1047,8 +1051,8 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
     if (typeof relevantSectors === 'string') {
       relevantSectors = JSON.parse(relevantSectors);
     }
-    if (!Array.isArray(relevantSectors) || relevantSectors.length === 0) {
-      return res.json([]);
+    if (!Array.isArray(relevantSectors)) {
+      relevantSectors = [];
     }
     
     // Get workstation UUID from preset
@@ -1059,16 +1063,20 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
     const workstationUuid = wsResult.rows.length > 0 ? wsResult.rows[0].id : null;
     
     // Get strips that:
-    // 1. Are in one of the workstation's sectors
-    // 2. AND (held_by_workstation is NULL OR held_by_workstation = this workstation's UUID OR held_by_workstation = presetId as string)
+    // 1. Are assigned directly to this workstation preset (workstation_preset_id = presetId), OR
+    // 2. Are in one of the workstation's sectors AND not held by another workstation
     const result = await pool.query(`
       SELECT * FROM strips 
-      WHERE sector_id = ANY($1::int[])
-        AND (held_by_workstation IS NULL 
-             OR held_by_workstation = $2 
-             OR held_by_workstation = $3)
+      WHERE 
+        workstation_preset_id = $4
+        OR (
+          sector_id = ANY($1::int[])
+          AND (held_by_workstation IS NULL 
+               OR held_by_workstation = $2 
+               OR held_by_workstation = $3)
+        )
       ORDER BY id
-    `, [relevantSectors, workstationUuid, String(presetId)]);
+    `, [relevantSectors, workstationUuid, String(presetId), presetId]);
     
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
@@ -1083,7 +1091,11 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       y: r.y,
       onMap: r.on_map,
       airborne: r.airborne,
-      notes: r.notes
+      notes: r.notes,
+      weapons: r.weapons || [],
+      targets: r.targets || [],
+      systems: r.systems || [],
+      shkadia: r.shkadia
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
