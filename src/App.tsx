@@ -2688,6 +2688,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
+  const [tableMode, setTableMode] = useState(false);
+  const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -3132,16 +3134,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           )}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <select
-            onChange={(e) => e.target.value && selectMap(Number(e.target.value))}
-            style={{ background: '#334155', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer' }}
-            defaultValue=""
+          <button
+            onClick={() => setTableMode(t => !t)}
+            style={{ 
+              background: tableMode ? '#2563eb' : '#334155', 
+              color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
+              fontWeight: tableMode ? 'bold' : 'normal'
+            }}
           >
-            <option value="" disabled>בחר מפה</option>
-            {availableMaps.map(m => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+            {tableMode ? '🗺 מפה' : '📋 טבלה'}
+          </button>
+          {!tableMode && (
+            <select
+              onChange={(e) => e.target.value && selectMap(Number(e.target.value))}
+              style={{ background: '#334155', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer' }}
+              defaultValue=""
+            >
+              <option value="" disabled>בחר מפה</option>
+              {availableMaps.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
@@ -3285,7 +3299,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', background: '#eee' }}>
+      <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden' }}>
         {/* Sector Panels - Far Left */}
         <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
@@ -3310,8 +3324,94 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           ))}
         </div>
 
-        {/* Map Area */}
-        <div id="map-area" style={{ flex: 1, position: 'relative', background: '#cbd5e1', overflow: 'hidden', minHeight: 0 }}>
+        {/* Map Area / Table View */}
+        <div id="map-area" style={{ flex: 1, position: 'relative', background: tableMode ? '#0f172a' : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0 }}>
+          {/* Table Mode */}
+          {tableMode && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
+              <thead>
+                <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px' }}>או"ק</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>טייסת</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>חימושים</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>מטרות ונק' מכוון</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>שקדיה</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '200px' }}>הערות</th>
+                </tr>
+              </thead>
+              <tbody>
+                {strips.map((s, idx) => {
+                  const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
+                  const targets: any[] = Array.isArray(s.targets) ? s.targets : [];
+                  const currentNote = tableEditingNotes[s.id] !== undefined ? tableEditingNotes[s.id] : (s.notes || '');
+                  const isEven = idx % 2 === 0;
+                  return (
+                    <tr key={s.id} style={{ background: isEven ? '#1e293b' : '#0f172a', borderBottom: '1px solid #334155' }}>
+                      <td style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
+                        <div>{s.callSign}</div>
+                        {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
+                        <div>{s.squadron || '—'}</div>
+                        {s.alt && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>גובה: {s.alt}</div>}
+                      </td>
+                      <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
+                        {weapons.length === 0
+                          ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {weapons.map((w: any, i: number) => (
+                                <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                              ))}
+                            </div>
+                        }
+                      </td>
+                      <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
+                        {targets.length === 0
+                          ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              {targets.map((t: any, i: number) => (
+                                <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
+                              ))}
+                            </div>
+                        }
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>
+                        {s.shkadia || '—'}
+                      </td>
+                      <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        <textarea
+                          value={currentNote}
+                          onChange={e => setTableEditingNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
+                          onBlur={async () => {
+                            const note = tableEditingNotes[s.id];
+                            if (note !== undefined && note !== (s.notes || '')) {
+                              await fetch(`${API_URL}/strips/${s.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ notes: note })
+                              });
+                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: note } : st));
+                            }
+                          }}
+                          placeholder="הערות חופשיות..."
+                          rows={3}
+                          style={{
+                            width: '100%', background: '#0f172a', border: '1px solid #334155',
+                            borderRadius: '4px', color: 'white', padding: '6px 8px', fontSize: '12px',
+                            resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box'
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+                {strips.length === 0 && (
+                  <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+          {!tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
             <button
@@ -3514,6 +3614,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               </>
             )}
           </div>
+          </>}
         </div>
 
         {/* Sidebar - Right Side - Shows active strips (not on map) */}
