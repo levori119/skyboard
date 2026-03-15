@@ -3618,6 +3618,9 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [newStrip, setNewStrip] = useState({ callSign: '', alt: '', task: '', squadron: '' });
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
   const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
+  const [savingStripId, setSavingStripId] = useState<string | null>(null);
+  const [savedStripId, setSavedStripId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -3643,7 +3646,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workstationPresetId })
       });
-      loadData();
+      await loadData();
     } catch (err) {
       console.error('Failed to assign strip:', err);
     }
@@ -3702,19 +3705,29 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const saveStripDetails = async (stripId: string) => {
     const details = stripDetails[stripId];
     if (!details) return;
+    setSavingStripId(stripId);
+    setSavedStripId(null);
+    setSaveError(null);
     try {
-      await fetch(`${API_URL}/strips/${stripId}`, {
+      const res = await fetch(`${API_URL}/strips/${stripId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(details)
       });
-      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, ...details } : s));
+      if (!res.ok) throw new Error('Server error');
+      setSavedStripId(stripId);
+      setTimeout(() => setSavedStripId(null), 2500);
+      await loadData();
     } catch (err) {
       console.error('Failed to save strip details:', err);
+      setSaveError(stripId);
+      setTimeout(() => setSaveError(null), 3000);
+    } finally {
+      setSavingStripId(null);
     }
   };
 
-  const unassignedStrips = strips.filter(s => !s.workstation_preset_id);
+  const unassignedStrips = strips.filter(s => !s.workstation_preset_id || s.workstation_preset_id === null);
 
   return (
     <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
@@ -3810,7 +3823,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
         <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
             {presets.map(preset => {
-              const workstationStrips = strips.filter(s => s.workstation_preset_id === preset.id);
+              const workstationStrips = strips.filter(s => Number(s.workstation_preset_id) === Number(preset.id));
               
               return (
                 <div key={preset.id} style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
@@ -3934,9 +3947,17 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
                               <button
                                 onClick={() => saveStripDetails(strip.id)}
-                                style={{ width: '100%', padding: '8px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                                disabled={savingStripId === strip.id}
+                                style={{ 
+                                  width: '100%', padding: '8px', 
+                                  background: saveError === strip.id ? '#dc2626' : savedStripId === strip.id ? '#16a34a' : '#22c55e', 
+                                  color: 'white', border: 'none', borderRadius: '6px', 
+                                  cursor: savingStripId === strip.id ? 'wait' : 'pointer', 
+                                  fontSize: '13px', fontWeight: 'bold',
+                                  opacity: savingStripId === strip.id ? 0.7 : 1
+                                }}
                               >
-                                שמור שינויים
+                                {savingStripId === strip.id ? 'שומר...' : saveError === strip.id ? 'שגיאה בשמירה ✕' : savedStripId === strip.id ? 'נשמר בהצלחה ✓' : 'שמור שינויים'}
                               </button>
                             </div>
                           )}

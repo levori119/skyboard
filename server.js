@@ -360,7 +360,11 @@ app.get('/api/strips/all', async (req, res) => {
       x: r.x,
       y: r.y,
       on_map: r.on_map,
-      airborne: r.airborne
+      airborne: r.airborne,
+      weapons: r.weapons || [],
+      targets: r.targets || [],
+      systems: r.systems || [],
+      shkadia: r.shkadia || ''
     })));
   } catch (err) {
     console.error('Error fetching all strips:', err);
@@ -1065,18 +1069,26 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
     // Get strips that:
     // 1. Are assigned directly to this workstation preset (workstation_preset_id = presetId), OR
     // 2. Are in one of the workstation's sectors AND not held by another workstation
-    const result = await pool.query(`
-      SELECT * FROM strips 
-      WHERE 
-        workstation_preset_id = $4
-        OR (
-          sector_id = ANY($1::int[])
-          AND (held_by_workstation IS NULL 
-               OR held_by_workstation = $2 
-               OR held_by_workstation = $3)
-        )
-      ORDER BY id
-    `, [relevantSectors, workstationUuid, String(presetId), presetId]);
+    let result;
+    if (relevantSectors.length > 0) {
+      result = await pool.query(`
+        SELECT * FROM strips 
+        WHERE 
+          workstation_preset_id = $4
+          OR (
+            sector_id = ANY($1::int[])
+            AND (held_by_workstation IS NULL 
+                 OR held_by_workstation = $2 
+                 OR held_by_workstation = $3)
+          )
+        ORDER BY id
+      `, [relevantSectors, workstationUuid, String(presetId), presetId]);
+    } else {
+      result = await pool.query(
+        'SELECT * FROM strips WHERE workstation_preset_id = $1 ORDER BY id',
+        [presetId]
+      );
+    }
     
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
