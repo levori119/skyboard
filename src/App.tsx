@@ -2783,17 +2783,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     });
   }, [strips.map(s => s.id).join(',')]);
 
+  // Only show strips that belong to this workstation (not neighboring sector strips)
+  const myStrips = strips.filter(s =>
+    s.status !== 'pending_transfer' &&
+    (session.presetId
+      ? Number(s.workstation_preset_id) === Number(session.presetId)
+      : true)
+  );
+
   // Computed strips order for table display
   const tableDisplayStrips = (() => {
     if (tableSortBySector) {
-      return [...strips].sort((a, b) => {
+      return [...myStrips].sort((a, b) => {
         const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
         const sB = allSectors.find(sec => sec.id === b.sectorId)?.name || '';
         return sA.localeCompare(sB, 'he');
       });
     }
-    const ordered = tableRowOrder.map(id => strips.find(s => s.id === id)).filter(Boolean) as any[];
-    const extra = strips.filter(s => !tableRowOrder.includes(s.id));
+    const ordered = tableRowOrder.map(id => myStrips.find(s => s.id === id)).filter(Boolean) as any[];
+    const extra = myStrips.filter(s => !tableRowOrder.includes(s.id));
     return [...ordered, ...extra];
   })();
 
@@ -3586,7 +3594,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     </tr>
                   );
                 })}
-                {strips.length === 0 && (
+                {myStrips.length === 0 && (
                   <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
                 )}
               </tbody>
