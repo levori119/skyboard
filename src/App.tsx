@@ -3615,6 +3615,8 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
   const [newStrip, setNewStrip] = useState({ callSign: '', alt: '', task: '', squadron: '' });
+  const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
+  const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
 
   const loadData = async () => {
     try {
@@ -3670,6 +3672,44 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
       loadData();
     } catch (err) {
       console.error('Failed to delete strip:', err);
+    }
+  };
+
+  const toggleExpandStrip = (strip: any) => {
+    if (expandedStripId === strip.id) {
+      setExpandedStripId(null);
+    } else {
+      setExpandedStripId(strip.id);
+      if (!stripDetails[strip.id]) {
+        setStripDetails(prev => ({
+          ...prev,
+          [strip.id]: {
+            weapons: strip.weapons || [],
+            targets: strip.targets || [],
+            systems: strip.systems || [],
+            shkadia: strip.shkadia || ''
+          }
+        }));
+      }
+    }
+  };
+
+  const updateDetail = (stripId: string, field: string, value: any) => {
+    setStripDetails(prev => ({ ...prev, [stripId]: { ...prev[stripId], [field]: value } }));
+  };
+
+  const saveStripDetails = async (stripId: string) => {
+    const details = stripDetails[stripId];
+    if (!details) return;
+    try {
+      await fetch(`${API_URL}/strips/${stripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(details)
+      });
+      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, ...details } : s));
+    } catch (err) {
+      console.error('Failed to save strip details:', err);
     }
   };
 
@@ -3780,38 +3820,128 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   
                   <div style={{ padding: '15px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {workstationStrips.map(strip => (
-                        <div
-                          key={strip.id}
-                          style={{ 
-                            background: '#0f172a', 
-                            padding: '10px', 
-                            borderRadius: '6px', 
-                            display: 'flex', 
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
-                          }}
-                        >
-                          <div>
-                            <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{strip.call_sign}</div>
-                            <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}{strip.alt}</div>
+                      {workstationStrips.map(strip => {
+                        const isExpanded = expandedStripId === strip.id;
+                        const det = stripDetails[strip.id];
+                        const hasDetails = (strip.weapons?.length > 0) || (strip.targets?.length > 0) || (strip.systems?.length > 0) || strip.shkadia;
+                        return (
+                        <div key={strip.id} style={{ background: '#0f172a', borderRadius: '6px', overflow: 'hidden', border: isExpanded ? '1px solid #3b82f6' : '1px solid transparent' }}>
+                          <div style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {strip.call_sign}
+                                {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block' }} title="יש נתוני חימוש/מטרות" />}
+                              </div>
+                              <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}גובה: {strip.alt}{strip.task && ` | ${strip.task}`}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => toggleExpandStrip(strip)}
+                                style={{ padding: '4px 8px', background: isExpanded ? '#3b82f6' : '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+                              >
+                                {isExpanded ? '▲ סגור' : '▼ פרטים'}
+                              </button>
+                              <button
+                                onClick={() => assignStripToWorkstation(strip.id, null)}
+                                style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+                              >
+                                הסר
+                              </button>
+                              <button
+                                onClick={() => deleteStrip(strip.id)}
+                                style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
+                              >
+                                מחק
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button
-                              onClick={() => assignStripToWorkstation(strip.id, null)}
-                              style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                            >
-                              הסר
-                            </button>
-                            <button
-                              onClick={() => deleteStrip(strip.id)}
-                              style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                            >
-                              מחק
-                            </button>
-                          </div>
+
+                          {/* Expandable Detail Panel */}
+                          {isExpanded && det && (
+                            <div style={{ background: '#1e293b', padding: '12px', borderTop: '1px solid #334155', direction: 'rtl' }}>
+                              
+                              {/* חימושים */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>חימושים</span>
+                                  <button onClick={() => updateDetail(strip.id, 'weapons', [...det.weapons, { type: '', quantity: '' }])}
+                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
+                                </div>
+                                {det.weapons.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין חימושים מוגדרים</div>}
+                                {det.weapons.map((w, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
+                                    <input value={w.type} placeholder="סוג חימוש"
+                                      onChange={e => { const arr = det.weapons.map((x, idx) => idx === i ? {...x, type: e.target.value} : x); updateDetail(strip.id, 'weapons', arr); }}
+                                      style={{ flex: 2, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+                                    <input value={w.quantity} placeholder="כמות"
+                                      onChange={e => { const arr = det.weapons.map((x, idx) => idx === i ? {...x, quantity: e.target.value} : x); updateDetail(strip.id, 'weapons', arr); }}
+                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+                                    <button onClick={() => updateDetail(strip.id, 'weapons', det.weapons.filter((_, idx) => idx !== i))}
+                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* מטרות */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>מטרות לתקיפה</span>
+                                  <button onClick={() => updateDetail(strip.id, 'targets', [...det.targets, { name: '', aim_point: '' }])}
+                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
+                                </div>
+                                {det.targets.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין מטרות מוגדרות</div>}
+                                {det.targets.map((t, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
+                                    <input value={t.name} placeholder="שם מטרה"
+                                      onChange={e => { const arr = det.targets.map((x, idx) => idx === i ? {...x, name: e.target.value} : x); updateDetail(strip.id, 'targets', arr); }}
+                                      style={{ flex: 2, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+                                    <input value={t.aim_point} placeholder="נקודת מכוון"
+                                      onChange={e => { const arr = det.targets.map((x, idx) => idx === i ? {...x, aim_point: e.target.value} : x); updateDetail(strip.id, 'targets', arr); }}
+                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+                                    <button onClick={() => updateDetail(strip.id, 'targets', det.targets.filter((_, idx) => idx !== i))}
+                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* מערכות */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>מערכות</span>
+                                  <button onClick={() => updateDetail(strip.id, 'systems', [...det.systems, { name: '' }])}
+                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
+                                </div>
+                                {det.systems.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין מערכות מוגדרות</div>}
+                                {det.systems.map((sys, i) => (
+                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
+                                    <input value={sys.name} placeholder="שם מערכת"
+                                      onChange={e => { const arr = det.systems.map((x, idx) => idx === i ? { name: e.target.value } : x); updateDetail(strip.id, 'systems', arr); }}
+                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+                                    <button onClick={() => updateDetail(strip.id, 'systems', det.systems.filter((_, idx) => idx !== i))}
+                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* שקדיה */}
+                              <div style={{ marginBottom: '12px' }}>
+                                <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>שקדיה</div>
+                                <input value={det.shkadia} placeholder="מי מפסר המבנה יש שקדיה"
+                                  onChange={e => updateDetail(strip.id, 'shkadia', e.target.value)}
+                                  style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px', boxSizing: 'border-box' }} />
+                              </div>
+
+                              <button
+                                onClick={() => saveStripDetails(strip.id)}
+                                style={{ width: '100%', padding: '8px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                              >
+                                שמור שינויים
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                       {workstationStrips.length === 0 && (
                         <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>
                           אין פממים משויכים
