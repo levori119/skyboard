@@ -104,6 +104,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'queued'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS held_by_workstation VARCHAR(36)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS weapons JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS targets JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS systems JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS shkadia TEXT`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
@@ -405,7 +409,7 @@ app.post('/api/strips', async (req, res) => {
 app.put('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
-    const { x, y, onMap, alt, notes } = req.body;
+    const { x, y, onMap, alt, notes, weapons, targets, systems, shkadia } = req.body;
     
     const updates = [];
     const values = [];
@@ -417,6 +421,10 @@ app.put('/api/strips/:id', async (req, res) => {
     if (alt !== undefined) { updates.push(`alt = $${paramIndex++}`); values.push(alt); }
     if (req.body.airborne !== undefined) { updates.push(`airborne = $${paramIndex++}`); values.push(req.body.airborne); }
     if (notes !== undefined) { updates.push(`notes = $${paramIndex++}`); values.push(notes); }
+    if (weapons !== undefined) { updates.push(`weapons = $${paramIndex++}`); values.push(JSON.stringify(weapons)); }
+    if (targets !== undefined) { updates.push(`targets = $${paramIndex++}`); values.push(JSON.stringify(targets)); }
+    if (systems !== undefined) { updates.push(`systems = $${paramIndex++}`); values.push(JSON.stringify(systems)); }
+    if (shkadia !== undefined) { updates.push(`shkadia = $${paramIndex++}`); values.push(shkadia); }
     
     if (updates.length > 0) {
       values.push(id);

@@ -2245,7 +2245,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, zoom = 1 }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1 }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2257,6 +2257,29 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
+  const [showDetails, setShowDetails] = useState(false);
+  const [detailsData, setDetailsData] = useState({
+    weapons: (s.weapons || []) as {type: string; quantity: string}[],
+    targets: (s.targets || []) as {name: string; aim_point: string}[],
+    systems: (s.systems || []) as {name: string}[],
+    shkadia: s.shkadia || ''
+  });
+
+  useEffect(() => {
+    setDetailsData({
+      weapons: s.weapons || [],
+      targets: s.targets || [],
+      systems: s.systems || [],
+      shkadia: s.shkadia || ''
+    });
+  }, [s.weapons, s.targets, s.systems, s.shkadia]);
+
+  const saveDetails = (updated: typeof detailsData) => {
+    setDetailsData(updated);
+    if (onUpdateDetails) onUpdateDetails(s.id, updated);
+  };
+
+  const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -2455,6 +2478,102 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             >
               + הערה
             </button>
+          </div>
+        )}
+
+        {/* Details toggle button */}
+        <div style={{ marginTop: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '3px', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
+            style={{ background: 'transparent', border: 'none', color: hasDetails ? '#3b82f6' : '#94a3b8', fontSize: '9px', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: hasDetails ? 'bold' : 'normal' }}
+          >
+            {hasDetails && <span style={{ width: '6px', height: '6px', background: '#3b82f6', borderRadius: '50%', display: 'inline-block' }} />}
+            {showDetails ? '▲ פחות' : '▼ חימוש / מטרות / מערכות'}
+          </button>
+        </div>
+
+        {/* Expandable Details Panel */}
+        {showDetails && (
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px', background: '#f8fafc', borderRadius: '4px', padding: '6px', fontSize: '9px', direction: 'rtl' }}>
+            
+            {/* חימושים */}
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>חימושים</span>
+                <button onClick={() => saveDetails({ ...detailsData, weapons: [...detailsData.weapons, { type: '', quantity: '' }] })}
+                  style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
+              </div>
+              {detailsData.weapons.map((w, i) => (
+                <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+                  <input value={w.type} placeholder="סוג" onChange={(e) => {
+                    const updated = detailsData.weapons.map((item, idx) => idx === i ? { ...item, type: e.target.value } : item);
+                    saveDetails({ ...detailsData, weapons: updated });
+                  }} style={{ flex: 2, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
+                  <input value={w.quantity} placeholder="כמות" onChange={(e) => {
+                    const updated = detailsData.weapons.map((item, idx) => idx === i ? { ...item, quantity: e.target.value } : item);
+                    saveDetails({ ...detailsData, weapons: updated });
+                  }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
+                  <button onClick={() => saveDetails({ ...detailsData, weapons: detailsData.weapons.filter((_, idx) => idx !== i) })}
+                    style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              {detailsData.weapons.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>לחץ + להוספה</div>}
+            </div>
+
+            {/* מטרות */}
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>מטרות</span>
+                <button onClick={() => saveDetails({ ...detailsData, targets: [...detailsData.targets, { name: '', aim_point: '' }] })}
+                  style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
+              </div>
+              {detailsData.targets.map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+                  <input value={t.name} placeholder="שם מטרה" onChange={(e) => {
+                    const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item);
+                    saveDetails({ ...detailsData, targets: updated });
+                  }} style={{ flex: 2, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
+                  <input value={t.aim_point} placeholder="נ. מכוון" onChange={(e) => {
+                    const updated = detailsData.targets.map((item, idx) => idx === i ? { ...item, aim_point: e.target.value } : item);
+                    saveDetails({ ...detailsData, targets: updated });
+                  }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
+                  <button onClick={() => saveDetails({ ...detailsData, targets: detailsData.targets.filter((_, idx) => idx !== i) })}
+                    style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              {detailsData.targets.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>לחץ + להוספה</div>}
+            </div>
+
+            {/* מערכות */}
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>מערכות</span>
+                <button onClick={() => saveDetails({ ...detailsData, systems: [...detailsData.systems, { name: '' }] })}
+                  style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}>+</button>
+              </div>
+              {detailsData.systems.map((sys, i) => (
+                <div key={i} style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+                  <input value={sys.name} placeholder="שם מערכת" onChange={(e) => {
+                    const updated = detailsData.systems.map((item, idx) => idx === i ? { name: e.target.value } : item);
+                    saveDetails({ ...detailsData, systems: updated });
+                  }} style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }} />
+                  <button onClick={() => saveDetails({ ...detailsData, systems: detailsData.systems.filter((_, idx) => idx !== i) })}
+                    style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 4px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+              {detailsData.systems.length === 0 && <div style={{ color: '#94a3b8', fontSize: '8px' }}>לחץ + להוספה</div>}
+            </div>
+
+            {/* שקדיה */}
+            <div>
+              <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px' }}>שקדיה</div>
+              <input
+                value={detailsData.shkadia}
+                placeholder="מי מפסר המבנה יש שקדיה"
+                onChange={(e) => saveDetails({ ...detailsData, shkadia: e.target.value })}
+                style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -2900,6 +3019,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     }
   };
 
+  const handleUpdateStripDetails = async (id: string, details: { weapons: any[]; targets: any[]; systems: any[]; shkadia: string }) => {
+    setStrips(prev => prev.map(item => item.id === id ? {...item, ...details} : item));
+    try {
+      await fetch(`${API_URL}/strips/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(details)
+      });
+    } catch (err) {
+      console.error('Failed to update strip details:', err);
+    }
+  };
+
   const handleAssignWaitingStrip = async (stripId: string) => {
     if (!primarySectorId) return;
     try {
@@ -3231,6 +3363,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
+                onUpdateDetails={handleUpdateStripDetails}
                 zoom={mapZoom}
               />
             ))}
@@ -3397,6 +3530,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
+                onUpdateDetails={handleUpdateStripDetails}
               />
             </div>
           ))}
