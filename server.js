@@ -476,8 +476,17 @@ app.post('/api/strips/import', async (req, res) => {
       
       try {
         await pool.query(
-          'INSERT INTO strips (callsign, squadron, alt, task) VALUES ($1, $2, $3, $4)',
-          [strip.callSign, strip.squadron || '', strip.alt || '', strip.task || '']
+          'INSERT INTO strips (callsign, squadron, alt, task, weapons, targets, systems, shkadia) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+          [
+            strip.callSign,
+            strip.squadron || '',
+            strip.alt || '',
+            strip.task || '',
+            JSON.stringify(strip.weapons || []),
+            JSON.stringify(strip.targets || []),
+            JSON.stringify(strip.systems || []),
+            strip.shkadia || null
+          ]
         );
         existingCallSigns.add(strip.callSign.toLowerCase());
         imported++;

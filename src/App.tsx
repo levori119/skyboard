@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
+import * as XLSX from 'xlsx';
 
 const API_URL = '/api';
 
@@ -4432,53 +4433,82 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           {/* Strips Tab */}
           {activeTab === 'strips' && (
             <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>טעינת פממים מקובץ CSV</h2>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>טעינת פממים מקובץ</h2>
               
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
-                <p style={{ color: '#94a3b8', marginBottom: '15px', fontSize: '14px' }}>
-                  טען פממים מקובץ CSV. הקובץ צריך לכלול כותרות: callSign, squadron, alt, task<br/>
-                  <strong>או"ק הוא שדה חד-ערכי - אם קיים פמם עם אותה קריאה, הרשומה החדשה תידלג.</strong>
+                <p style={{ color: '#94a3b8', marginBottom: '15px', fontSize: '14px', lineHeight: '1.6' }}>
+                  טען פממים מקובץ <strong style={{color:'#60a5fa'}}>Excel (.xlsx)</strong> או <strong style={{color:'#60a5fa'}}>CSV (.csv)</strong>.<br/>
+                  <strong>או"ק הוא שדה חד-ערכי - אם קיים פמם עם אותה קריאה, הרשומה תידלג.</strong>
                 </p>
                 
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   id="csvFileInput"
                   style={{ display: 'none' }}
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    
-                    const text = await file.text();
-                    const lines = text.split('\n').filter(line => line.trim());
-                    if (lines.length < 2) {
-                      alert('הקובץ ריק או חסר נתונים');
-                      return;
+
+                    const parseWeapons = (val: string) => {
+                      if (!val || !val.trim()) return [];
+                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
+                        const parts = s.split(':');
+                        return { type: (parts[0] || '').trim(), quantity: (parts[1] || '').trim() };
+                      });
+                    };
+                    const parseTargets = (val: string) => {
+                      if (!val || !val.trim()) return [];
+                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
+                        const parts = s.split(':');
+                        return { name: (parts[0] || '').trim(), aim_point: (parts[1] || '').trim() };
+                      });
+                    };
+                    const parseSystems = (val: string) => {
+                      if (!val || !val.trim()) return [];
+                      return val.split(';').map(s => s.trim()).filter(Boolean).map(s => ({ name: s }));
+                    };
+
+                    let rows: Record<string, string>[] = [];
+
+                    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                      const buffer = await file.arrayBuffer();
+                      const wb = XLSX.read(buffer, { type: 'array' });
+                      const ws = wb.Sheets[wb.SheetNames[0]];
+                      rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, string>[];
+                    } else {
+                      const text = await file.text();
+                      const lines = text.split('\n').filter(line => line.trim());
+                      if (lines.length < 2) { alert('הקובץ ריק או חסר נתונים'); return; }
+                      const headers = lines[0].split(',').map(h => h.trim());
+                      rows = lines.slice(1).map(line => {
+                        const values = line.split(',').map(v => v.trim());
+                        const row: Record<string, string> = {};
+                        headers.forEach((h, i) => { row[h] = values[i] || ''; });
+                        return row;
+                      });
                     }
-                    
-                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-                    const callSignIdx = headers.findIndex(h => h === 'callsign' || h === 'call_sign' || h === 'קריאה');
-                    const squadronIdx = headers.findIndex(h => h === 'squadron' || h === 'טייסת');
-                    const altIdx = headers.findIndex(h => h === 'alt' || h === 'גובה');
-                    const taskIdx = headers.findIndex(h => h === 'task' || h === 'משימה');
-                    
-                    if (callSignIdx === -1) {
-                      alert('חסרה עמודת callSign בקובץ');
-                      return;
-                    }
-                    
-                    const strips = [];
-                    for (let i = 1; i < lines.length; i++) {
-                      const values = lines[i].split(',').map(v => v.trim());
-                      if (values[callSignIdx]) {
-                        strips.push({
-                          callSign: values[callSignIdx],
-                          squadron: squadronIdx >= 0 ? values[squadronIdx] || '' : '',
-                          alt: altIdx >= 0 ? values[altIdx] || '' : '',
-                          task: taskIdx >= 0 ? values[taskIdx] || '' : ''
-                        });
+
+                    const getField = (row: Record<string, string>, ...keys: string[]) => {
+                      for (const k of keys) {
+                        const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
+                        if (found && row[found]) return row[found];
                       }
-                    }
+                      return '';
+                    };
+
+                    const strips = rows
+                      .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה'))
+                      .map(row => ({
+                        callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
+                        squadron: getField(row, 'squadron', 'טייסת'),
+                        alt: getField(row, 'alt', 'גובה'),
+                        task: getField(row, 'task', 'משימה'),
+                        weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
+                        targets: parseTargets(getField(row, 'targets', 'מטרות')),
+                        systems: parseSystems(getField(row, 'systems', 'מערכות')),
+                        shkadia: getField(row, 'shkadia', 'שקדיה')
+                      }));
                     
                     try {
                       const res = await fetch(`${API_URL}/strips/import`, {
@@ -4492,7 +4522,6 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                       console.error('Import error:', err);
                       alert('שגיאה בטעינת הקובץ');
                     }
-                    
                     e.target.value = '';
                   }}
                 />
@@ -4501,7 +4530,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   onClick={() => document.getElementById('csvFileInput')?.click()}
                   style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
                 >
-                  בחר קובץ CSV
+                  בחר קובץ Excel / CSV
                 </button>
                 
                 {csvImportResult && (
@@ -4524,13 +4553,56 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
               </div>
               
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>דוגמה לפורמט הקובץ:</h3>
-                <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '13px', overflow: 'auto', color: '#e2e8f0' }}>
-{`callSign,squadron,alt,task
-BLUE01,101,FL350,CAP
-HAWK23,105,FL280,ESCORT
-VIPER07,117,FL400,STRIKE`}
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>פורמט הקובץ</h3>
+                
+                <div style={{ marginBottom: '16px', fontSize: '13px', color: '#94a3b8', lineHeight: '2' }}>
+                  <div><strong style={{color:'white'}}>שורה 1:</strong> כותרות עמודות (חובה)</div>
+                  <div><strong style={{color:'white'}}>עמודות חובה:</strong> <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px'}}>callSign</code></div>
+                  <div><strong style={{color:'white'}}>עמודות אופציונליות:</strong></div>
+                  <div style={{paddingRight:'16px'}}>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>squadron</code> — טייסת<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>alt</code> — גובה<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> — חימושים, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> — מטרות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> — מערכות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> — שקדיה (טקסט חופשי)
+                  </div>
+                </div>
+
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
+                <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left' }}>
+{`callSign,squadron,alt,task,weapons,targets,systems,shkadia
+BLUE01,101,FL350,CAP,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
+HAWK23,105,FL280,ESCORT,,,FLIR,
+VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
                 </pre>
+
+                <h4 style={{ margin: '15px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (Excel):</h4>
+                <div style={{ background: '#1e293b', borderRadius: '6px', overflow: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '11px', direction: 'ltr', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#334155' }}>
+                        {['callSign','squadron','alt','task','weapons','targets','systems','shkadia'].map(h => (
+                          <th key={h} style={{ padding: '6px 10px', color: '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['BLUE01','101','FL350','CAP','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
+                        ['HAWK23','105','FL280','ESCORT','','','FLIR',''],
+                        ['VIPER07','117','FL400','STRIKE','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
+                      ].map((row, i) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
+                          {row.map((cell, j) => (
+                            <td key={j} style={{ padding: '5px 10px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
