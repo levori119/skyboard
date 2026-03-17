@@ -2468,7 +2468,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               style={{ marginTop: '4px', fontSize: '9px', color: '#64748b', cursor: 'pointer', background: '#f8fafc', padding: '2px 4px', borderRadius: '3px' }}
               title="לחץ לעריכה"
             >
-              📝 {s.notes}
+              {s.notes?.startsWith('data:image') ? (
+                <img src={s.notes} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '48px', borderRadius: '3px', display: 'block' }} />
+              ) : (
+                <>📝 {s.notes}</>
+              )}
             </div>
           )
         ) : onUpdateNotes && (
@@ -2938,6 +2942,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             const myPreset = presets.find((p: any) => Number(p.id) === Number(session.presetId));
             if (myPreset?.table_mode_id) {
               setSelectedTableModeId(Number(myPreset.table_mode_id));
+              setTableMode(true);
             }
           }
         }

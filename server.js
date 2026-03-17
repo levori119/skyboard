@@ -400,7 +400,14 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
     const { workstationPresetId } = req.body;
-    await pool.query('UPDATE strips SET workstation_preset_id = $1 WHERE id = $2', [workstationPresetId, id]);
+    if (workstationPresetId !== null) {
+      await pool.query(
+        'UPDATE strips SET workstation_preset_id = $1, status = $2, on_map = $3, held_by_workstation = $4 WHERE id = $5',
+        [workstationPresetId, 'queued', false, null, id]
+      );
+    } else {
+      await pool.query('UPDATE strips SET workstation_preset_id = NULL WHERE id = $1', [id]);
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('Error assigning strip to workstation:', err);
