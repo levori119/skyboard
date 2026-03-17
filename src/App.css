@@ -1,7 +1,4 @@
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;/* App.css - עיצוב דסק לפיד כחול */
+/* App.css - עיצוב דסק לפיד כחול */
 :root {
   --bg-dark: #0f172a;
   --strip-bg: #1e293b;
