@@ -4009,9 +4009,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length}):</h4>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({myStrips.filter(s => s.status !== 'pending_transfer').length}):</h4>
               <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
-              {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
+              {myStrips.filter(s => s.status !== 'pending_transfer').map(s => (
                 <div key={s.id} style={{ marginBottom: '8px' }}>
                   <Strip s={s} 
                     onUpdate={handleAltUpdate}
@@ -4024,6 +4024,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   />
                 </div>
               ))}
+              {myStrips.filter(s => s.status !== 'pending_transfer').length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים פעילים</div>
+              )}
             </>
           )}
         </div>

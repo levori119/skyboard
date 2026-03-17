@@ -1120,7 +1120,9 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       weapons: r.weapons || [],
       targets: r.targets || [],
       systems: r.systems || [],
-      shkadia: r.shkadia
+      shkadia: r.shkadia,
+      workstation_preset_id: r.workstation_preset_id,
+      custom_fields: r.custom_fields || {}
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
