@@ -2627,10 +2627,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   if (isDragging) {
     return (
       <>
-        {/* Placeholder במקום המקורי */}
-        <div style={{ ...baseStyle, opacity: 0.3, position: s.onMap ? 'absolute' : 'relative', left: s.onMap ? s.x : 0, top: s.onMap ? s.y : 0, transform: s.onMap ? `scale(${1/zoom})` : undefined, transformOrigin: 'top left' }}>
-          {stripContent({ ...baseStyle, opacity: 0.3 })}
-        </div>
+        {/* Placeholder במקום המקורי — call stripContent directly to avoid double-positioning */}
+        {stripContent({ ...baseStyle, opacity: 0.3, position: s.onMap ? 'absolute' : 'relative', left: s.onMap ? s.x : 0, top: s.onMap ? s.y : 0, transform: s.onMap ? `scale(${1/zoom})` : undefined, transformOrigin: 'top left' })}
         {/* רכיב גרירה שעוקב אחרי העכבר */}
         {createPortal(
           <div style={{ 
@@ -3860,6 +3858,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           </div>
                           {isMenuOpen && (
                             <div
+                              className="table-header-menu"
                               onClick={e => e.stopPropagation()}
                               style={{ position: 'absolute', top: '100%', right: 0, background: '#0f2444', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', padding: '4px', direction: 'rtl' }}
                             >
@@ -3888,7 +3887,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
-                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#64748b', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                                 >✕ הסר מיון</button>
                               )}
                             </div>

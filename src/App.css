@@ -175,3 +175,16 @@ body.light-mode .bt-strip [style*="background: #f1f5f9"] {
 body.light-mode .bt-login-bg {
   background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
 }
+
+/* Grouping/sorting dropdown menu — always dark regardless of mode */
+body.light-mode .table-header-menu {
+  background: #0f2444 !important;
+  border-color: #3b82f6 !important;
+}
+body.light-mode .table-header-menu button {
+  color: #e2e8f0 !important;
+  background: transparent !important;
+}
+body.light-mode .table-header-menu button:hover {
+  background: #1e3a5f !important;
+}
