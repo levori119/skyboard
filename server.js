@@ -133,7 +133,18 @@ async function initDb() {
   
   // Add relevant_sectors column
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS relevant_sectors JSONB DEFAULT '[]'`);
-  
+
+  // Table modes
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS table_modes (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      columns JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS table_mode_id INTEGER REFERENCES table_modes(id) ON DELETE SET NULL`);
+
   // Crew members table
   await pool.query(`
     CREATE TABLE IF NOT EXISTS crew_members (
@@ -1163,6 +1174,61 @@ app.get('/api/sectors/:sectorId/workstations', async (req, res) => {
   }
 });
 
+// Table Modes API
+app.get('/api/table-modes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM table_modes ORDER BY name');
+    res.json(result.rows.map(r => ({
+      ...r,
+      columns: Array.isArray(r.columns) ? r.columns : (typeof r.columns === 'string' ? JSON.parse(r.columns) : [])
+    })));
+  } catch (err) {
+    console.error('Error fetching table modes:', err);
+    res.status(500).json({ error: 'Failed to fetch table modes' });
+  }
+});
+
+app.post('/api/table-modes', async (req, res) => {
+  try {
+    const { name, columns } = req.body;
+    const result = await pool.query(
+      'INSERT INTO table_modes (name, columns) VALUES ($1, $2) RETURNING *',
+      [name, JSON.stringify(columns || [])]
+    );
+    const row = result.rows[0];
+    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]') });
+  } catch (err) {
+    console.error('Error creating table mode:', err);
+    res.status(500).json({ error: 'Failed to create table mode' });
+  }
+});
+
+app.put('/api/table-modes/:id', async (req, res) => {
+  try {
+    const { name, columns } = req.body;
+    const result = await pool.query(
+      'UPDATE table_modes SET name = $1, columns = $2 WHERE id = $3 RETURNING *',
+      [name, JSON.stringify(columns || []), req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Table mode not found' });
+    const row = result.rows[0];
+    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]') });
+  } catch (err) {
+    console.error('Error updating table mode:', err);
+    res.status(500).json({ error: 'Failed to update table mode' });
+  }
+});
+
+app.delete('/api/table-modes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM table_modes WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting table mode:', err);
+    res.status(500).json({ error: 'Failed to delete table mode' });
+  }
+});
+
 // Workstation Presets API
 app.get('/api/workstation-presets', async (req, res) => {
   try {
@@ -1181,13 +1247,14 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors) 
-       VALUES ($1, $2, $3) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || [])]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id) 
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null]
     );
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error creating workstation preset:', err);
     res.status(500).json({ error: 'Failed to create workstation preset' });
@@ -1196,15 +1263,16 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3 WHERE id = $4 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4 WHERE id = $5 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
     }
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error updating workstation preset:', err);
     res.status(500).json({ error: 'Failed to update workstation preset' });

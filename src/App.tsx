@@ -2769,6 +2769,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableDragRow, setTableDragRow] = useState<string | null>(null);
   const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
+  const [availableTableModes, setAvailableTableModes] = useState<any[]>([]);
+  const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -2920,6 +2922,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [primarySectorId]);
+
+  useEffect(() => {
+    const fetchTableModes = async () => {
+      try {
+        const res = await fetch(`${API_URL}/table-modes`);
+        if (res.ok) {
+          const modes = await res.json();
+          setAvailableTableModes(modes);
+        }
+        if (session.presetId) {
+          const presetRes = await fetch(`${API_URL}/workstation-presets`);
+          if (presetRes.ok) {
+            const presets = await presetRes.json();
+            const myPreset = presets.find((p: any) => Number(p.id) === Number(session.presetId));
+            if (myPreset?.table_mode_id) {
+              setSelectedTableModeId(Number(myPreset.table_mode_id));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load table modes:', err);
+      }
+    };
+    fetchTableModes();
+  }, [session.presetId]);
 
   const handleMap = (e: any) => {
     const reader = new FileReader();
@@ -3246,15 +3273,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
-            onClick={() => setTableMode(t => !t)}
+            onClick={() => setTableMode(false)}
             style={{ 
-              background: tableMode ? '#2563eb' : '#334155', 
+              background: !tableMode ? '#2563eb' : '#334155', 
               color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-              fontWeight: tableMode ? 'bold' : 'normal'
+              fontWeight: !tableMode ? 'bold' : 'normal'
             }}
           >
-            {tableMode ? '🗺 מפה' : '📋 טבלה'}
+            🗺 מפה
           </button>
+          {availableTableModes.length > 0 ? (
+            availableTableModes.map(tm => (
+              <button
+                key={tm.id}
+                onClick={() => { setTableMode(true); setSelectedTableModeId(tm.id); }}
+                style={{ 
+                  background: tableMode && selectedTableModeId === tm.id ? '#2563eb' : '#334155', 
+                  color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                  fontWeight: tableMode && selectedTableModeId === tm.id ? 'bold' : 'normal'
+                }}
+              >
+                📋 {tm.name}
+              </button>
+            ))
+          ) : (
+            <button
+              onClick={() => setTableMode(t => !t)}
+              style={{ 
+                background: tableMode ? '#1e40af' : '#334155', 
+                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                fontWeight: tableMode ? 'bold' : 'normal'
+              }}
+            >
+              📋 טבלה
+            </button>
+          )}
           {!tableMode && (
             <select
               onChange={(e) => e.target.value && selectMap(Number(e.target.value))}
@@ -3438,120 +3491,110 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         {/* Map Area / Table View */}
         <div id="map-area" style={{ flex: 1, position: 'relative', background: tableMode ? '#0f172a' : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0 }}>
           {/* Table Mode */}
-          {tableMode && (
-            <>
-            <table
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
-              onDragOver={e => e.preventDefault()}
-            >
-              <thead>
-                <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
-                  <th style={{ padding: '8px 6px', width: '28px', color: '#475569', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px' }}>או"ק</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>טייסת</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>חימושים</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>מטרות ונק' מכוון</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '110px' }}>שקדיה</th>
-                  <th
-                    style={{ padding: '10px 12px', textAlign: 'right', color: tableSortBySector ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px', cursor: 'pointer', userSelect: 'none' }}
-                    onClick={() => setTableSortBySector(v => !v)}
-                    title={tableSortBySector ? 'לחץ לביטול מיון' : 'לחץ למיון לפי אזור'}
-                  >
-                    אזור {tableSortBySector ? '↑' : '⇅'}
-                  </th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '200px' }}>הערות</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px' }}>העבר</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableDisplayStrips.map((s, idx) => {
-                  const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
-                  const targets: any[] = Array.isArray(s.targets) ? s.targets : [];
-                  const currentNote = tableEditingNotes[s.id] !== undefined ? tableEditingNotes[s.id] : (s.notes || '');
-                  const isEven = idx % 2 === 0;
-                  const isNoteImage = currentNote.startsWith('data:image');
-                  const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
-                  const isDragOver = tableDragOverRow === s.id;
+          {tableMode && (() => {
+            const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
+            const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
+              ? activeMode.columns
+              : [
+                  { key: 'callSign', label: 'או"ק', editable: 'none' },
+                  { key: 'squadron', label: 'טייסת', editable: 'none' },
+                  { key: 'weapons', label: 'חימושים', editable: 'none' },
+                  { key: 'targets', label: "מטרות", editable: 'none' },
+                  { key: 'shkadia', label: 'שקדיה', editable: 'none' },
+                  { key: 'sector', label: 'אזור', editable: 'none' },
+                  { key: 'notes', label: 'הערות', editable: 'handwriting' },
+                  { key: 'transfer', label: 'העבר', editable: 'none' },
+                ];
+
+            const renderCell = (s: any, col: any) => {
+              const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
+              const targets: any[] = Array.isArray(s.targets) ? s.targets : [];
+              const currentNote = tableEditingNotes[s.id] !== undefined ? tableEditingNotes[s.id] : (s.notes || '');
+              const isNoteImage = currentNote.startsWith('data:image');
+              const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
+
+              switch (col.key) {
+                case 'callSign':
                   return (
-                    <tr
-                      key={s.id}
-                      draggable={!tableSortBySector}
-                      onDragStart={() => { setTableDragRow(s.id); setTableSortBySector(false); }}
-                      onDragOver={e => { e.preventDefault(); setTableDragOverRow(s.id); }}
-                      onDragLeave={() => setTableDragOverRow(null)}
-                      onDrop={() => {
-                        if (tableDragRow && tableDragRow !== s.id) {
-                          setTableRowOrder(prev => {
-                            const arr = [...prev];
-                            const fi = arr.indexOf(tableDragRow);
-                            const ti = arr.indexOf(s.id);
-                            if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableDragRow); }
-                            return arr;
-                          });
-                        }
-                        setTableDragRow(null); setTableDragOverRow(null);
-                      }}
-                      style={{
-                        background: isDragOver ? '#1d4ed8' : (isEven ? '#1e293b' : '#0f172a'),
-                        borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
-                        opacity: tableDragRow === s.id ? 0.5 : 1,
-                        transition: 'background 0.1s'
-                      }}
-                    >
-                      {/* Drag Handle */}
-                      <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: tableSortBySector ? 'not-allowed' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
-                      {/* או"ק */}
-                      <td style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                        <div>{s.callSign}</div>
-                        {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
-                      </td>
-                      {/* טייסת */}
-                      <td style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
-                        <div>{s.squadron || '—'}</div>
-                        {s.alt && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>גובה: {s.alt}</div>}
-                      </td>
-                      {/* חימושים */}
-                      <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                        {weapons.length === 0
-                          ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
-                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              {weapons.map((w: any, i: number) => (
-                                <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
-                              ))}
-                            </div>
-                        }
-                      </td>
-                      {/* מטרות */}
-                      <td style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                        {targets.length === 0
-                          ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
-                          : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                              {targets.map((t: any, i: number) => (
-                                <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
-                              ))}
-                            </div>
-                        }
-                      </td>
-                      {/* שקדיה */}
-                      <td style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>{s.shkadia || '—'}</td>
-                      {/* אזור */}
-                      <td style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
-                      {/* הערות */}
-                      <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                        {isNoteImage ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
-                            <button
-                              onClick={() => {
-                                setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
-                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
-                                setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
-                              }}
-                              style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                            >מחק</button>
+                    <td key={col.key} style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
+                      <div>{s.callSign}</div>
+                      {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
+                    </td>
+                  );
+                case 'airborne':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
+                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: '#475569', fontSize: '12px' }}>—</span>}
+                    </td>
+                  );
+                case 'squadron':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
+                      <div>{s.squadron || '—'}</div>
+                      {s.alt && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>גובה: {s.alt}</div>}
+                    </td>
+                  );
+                case 'alt':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
+                  );
+                case 'weapons':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
+                      {weapons.length === 0
+                        ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                        : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {weapons.map((w: any, i: number) => (
+                              <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                            ))}
                           </div>
-                        ) : (
-                          <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+                      }
+                    </td>
+                  );
+                case 'targets':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
+                      {targets.length === 0
+                        ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                        : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {targets.map((t: any, i: number) => (
+                              <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
+                            ))}
+                          </div>
+                      }
+                    </td>
+                  );
+                case 'shkadia':
+                  return <td key={col.key} style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>{s.shkadia || '—'}</td>;
+                case 'sector':
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
+                  );
+                case 'notes':
+                  if (col.editable === 'none') {
+                    return (
+                      <td key={col.key} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
+                        {isNoteImage ? <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px' }} /> : (currentNote || '—')}
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      {isNoteImage ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
+                          <button
+                            onClick={() => {
+                              setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
+                              fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
+                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
+                            }}
+                            style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                          >מחק</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+                          {col.editable !== 'handwriting' && (
                             <textarea
                               value={currentNote}
                               onChange={e => setTableEditingNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
@@ -3566,54 +3609,124 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                               rows={2}
                               style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0 }}
                             />
+                          )}
+                          {col.editable === 'handwriting' && (
+                            <button
+                              onClick={() => setTableHandwritingId(s.id)}
+                              title="כתב יד"
+                              style={{ padding: '4px 7px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
+                            >✏️ כתוב</button>
+                          )}
+                          {col.editable === 'keyboard' && (
                             <button
                               onClick={() => setTableHandwritingId(s.id)}
                               title="כתב יד"
                               style={{ padding: '4px 7px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
                             >✏️</button>
-                          </div>
-                        )}
-                      </td>
-                      {/* העבר */}
-                      <td style={{ padding: '8px', verticalAlign: 'top', position: 'relative' }}>
-                        <select
-                          value=""
-                          onChange={async e => {
-                            const secId = Number(e.target.value);
-                            if (secId) await handleTransfer(s.id, secId);
-                            setTableTransferOpen(null);
-                          }}
-                          style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
-                        >
-                          <option value="">בחר...</option>
-                          {allSectors.map(sec => (
-                            <option key={sec.id} value={sec.id}>{sec.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
+                          )}
+                        </div>
+                      )}
+                    </td>
                   );
-                })}
-                {myStrips.length === 0 && (
-                  <tr><td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
-                )}
-              </tbody>
-            </table>
-            {/* Handwriting modal */}
-            {tableHandwritingId && (
-              <TableHandwritingCanvas
-                existing={tableEditingNotes[tableHandwritingId] || strips.find(s => s.id === tableHandwritingId)?.notes || ''}
-                onConfirm={async (dataUrl) => {
-                  setTableEditingNotes(prev => ({ ...prev, [tableHandwritingId]: dataUrl }));
-                  await fetch(`${API_URL}/strips/${tableHandwritingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: dataUrl }) });
-                  setStrips(prev => prev.map(st => st.id === tableHandwritingId ? { ...st, notes: dataUrl } : st));
-                  setTableHandwritingId(null);
-                }}
-                onCancel={() => setTableHandwritingId(null)}
-              />
-            )}
-            </>
-          )}
+                case 'transfer':
+                  return (
+                    <td key={col.key} style={{ padding: '8px', verticalAlign: 'top', position: 'relative' }}>
+                      <select
+                        value=""
+                        onChange={async e => {
+                          const secId = Number(e.target.value);
+                          if (secId) await handleTransfer(s.id, secId);
+                          setTableTransferOpen(null);
+                        }}
+                        style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
+                      >
+                        <option value="">בחר...</option>
+                        {allSectors.map(sec => (
+                          <option key={sec.id} value={sec.id}>{sec.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                  );
+                default:
+                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>—</td>;
+              }
+            };
+
+            return (
+              <>
+              <table
+                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
+                onDragOver={e => e.preventDefault()}
+              >
+                <thead>
+                  <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
+                    <th style={{ padding: '8px 6px', width: '28px', color: '#475569', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
+                    {columns.map(col => (
+                      col.key === 'sector'
+                        ? <th key={col.key}
+                            style={{ padding: '10px 12px', textAlign: 'right', color: tableSortBySector ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px', cursor: 'pointer', userSelect: 'none' }}
+                            onClick={() => setTableSortBySector(v => !v)}
+                            title={tableSortBySector ? 'לחץ לביטול מיון' : 'לחץ למיון לפי אזור'}
+                          >{col.label} {tableSortBySector ? '↑' : '⇅'}</th>
+                        : <th key={col.key} style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>{col.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableDisplayStrips.map((s, idx) => {
+                    const isEven = idx % 2 === 0;
+                    const isDragOver = tableDragOverRow === s.id;
+                    return (
+                      <tr
+                        key={s.id}
+                        draggable={!tableSortBySector}
+                        onDragStart={() => { setTableDragRow(s.id); setTableSortBySector(false); }}
+                        onDragOver={e => { e.preventDefault(); setTableDragOverRow(s.id); }}
+                        onDragLeave={() => setTableDragOverRow(null)}
+                        onDrop={() => {
+                          if (tableDragRow && tableDragRow !== s.id) {
+                            setTableRowOrder(prev => {
+                              const arr = [...prev];
+                              const fi = arr.indexOf(tableDragRow);
+                              const ti = arr.indexOf(s.id);
+                              if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableDragRow); }
+                              return arr;
+                            });
+                          }
+                          setTableDragRow(null); setTableDragOverRow(null);
+                        }}
+                        style={{
+                          background: isDragOver ? '#1d4ed8' : (isEven ? '#1e293b' : '#0f172a'),
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
+                          opacity: tableDragRow === s.id ? 0.5 : 1,
+                          transition: 'background 0.1s'
+                        }}
+                      >
+                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: tableSortBySector ? 'not-allowed' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
+                        {columns.map(col => renderCell(s, col))}
+                      </tr>
+                    );
+                  })}
+                  {myStrips.length === 0 && (
+                    <tr><td colSpan={columns.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
+                  )}
+                </tbody>
+              </table>
+              {tableHandwritingId && (
+                <TableHandwritingCanvas
+                  existing={tableEditingNotes[tableHandwritingId] || strips.find(s => s.id === tableHandwritingId)?.notes || ''}
+                  onConfirm={async (dataUrl) => {
+                    setTableEditingNotes(prev => ({ ...prev, [tableHandwritingId]: dataUrl }));
+                    await fetch(`${API_URL}/strips/${tableHandwritingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: dataUrl }) });
+                    setStrips(prev => prev.map(st => st.id === tableHandwritingId ? { ...st, notes: dataUrl } : st));
+                    setTableHandwritingId(null);
+                  }}
+                  onCancel={() => setTableHandwritingId(null)}
+                />
+              )}
+              </>
+            );
+          })()}
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
@@ -4304,14 +4417,231 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
+// --- הגדרת שדות פמם ---
+const STRIP_FIELD_DEFS = [
+  { key: 'callSign',  label: 'או"ק',          editableOptions: ['none'] as string[] },
+  { key: 'airborne',  label: 'מאוויר',         editableOptions: ['none'] as string[] },
+  { key: 'squadron',  label: 'טייסת',          editableOptions: ['none', 'keyboard'] },
+  { key: 'alt',       label: 'גובה',           editableOptions: ['none', 'keyboard'] },
+  { key: 'weapons',   label: 'חימושים',        editableOptions: ['none'] as string[] },
+  { key: 'targets',   label: "מטרות",          editableOptions: ['none'] as string[] },
+  { key: 'shkadia',   label: 'שקדיה',          editableOptions: ['none', 'keyboard'] },
+  { key: 'notes',     label: 'הערות',          editableOptions: ['none', 'keyboard', 'handwriting'] },
+  { key: 'sector',    label: 'אזור',           editableOptions: ['none'] as string[] },
+  { key: 'transfer',  label: 'העבר',           editableOptions: ['none'] as string[] },
+];
+
+const EDITABLE_LABELS: Record<string, string> = { none: 'צפייה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד' };
+
+// --- ניהול מודי טבלה ---
+const TableModesManager = () => {
+  const [modes, setModes] = useState<any[]>([]);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [form, setForm] = useState({ name: '', columns: [] as any[] });
+  const [dragColIdx, setDragColIdx] = useState<number | null>(null);
+  const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
+
+  const loadModes = async () => {
+    const res = await fetch(`${API_URL}/table-modes`);
+    if (res.ok) setModes(await res.json());
+  };
+
+  useEffect(() => { loadModes(); }, []);
+
+  const startNew = () => {
+    setEditing(null);
+    setForm({ name: '', columns: [] });
+  };
+
+  const startEdit = (mode: any) => {
+    setEditing(mode);
+    setForm({ name: mode.name, columns: mode.columns ? [...mode.columns] : [] });
+  };
+
+  const addColumn = () => {
+    setForm(f => ({
+      ...f,
+      columns: [...f.columns, { id: Date.now().toString(), field: 'callSign', label: 'או"ק', editable: 'none' }]
+    }));
+  };
+
+  const updateCol = (idx: number, changes: any) => {
+    setForm(f => {
+      const cols = [...f.columns];
+      cols[idx] = { ...cols[idx], ...changes };
+      return { ...f, columns: cols };
+    });
+  };
+
+  const removeCol = (idx: number) => {
+    setForm(f => ({ ...f, columns: f.columns.filter((_, i) => i !== idx) }));
+  };
+
+  const handleColDrop = (targetIdx: number) => {
+    if (dragColIdx === null || dragColIdx === targetIdx) return;
+    setForm(f => {
+      const cols = [...f.columns];
+      const [moved] = cols.splice(dragColIdx, 1);
+      cols.splice(targetIdx, 0, moved);
+      return { ...f, columns: cols };
+    });
+    setDragColIdx(null);
+    setDragOverColIdx(null);
+  };
+
+  const save = async () => {
+    if (!form.name.trim()) return;
+    const method = editing ? 'PUT' : 'POST';
+    const url = editing ? `${API_URL}/table-modes/${editing.id}` : `${API_URL}/table-modes`;
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    setEditing(null);
+    setForm({ name: '', columns: [] });
+    loadModes();
+  };
+
+  const deleteMode = async (id: number) => {
+    if (!confirm('למחוק מוד טבלה זה?')) return;
+    await fetch(`${API_URL}/table-modes/${id}`, { method: 'DELETE' });
+    loadModes();
+  };
+
+  const fieldDef = (key: string) => STRIP_FIELD_DEFS.find(f => f.key === key);
+
+  return (
+    <div>
+      <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>מודי טבלה</h2>
+
+      {/* Form */}
+      <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '24px' }}>
+        <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#94a3b8' }}>{editing ? `עריכה: ${editing.name}` : 'מוד חדש'}</h3>
+        <input
+          value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="שם המוד (לדוגמה: טבלה מפורטת)"
+          style={{ width: '100%', padding: '10px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '16px', direction: 'rtl' }}
+        />
+
+        {/* Columns */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ color: '#94a3b8', fontSize: '14px' }}>עמודות (גרור לשינוי סדר):</span>
+            <button onClick={addColumn} style={{ padding: '6px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>+ הוסף עמודה</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {form.columns.map((col, idx) => {
+              const def = fieldDef(col.field);
+              const isDragOver = dragOverColIdx === idx;
+              return (
+                <div
+                  key={col.id}
+                  draggable
+                  onDragStart={() => setDragColIdx(idx)}
+                  onDragOver={e => { e.preventDefault(); setDragOverColIdx(idx); }}
+                  onDragLeave={() => setDragOverColIdx(null)}
+                  onDrop={() => handleColDrop(idx)}
+                  onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: isDragOver ? '#1d4ed8' : '#1e293b',
+                    border: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
+                    borderRadius: '6px', padding: '8px 10px',
+                    opacity: dragColIdx === idx ? 0.5 : 1, cursor: 'grab', transition: 'background 0.1s'
+                  }}
+                >
+                  <span style={{ color: '#475569', fontSize: '16px', flexShrink: 0 }}>⠿</span>
+                  {/* Field selector */}
+                  <select
+                    value={col.field}
+                    onChange={e => {
+                      const newDef = fieldDef(e.target.value);
+                      updateCol(idx, {
+                        field: e.target.value,
+                        label: newDef?.label || e.target.value,
+                        editable: newDef?.editableOptions[0] || 'none'
+                      });
+                    }}
+                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
+                  >
+                    {STRIP_FIELD_DEFS.map(f => (
+                      <option key={f.key} value={f.key}>{f.label}</option>
+                    ))}
+                  </select>
+                  {/* Custom label */}
+                  <input
+                    value={col.label}
+                    onChange={e => updateCol(idx, { label: e.target.value })}
+                    placeholder="כותרת עמודה"
+                    style={{ flex: 1, background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
+                  />
+                  {/* Editable mode */}
+                  <select
+                    value={col.editable}
+                    onChange={e => updateCol(idx, { editable: e.target.value })}
+                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
+                  >
+                    {(def?.editableOptions || ['none']).map(opt => (
+                      <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => removeCol(idx)} style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✕</button>
+                </div>
+              );
+            })}
+            {form.columns.length === 0 && (
+              <div style={{ color: '#475569', textAlign: 'center', padding: '20px', background: '#1e293b', borderRadius: '6px', fontSize: '13px' }}>
+                לחץ "+ הוסף עמודה" כדי להוסיף עמודות לטבלה
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+          <button onClick={save} disabled={!form.name.trim()} style={{ padding: '10px 24px', background: form.name.trim() ? '#059669' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}>
+            {editing ? 'עדכון' : 'שמירה'}
+          </button>
+          {editing && (
+            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [] }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+              ביטול
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Modes list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {modes.map(mode => (
+          <div key={mode.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <strong style={{ fontSize: '16px' }}>{mode.name}</strong>
+                <span style={{ color: '#64748b', fontSize: '13px', marginRight: '12px' }}>
+                  {mode.columns?.length || 0} עמודות: {(mode.columns || []).map((c: any) => c.label).join(' | ')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => startEdit(mode)} style={{ padding: '6px 14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                <button onClick={() => deleteMode(mode.id)} style={{ padding: '6px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {modes.length === 0 && (
+          <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>אין מודי טבלה. צור מוד חדש למעלה.</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes'>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
+  const [tableModes, setTableModes] = useState<any[]>([]);
   
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
@@ -4326,21 +4656,24 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [presetForm, setPresetForm] = useState({
     name: '',
     map_id: '',
-    relevant_sectors: [] as number[]
+    relevant_sectors: [] as number[],
+    table_mode_id: '' as string | number
   });
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/crew-members`)
+        fetch(`${API_URL}/crew-members`),
+        fetch(`${API_URL}/table-modes`)
       ]);
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
       if (crewRes.ok) setCrewMembers(await crewRes.json());
+      if (tableModesRes.ok) setTableModes(await tableModesRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -4454,12 +4787,13 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: presetForm.name,
-          map_id: presetForm.map_id ? parseInt(presetForm.map_id) : null,
-          relevant_sectors: presetForm.relevant_sectors
+          map_id: presetForm.map_id ? parseInt(presetForm.map_id as string) : null,
+          relevant_sectors: presetForm.relevant_sectors,
+          table_mode_id: presetForm.table_mode_id ? Number(presetForm.table_mode_id) : null
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [] });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '' });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -4471,7 +4805,8 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     setPresetForm({
       name: preset.name,
       map_id: preset.map_id?.toString() || '',
-      relevant_sectors: preset.relevant_sectors || []
+      relevant_sectors: preset.relevant_sectors || [],
+      table_mode_id: preset.table_mode_id || ''
     });
   };
 
@@ -4521,6 +4856,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
         <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
         <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>
+        <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
@@ -4563,6 +4899,20 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                     </select>
                   </div>
                 </div>
+
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מוד טבלה ברירת מחדל:</label>
+                  <select
+                    value={presetForm.table_mode_id}
+                    onChange={(e) => setPresetForm(p => ({ ...p, table_mode_id: e.target.value }))}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px' }}
+                  >
+                    <option value="">ללא מוד טבלה</option>
+                    {tableModes.map(tm => (
+                      <option key={tm.id} value={tm.id}>{tm.name}</option>
+                    ))}
+                  </select>
+                </div>
                 
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
@@ -4604,7 +4954,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [] }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '' }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
@@ -4627,6 +4977,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                         <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
                           מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
                           {relevantSectorNames && ` | נקודות העברה: ${relevantSectorNames}`}
+                          {preset.table_mode_id && ` | טבלה: ${tableModes.find(tm => tm.id === preset.table_mode_id)?.name || '#' + preset.table_mode_id}`}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
@@ -5056,6 +5407,10 @@ VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
               </div>
             </div>
           )}
+
+          {/* Table Modes Tab */}
+          {activeTab === 'table_modes' && <TableModesManager />}
+
         </div>
       </div>
     </div>
