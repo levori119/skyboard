@@ -2786,6 +2786,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
   const notepadDrawingRef = useRef(false);
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
+  const notepadSavedImageRef = useRef<string | null>(null);
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -3066,6 +3067,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       return next;
     });
   }, [incomingTransfers, outgoingTransfers, allSectors]);
+
+  // Restore canvas drawing after size or mode changes clear its pixels
+  useEffect(() => {
+    const saved = notepadSavedImageRef.current;
+    if (!saved) return;
+    const canvas = notepadCanvasRef.current;
+    if (!canvas) return;
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.drawImage(img, 0, 0);
+    };
+    img.src = saved;
+  }, [notepadSize, notepadMode]);
 
   const handleAcceptTransfer = async (transferId: string) => {
     try {
@@ -4113,7 +4128,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 {(['keyboard', 'handwriting', 'both'] as const).map(m => (
                   <button
                     key={m}
-                    onClick={() => setNotepadMode(m)}
+                    onClick={() => {
+                      // Save canvas before mode switch because height attribute will change
+                      const canvas = notepadCanvasRef.current;
+                      if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
+                      setNotepadMode(m);
+                    }}
                     style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: notepadMode === m ? '#3b82f6' : '#334155', color: 'white' }}
                   >
                     {m === 'keyboard' ? '⌨' : m === 'handwriting' ? '✍' : '⌨+✍'}
@@ -4130,79 +4150,78 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
 
             {/* Content area */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {/* Text area — visible in keyboard mode (full) or both mode (top half) */}
-              {(notepadMode === 'keyboard' || notepadMode === 'both') && (
-                <textarea
-                  value={notepadText}
-                  onChange={e => setNotepadText(e.target.value)}
-                  placeholder="הקלד טקסט חופשי כאן..."
-                  style={{
-                    flex: notepadMode === 'both' ? '0 0 45%' : 1,
-                    width: '100%',
-                    border: 'none',
-                    borderBottom: notepadMode === 'both' ? '1px solid #e2e8f0' : 'none',
-                    outline: 'none',
-                    resize: 'none',
-                    fontSize: '14px',
-                    padding: '10px',
-                    direction: 'rtl',
-                    fontFamily: 'inherit',
-                    background: 'white',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              )}
-              {/* Handwriting canvas — visible in handwriting mode (full) or both mode (bottom half) */}
-              {(notepadMode === 'handwriting' || notepadMode === 'both') && (
-                <canvas
-                  ref={notepadCanvasRef}
-                  width={notepadSize.w - 4}
-                  height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
-                  style={{
-                    flex: 1,
-                    width: '100%',
-                    display: 'block',
-                    cursor: 'crosshair',
-                    touchAction: 'none'
-                  }}
-                  onPointerDown={(e) => {
-                    notepadDrawingRef.current = true;
-                    const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-                    notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
-                  }}
-                  onPointerMove={(e) => {
-                    if (!notepadDrawingRef.current || !notepadLastRef.current) return;
-                    const canvas = notepadCanvasRef.current;
-                    if (!canvas) return;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) return;
-                    const rect = canvas.getBoundingClientRect();
-                    const scaleX = canvas.width / rect.width;
-                    const scaleY = canvas.height / rect.height;
-                    const x = (e.clientX - rect.left) * scaleX;
-                    const y = (e.clientY - rect.top) * scaleY;
-                    ctx.strokeStyle = '#1e293b';
-                    ctx.lineWidth = 2;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    ctx.beginPath();
-                    ctx.moveTo(notepadLastRef.current.x * scaleX, notepadLastRef.current.y * scaleY);
-                    ctx.lineTo(x, y);
-                    ctx.stroke();
-                    notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                  }}
-                  onPointerUp={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                  onPointerLeave={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                />
-              )}
+              {/* Text area — visible in keyboard/both mode; always mounted so text is preserved */}
+              <textarea
+                value={notepadText}
+                onChange={e => setNotepadText(e.target.value)}
+                placeholder="הקלד טקסט חופשי כאן..."
+                style={{
+                  flex: notepadMode === 'both' ? '0 0 45%' : 1,
+                  width: '100%',
+                  border: 'none',
+                  borderBottom: notepadMode === 'both' ? '1px solid #e2e8f0' : 'none',
+                  outline: 'none',
+                  resize: 'none',
+                  fontSize: '14px',
+                  padding: '10px',
+                  direction: 'rtl',
+                  fontFamily: 'inherit',
+                  background: 'white',
+                  boxSizing: 'border-box',
+                  display: notepadMode === 'handwriting' ? 'none' : undefined
+                }}
+              />
+              {/* Handwriting canvas — always in DOM so content is never lost on mode switch */}
+              <canvas
+                ref={notepadCanvasRef}
+                width={notepadSize.w - 4}
+                height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  display: notepadMode === 'keyboard' ? 'none' : 'block',
+                  cursor: 'crosshair',
+                  touchAction: 'none'
+                }}
+                onPointerDown={(e) => {
+                  notepadDrawingRef.current = true;
+                  const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                  (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+                }}
+                onPointerMove={(e) => {
+                  if (!notepadDrawingRef.current || !notepadLastRef.current) return;
+                  const canvas = notepadCanvasRef.current;
+                  if (!canvas) return;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  const rect = canvas.getBoundingClientRect();
+                  const scaleX = canvas.width / rect.width;
+                  const scaleY = canvas.height / rect.height;
+                  const x = (e.clientX - rect.left) * scaleX;
+                  const y = (e.clientY - rect.top) * scaleY;
+                  ctx.strokeStyle = '#1e293b';
+                  ctx.lineWidth = 2;
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
+                  ctx.beginPath();
+                  ctx.moveTo(notepadLastRef.current.x * scaleX, notepadLastRef.current.y * scaleY);
+                  ctx.lineTo(x, y);
+                  ctx.stroke();
+                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                }}
+                onPointerUp={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                onPointerLeave={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+              />
             </div>
 
-            {/* Bottom bar: clear button + custom resize handle */}
-            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, position: 'relative' }}>
+            {/* Bottom bar: clear button bottom-left, resize handle bottom-right (LTR layout) */}
+            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', direction: 'ltr', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              {/* Clear button — bottom-left (first in LTR) */}
               <button
                 onClick={() => {
                   setNotepadText('');
+                  notepadSavedImageRef.current = null;
                   const canvas = notepadCanvasRef.current;
                   if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
                 }}
@@ -4210,7 +4229,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               >
                 נקה
               </button>
-              {/* Custom resize handle — bottom-left corner (trailing edge in RTL) */}
+              {/* Resize handle — bottom-right (last in LTR) */}
               <div
                 title="גרור לשינוי גודל"
                 style={{
@@ -4221,19 +4240,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
+                  // Save canvas image before resize clears it
+                  const canvas = notepadCanvasRef.current;
+                  if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
                   const startX = e.clientX;
                   const startY = e.clientY;
                   const origW = notepadSize.w;
                   const origH = notepadSize.h;
-                  const origX = notepadPos.x;
                   const onMove = (me: MouseEvent) => {
                     const dx = me.clientX - startX;
                     const dy = me.clientY - startY;
-                    // Resizing from bottom-left: width grows left (dx negative = wider), position shifts
-                    const newW = Math.max(200, origW - dx);
-                    const newH = Math.max(160, origH + dy);
-                    setNotepadSize({ w: newW, h: newH });
-                    setNotepadPos(p => ({ ...p, x: origX + (origW - newW) }));
+                    setNotepadSize({
+                      w: Math.max(200, origW + dx),
+                      h: Math.max(160, origH + dy)
+                    });
                   };
                   const onUp = () => {
                     window.removeEventListener('mousemove', onMove);
