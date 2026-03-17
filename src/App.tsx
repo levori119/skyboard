@@ -171,14 +171,25 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
   };
 
   return (
-    <div style={{ 
+    <div className="bt-login-bg" style={{ 
       height: '100vh', 
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center', 
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-      direction: 'rtl'
+      direction: 'rtl',
+      position: 'relative'
     }}>
+      {/* Light/dark toggle — top left corner on login */}
+      <button
+        onClick={() => {
+          const next = !document.body.classList.contains('light-mode');
+          document.body.classList.toggle('light-mode', next);
+          localStorage.setItem('bt-lightMode', String(next));
+        }}
+        style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '18px', lineHeight: 1, color: 'white' }}
+        title="החלף מצב תצוגה"
+      >☀️ / 🌙</button>
       <div style={{ 
         background: 'white', 
         padding: '40px', 
@@ -2397,7 +2408,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} style={style} onContextMenu={handleContextMenu}>
+    <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
       <div 
         onPointerDown={handlePointerDown}
         style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none' }}
@@ -2765,6 +2776,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
+  const [lightMode, setLightMode] = useState(() => localStorage.getItem('bt-lightMode') === 'true');
+
+  useEffect(() => {
+    document.body.classList.toggle('light-mode', lightMode);
+    localStorage.setItem('bt-lightMode', String(lightMode));
+  }, [lightMode]);
+
   const [tableMode, setTableMode] = useState(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
@@ -3429,6 +3447,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               ))}
             </select>
           )}
+          <button
+            onClick={() => setLightMode(v => !v)}
+            title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
+            style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
+          >{lightMode ? '🌙' : '☀️'}</button>
           <button onClick={() => setShowNotepad(v => !v)} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
           </button>
@@ -5949,6 +5972,12 @@ VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
   const [page, setPage] = useState<'login' | 'dashboard' | 'management' | 'distribution'>('login');
+
+  // Apply stored light/dark preference immediately on app load
+  useEffect(() => {
+    const stored = localStorage.getItem('bt-lightMode') === 'true';
+    document.body.classList.toggle('light-mode', stored);
+  }, []);
 
   const handleLogin = (newSession: WorkstationSession) => {
     setSession(newSession);

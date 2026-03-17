@@ -71,3 +71,110 @@ body {
   color: #64748b;
   font-size: 12px;
 }
+
+/* =====================================================
+   מצב בהיר (LIGHT MODE)
+   ===================================================== */
+
+body.light-mode {
+  background-color: #f0f4f8 !important;
+  color: #0f172a !important;
+}
+
+/* Header */
+body.light-mode header {
+  background: #dde5ef !important;
+  color: #0f172a !important;
+  border-bottom: 1px solid #94a3b8 !important;
+}
+body.light-mode header b,
+body.light-mode header span:not([style*="background:"]) {
+  color: #0f172a !important;
+}
+
+/* Left neighbor panel */
+body.light-mode #neighbor-panel {
+  background: #e4ecf4 !important;
+  color: #0f172a !important;
+  border-right: 1px solid #94a3b8 !important;
+}
+body.light-mode #neighbor-panel > * {
+  color: #0f172a !important;
+}
+
+/* Map / table area */
+body.light-mode #map-area {
+  background: #d8e4ee !important;
+}
+
+/* Table mode */
+body.light-mode #map-area table {
+  background: transparent !important;
+}
+body.light-mode #map-area table thead tr {
+  background: #c9d7e4 !important;
+}
+body.light-mode #map-area table thead th {
+  color: #1e293b !important;
+  border-bottom-color: #94a3b8 !important;
+}
+body.light-mode #map-area table thead th button {
+  color: #475569 !important;
+}
+body.light-mode #map-area table tbody tr {
+  background: #edf2f7 !important;
+  border-bottom-color: #c5d0da !important;
+}
+body.light-mode #map-area table tbody tr:nth-child(even) {
+  background: #dde8f0 !important;
+}
+body.light-mode #map-area table tbody td {
+  color: #0f172a !important;
+}
+/* Table group header rows */
+body.light-mode #map-area table tbody tr[style*="background: rgb(19, 31, 53)"],
+body.light-mode #map-area table tbody tr[style*="background: rgb(29, 78, 216)"] {
+  background: #c4d4e4 !important;
+}
+
+/* Right sidebar panel */
+body.light-mode #sidebar-area {
+  background: #e4ecf4 !important;
+  border-left-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+body.light-mode #sidebar-area > * {
+  color: #0f172a !important;
+}
+
+/* Strip cards (bt-strip) */
+body.light-mode .bt-strip {
+  background: #f1f7fc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+body.light-mode .bt-strip > div:first-child {
+  background: #d0dbe6 !important;
+  color: #334155 !important;
+}
+body.light-mode .bt-strip * {
+  color: #0f172a !important;
+}
+/* Keep accent colors */
+body.light-mode .bt-strip [style*="color: #7c3aed"],
+body.light-mode .bt-strip [style*="color: rgb(124, 58, 237)"] {
+  color: #7c3aed !important;
+}
+body.light-mode .bt-strip [style*="color: #22c55e"],
+body.light-mode .bt-strip [style*="color: rgb(34, 197, 94)"] {
+  color: #15803d !important;
+}
+body.light-mode .bt-strip [style*="background: #f1f5f9"] {
+  background: #e0eaf3 !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Login screen background */
+body.light-mode .bt-login-bg {
+  background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
+}
