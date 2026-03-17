@@ -2776,6 +2776,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [availableTableModes, setAvailableTableModes] = useState<any[]>([]);
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
 
+  // Floating notepad
+  const [showNotepad, setShowNotepad] = useState(false);
+  const [notepadPos, setNotepadPos] = useState({ x: 220, y: 60 });
+  const [notepadSize, setNotepadSize] = useState({ w: 320, h: 240 });
+  const [notepadText, setNotepadText] = useState('');
+  const [notepadMode, setNotepadMode] = useState<'keyboard' | 'handwriting' | 'both'>('keyboard');
+  const notepadDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
+  const notepadDrawingRef = useRef(false);
+  const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
+
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
 
@@ -3325,6 +3336,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               ))}
             </select>
           )}
+          <button onClick={() => setShowNotepad(v => !v)} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
+            📄 פתקית
+          </button>
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             למד כתב יד
           </button>
@@ -3468,7 +3482,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
       )}
 
-      <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
         {/* Sector Panels - Far Left */}
         <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
           <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
@@ -4035,6 +4049,166 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </>
           )}
         </div>
+
+        {/* Floating Notepad */}
+        {showNotepad && (
+          <div
+            style={{
+              position: 'absolute',
+              left: notepadPos.x,
+              top: notepadPos.y,
+              width: notepadSize.w,
+              height: notepadSize.h,
+              background: 'white',
+              border: '2px solid #94a3b8',
+              borderRadius: '8px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              zIndex: 6000,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              direction: 'rtl',
+              resize: 'both',
+              minWidth: 200,
+              minHeight: 160
+            }}
+            onMouseUp={(e) => {
+              const el = e.currentTarget as HTMLDivElement;
+              setNotepadSize({ w: el.offsetWidth, h: el.offsetHeight });
+            }}
+          >
+            {/* Title bar - drag handle */}
+            <div
+              style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                notepadDragRef.current = { startX: e.clientX, startY: e.clientY, origX: notepadPos.x, origY: notepadPos.y };
+                const onMove = (me: MouseEvent) => {
+                  if (!notepadDragRef.current) return;
+                  setNotepadPos({
+                    x: notepadDragRef.current.origX + me.clientX - notepadDragRef.current.startX,
+                    y: notepadDragRef.current.origY + me.clientY - notepadDragRef.current.startY
+                  });
+                };
+                const onUp = () => {
+                  notepadDragRef.current = null;
+                  window.removeEventListener('mousemove', onMove);
+                  window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              }}
+            >
+              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>📄 פתקית</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {(['keyboard', 'handwriting', 'both'] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setNotepadMode(m)}
+                    style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: notepadMode === m ? '#3b82f6' : '#334155', color: 'white' }}
+                  >
+                    {m === 'keyboard' ? '⌨' : m === 'handwriting' ? '✍' : '⌨+✍'}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setShowNotepad(false)}
+                  style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginRight: '4px' }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Content area */}
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+              {/* Text area — always visible in keyboard/both mode */}
+              {(notepadMode === 'keyboard' || notepadMode === 'both') && (
+                <textarea
+                  value={notepadText}
+                  onChange={e => setNotepadText(e.target.value)}
+                  placeholder="הקלד טקסט חופשי כאן..."
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    outline: 'none',
+                    resize: 'none',
+                    fontSize: '14px',
+                    padding: '10px',
+                    direction: 'rtl',
+                    fontFamily: 'inherit',
+                    background: notepadMode === 'both' ? 'rgba(255,255,255,0.85)' : 'white',
+                    zIndex: notepadMode === 'both' ? 2 : 1,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              )}
+              {/* Handwriting canvas */}
+              {(notepadMode === 'handwriting' || notepadMode === 'both') && (
+                <canvas
+                  ref={notepadCanvasRef}
+                  width={notepadSize.w - 4}
+                  height={notepadSize.h - 44}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'crosshair',
+                    zIndex: 1,
+                    touchAction: 'none'
+                  }}
+                  onPointerDown={(e) => {
+                    notepadDrawingRef.current = true;
+                    const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+                    notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
+                  }}
+                  onPointerMove={(e) => {
+                    if (!notepadDrawingRef.current || !notepadLastRef.current) return;
+                    const canvas = notepadCanvasRef.current;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+                    const x = (e.clientX - rect.left) * scaleX;
+                    const y = (e.clientY - rect.top) * scaleY;
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 2;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(notepadLastRef.current.x * scaleX, notepadLastRef.current.y * scaleY);
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                  }}
+                  onPointerUp={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                  onPointerLeave={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                />
+              )}
+            </div>
+
+            {/* Bottom bar: clear button + resize hint */}
+            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <button
+                onClick={() => {
+                  setNotepadText('');
+                  const canvas = notepadCanvasRef.current;
+                  if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+                }}
+                style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
+              >
+                נקה
+              </button>
+              <span style={{ fontSize: '9px', color: '#94a3b8' }}>↔ גרור לשינוי גודל</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Strip Selection Modal */}
