@@ -2775,6 +2775,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
   const [availableTableModes, setAvailableTableModes] = useState<any[]>([]);
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
+  const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
+  const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
+  const [tableSortKey, setTableSortKey] = useState<string | null>(null);
+  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc');
+  const [tableHeaderMenuKey, setTableHeaderMenuKey] = useState<string | null>(null);
+  const [tableGroupDragKey, setTableGroupDragKey] = useState<string | null>(null);
+  const [tableGroupDragOverKey, setTableGroupDragOverKey] = useState<string | null>(null);
 
   // Floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
@@ -2821,6 +2828,63 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     const ordered = tableRowOrder.map(id => myStrips.find(s => s.id === id)).filter(Boolean) as any[];
     const extra = myStrips.filter(s => !tableRowOrder.includes(s.id));
     return [...ordered, ...extra];
+  })();
+
+  const getStripFieldValue = (s: any, colKey: string): string => {
+    const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
+    switch (colKey) {
+      case 'callSign': return s.callSign || '—';
+      case 'squadron': return s.squadron || '—';
+      case 'sector': return sectorName;
+      case 'shkadia': return s.shkadia || '—';
+      case 'alt': return String(s.alt || '—');
+      case 'weapons': return (Array.isArray(s.weapons) ? s.weapons : []).map((w: any) => w.type).join(', ') || '—';
+      case 'targets': return (Array.isArray(s.targets) ? s.targets : []).map((t: any) => t.name).join(', ') || '—';
+      default: {
+        const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
+        return cf[colKey] || '—';
+      }
+    }
+  };
+
+  const tableDisplayItems: any[] = (() => {
+    if (!tableGroupByKey) {
+      if (tableSortKey) {
+        return [...myStrips].sort((a, b) => {
+          const av = getStripFieldValue(a, tableSortKey);
+          const bv = getStripFieldValue(b, tableSortKey);
+          const cmp = av.localeCompare(bv, 'he');
+          return tableSortDir === 'asc' ? cmp : -cmp;
+        });
+      }
+      return tableDisplayStrips;
+    }
+    const grouped: Record<string, any[]> = {};
+    myStrips.forEach(s => {
+      const val = getStripFieldValue(s, tableGroupByKey);
+      if (!grouped[val]) grouped[val] = [];
+      grouped[val].push(s);
+    });
+    const allKeys = Object.keys(grouped);
+    const orderedKeys = [
+      ...tableGroupOrder.filter(k => grouped[k]),
+      ...allKeys.filter(k => !tableGroupOrder.includes(k))
+    ];
+    const items: any[] = [];
+    orderedKeys.forEach(gk => {
+      items.push({ _type: 'groupHeader', groupKey: gk, count: grouped[gk].length });
+      let grpStrips = grouped[gk];
+      if (tableSortKey) {
+        grpStrips = [...grpStrips].sort((a, b) => {
+          const av = getStripFieldValue(a, tableSortKey);
+          const bv = getStripFieldValue(b, tableSortKey);
+          const cmp = av.localeCompare(bv, 'he');
+          return tableSortDir === 'asc' ? cmp : -cmp;
+        });
+      }
+      grpStrips.forEach(s => items.push({ ...s, _type: 'strip' }));
+    });
+    return items;
   })();
 
   const loadCrewMembers = async () => {
@@ -3742,29 +3806,114 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               <table
                 style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
                 onDragOver={e => e.preventDefault()}
+                onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
                 <thead>
                   <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
                     <th style={{ padding: '8px 6px', width: '28px', color: '#475569', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
-                    {columns.map(col => (
-                      col.key === 'sector'
-                        ? <th key={col.key}
-                            style={{ padding: '10px 12px', textAlign: 'right', color: tableSortBySector ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', minWidth: '90px', cursor: 'pointer', userSelect: 'none' }}
-                            onClick={() => setTableSortBySector(v => !v)}
-                            title={tableSortBySector ? 'לחץ לביטול מיון' : 'לחץ למיון לפי אזור'}
-                          >{col.label} {tableSortBySector ? '↑' : '⇅'}</th>
-                        : <th key={col.key} style={{ padding: '10px 12px', textAlign: 'right', color: '#94a3b8', borderBottom: '2px solid #334155' }}>{col.label}</th>
-                    ))}
+                    {columns.map(col => {
+                      const colKey = col.key || col.field || '';
+                      const isGrouped = tableGroupByKey === colKey;
+                      const isSorted = tableSortKey === colKey;
+                      const isMenuOpen = tableHeaderMenuKey === colKey;
+                      return (
+                        <th key={colKey} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'relative', minWidth: '80px', userSelect: 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                            <span>{col.label}</span>
+                            {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
+                            {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
+                            <button
+                              onClick={e => { e.stopPropagation(); setTableHeaderMenuKey(prev => prev === colKey ? null : colKey); }}
+                              style={{ background: isMenuOpen ? '#334155' : 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
+                            >▾</button>
+                          </div>
+                          {isMenuOpen && (
+                            <div
+                              onClick={e => e.stopPropagation()}
+                              style={{ position: 'absolute', top: '100%', right: 0, background: '#0f2444', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', padding: '4px', direction: 'rtl' }}
+                            >
+                              <button
+                                onClick={() => {
+                                  if (isGrouped) {
+                                    setTableGroupByKey(null);
+                                    setTableGroupOrder([]);
+                                  } else {
+                                    const vals = [...new Set(myStrips.map(s => getStripFieldValue(s, colKey)))];
+                                    setTableGroupByKey(colKey);
+                                    setTableGroupOrder(vals);
+                                  }
+                                  setTableHeaderMenuKey(null);
+                                }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? '#2d1b69' : 'transparent', color: isGrouped ? '#c4b5fd' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                              >{isGrouped ? '✕ הסר קיבוץ' : '⊞ קבץ לפי'}</button>
+                              <button
+                                onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? '#1e3a5f' : 'transparent', color: '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                              >↑ מיין עולה</button>
+                              <button
+                                onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? '#1e3a5f' : 'transparent', color: '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                              >↓ מיין יורד</button>
+                              {isSorted && (
+                                <button
+                                  onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#64748b', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                >✕ הסר מיון</button>
+                              )}
+                            </div>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {tableDisplayStrips.map((s, idx) => {
+                  {tableDisplayItems.map((item, idx) => {
+                    if (item._type === 'groupHeader') {
+                      const isDragOverGroup = tableGroupDragOverKey === item.groupKey;
+                      return (
+                        <tr
+                          key={'group_' + item.groupKey}
+                          draggable
+                          onDragStart={e => { e.stopPropagation(); setTableGroupDragKey(item.groupKey); }}
+                          onDragOver={e => { e.preventDefault(); e.stopPropagation(); setTableGroupDragOverKey(item.groupKey); }}
+                          onDragLeave={() => setTableGroupDragOverKey(null)}
+                          onDrop={e => {
+                            e.stopPropagation();
+                            if (tableGroupDragKey && tableGroupDragKey !== item.groupKey) {
+                              setTableGroupOrder(prev => {
+                                const arr = [...prev];
+                                const fi = arr.indexOf(tableGroupDragKey);
+                                const ti = arr.indexOf(item.groupKey);
+                                if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableGroupDragKey); }
+                                return arr;
+                              });
+                            }
+                            setTableGroupDragKey(null); setTableGroupDragOverKey(null);
+                          }}
+                          style={{
+                            background: isDragOverGroup ? '#1d4ed8' : '#131f35',
+                            borderTop: '2px solid #2d4a8a',
+                            borderBottom: isDragOverGroup ? '2px solid #3b82f6' : '1px solid #2d4a8a',
+                            cursor: 'grab',
+                            opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1
+                          }}
+                        >
+                          <td colSpan={columns.length + 1} style={{ padding: '5px 12px', direction: 'rtl' }}>
+                            <span style={{ color: '#475569', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
+                            <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', marginLeft: '8px' }}>{item.groupKey}</span>
+                            <span style={{ color: '#475569', fontSize: '11px' }}>({item.count})</span>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const s = item;
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
                     return (
                       <tr
                         key={s.id}
-                        draggable={!tableSortBySector}
+                        draggable={!tableSortBySector && !tableGroupByKey && !tableSortKey}
                         onDragStart={() => { setTableDragRow(s.id); setTableSortBySector(false); }}
                         onDragOver={e => { e.preventDefault(); setTableDragOverRow(s.id); }}
                         onDragLeave={() => setTableDragOverRow(null)}
@@ -3787,7 +3936,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: tableSortBySector ? 'not-allowed' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
+                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
                         {columns.map(col => renderCell(s, col))}
                       </tr>
                     );
