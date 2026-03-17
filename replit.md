@@ -65,6 +65,9 @@ Preferred communication style: Simple, everyday language.
 - OCR digit recognition using Tesseract.js
 - Multi-sector workstation management
 - Battle zone visualization with polygon overlays
+- Light/dark mode toggle persisted in localStorage (`bt-lightMode`)
+- Table mode grouping/sorting with draggable group rows
+- In table mode, transferred strips (`pending_transfer`) remain visible grayed-out with "ממתין ⏳" badge until recipient accepts; only then do they disappear from the sending workstation's table (`myStrips` excludes them from map view; `myTableStrips` includes them for table view)
 
 # External Dependencies
 

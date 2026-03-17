@@ -2834,17 +2834,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       : true)
   );
 
+  // Table strips: same as myStrips but also include pending_transfer strips
+  // (they display grayed-out until the recipient accepts)
+  const myTableStrips = strips.filter(s =>
+    (session.presetId
+      ? Number(s.workstation_preset_id) === Number(session.presetId)
+      : true)
+  );
+
   // Computed strips order for table display
   const tableDisplayStrips = (() => {
     if (tableSortBySector) {
-      return [...myStrips].sort((a, b) => {
+      return [...myTableStrips].sort((a, b) => {
         const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
         const sB = allSectors.find(sec => sec.id === b.sectorId)?.name || '';
         return sA.localeCompare(sB, 'he');
       });
     }
-    const ordered = tableRowOrder.map(id => myStrips.find(s => s.id === id)).filter(Boolean) as any[];
-    const extra = myStrips.filter(s => !tableRowOrder.includes(s.id));
+    const ordered = tableRowOrder.map(id => myTableStrips.find(s => s.id === id)).filter(Boolean) as any[];
+    const extra = myTableStrips.filter(s => !tableRowOrder.includes(s.id));
     return [...ordered, ...extra];
   })();
 
@@ -2868,7 +2876,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const tableDisplayItems: any[] = (() => {
     if (!tableGroupByKey) {
       if (tableSortKey) {
-        return [...myStrips].sort((a, b) => {
+        return [...myTableStrips].sort((a, b) => {
           const av = getStripFieldValue(a, tableSortKey);
           const bv = getStripFieldValue(b, tableSortKey);
           const cmp = av.localeCompare(bv, 'he');
@@ -2878,7 +2886,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       return tableDisplayStrips;
     }
     const grouped: Record<string, any[]> = {};
-    myStrips.forEach(s => {
+    myTableStrips.forEach(s => {
       const val = getStripFieldValue(s, tableGroupByKey);
       if (!grouped[val]) grouped[val] = [];
       grouped[val].push(s);
@@ -3933,12 +3941,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     const s = item;
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
+                    const isPendingTransfer = s.status === 'pending_transfer';
+                    const rowBg = isDragOver ? '#1d4ed8'
+                      : isPendingTransfer ? (isEven ? '#2d3344' : '#252b3a')
+                      : (isEven ? '#1e293b' : '#0f172a');
                     return (
                       <tr
                         key={s.id}
-                        draggable={!tableSortBySector && !tableGroupByKey && !tableSortKey}
-                        onDragStart={() => { setTableDragRow(s.id); setTableSortBySector(false); }}
-                        onDragOver={e => { e.preventDefault(); setTableDragOverRow(s.id); }}
+                        draggable={!tableSortBySector && !tableGroupByKey && !tableSortKey && !isPendingTransfer}
+                        onDragStart={() => { if (!isPendingTransfer) { setTableDragRow(s.id); setTableSortBySector(false); } }}
+                        onDragOver={e => { e.preventDefault(); if (!isPendingTransfer) setTableDragOverRow(s.id); }}
                         onDragLeave={() => setTableDragOverRow(null)}
                         onDrop={() => {
                           if (tableDragRow && tableDragRow !== s.id) {
@@ -3953,18 +3965,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           setTableDragRow(null); setTableDragOverRow(null);
                         }}
                         style={{
-                          background: isDragOver ? '#1d4ed8' : (isEven ? '#1e293b' : '#0f172a'),
+                          background: rowBg,
                           borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
-                          opacity: tableDragRow === s.id ? 0.5 : 1,
+                          opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>⠿</td>
+                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>
+                          {isPendingTransfer
+                            ? <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '11px', background: '#374151', color: '#9ca3af', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>ממתין ⏳</span>
+                            : '⠿'}
+                        </td>
                         {columns.map(col => renderCell(s, col))}
                       </tr>
                     );
                   })}
-                  {myStrips.length === 0 && (
+                  {myTableStrips.length === 0 && (
                     <tr><td colSpan={columns.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
                   )}
                 </tbody>
