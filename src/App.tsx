@@ -3984,25 +3984,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           </>}
         </div>
 
-        {/* Sidebar - Right Side - Shows active strips (not on map) */}
+        {/* Sidebar - Right Side - Shows active strips */}
         <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length}):</h4>
-          <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
-          
-          {/* Active strips (not on map) */}
-          {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
-            <div key={s.id} style={{ marginBottom: '8px' }}>
-              <Strip s={s} 
-                onUpdate={handleAltUpdate}
-                onMove={handleMove}
-                neighbors={neighbors}
-                onTransfer={handleTransfer}
-                onToggleAirborne={handleToggleAirborne}
-                onUpdateNotes={handleUpdateStripNotes}
-                onUpdateDetails={handleUpdateStripDetails}
-              />
-            </div>
-          ))}
+          {tableMode ? (
+            <>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ עמדה ({myStrips.length}):</h4>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>כל הפממים של העמדה</div>
+              {myStrips.map(s => (
+                <div key={s.id} style={{ marginBottom: '8px' }}>
+                  <Strip s={s}
+                    onUpdate={handleAltUpdate}
+                    onMove={handleMove}
+                    neighbors={neighbors}
+                    onTransfer={handleTransfer}
+                    onToggleAirborne={handleToggleAirborne}
+                    onUpdateNotes={handleUpdateStripNotes}
+                    onUpdateDetails={handleUpdateStripDetails}
+                  />
+                </div>
+              ))}
+              {myStrips.length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים פעילים</div>
+              )}
+            </>
+          ) : (
+            <>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({strips.filter(s => !s.onMap && s.status !== 'pending_transfer').length}):</h4>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
+              {strips.filter(s => !s.onMap && s.status !== 'pending_transfer').map(s => (
+                <div key={s.id} style={{ marginBottom: '8px' }}>
+                  <Strip s={s} 
+                    onUpdate={handleAltUpdate}
+                    onMove={handleMove}
+                    neighbors={neighbors}
+                    onTransfer={handleTransfer}
+                    onToggleAirborne={handleToggleAirborne}
+                    onUpdateNotes={handleUpdateStripNotes}
+                    onUpdateDetails={handleUpdateStripDetails}
+                  />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
