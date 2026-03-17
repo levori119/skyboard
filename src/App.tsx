@@ -4082,13 +4082,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               flexDirection: 'column',
               overflow: 'hidden',
               direction: 'rtl',
-              resize: 'both',
               minWidth: 200,
               minHeight: 160
-            }}
-            onMouseUp={(e) => {
-              const el = e.currentTarget as HTMLDivElement;
-              setNotepadSize({ w: el.offsetWidth, h: el.offsetHeight });
             }}
           >
             {/* Title bar - drag handle */}
@@ -4134,44 +4129,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </div>
 
             {/* Content area */}
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-              {/* Text area — always visible in keyboard/both mode */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {/* Text area — visible in keyboard mode (full) or both mode (top half) */}
               {(notepadMode === 'keyboard' || notepadMode === 'both') && (
                 <textarea
                   value={notepadText}
                   onChange={e => setNotepadText(e.target.value)}
                   placeholder="הקלד טקסט חופשי כאן..."
                   style={{
-                    position: 'absolute',
-                    inset: 0,
+                    flex: notepadMode === 'both' ? '0 0 45%' : 1,
                     width: '100%',
-                    height: '100%',
                     border: 'none',
+                    borderBottom: notepadMode === 'both' ? '1px solid #e2e8f0' : 'none',
                     outline: 'none',
                     resize: 'none',
                     fontSize: '14px',
                     padding: '10px',
                     direction: 'rtl',
                     fontFamily: 'inherit',
-                    background: notepadMode === 'both' ? 'rgba(255,255,255,0.85)' : 'white',
-                    zIndex: notepadMode === 'both' ? 2 : 1,
+                    background: 'white',
                     boxSizing: 'border-box'
                   }}
                 />
               )}
-              {/* Handwriting canvas */}
+              {/* Handwriting canvas — visible in handwriting mode (full) or both mode (bottom half) */}
               {(notepadMode === 'handwriting' || notepadMode === 'both') && (
                 <canvas
                   ref={notepadCanvasRef}
                   width={notepadSize.w - 4}
-                  height={notepadSize.h - 44}
+                  height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
                   style={{
-                    position: 'absolute',
-                    inset: 0,
+                    flex: 1,
                     width: '100%',
-                    height: '100%',
+                    display: 'block',
                     cursor: 'crosshair',
-                    zIndex: 1,
                     touchAction: 'none'
                   }}
                   onPointerDown={(e) => {
@@ -4207,8 +4198,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               )}
             </div>
 
-            {/* Bottom bar: clear button + resize hint */}
-            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            {/* Bottom bar: clear button + custom resize handle */}
+            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, position: 'relative' }}>
               <button
                 onClick={() => {
                   setNotepadText('');
@@ -4219,7 +4210,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               >
                 נקה
               </button>
-              <span style={{ fontSize: '9px', color: '#94a3b8' }}>↔ גרור לשינוי גודל</span>
+              {/* Custom resize handle — bottom-left corner (trailing edge in RTL) */}
+              <div
+                title="גרור לשינוי גודל"
+                style={{
+                  width: 20, height: 20, cursor: 'nwse-resize',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const origW = notepadSize.w;
+                  const origH = notepadSize.h;
+                  const origX = notepadPos.x;
+                  const onMove = (me: MouseEvent) => {
+                    const dx = me.clientX - startX;
+                    const dy = me.clientY - startY;
+                    // Resizing from bottom-left: width grows left (dx negative = wider), position shifts
+                    const newW = Math.max(200, origW - dx);
+                    const newH = Math.max(160, origH + dy);
+                    setNotepadSize({ w: newW, h: newH });
+                    setNotepadPos(p => ({ ...p, x: origX + (origW - newW) }));
+                  };
+                  const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                  };
+                  window.addEventListener('mousemove', onMove);
+                  window.addEventListener('mouseup', onUp);
+                }}
+              >
+                ⇲
+              </div>
             </div>
           </div>
         )}
