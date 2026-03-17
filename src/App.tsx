@@ -3053,6 +3053,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     });
   };
 
+  // Auto-expand neighbor panels that have pending transfers
+  useEffect(() => {
+    if (incomingTransfers.length === 0 && outgoingTransfers.length === 0) return;
+    setExpandedNeighbors(prev => {
+      const next = new Set(prev);
+      allSectors.forEach(neighbor => {
+        const hasOutgoing = outgoingTransfers.some(t => t.to_sector_id === neighbor.id);
+        const hasIncoming = incomingTransfers.some(t => t.from_sector_id === neighbor.id);
+        if (hasOutgoing || hasIncoming) next.add(neighbor.id);
+      });
+      return next;
+    });
+  }, [incomingTransfers, outgoingTransfers, allSectors]);
+
   const handleAcceptTransfer = async (transferId: string) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/accept`, { method: 'POST' });

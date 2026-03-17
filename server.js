@@ -742,8 +742,20 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
       return res.status(404).json({ error: 'Strip not found' });
     }
     
-    const fromSectorId = strip.rows[0].sector_id;
+    let fromSectorId = strip.rows[0].sector_id;
     
+    // If the strip has no sector (assigned via distribution), infer from sender's workstation
+    if (!fromSectorId && fromWorkstationId) {
+      const senderPreset = await pool.query('SELECT relevant_sectors FROM workstation_presets WHERE id = $1', [fromWorkstationId]);
+      if (senderPreset.rows.length > 0) {
+        let senderSectors = senderPreset.rows[0].relevant_sectors;
+        if (typeof senderSectors === 'string') senderSectors = JSON.parse(senderSectors);
+        if (Array.isArray(senderSectors) && senderSectors.length > 0) {
+          fromSectorId = senderSectors[0];
+        }
+      }
+    }
+
     // Auto-resolve target workstation if not provided
     let resolvedToWorkstationId = toWorkstationId;
     if (!resolvedToWorkstationId && fromWorkstationId) {
