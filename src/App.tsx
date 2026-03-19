@@ -4309,18 +4309,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   key={s.id}
                   draggable
                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/strip-id', String(s.id)); tableSidebarDragId.current = s.id; }}
-                  onDragEnd={() => { tableSidebarDragId.current = null; }}
-                  style={{ marginBottom: '8px', cursor: 'grab', opacity: 1 }}
+                  onDragEnd={() => { tableSidebarDragId.current = null; setTableDragOver(false); }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl' }}
                 >
-                  <Strip s={s}
-                    onUpdate={handleAltUpdate}
-                    onMove={handleMove}
-                    neighbors={neighbors}
-                    onTransfer={handleTransfer}
-                    onToggleAirborne={handleToggleAirborne}
-                    onUpdateNotes={handleUpdateStripNotes}
-                    onUpdateDetails={handleUpdateStripDetails}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
+                    {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+                    {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
+                    {s.alt && <span style={{ fontSize: '10px', color: '#64748b' }}>גובה: {s.alt}</span>}
+                  </div>
                 </div>
               ))}
               {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
