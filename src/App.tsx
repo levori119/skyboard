@@ -2956,6 +2956,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const notepadDrawingRef = useRef(false);
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
   const notepadSavedImageRef = useRef<string | null>(null);
+  const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -4608,7 +4609,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             {/* Content area */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               {/* Text area — visible in keyboard/both mode; always mounted so text is preserved */}
+              {notepadMode !== 'handwriting' && (
+                <div style={{ padding: '2px 8px 0', display: 'flex', justifyContent: 'flex-start' }}>
+                  <button
+                    onTouchStart={(e) => { e.preventDefault(); notepadTextareaRef.current?.focus(); }}
+                    onClick={() => notepadTextareaRef.current?.focus()}
+                    style={{ padding: '3px 10px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                  >📱 מקלדת</button>
+                </div>
+              )}
               <textarea
+                ref={notepadTextareaRef}
                 value={notepadText}
                 onChange={e => setNotepadText(e.target.value)}
                 placeholder="הקלד טקסט חופשי כאן..."
