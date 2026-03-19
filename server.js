@@ -1527,7 +1527,7 @@ app.delete('/api/sectors/:id/neighbors/:neighborId', async (req, res) => {
 // In production, serve the built React app as static files
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
-  app.get('*', (req, res) => {
+  app.get(/^(?!\/api).*$/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
