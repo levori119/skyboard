@@ -2707,70 +2707,130 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
 // --- קנבס כתב יד לטבלה ---
 const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
+  const isExistingHw = existing?.startsWith('data:');
+  const [mode, setMode] = useState<'handwriting' | 'text'>(isExistingHw ? 'handwriting' : (existing ? 'text' : 'handwriting'));
+  const [textValue, setTextValue] = useState(isExistingHw ? '' : (existing || ''));
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const hwRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  const isDrawingRef = useRef(false);
   const lastRef = useRef<{x:number;y:number}|null>(null);
 
   useEffect(() => {
-    const ctx = hwRef.current?.getContext('2d');
-    if (ctx && hwRef.current) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, hwRef.current.width, hwRef.current.height);
+    const canvas = hwRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (isExistingHw && existing) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = existing;
     }
   }, []);
 
+  useEffect(() => {
+    if (mode === 'text') setTimeout(() => textareaRef.current?.focus(), 100);
+  }, [mode]);
+
   const getXY = (e: any) => {
-    const rect = hwRef.current!.getBoundingClientRect();
+    const canvas = hwRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     const src = e.touches ? e.touches[0] : e;
-    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
   };
   const onDown = (e: any) => {
     e.preventDefault();
-    setIsDrawing(true);
+    isDrawingRef.current = true;
     const {x,y} = getXY(e);
     lastRef.current = {x,y};
     const ctx = hwRef.current?.getContext('2d');
     if (ctx) { ctx.beginPath(); ctx.moveTo(x,y); }
   };
   const onMove = (e: any) => {
-    if (!isDrawing) return;
+    if (!isDrawingRef.current) return;
     e.preventDefault();
     const {x,y} = getXY(e);
     const ctx = hwRef.current?.getContext('2d');
-    if (ctx) {
+    if (ctx && lastRef.current) {
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
       ctx.strokeStyle = '#1e293b';
-      ctx.lineTo(x,y);
+      ctx.beginPath();
+      ctx.moveTo(lastRef.current.x, lastRef.current.y);
+      ctx.lineTo(x, y);
       ctx.stroke();
     }
     lastRef.current = {x,y};
   };
-  const onUp = () => setIsDrawing(false);
+  const onUp = () => { isDrawingRef.current = false; lastRef.current = null; };
   const clearHw = () => {
-    const ctx = hwRef.current?.getContext('2d');
-    if (ctx && hwRef.current) { ctx.fillStyle='#fff'; ctx.fillRect(0,0,hwRef.current.width,hwRef.current.height); }
+    const canvas = hwRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (ctx && canvas) { ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); }
   };
   const confirm = () => {
+    if (mode === 'text') { onConfirm(textValue); return; }
     const dataUrl = hwRef.current?.toDataURL('image/png') || '';
     onConfirm(dataUrl);
   };
 
+  const tabBtn = (label: string, active: boolean, onClick: () => void) => (
+    <button onClick={onClick} style={{ padding:'6px 18px', background: active ? '#2563eb' : '#e2e8f0', color: active ? 'white' : '#334155', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: active ? 'bold' : 'normal', fontSize:'14px' }}>
+      {label}
+    </button>
+  );
+
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:'white', borderRadius:'12px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px', alignItems:'center', minWidth:'340px' }}>
-        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl' }}>כתיבה חופשית – הערות</div>
+      <div style={{ background:'white', borderRadius:'12px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px', alignItems:'center', minWidth:'380px', maxWidth:'520px', width:'90vw' }}>
+        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl' }}>עריכת הערה</div>
+
+        {/* Mode tabs */}
+        <div style={{ display:'flex', gap:'8px', direction:'rtl' }}>
+          {tabBtn('🖊️ כתב יד', mode === 'handwriting', () => setMode('handwriting'))}
+          {tabBtn('⌨️ טקסט', mode === 'text', () => setMode('text'))}
+        </div>
+
+        {/* Handwriting canvas */}
         <canvas
           ref={hwRef}
           width={480}
           height={220}
-          style={{ border:'2px solid #cbd5e1', borderRadius:'8px', cursor:'crosshair', touchAction:'none', background:'#fff' }}
+          style={{ border:'2px solid #cbd5e1', borderRadius:'8px', cursor:'crosshair', touchAction:'none', background:'#fff', display: mode === 'handwriting' ? 'block' : 'none', width:'100%' }}
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
           onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
           onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
         />
+
+        {/* Text mode */}
+        {mode === 'text' && (
+          <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:'8px' }}>
+            <textarea
+              ref={textareaRef}
+              value={textValue}
+              onChange={e => setTextValue(e.target.value)}
+              dir="rtl"
+              rows={6}
+              style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box' }}
+              placeholder="הקלד טקסט כאן..."
+            />
+            <button
+              onClick={() => { textareaRef.current?.focus(); textareaRef.current?.click(); }}
+              style={{ alignSelf:'flex-start', padding:'6px 14px', background:'#0ea5e9', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'13px' }}
+            >📱 הצג מקלדת וירטואלית</button>
+          </div>
+        )}
+
+        {/* Action buttons */}
         <div style={{ display:'flex', gap:'10px', direction:'rtl' }}>
           <button onClick={confirm} style={{ padding:'8px 22px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold' }}>קבל</button>
-          <button onClick={clearHw} style={{ padding:'8px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>נקה</button>
+          {mode === 'handwriting' && (
+            <button onClick={clearHw} style={{ padding:'8px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>נקה</button>
+          )}
           <button onClick={onCancel} style={{ padding:'8px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>ביטול</button>
         </div>
       </div>
