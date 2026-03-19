@@ -2724,14 +2724,81 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   });
 };
 
+// --- מקלדת על-מסך ---
+const OSK_ROWS = [
+  ['1','2','3','4','5','6','7','8','9','0','-','='],
+  ['/','\'','א','ר','ט','ו','ן','ם','פ','[',']'],
+  ['ש','ד','ג','כ','ע','י','ח','ל','ך','ף',';'],
+  ['ז','ס','ב','ה','נ','מ','צ','ת','ץ','.'],
+];
+const OnScreenKeyboard = ({ onType, onBackspace, onEnter }: {
+  onType: (c: string) => void;
+  onBackspace: () => void;
+  onEnter: () => void;
+}) => {
+  const keyStyle: React.CSSProperties = {
+    minWidth: 34, height: 38, background: '#334155', color: 'white',
+    border: '1px solid #475569', borderRadius: '5px', cursor: 'pointer',
+    fontSize: '14px', fontFamily: 'inherit', padding: '0 4px', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    WebkitUserSelect: 'none', userSelect: 'none',
+  };
+  return (
+    <div style={{ background: '#0f172a', padding: '8px', borderRadius: '8px', userSelect: 'none', direction: 'ltr', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      {OSK_ROWS.map((row, ri) => (
+        <div key={ri} style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+          {row.map(k => (
+            <button key={k} style={keyStyle as any}
+              onPointerDown={e => { e.preventDefault(); onType(k); }}
+            >{k}</button>
+          ))}
+          {ri === 0 && (
+            <button style={{ ...keyStyle as any, minWidth: 52, background: '#7f1d1d', border: '1px solid #991b1b', fontSize: '16px' }}
+              onPointerDown={e => { e.preventDefault(); onBackspace(); }}
+            >⌫</button>
+          )}
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+        <button style={{ ...keyStyle as any, minWidth: 180, fontSize: '12px', color: '#94a3b8' }}
+          onPointerDown={e => { e.preventDefault(); onType(' '); }}
+        >מרווח</button>
+        <button style={{ ...keyStyle as any, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }}
+          onPointerDown={e => { e.preventDefault(); onEnter(); }}
+        >↵ Enter</button>
+      </div>
+    </div>
+  );
+};
+
 // --- קנבס כתב יד לטבלה ---
 const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
   const parsed = parseNoteValue(existing);
   const [textValue, setTextValue] = useState(parsed.text);
+  const [showOSK, setShowOSK] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hwRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastRef = useRef<{x:number;y:number}|null>(null);
+  const insertAtCursor = (char: string) => {
+    const el = textareaRef.current;
+    if (!el) { setTextValue(v => v + char); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = el.value.slice(0, s) + char + el.value.slice(e2);
+    setTextValue(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + char.length, s + char.length); });
+  };
+  const oskBackspace = () => {
+    const el = textareaRef.current;
+    if (!el) { setTextValue(v => v.slice(0, -1)); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = s === e2 ? el.value.slice(0, Math.max(0, s - 1)) + el.value.slice(e2) : el.value.slice(0, s) + el.value.slice(e2);
+    const ns = s === e2 ? Math.max(0, s - 1) : s;
+    setTextValue(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ns); });
+  };
 
   // Load existing handwriting onto canvas
   useEffect(() => {
@@ -2807,10 +2874,9 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
             <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>⌨️ טקסט</span>
             <button
-              onTouchStart={(e) => { e.preventDefault(); textareaRef.current?.focus(); }}
-              onClick={() => textareaRef.current?.focus()}
-              style={{ padding:'4px 10px', background:'#0ea5e9', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
-            >📱 מקלדת</button>
+              onPointerDown={e => { e.preventDefault(); setShowOSK(v => !v); }}
+              style={{ padding:'4px 10px', background: showOSK ? '#2563eb' : '#475569', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
+            >⌨ מקלדת וירטואלית</button>
           </div>
           <textarea
             ref={textareaRef}
@@ -2819,10 +2885,17 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
             dir="rtl"
             rows={3}
             style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
-            placeholder="הקש כאן לפתיחת המקלדת..."
+            placeholder="כתוב כאן..."
             autoFocus
             onFocus={e => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
           />
+          {showOSK && (
+            <OnScreenKeyboard
+              onType={insertAtCursor}
+              onBackspace={oskBackspace}
+              onEnter={() => insertAtCursor('\n')}
+            />
+          )}
         </div>
 
         {/* Handwriting canvas — always visible */}
@@ -2957,6 +3030,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
   const notepadSavedImageRef = useRef<string | null>(null);
   const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showNotepadOSK, setShowNotepadOSK] = useState(false);
+  const notepadInsertAtCursor = (char: string) => {
+    const el = notepadTextareaRef.current;
+    if (!el) { setNotepadText(v => v + char); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = el.value.slice(0, s) + char + el.value.slice(e2);
+    setNotepadText(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + char.length, s + char.length); });
+  };
+  const notepadOskBackspace = () => {
+    const el = notepadTextareaRef.current;
+    if (!el) { setNotepadText(v => v.slice(0, -1)); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = s === e2 ? el.value.slice(0, Math.max(0, s - 1)) + el.value.slice(e2) : el.value.slice(0, s) + el.value.slice(e2);
+    const ns = s === e2 ? Math.max(0, s - 1) : s;
+    setNotepadText(next);
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ns); });
+  };
 
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -4612,10 +4705,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               {notepadMode !== 'handwriting' && (
                 <div style={{ padding: '2px 8px 0', display: 'flex', justifyContent: 'flex-start' }}>
                   <button
-                    onTouchStart={(e) => { e.preventDefault(); notepadTextareaRef.current?.focus(); }}
-                    onClick={() => notepadTextareaRef.current?.focus()}
-                    style={{ padding: '3px 10px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >📱 מקלדת</button>
+                    onPointerDown={e => { e.preventDefault(); setShowNotepadOSK(v => !v); }}
+                    style={{ padding: '3px 10px', background: showNotepadOSK ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                  >⌨ מקלדת וירטואלית</button>
                 </div>
               )}
               <textarea
@@ -4639,6 +4731,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   display: notepadMode === 'handwriting' ? 'none' : undefined
                 }}
               />
+              {showNotepadOSK && notepadMode !== 'handwriting' && (
+                <div style={{ flexShrink: 0, overflowX: 'auto', padding: '4px' }}>
+                  <OnScreenKeyboard
+                    onType={notepadInsertAtCursor}
+                    onBackspace={notepadOskBackspace}
+                    onEnter={() => notepadInsertAtCursor('\n')}
+                  />
+                </div>
+              )}
               {/* Handwriting canvas — always in DOM so content is never lost on mode switch */}
               <canvas
                 ref={notepadCanvasRef}
