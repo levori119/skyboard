@@ -3596,6 +3596,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     }
   };
 
+  const deleteStrip = async (stripId: string) => {
+    try {
+      await fetch(`${API_URL}/strips/${stripId}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Failed to delete strip:', err);
+    }
+  };
+
   const handleToggleAirborne = async (id: string, airborne: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, airborne} : item));
     try {
