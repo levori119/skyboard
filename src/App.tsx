@@ -2705,33 +2705,47 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   });
 };
 
+// Parse a note value that may be plain text, a data-URL, or combined JSON { text, hw }
+const parseNoteValue = (val: string): { text: string; hw: string } => {
+  if (!val) return { text: '', hw: '' };
+  if (val.startsWith('data:')) return { text: '', hw: val };
+  if (val.startsWith('{')) {
+    try { const p = JSON.parse(val); return { text: p.text || '', hw: p.hw || '' }; } catch {}
+  }
+  return { text: val, hw: '' };
+};
+
+// Serialise back — if only one field has content, store it in its legacy format
+const serializeNoteValue = (text: string, hw: string): string => {
+  const hasText = text.trim().length > 0;
+  const hasHw = hw.startsWith('data:');
+  if (hasText && hasHw) return JSON.stringify({ text, hw });
+  if (hasHw) return hw;
+  return text;
+};
+
 // --- קנבס כתב יד לטבלה ---
 const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
-  const isExistingHw = existing?.startsWith('data:');
-  const [mode, setMode] = useState<'handwriting' | 'text'>(isExistingHw ? 'handwriting' : (existing ? 'text' : 'handwriting'));
-  const [textValue, setTextValue] = useState(isExistingHw ? '' : (existing || ''));
+  const parsed = parseNoteValue(existing);
+  const [textValue, setTextValue] = useState(parsed.text);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const hwRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastRef = useRef<{x:number;y:number}|null>(null);
 
+  // Load existing handwriting onto canvas
   useEffect(() => {
     const canvas = hwRef.current;
     const ctx = canvas?.getContext('2d');
     if (!ctx || !canvas) return;
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (isExistingHw && existing) {
+    if (parsed.hw) {
       const img = new Image();
       img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      img.src = existing;
+      img.src = parsed.hw;
     }
   }, []);
-
-  useEffect(() => {
-    if (mode === 'text') setTimeout(() => textareaRef.current?.focus(), 100);
-  }, [mode]);
 
   const getXY = (e: any) => {
     const canvas = hwRef.current!;
@@ -2743,18 +2757,17 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
   };
   const onDown = (e: any) => {
     e.preventDefault();
+    e.stopPropagation();
     isDrawingRef.current = true;
     const {x,y} = getXY(e);
     lastRef.current = {x,y};
-    const ctx = hwRef.current?.getContext('2d');
-    if (ctx) { ctx.beginPath(); ctx.moveTo(x,y); }
   };
   const onMove = (e: any) => {
-    if (!isDrawingRef.current) return;
+    if (!isDrawingRef.current || !lastRef.current) return;
     e.preventDefault();
     const {x,y} = getXY(e);
     const ctx = hwRef.current?.getContext('2d');
-    if (ctx && lastRef.current) {
+    if (ctx) {
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -2773,65 +2786,55 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
     if (ctx && canvas) { ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); }
   };
   const confirm = () => {
-    if (mode === 'text') { onConfirm(textValue); return; }
-    const dataUrl = hwRef.current?.toDataURL('image/png') || '';
-    onConfirm(dataUrl);
+    const hwData = hwRef.current?.toDataURL('image/png') || '';
+    // Check if canvas has actual drawing (not just white fill) by comparing to a blank canvas
+    const blank = document.createElement('canvas');
+    blank.width = hwRef.current?.width || 480;
+    blank.height = hwRef.current?.height || 200;
+    const bctx = blank.getContext('2d');
+    if (bctx) { bctx.fillStyle = '#fff'; bctx.fillRect(0,0,blank.width,blank.height); }
+    const hasDrawing = hwData !== blank.toDataURL('image/png');
+    onConfirm(serializeNoteValue(textValue, hasDrawing ? hwData : ''));
   };
 
-  const tabBtn = (label: string, active: boolean, onClick: () => void) => (
-    <button onClick={onClick} style={{ padding:'6px 18px', background: active ? '#2563eb' : '#e2e8f0', color: active ? 'white' : '#334155', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight: active ? 'bold' : 'normal', fontSize:'14px' }}>
-      {label}
-    </button>
-  );
-
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:'white', borderRadius:'12px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px', alignItems:'center', minWidth:'380px', maxWidth:'520px', width:'90vw' }}>
-        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl' }}>עריכת הערה</div>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background:'white', borderRadius:'12px', padding:'16px', display:'flex', flexDirection:'column', gap:'10px', width:'min(92vw, 520px)', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl', textAlign:'center' }}>עריכת הערה</div>
 
-        {/* Mode tabs */}
-        <div style={{ display:'flex', gap:'8px', direction:'rtl' }}>
-          {tabBtn('🖊️ כתב יד', mode === 'handwriting', () => setMode('handwriting'))}
-          {tabBtn('⌨️ טקסט', mode === 'text', () => setMode('text'))}
+        {/* Text input — always visible, tap to open keyboard */}
+        <div style={{ direction:'rtl' }}>
+          <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'4px', fontWeight:'600' }}>⌨️ טקסט</div>
+          <textarea
+            ref={textareaRef}
+            value={textValue}
+            onChange={e => setTextValue(e.target.value)}
+            dir="rtl"
+            rows={3}
+            style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
+            placeholder="הקש כאן לפתיחת המקלדת..."
+            autoFocus
+          />
         </div>
 
-        {/* Handwriting canvas */}
-        <canvas
-          ref={hwRef}
-          width={480}
-          height={220}
-          style={{ border:'2px solid #cbd5e1', borderRadius:'8px', cursor:'crosshair', touchAction:'none', background:'#fff', display: mode === 'handwriting' ? 'block' : 'none', width:'100%' }}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
-          onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
-        />
-
-        {/* Text mode */}
-        {mode === 'text' && (
-          <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:'8px' }}>
-            <textarea
-              ref={textareaRef}
-              value={textValue}
-              onChange={e => setTextValue(e.target.value)}
-              dir="rtl"
-              rows={6}
-              style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box' }}
-              placeholder="הקלד טקסט כאן..."
-            />
-            <button
-              onClick={() => { textareaRef.current?.focus(); textareaRef.current?.click(); }}
-              style={{ alignSelf:'flex-start', padding:'6px 14px', background:'#0ea5e9', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'13px' }}
-            >📱 הצג מקלדת וירטואלית</button>
-          </div>
-        )}
+        {/* Handwriting canvas — always visible */}
+        <div style={{ direction:'rtl' }}>
+          <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'4px', fontWeight:'600' }}>🖊️ כתב יד</div>
+          <canvas
+            ref={hwRef}
+            width={480}
+            height={200}
+            style={{ border:'2px solid #cbd5e1', borderRadius:'8px', cursor:'crosshair', touchAction:'none', background:'#fff', display:'block', width:'100%' }}
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
+            onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+          />
+        </div>
 
         {/* Action buttons */}
-        <div style={{ display:'flex', gap:'10px', direction:'rtl' }}>
-          <button onClick={confirm} style={{ padding:'8px 22px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold' }}>קבל</button>
-          {mode === 'handwriting' && (
-            <button onClick={clearHw} style={{ padding:'8px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>נקה</button>
-          )}
-          <button onClick={onCancel} style={{ padding:'8px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer' }}>ביטול</button>
+        <div style={{ display:'flex', gap:'8px', direction:'rtl', flexWrap:'wrap', justifyContent:'center' }}>
+          <button onClick={confirm} style={{ padding:'9px 24px', background:'#2563eb', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontWeight:'bold', fontSize:'15px' }}>קבל</button>
+          <button onClick={clearHw} style={{ padding:'9px 16px', background:'#64748b', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>נקה ציור</button>
+          <button onClick={onCancel} style={{ padding:'9px 16px', background:'#ef4444', color:'white', border:'none', borderRadius:'6px', cursor:'pointer', fontSize:'14px' }}>ביטול</button>
         </div>
       </div>
     </div>
@@ -3965,57 +3968,56 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
                   );
-                case 'notes':
+                case 'notes': {
+                  const noteParsed = parseNoteValue(currentNote);
+                  const hasAnyNote = noteParsed.text.trim().length > 0 || noteParsed.hw.startsWith('data:');
                   if (col.editable === 'none') {
                     return (
-                      <td key={colKey} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
-                        {isNoteImage ? <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px' }} /> : (currentNote || '—')}
+                      <td key={colKey} style={{ padding: '6px 8px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
+                        {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
+                        {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px' }} />}
+                        {!hasAnyNote && '—'}
                       </td>
                     );
                   }
                   return (
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                      {isNoteImage ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <img src={currentNote} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {/* Show existing note content */}
+                        {hasAnyNote && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {noteParsed.text && (
+                              <div style={{ direction: 'rtl', fontSize: '11px', color: '#e2e8f0', background: '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>
+                                {noteParsed.text}
+                              </div>
+                            )}
+                            {noteParsed.hw && (
+                              <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: '1px solid #334155' }} />
+                            )}
+                          </div>
+                        )}
+                        {/* Edit / clear buttons */}
+                        <div style={{ display: 'flex', gap: '4px' }}>
                           <button
-                            onClick={() => {
-                              setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
-                              fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
-                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
-                            }}
-                            style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                          >מחק</button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
-                          {(col.editable === 'keyboard' || col.editable === 'both') && (
-                            <textarea
-                              value={currentNote}
-                              onChange={e => setTableEditingNotes(prev => ({ ...prev, [s.id]: e.target.value }))}
-                              onBlur={async () => {
-                                const note = tableEditingNotes[s.id];
-                                if (note !== undefined && note !== (s.notes || '')) {
-                                  await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: note }) });
-                                  setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: note } : st));
-                                }
-                              }}
-                              placeholder="הערות..."
-                              rows={2}
-                              style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0 }}
-                            />
-                          )}
-                          {(col.editable === 'handwriting' || col.editable === 'both') && (
+                            onClick={() => setTableHandwritingId(s.id)}
+                            title="ערוך הערה"
+                            style={{ padding: '3px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
+                          >{hasAnyNote ? '✏️ ערוך' : '✏️ הוסף'}</button>
+                          {hasAnyNote && (
                             <button
-                              onClick={() => setTableHandwritingId(s.id)}
-                              title="כתב יד"
-                              style={{ padding: '4px 7px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
-                            >✏️</button>
+                              onClick={() => {
+                                setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
+                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
+                                setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
+                              }}
+                              style={{ padding: '3px 8px', background: '#450a0a', color: '#f87171', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                            >✕ מחק</button>
                           )}
                         </div>
-                      )}
+                      </div>
                     </td>
                   );
+                }
                 case 'transfer':
                   return (
                     <td key={col.key} style={{ padding: '8px', verticalAlign: 'top', position: 'relative' }}>
