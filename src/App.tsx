@@ -3898,29 +3898,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
-        {/* Sector Panels - Far Left */}
-        <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-          <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
-            <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
-            <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
+        {/* Sector Panels - Far Left — hidden when workstation has no transfer points */}
+        {neighbors.length > 0 && (
+          <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+            <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
+              <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
+            </div>
+            {allSectors.map(n => (
+              <DraggableNeighborPanel
+                key={n.id}
+                neighbor={n}
+                subSectors={subSectors}
+                onDropOnMap={handleNeighborDropOnMap}
+                isExpanded={expandedNeighbors.has(n.id)}
+                onToggle={() => toggleNeighborExpanded(n.id)}
+                outgoingTransfers={outgoingTransfers}
+                incomingTransfers={incomingTransfers}
+                onCancelTransfer={handleCancelTransfer}
+                onAcceptTransfer={handleAcceptTransfer}
+                onRejectTransfer={handleRejectTransfer}
+                onAcceptToMap={handleAcceptToMap}
+              />
+            ))}
           </div>
-          {allSectors.map(n => (
-            <DraggableNeighborPanel
-              key={n.id}
-              neighbor={n}
-              subSectors={subSectors}
-              onDropOnMap={handleNeighborDropOnMap}
-              isExpanded={expandedNeighbors.has(n.id)}
-              onToggle={() => toggleNeighborExpanded(n.id)}
-              outgoingTransfers={outgoingTransfers}
-              incomingTransfers={incomingTransfers}
-              onCancelTransfer={handleCancelTransfer}
-              onAcceptTransfer={handleAcceptTransfer}
-              onRejectTransfer={handleRejectTransfer}
-              onAcceptToMap={handleAcceptToMap}
-            />
-          ))}
-        </div>
+        )}
 
         {/* Map Area / Table View */}
         <div
