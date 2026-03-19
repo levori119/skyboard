@@ -1284,31 +1284,42 @@ const DraggableNeighborPanel = ({
   useEffect(() => {
     if (!isDragging) return;
 
+    let lastClientX = 0;
+    let lastClientY = 0;
+
     const handleMove = (e: PointerEvent) => {
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
       setDragPos({ x: e.clientX - 50, y: e.clientY - 20 });
     };
 
-    const handleUp = (e: PointerEvent) => {
+    const dropAt = (clientX: number, clientY: number) => {
       setIsDragging(false);
-      
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right && 
-            e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const x = e.clientX - rect.left;
-          const y = e.clientY - rect.top;
+        if (clientX >= rect.left && clientX <= rect.right &&
+            clientY >= rect.top && clientY <= rect.bottom) {
+          const rawX = clientX - rect.left;
+          const rawY = clientY - rect.top;
+          const x = Math.max(100, Math.min(rect.width - 100, rawX));
+          const y = Math.max(40, Math.min(rect.height - 50, rawY));
           onDropOnMap(neighbor.id, x, y, dragLabel || undefined);
         }
       }
       setDragLabel(null);
     };
 
+    const handleUp = (e: PointerEvent) => dropAt(e.clientX, e.clientY);
+    const handleCancel = () => dropAt(lastClientX, lastClientY);
+
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
     return () => {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleCancel);
     };
   }, [isDragging, neighbor.id, onDropOnMap, dragLabel]);
 
@@ -1503,42 +1514,48 @@ const DraggableIncomingTransferMini = ({
   useEffect(() => {
     if (!isDragging) return;
 
+    let lastClientX = 0;
+    let lastClientY = 0;
+
     const handleMove = (e: PointerEvent) => {
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
       setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
     };
 
-    const handleUp = (e: PointerEvent) => {
+    const dropAt = (clientX: number, clientY: number) => {
       setIsDragging(false);
-      
-      // Check if dropped on sidebar (right side) - auto accept to workstation
       const sidebarArea = document.getElementById('sidebar-area');
       if (sidebarArea) {
         const sidebarRect = sidebarArea.getBoundingClientRect();
-        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right && 
-            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+        if (clientX >= sidebarRect.left && clientX <= sidebarRect.right &&
+            clientY >= sidebarRect.top && clientY <= sidebarRect.bottom) {
           onAccept(transfer.id);
           return;
         }
       }
-      
-      // Check if dropped on map
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right && 
-            e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const x = e.clientX - rect.left;
-          const y = e.clientY - rect.top;
+        if (clientX >= rect.left && clientX <= rect.right &&
+            clientY >= rect.top && clientY <= rect.bottom) {
+          const x = Math.max(100, Math.min(rect.width - 100, clientX - rect.left));
+          const y = Math.max(40, Math.min(rect.height - 50, clientY - rect.top));
           onAcceptToMap(transfer.id, x, y);
         }
       }
     };
 
+    const handleUp = (e: PointerEvent) => dropAt(e.clientX, e.clientY);
+    const handleCancel = () => dropAt(lastClientX, lastClientY);
+
     window.addEventListener('pointermove', handleMove);
     window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
     return () => {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleCancel);
     };
   }, [isDragging, transfer.id, onAcceptToMap]);
 
@@ -1740,35 +1757,52 @@ const DraggableMapMarker = ({
   useEffect(() => {
     if (!isDragging) return;
 
+    const lastPos = { x: marker.x, y: marker.y };
+
     const handleMoveEvent = (e: PointerEvent) => {
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        setDragPos({ 
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        lastPos.x = x;
+        lastPos.y = y;
+        setDragPos({ x, y });
       }
     };
 
-    const handleUp = (e: PointerEvent) => {
+    const drop = (clientX: number, clientY: number) => {
       setIsDragging(false);
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        const newX = e.clientX - rect.left;
-        const newY = e.clientY - rect.top;
-        if (newX >= 0 && newX <= rect.width && newY >= 0 && newY <= rect.height) {
-          onMove(newX, newY);
-        }
+        const rawX = clientX - rect.left;
+        const rawY = clientY - rect.top;
+        const x = Math.max(100, Math.min(rect.width - 100, rawX));
+        const y = Math.max(40, Math.min(rect.height - 50, rawY));
+        onMove(x, y);
+      }
+    };
+
+    const handleUp = (e: PointerEvent) => drop(e.clientX, e.clientY);
+    const handleCancel = () => {
+      setIsDragging(false);
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const rect = mapArea.getBoundingClientRect();
+        const x = Math.max(100, Math.min(rect.width - 100, lastPos.x));
+        const y = Math.max(40, Math.min(rect.height - 50, lastPos.y));
+        onMove(x, y);
       }
     };
 
     window.addEventListener('pointermove', handleMoveEvent);
     window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleCancel);
     return () => {
       window.removeEventListener('pointermove', handleMoveEvent);
       window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleCancel);
     };
   }, [isDragging, onMove]);
 
@@ -3198,9 +3232,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         }
       }
     };
+    const onCancel = () => {
+      sidebarPointerDragRef.current = null;
+      setSidebarPointerGhost(null);
+      setTableDragOver(false);
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
-    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
   }, []);
 
   // Restore canvas drawing after size/mode changes or when notepad is re-opened
