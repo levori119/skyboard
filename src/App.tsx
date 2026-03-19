@@ -3658,12 +3658,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
           </button>
-          <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
-            למד כתב יד
-          </button>
-          <button onClick={() => setShowSubSectorManager(true)} style={{ background: '#0891b2', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
-            ניהול תת-נקודות
-          </button>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
           </button>
