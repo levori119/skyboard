@@ -2806,6 +2806,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
+
+  // Keep the drawing canvas sized to the map area so 1px on canvas = 1px on screen
+  useEffect(() => {
+    const syncCanvasSize = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const mapArea = document.getElementById('map-area');
+      if (!mapArea) return;
+      const { width, height } = mapArea.getBoundingClientRect();
+      if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
+        const ctx = canvas.getContext('2d');
+        const saved = ctx ? canvas.toDataURL() : null;
+        canvas.width = Math.round(width);
+        canvas.height = Math.round(height);
+        if (saved && ctx) {
+          const img = new Image();
+          img.onload = () => ctx.drawImage(img, 0, 0);
+          img.src = saved;
+        }
+      }
+    };
+    syncCanvasSize();
+    const observer = new ResizeObserver(syncCanvasSize);
+    const mapArea = document.getElementById('map-area');
+    if (mapArea) observer.observe(mapArea);
+    return () => observer.disconnect();
+  }, []);
+
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
   const [lightMode, setLightMode] = useState(() => localStorage.getItem('bt-lightMode') === 'true');
@@ -4255,25 +4283,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               />
             ))}
             
-            {/* Drawing Canvas Overlay - inside transform container */}
-            <canvas
-              ref={canvasRef}
-              onPointerDown={startDrawing}
-              onPointerMove={draw}
-              onPointerUp={stopDrawing}
-              onPointerLeave={stopDrawing}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: drawingMode ? 'auto' : 'none',
-                cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
-                touchAction: 'none'
-              }}
-            />
           </div>
+
+          {/* Drawing Canvas Overlay - outside transform so coordinates are 1:1 with pointer position */}
+          <canvas
+            ref={canvasRef}
+            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrawing(e); }}
+            onPointerMove={(e) => { e.stopPropagation(); draw(e); }}
+            onPointerUp={(e) => { e.stopPropagation(); stopDrawing(); }}
+            onPointerLeave={(e) => { e.stopPropagation(); stopDrawing(); }}
+            onPointerCancel={(e) => { e.stopPropagation(); stopDrawing(); }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: drawingMode ? 'auto' : 'none',
+              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
+              touchAction: 'none',
+              zIndex: 200
+            }}
+          />
           
           {/* Drawing Toolbar */}
           <div style={{
