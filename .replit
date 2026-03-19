@@ -13,7 +13,7 @@ language = "nodejs"
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
 publicDir = "dist"
-run = ["node", "server.js"]
+run = ["bash", "-c", "NODE_ENV=production node server.js"]
 
 [[ports]]
 localPort = 3001
