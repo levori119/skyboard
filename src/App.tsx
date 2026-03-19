@@ -2798,6 +2798,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableHeaderMenuKey, setTableHeaderMenuKey] = useState<string | null>(null);
   const [tableGroupDragKey, setTableGroupDragKey] = useState<string | null>(null);
   const [tableGroupDragOverKey, setTableGroupDragOverKey] = useState<string | null>(null);
+  // Strips manually placed onto the table board (empty by default)
+  const [tableOnBoard, setTableOnBoard] = useState<Set<string>>(new Set());
+  // Right-click context menu for a table row
+  const [tableRowCtxMenu, setTableRowCtxMenu] = useState<{ stripId: string; x: number; y: number } | null>(null);
+  // Strip being dragged from sidebar into the table
+  const tableSidebarDragId = useRef<string | null>(null);
+  // Whether the right sidebar is pinned (visible)
+  const [sidebarPinned, setSidebarPinned] = useState(true);
+  // Whether the table is being drag-hovered from sidebar
+  const [tableDragOver, setTableDragOver] = useState(false);
 
   // Floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
@@ -2832,9 +2842,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       : true)
   );
 
-  // Table strips: same as myStrips but also include pending_transfer strips
-  // (they display grayed-out until the recipient accepts)
+  // Table strips: only strips manually dragged onto the board (includes pending_transfer so they show grayed-out)
   const myTableStrips = strips.filter(s =>
+    tableOnBoard.has(s.id) &&
     (session.presetId
       ? Number(s.workstation_preset_id) === Number(session.presetId)
       : true)
@@ -3630,7 +3640,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
 
         {/* Map Area / Table View */}
-        <div id="map-area" style={{ flex: 1, position: 'relative', background: tableMode ? '#0f172a' : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0 }}>
+        <div
+          id="map-area"
+          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? '#1a2744' : '#0f172a') : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
+          onDragOver={tableMode ? e => { if (tableSidebarDragId.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setTableDragOver(true); } } : undefined}
+          onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
+          onDrop={tableMode ? e => {
+            e.preventDefault();
+            setTableDragOver(false);
+            const sid = tableSidebarDragId.current;
+            if (sid) {
+              setTableOnBoard(prev => new Set([...prev, sid]));
+              tableSidebarDragId.current = null;
+            }
+          } : undefined}
+          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); }}
+        >
           {/* Table Mode */}
           {tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
@@ -3949,9 +3974,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         key={s.id}
                         draggable={!tableSortBySector && !tableGroupByKey && !tableSortKey && !isPendingTransfer}
                         onDragStart={() => { if (!isPendingTransfer) { setTableDragRow(s.id); setTableSortBySector(false); } }}
-                        onDragOver={e => { e.preventDefault(); if (!isPendingTransfer) setTableDragOverRow(s.id); }}
+                        onDragOver={e => {
+                          e.preventDefault();
+                          if (tableSidebarDragId.current) { e.dataTransfer.dropEffect = 'move'; setTableDragOver(true); return; }
+                          if (!isPendingTransfer) setTableDragOverRow(s.id);
+                        }}
                         onDragLeave={() => setTableDragOverRow(null)}
-                        onDrop={() => {
+                        onDrop={e => {
+                          setTableDragOver(false);
+                          if (tableSidebarDragId.current) {
+                            setTableOnBoard(prev => new Set([...prev, tableSidebarDragId.current!]));
+                            tableSidebarDragId.current = null;
+                            return;
+                          }
                           if (tableDragRow && tableDragRow !== s.id) {
                             setTableRowOrder(prev => {
                               const arr = [...prev];
@@ -3963,6 +3998,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           }
                           setTableDragRow(null); setTableDragOverRow(null);
                         }}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
                           borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
@@ -3980,7 +4016,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     );
                   })}
                   {myTableStrips.length === 0 && (
-                    <tr><td colSpan={columns.length + 1} style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>אין פממים פעילים לעמדה זו</td></tr>
+                    <tr><td colSpan={columns.length + 1} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
+                      <div style={{ fontSize: '15px', color: '#64748b' }}>גרור פממים מהצד הימני לכאן</div>
+                    </td></tr>
                   )}
                 </tbody>
               </table>
@@ -4013,6 +4052,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               </>
             );
           })()}
+          {/* Table row right-click context menu */}
+          {tableRowCtxMenu && (
+            <div
+              style={{ position: 'fixed', top: tableRowCtxMenu.y, left: tableRowCtxMenu.x, background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '150px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                onClick={() => {
+                  setTableOnBoard(prev => { const next = new Set(prev); next.delete(tableRowCtxMenu.stripId); return next; });
+                  setTableRowCtxMenu(null);
+                }}
+                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
+              >✕ הסר מהלוח</button>
+            </div>
+          )}
+
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
@@ -4220,13 +4275,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
 
         {/* Sidebar - Right Side - Shows active strips */}
-        <div id="sidebar-area" style={{ width: 240, background: '#f8fafc', padding: '10px', borderLeft: '2px solid #e2e8f0', overflowY: 'auto', direction: 'rtl' }}>
-          {tableMode ? (
+        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: '#f8fafc', padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: '2px solid #e2e8f0', overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s', flexShrink: 0, position: 'relative' }}>
+          {/* Pin toggle button */}
+          <button
+            onClick={() => setSidebarPinned(v => !v)}
+            title={sidebarPinned ? 'סגור חלונית' : 'פתח חלונית'}
+            style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 8 : 0, left: sidebarPinned ? 8 : 0, background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569', zIndex: 10 }}
+          >{sidebarPinned ? '📌' : '📌'}</button>
+          {sidebarPinned && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ עמדה ({myStrips.length}):</h4>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>כל הפממים של העמדה</div>
-              {myStrips.map(s => (
-                <div key={s.id} style={{ marginBottom: '8px' }}>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
+              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').map(s => (
+                <div
+                  key={s.id}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; tableSidebarDragId.current = s.id; }}
+                  onDragEnd={() => { tableSidebarDragId.current = null; }}
+                  style={{ marginBottom: '8px', cursor: 'grab', opacity: 1 }}
+                >
                   <Strip s={s}
                     onUpdate={handleAltUpdate}
                     onMove={handleMove}
@@ -4238,8 +4305,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   />
                 </div>
               ))}
-              {myStrips.length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים פעילים</div>
+              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בטבלה</div>
               )}
             </>
           ) : (
@@ -4263,7 +4330,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים פעילים</div>
               )}
             </>
-          )}
+          ))}
         </div>
 
         {/* Floating Notepad */}
