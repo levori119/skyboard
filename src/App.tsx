@@ -3984,39 +3984,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   }
                   return (
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {/* Show existing note content */}
-                        {hasAnyNote && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {noteParsed.text && (
-                              <div style={{ direction: 'rtl', fontSize: '11px', color: '#e2e8f0', background: '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>
-                                {noteParsed.text}
-                              </div>
-                            )}
-                            {noteParsed.hw && (
-                              <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: '1px solid #334155' }} />
-                            )}
-                          </div>
-                        )}
-                        {/* Edit / clear buttons */}
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button
-                            onClick={() => setTableHandwritingId(s.id)}
-                            title="ערוך הערה"
-                            style={{ padding: '3px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}
-                          >{hasAnyNote ? '✏️ ערוך' : '✏️ הוסף'}</button>
-                          {hasAnyNote && (
-                            <button
-                              onClick={() => {
-                                setTableEditingNotes(prev => ({ ...prev, [s.id]: '' }));
-                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: '' }) });
-                                setStrips(prev => prev.map(st => st.id === s.id ? { ...st, notes: '' } : st));
-                              }}
-                              style={{ padding: '3px 8px', background: '#450a0a', color: '#f87171', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                            >✕ מחק</button>
+                      {hasAnyNote ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {noteParsed.text && (
+                            <div style={{ direction: 'rtl', fontSize: '11px', color: '#e2e8f0', background: '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>
+                              {noteParsed.text}
+                            </div>
+                          )}
+                          {noteParsed.hw && (
+                            <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: '1px solid #334155' }} />
                           )}
                         </div>
-                      </div>
+                      ) : (
+                        <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                      )}
                     </td>
                   );
                 }
@@ -4251,11 +4232,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             >
               <button
                 onClick={() => {
+                  setTableHandwritingId(tableRowCtxMenu.stripId);
+                  setTableRowCtxMenu(null);
+                }}
+                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+              >📝 הערות</button>
+              <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+              <button
+                onClick={() => {
                   setTableOnBoard(prev => { const next = new Set(prev); next.delete(tableRowCtxMenu.stripId); return next; });
                   setTableRowCtxMenu(null);
                 }}
-                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
+                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
               >✕ הסר מהלוח</button>
+              <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+              <button
+                onClick={() => {
+                  if (confirm('למחוק פמם זה?')) deleteStrip(tableRowCtxMenu.stripId);
+                  setTableRowCtxMenu(null);
+                }}
+                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
+              >🗑 מחק</button>
             </div>
           )}
 
