@@ -3166,8 +3166,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     });
   }, [incomingTransfers, outgoingTransfers, allSectors]);
 
-  // Restore canvas drawing after size or mode changes clear its pixels
-  useEffect(() => {
+  // Restore canvas drawing after size/mode changes or when notepad is re-opened
+  const restoreNotepadCanvas = () => {
     const saved = notepadSavedImageRef.current;
     if (!saved) return;
     const canvas = notepadCanvasRef.current;
@@ -3178,7 +3178,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       if (ctx) ctx.drawImage(img, 0, 0);
     };
     img.src = saved;
-  }, [notepadSize, notepadMode]);
+  };
+  useEffect(() => { restoreNotepadCanvas(); }, [notepadSize, notepadMode]);
+  // Restore when notepad is re-opened (canvas just mounted)
+  useEffect(() => {
+    if (showNotepad) {
+      // Small delay to ensure the canvas element is mounted in the DOM
+      const t = setTimeout(restoreNotepadCanvas, 0);
+      return () => clearTimeout(t);
+    }
+  }, [showNotepad]);
 
   const handleAcceptTransfer = async (transferId: string) => {
     try {
@@ -3468,7 +3477,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
             style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
           >{lightMode ? '🌙' : '☀️'}</button>
-          <button onClick={() => setShowNotepad(v => !v)} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
+          <button onClick={() => {
+            if (showNotepad) {
+              const canvas = notepadCanvasRef.current;
+              if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
+            }
+            setShowNotepad(v => !v);
+          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
           </button>
           <button onClick={() => setShowLearn(true)} style={{ background: '#7c3aed', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
@@ -4397,7 +4412,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   </button>
                 ))}
                 <button
-                  onClick={() => setShowNotepad(false)}
+                  onClick={() => {
+                    const canvas = notepadCanvasRef.current;
+                    if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
+                    setShowNotepad(false);
+                  }}
                   style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginRight: '4px' }}
                 >
                   ×
