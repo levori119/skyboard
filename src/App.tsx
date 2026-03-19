@@ -3084,6 +3084,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     }
   };
 
+  const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean) => void>(() => {});
+
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
     try {
@@ -3096,6 +3098,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       console.error('Failed to update strip position:', err);
     }
   };
+  handleMoveRef.current = handleMove;
 
   const handleAltUpdate = async (id: string, alt: string) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
@@ -3191,6 +3194,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
           setTableOnBoard(prev => new Set([...prev, id]));
+          handleMoveRef.current(id, 0, 0, false);
         }
       }
     };
@@ -4501,12 +4505,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   touchAction: 'none'
                 }}
                 onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   notepadDrawingRef.current = true;
-                  const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
+                  const canvas = notepadCanvasRef.current;
+                  if (!canvas) return;
+                  const rect = canvas.getBoundingClientRect();
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                  (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
                 }}
                 onPointerMove={(e) => {
+                  e.stopPropagation();
                   if (!notepadDrawingRef.current || !notepadLastRef.current) return;
                   const canvas = notepadCanvasRef.current;
                   if (!canvas) return;
@@ -4515,20 +4523,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   const rect = canvas.getBoundingClientRect();
                   const scaleX = canvas.width / rect.width;
                   const scaleY = canvas.height / rect.height;
-                  const x = (e.clientX - rect.left) * scaleX;
-                  const y = (e.clientY - rect.top) * scaleY;
+                  const prevX = notepadLastRef.current.x * scaleX;
+                  const prevY = notepadLastRef.current.y * scaleY;
+                  const curX = (e.clientX - rect.left) * scaleX;
+                  const curY = (e.clientY - rect.top) * scaleY;
                   ctx.strokeStyle = '#1e293b';
                   ctx.lineWidth = 2;
                   ctx.lineCap = 'round';
                   ctx.lineJoin = 'round';
                   ctx.beginPath();
-                  ctx.moveTo(notepadLastRef.current.x * scaleX, notepadLastRef.current.y * scaleY);
-                  ctx.lineTo(x, y);
+                  ctx.moveTo(prevX, prevY);
+                  ctx.lineTo(curX, curY);
                   ctx.stroke();
                   notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
                 }}
-                onPointerUp={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                onPointerLeave={() => { notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
+                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
               />
             </div>
 
