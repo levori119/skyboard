@@ -2802,12 +2802,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableOnBoard, setTableOnBoard] = useState<Set<string>>(new Set());
   // Right-click context menu for a table row
   const [tableRowCtxMenu, setTableRowCtxMenu] = useState<{ stripId: string; x: number; y: number } | null>(null);
-  // Strip being dragged from sidebar into the table
+  // Strip being dragged from sidebar into the table (HTML5 drag fallback)
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
+  // Pointer-events drag from sidebar to table
+  const sidebarPointerDragRef = useRef<{ id: number; label: string } | null>(null);
+  const [sidebarPointerGhost, setSidebarPointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
 
   // Floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
@@ -3165,6 +3168,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       return next;
     });
   }, [incomingTransfers, outgoingTransfers, allSectors]);
+
+  // Pointer-event drag from sidebar to table — global move/up listeners
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!sidebarPointerDragRef.current) return;
+      setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const r = mapArea.getBoundingClientRect();
+        setTableDragOver(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!sidebarPointerDragRef.current) return;
+      const { id } = sidebarPointerDragRef.current;
+      sidebarPointerDragRef.current = null;
+      setSidebarPointerGhost(null);
+      setTableDragOver(false);
+      const mapArea = document.getElementById('map-area');
+      if (mapArea) {
+        const r = mapArea.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          setTableOnBoard(prev => new Set([...prev, id]));
+        }
+      }
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  }, []);
 
   // Restore canvas drawing after size/mode changes or when notepad is re-opened
   const restoreNotepadCanvas = () => {
@@ -4307,10 +4340,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').map(s => (
                 <div
                   key={s.id}
-                  draggable
-                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/strip-id', String(s.id)); tableSidebarDragId.current = s.id; }}
-                  onDragEnd={() => { tableSidebarDragId.current = null; setTableDragOver(false); }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl' }}
+                  onPointerDown={e => {
+                    e.preventDefault();
+                    sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
+                    setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
+                  }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: tableDragOver && sidebarPointerDragRef.current?.id === s.id ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
@@ -4349,6 +4384,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </>
           ))}
         </div>
+
+        {/* Sidebar pointer-drag ghost */}
+        {sidebarPointerGhost && (
+          <div style={{ position: 'fixed', left: sidebarPointerGhost.x + 12, top: sidebarPointerGhost.y - 14, background: tableDragOver ? '#1d4ed8' : '#334155', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: '2px solid #3b82f6' }}>
+            {sidebarPointerGhost.label}
+          </div>
+        )}
 
         {/* Floating Notepad */}
         {showNotepad && (
