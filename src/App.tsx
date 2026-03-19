@@ -2749,12 +2749,15 @@ const OSK_LAYOUTS: Record<string, string[][]> = {
     ['°','±','×','÷','€','£','¥','©','®','™'],
   ],
 };
-const OnScreenKeyboard = ({ onType, onBackspace, onEnter }: {
+const OnScreenKeyboard = ({ onType, onBackspace, onEnter, onClose }: {
   onType: (c: string) => void;
   onBackspace: () => void;
   onEnter: () => void;
+  onClose: () => void;
 }) => {
   const [lang, setLang] = useState<'he'|'en'|'EN'|'sym'>('he');
+  const [pos, setPos] = useState({ x: Math.max(0, (window.innerWidth - 560) / 2), y: window.innerHeight - 280 });
+  const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const rows = OSK_LAYOUTS[lang];
   const key: React.CSSProperties = {
     minWidth: 34, height: 38, background: '#334155', color: 'white',
@@ -2764,46 +2767,51 @@ const OnScreenKeyboard = ({ onType, onBackspace, onEnter }: {
     WebkitUserSelect: 'none', userSelect: 'none',
   };
   const langBtn = (l: typeof lang, label: string) => (
-    <button
-      key={l}
-      onPointerDown={e => { e.preventDefault(); setLang(l); }}
+    <button key={l} onPointerDown={e => { e.preventDefault(); setLang(l); }}
       style={{ ...key as any, minWidth: 50, background: lang === l ? '#2563eb' : '#1e3a5f', border: lang === l ? '1px solid #3b82f6' : '1px solid #1e40af', fontSize: '12px', fontWeight: 'bold' }}
     >{label}</button>
   );
-  return (
-    <div style={{ background: '#0f172a', padding: '8px', borderRadius: '8px', userSelect: 'none', direction: 'ltr', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      {/* Language switcher row */}
-      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginBottom: '2px' }}>
-        {langBtn('he', 'עברית')}
-        {langBtn('en', 'EN')}
-        {langBtn('EN', 'CAPS')}
-        {langBtn('sym', '!@#')}
+  const onDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
+    const onMove = (me: PointerEvent) => {
+      if (!dragRef.current) return;
+      setPos({ x: dragRef.current.ox + me.clientX - dragRef.current.sx, y: dragRef.current.oy + me.clientY - dragRef.current.sy });
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+  return createPortal(
+    <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 99999, background: '#0f172a', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', userSelect: 'none', direction: 'ltr', display: 'flex', flexDirection: 'column', gap: '4px', padding: '6px' }}>
+      {/* Drag handle + close */}
+      <div onPointerDown={onDragStart} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab', background: '#1e293b', borderRadius: '6px', padding: '4px 8px', marginBottom: '2px' }}>
+        <span style={{ color: '#94a3b8', fontSize: '11px' }}>⌨ מקלדת וירטואלית — גרור להזזה</span>
+        <button onPointerDown={e => { e.stopPropagation(); onClose(); }} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 8px', fontSize: '13px', fontWeight: 'bold' }}>✕</button>
+      </div>
+      {/* Language row */}
+      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+        {langBtn('he', 'עברית')}{langBtn('en', 'EN')}{langBtn('EN', 'CAPS')}{langBtn('sym', '!@#')}
       </div>
       {/* Key rows */}
       {rows.map((row, ri) => (
         <div key={ri} style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
           {row.map(k => (
-            <button key={k} style={key as any}
-              onPointerDown={e => { e.preventDefault(); onType(k); }}
-            >{k}</button>
+            <button key={k} style={key as any} onPointerDown={e => { e.preventDefault(); onType(k); }}>{k}</button>
           ))}
           {ri === 0 && (
             <button style={{ ...key as any, minWidth: 52, background: '#7f1d1d', border: '1px solid #991b1b', fontSize: '16px' }}
-              onPointerDown={e => { e.preventDefault(); onBackspace(); }}
-            >⌫</button>
+              onPointerDown={e => { e.preventDefault(); onBackspace(); }}>⌫</button>
           )}
         </div>
       ))}
       {/* Bottom row */}
       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-        <button style={{ ...key as any, minWidth: 180, fontSize: '12px', color: '#94a3b8' }}
-          onPointerDown={e => { e.preventDefault(); onType(' '); }}
-        >space / מרווח</button>
-        <button style={{ ...key as any, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }}
-          onPointerDown={e => { e.preventDefault(); onEnter(); }}
-        >↵</button>
+        <button style={{ ...key as any, minWidth: 200, fontSize: '12px', color: '#94a3b8' }} onPointerDown={e => { e.preventDefault(); onType(' '); }}>space / מרווח</button>
+        <button style={{ ...key as any, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }} onPointerDown={e => { e.preventDefault(); onEnter(); }}>↵</button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -2930,6 +2938,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
               onType={insertAtCursor}
               onBackspace={oskBackspace}
               onEnter={() => insertAtCursor('\n')}
+              onClose={() => setShowOSK(false)}
             />
           )}
         </div>
@@ -4779,13 +4788,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 }}
               />
               {showNotepadOSK && notepadMode !== 'handwriting' && (
-                <div style={{ flexShrink: 0, overflowX: 'auto', padding: '4px' }}>
-                  <OnScreenKeyboard
-                    onType={notepadInsertAtCursor}
-                    onBackspace={notepadOskBackspace}
-                    onEnter={() => notepadInsertAtCursor('\n')}
-                  />
-                </div>
+                <OnScreenKeyboard
+                  onType={notepadInsertAtCursor}
+                  onBackspace={notepadOskBackspace}
+                  onEnter={() => notepadInsertAtCursor('\n')}
+                  onClose={() => setShowNotepadOSK(false)}
+                />
               )}
               {/* Handwriting canvas — always in DOM so content is never lost on mode switch */}
               <canvas
