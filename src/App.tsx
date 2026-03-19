@@ -1240,6 +1240,23 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
   );
 };
 
+// Parse a note value that may be plain text, a data-URL, or combined JSON { text, hw }
+const parseNoteValue = (val: string): { text: string; hw: string } => {
+  if (!val) return { text: '', hw: '' };
+  if (val.startsWith('data:')) return { text: '', hw: val };
+  if (val.startsWith('{')) {
+    try { const p = JSON.parse(val); return { text: p.text || '', hw: p.hw || '' }; } catch {}
+  }
+  return { text: val, hw: '' };
+};
+const serializeNoteValue = (text: string, hw: string): string => {
+  const hasText = text.trim().length > 0;
+  const hasHw = hw.startsWith('data:');
+  if (hasText && hasHw) return JSON.stringify({ text, hw });
+  if (hasHw) return hw;
+  return text;
+};
+
 // --- פאנל נקודת העברה עם עמודות העברה/קבלה ---
 const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -2049,7 +2066,10 @@ const DraggableMapMarker = ({
               style={{ fontSize: '9px', color: '#94a3b8', cursor: 'pointer' }}
               title="לחץ לעריכה"
             >
-              📝 {notes}
+              {(() => { const np = parseNoteValue(notes || ''); return (<>
+                {np.text && <span>📝 {np.text}</span>}
+                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '40px', display: 'block', marginTop: '2px' }} />}
+              </>); })()}
             </div>
           )}
         </div>
@@ -2513,11 +2533,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               style={{ marginTop: '4px', fontSize: '9px', color: '#64748b', cursor: 'pointer', background: '#f8fafc', padding: '2px 4px', borderRadius: '3px' }}
               title="לחץ לעריכה"
             >
-              {s.notes?.startsWith('data:image') ? (
-                <img src={s.notes} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '48px', borderRadius: '3px', display: 'block' }} />
-              ) : (
-                <>📝 {s.notes}</>
-              )}
+              {(() => { const np = parseNoteValue(s.notes || ''); return (<>
+                {np.text && <div style={{ direction: 'rtl' }}>📝 {np.text}</div>}
+                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '48px', borderRadius: '3px', display: 'block', marginTop: np.text ? '2px' : 0 }} />}
+              </>); })()}
             </div>
           )
         ) : onUpdateNotes && (
@@ -2705,25 +2724,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   });
 };
 
-// Parse a note value that may be plain text, a data-URL, or combined JSON { text, hw }
-const parseNoteValue = (val: string): { text: string; hw: string } => {
-  if (!val) return { text: '', hw: '' };
-  if (val.startsWith('data:')) return { text: '', hw: val };
-  if (val.startsWith('{')) {
-    try { const p = JSON.parse(val); return { text: p.text || '', hw: p.hw || '' }; } catch {}
-  }
-  return { text: val, hw: '' };
-};
-
-// Serialise back — if only one field has content, store it in its legacy format
-const serializeNoteValue = (text: string, hw: string): string => {
-  const hasText = text.trim().length > 0;
-  const hasHw = hw.startsWith('data:');
-  if (hasText && hasHw) return JSON.stringify({ text, hw });
-  if (hasHw) return hw;
-  return text;
-};
-
 // --- קנבס כתב יד לטבלה ---
 const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
   const parsed = parseNoteValue(existing);
@@ -2804,7 +2804,14 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
 
         {/* Text input — always visible, tap to open keyboard */}
         <div style={{ direction:'rtl' }}>
-          <div style={{ fontSize:'12px', color:'#64748b', marginBottom:'4px', fontWeight:'600' }}>⌨️ טקסט</div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
+            <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>⌨️ טקסט</span>
+            <button
+              onTouchStart={(e) => { e.preventDefault(); textareaRef.current?.focus(); }}
+              onClick={() => textareaRef.current?.focus()}
+              style={{ padding:'4px 10px', background:'#0ea5e9', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
+            >📱 מקלדת</button>
+          </div>
           <textarea
             ref={textareaRef}
             value={textValue}
@@ -2814,6 +2821,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
             style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
             placeholder="הקש כאן לפתיחת המקלדת..."
             autoFocus
+            onFocus={e => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
           />
         </div>
 
