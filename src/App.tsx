@@ -2725,47 +2725,83 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 };
 
 // --- מקלדת על-מסך ---
-const OSK_ROWS = [
-  ['1','2','3','4','5','6','7','8','9','0','-','='],
-  ['/','\'','א','ר','ט','ו','ן','ם','פ','[',']'],
-  ['ש','ד','ג','כ','ע','י','ח','ל','ך','ף',';'],
-  ['ז','ס','ב','ה','נ','מ','צ','ת','ץ','.'],
-];
+const OSK_LAYOUTS: Record<string, string[][]> = {
+  he: [
+    ['1','2','3','4','5','6','7','8','9','0','-','='],
+    ['/','\'','א','ר','ט','ו','ן','ם','פ','[',']'],
+    ['ש','ד','ג','כ','ע','י','ח','ל','ך','ף',';'],
+    ['ז','ס','ב','ה','נ','מ','צ','ת','ץ','.'],
+  ],
+  en: [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m',',','.'],
+  ],
+  EN: [
+    ['Q','W','E','R','T','Y','U','I','O','P'],
+    ['A','S','D','F','G','H','J','K','L'],
+    ['Z','X','C','V','B','N','M','<','>'],
+  ],
+  sym: [
+    ['!','@','#','$','%','^','&','*','(',')'],
+    ['+','=','_','-','|','\\',':',';','"','\''],
+    ['<','>','?','/','~','`','{','}','[',']'],
+    ['°','±','×','÷','€','£','¥','©','®','™'],
+  ],
+};
 const OnScreenKeyboard = ({ onType, onBackspace, onEnter }: {
   onType: (c: string) => void;
   onBackspace: () => void;
   onEnter: () => void;
 }) => {
-  const keyStyle: React.CSSProperties = {
+  const [lang, setLang] = useState<'he'|'en'|'EN'|'sym'>('he');
+  const rows = OSK_LAYOUTS[lang];
+  const key: React.CSSProperties = {
     minWidth: 34, height: 38, background: '#334155', color: 'white',
     border: '1px solid #475569', borderRadius: '5px', cursor: 'pointer',
     fontSize: '14px', fontFamily: 'inherit', padding: '0 4px', flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     WebkitUserSelect: 'none', userSelect: 'none',
   };
+  const langBtn = (l: typeof lang, label: string) => (
+    <button
+      key={l}
+      onPointerDown={e => { e.preventDefault(); setLang(l); }}
+      style={{ ...key as any, minWidth: 50, background: lang === l ? '#2563eb' : '#1e3a5f', border: lang === l ? '1px solid #3b82f6' : '1px solid #1e40af', fontSize: '12px', fontWeight: 'bold' }}
+    >{label}</button>
+  );
   return (
     <div style={{ background: '#0f172a', padding: '8px', borderRadius: '8px', userSelect: 'none', direction: 'ltr', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      {OSK_ROWS.map((row, ri) => (
+      {/* Language switcher row */}
+      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', marginBottom: '2px' }}>
+        {langBtn('he', 'עברית')}
+        {langBtn('en', 'EN')}
+        {langBtn('EN', 'CAPS')}
+        {langBtn('sym', '!@#')}
+      </div>
+      {/* Key rows */}
+      {rows.map((row, ri) => (
         <div key={ri} style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
           {row.map(k => (
-            <button key={k} style={keyStyle as any}
+            <button key={k} style={key as any}
               onPointerDown={e => { e.preventDefault(); onType(k); }}
             >{k}</button>
           ))}
           {ri === 0 && (
-            <button style={{ ...keyStyle as any, minWidth: 52, background: '#7f1d1d', border: '1px solid #991b1b', fontSize: '16px' }}
+            <button style={{ ...key as any, minWidth: 52, background: '#7f1d1d', border: '1px solid #991b1b', fontSize: '16px' }}
               onPointerDown={e => { e.preventDefault(); onBackspace(); }}
             >⌫</button>
           )}
         </div>
       ))}
+      {/* Bottom row */}
       <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-        <button style={{ ...keyStyle as any, minWidth: 180, fontSize: '12px', color: '#94a3b8' }}
+        <button style={{ ...key as any, minWidth: 180, fontSize: '12px', color: '#94a3b8' }}
           onPointerDown={e => { e.preventDefault(); onType(' '); }}
-        >מרווח</button>
-        <button style={{ ...keyStyle as any, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }}
+        >space / מרווח</button>
+        <button style={{ ...key as any, minWidth: 60, background: '#1d4ed8', border: '1px solid #2563eb', fontSize: '13px' }}
           onPointerDown={e => { e.preventDefault(); onEnter(); }}
-        >↵ Enter</button>
+        >↵</button>
       </div>
     </div>
   );
