@@ -3465,8 +3465,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-          setTableOnBoard(prev => new Set([...prev, id]));
-          handleMoveRef.current(id, 0, 0, false);
+          setTableOnBoard(prev => new Set([...prev, String(id)]));
+          handleMoveRef.current(String(id), 0, 0, false);
         }
       }
     };
@@ -3990,7 +3990,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
             const sid = rawId ? Number(rawId) : null;
             if (sid) {
-              setTableOnBoard(prev => new Set([...prev, sid]));
+              setTableOnBoard(prev => new Set([...prev, String(sid)]));
               tableSidebarDragId.current = null;
             }
           } : undefined}
@@ -4305,7 +4305,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
                           const droppedFromSidebar = rawId ? Number(rawId) : null;
                           if (droppedFromSidebar) {
-                            setTableOnBoard(prev => new Set([...prev, droppedFromSidebar]));
+                            setTableOnBoard(prev => new Set([...prev, String(droppedFromSidebar)]));
                             tableSidebarDragId.current = null;
                             return;
                           }
