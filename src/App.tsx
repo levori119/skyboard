@@ -3643,12 +3643,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         <div
           id="map-area"
           style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? '#1a2744' : '#0f172a') : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
-          onDragOver={tableMode ? e => { if (tableSidebarDragId.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setTableDragOver(true); } } : undefined}
+          onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
             e.preventDefault();
             setTableDragOver(false);
-            const sid = tableSidebarDragId.current;
+            const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
+            const sid = rawId ? Number(rawId) : null;
             if (sid) {
               setTableOnBoard(prev => new Set([...prev, sid]));
               tableSidebarDragId.current = null;
@@ -3982,8 +3983,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         onDragLeave={() => setTableDragOverRow(null)}
                         onDrop={e => {
                           setTableDragOver(false);
-                          if (tableSidebarDragId.current) {
-                            setTableOnBoard(prev => new Set([...prev, tableSidebarDragId.current!]));
+                          const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
+                          const droppedFromSidebar = rawId ? Number(rawId) : null;
+                          if (droppedFromSidebar) {
+                            setTableOnBoard(prev => new Set([...prev, droppedFromSidebar]));
                             tableSidebarDragId.current = null;
                             return;
                           }
@@ -4290,7 +4293,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 <div
                   key={s.id}
                   draggable
-                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; tableSidebarDragId.current = s.id; }}
+                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/strip-id', String(s.id)); tableSidebarDragId.current = s.id; }}
                   onDragEnd={() => { tableSidebarDragId.current = null; }}
                   style={{ marginBottom: '8px', cursor: 'grab', opacity: 1 }}
                 >
