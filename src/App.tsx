@@ -3357,6 +3357,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   };
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean) => void>(() => {});
+  const tableModeRef = useRef(false);
+  const mapZoomRef = useRef(1);
+  const mapPanRef = useRef({ x: 0, y: 0 });
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
@@ -3371,6 +3374,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     }
   };
   handleMoveRef.current = handleMove;
+  tableModeRef.current = tableMode;
+  mapZoomRef.current = mapZoom;
+  mapPanRef.current = mapPan;
 
   const handleAltUpdate = async (id: string, alt: string) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
@@ -3465,8 +3471,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-          setTableOnBoard(prev => new Set([...prev, String(id)]));
-          handleMoveRef.current(String(id), 0, 0, false);
+          if (tableModeRef.current) {
+            // Table mode: add to table board
+            setTableOnBoard(prev => new Set([...prev, String(id)]));
+            handleMoveRef.current(String(id), 0, 0, false);
+          } else {
+            // Map mode: place strip on map at drop coordinates (accounting for zoom/pan)
+            const zoom = mapZoomRef.current;
+            const pan = mapPanRef.current;
+            const cx = r.left + r.width / 2;
+            const cy = r.top + r.height / 2;
+            const rawX = (e.clientX - cx - pan.x) / zoom + r.width / 2;
+            const rawY = (e.clientY - cy - pan.y) / zoom + r.height / 2;
+            const clampedX = Math.max(100, Math.min(r.width - 100, rawX));
+            const clampedY = Math.max(40, Math.min(r.height - 50, rawY));
+            handleMoveRef.current(String(id), clampedX, clampedY, true);
+          }
         }
       }
     };
