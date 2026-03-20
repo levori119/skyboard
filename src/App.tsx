@@ -4094,14 +4094,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 case 'airborne':
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: '#475569', fontSize: '12px' }}>—</span>}
+                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
                     </td>
                   );
                 case 'squadron':
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
                       <div>{s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>גובה: {s.alt}</div>}
+                      {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {s.alt}</div>}
                     </td>
                   );
                 case 'alt':
@@ -4112,7 +4112,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {weapons.length === 0
-                        ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {weapons.map((w: any, i: number) => (
                               <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
@@ -4125,7 +4125,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {targets.length === 0
-                        ? <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {targets.map((t: any, i: number) => (
                               <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
@@ -4166,7 +4166,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           )}
                         </div>
                       ) : (
-                        <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                        <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
                       )}
                     </td>
                   );
@@ -4204,7 +4204,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               >
                 <thead>
                   <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
-                    <th style={{ padding: '8px 6px', width: '28px', color: '#475569', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
+                    <th style={{ padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
                     {columns.map(col => {
                       const colKey = col.key || col.field || '';
                       const isGrouped = tableGroupByKey === colKey;
@@ -4218,7 +4218,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
                             <button
                               onClick={e => { e.stopPropagation(); setTableHeaderMenuKey(prev => prev === colKey ? null : colKey); }}
-                              style={{ background: isMenuOpen ? '#334155' : 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
+                              style={{ background: isMenuOpen ? '#334155' : 'transparent', border: 'none', color: lightMode ? '#64748b' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
                             >▾</button>
                           </div>
                           {isMenuOpen && (
@@ -4295,9 +4295,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           }}
                         >
                           <td colSpan={columns.length + 1} style={{ padding: '5px 12px', direction: 'rtl' }}>
-                            <span style={{ color: '#475569', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
+                            <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
                             <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', marginLeft: '8px' }}>{item.groupKey}</span>
-                            <span style={{ color: '#475569', fontSize: '11px' }}>({item.count})</span>
+                            <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px' }}>({item.count})</span>
                           </td>
                         </tr>
                       );
@@ -4646,7 +4646,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           {sidebarPinned && (tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
+              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
               {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').map(s => (
                 <div
                   key={s.id}
@@ -4663,7 +4663,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
                     {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
-                    {s.alt && <span style={{ fontSize: '10px', color: '#64748b' }}>גובה: {s.alt}</span>}
+                    {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>גובה: {s.alt}</span>}
                   </div>
                 </div>
               ))}
