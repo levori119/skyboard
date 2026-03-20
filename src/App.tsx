@@ -3037,6 +3037,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
+  const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
   const [tableDragRow, setTableDragRow] = useState<string | null>(null);
   const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
@@ -4052,6 +4053,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   return <td key={colKey} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
                 }
                 const isImg = customVal.startsWith('data:image');
+                const cellKey = s.id + '__' + colKey;
+                const isEditingThis = tableEditingCell === cellKey;
                 return (
                   <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                     {isImg ? (
@@ -4059,22 +4062,54 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
                         <button onClick={() => saveCustom('')} style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>מחק</button>
                       </div>
-                    ) : (
+                    ) : isEditingThis ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
                         {(col.editable === 'keyboard' || col.editable === 'both') && (
-                          <textarea
-                            defaultValue={customVal}
-                            onBlur={async e => { if (e.target.value !== customVal) await saveCustom(e.target.value); }}
-                            placeholder={col.label || '...'}
-                            rows={2}
-                            style={{ flex: 1, background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', minWidth: 0 }}
-                          />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 }}>
+                            <textarea
+                              // eslint-disable-next-line jsx-a11y/no-autofocus
+                              autoFocus
+                              defaultValue={customVal}
+                              onBlur={async e => {
+                                if (e.target.value !== customVal) await saveCustom(e.target.value);
+                                setTableEditingCell(null);
+                              }}
+                              placeholder={col.label || '...'}
+                              rows={2}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            {customVal && (
+                              <button
+                                onMouseDown={e => e.preventDefault()}
+                                onClick={() => { saveCustom(''); setTableEditingCell(null); }}
+                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}
+                              >🗑 נקה</button>
+                            )}
+                          </div>
                         )}
                         {(col.editable === 'handwriting' || col.editable === 'both') && (
                           <button
-                            onClick={() => setTableHandwritingId(s.id + '__' + colKey)}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }}
                             title="כתב יד"
                             style={{ padding: '4px 7px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
+                          >✏️</button>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => setTableEditingCell(cellKey)}
+                        style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        {customVal
+                          ? <span>{customVal}</span>
+                          : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
+                        }
+                        {(col.editable === 'handwriting' || col.editable === 'both') && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }}
+                            title="כתב יד"
+                            style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0, marginRight: 'auto' }}
                           >✏️</button>
                         )}
                       </div>
