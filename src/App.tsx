@@ -4057,10 +4057,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 const isEditingThis = tableEditingCell === cellKey;
                 return (
                   <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                    {isImg ? (
+                    {isEditingThis && isImg ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
-                        <button onClick={() => saveCustom('')} style={{ fontSize: '10px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>מחק</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 מחק</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️ ערוך</button>
+                        <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: '10px', padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>סגור</button>
                       </div>
                     ) : isEditingThis ? (
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
@@ -4099,13 +4101,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     ) : (
                       <div
                         onClick={() => setTableEditingCell(cellKey)}
-                        style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
                       >
-                        {customVal
-                          ? <span>{customVal}</span>
-                          : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
+                        {isImg
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#4c1d95', color: '#a78bfa', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold' }}>✏️ כתב יד</span>
+                          : customVal
+                            ? <span>{customVal}</span>
+                            : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
                         }
-                        {(col.editable === 'handwriting' || col.editable === 'both') && (
+                        {!isImg && (col.editable === 'handwriting' || col.editable === 'both') && (
                           <button
                             onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }}
                             title="כתב יד"
@@ -4433,11 +4437,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(notesCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none' }}>
-                            {noteParsed.text && <div style={{ color: '#e2e8f0', background: '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px', marginBottom: noteParsed.hw ? '3px' : 0 }}>{noteParsed.text}</div>}
-                            {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '50px', borderRadius: '4px', border: '1px solid #334155' }} />}
+                          <div onClick={() => setTableEditingCell(notesCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {noteParsed.text && <div style={{ color: '#e2e8f0', background: '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
+                            {noteParsed.hw && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#4c1d95', color: '#a78bfa', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', alignSelf: 'flex-start' }}>✏️ כתב יד</span>}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>הערה...</span>}
-                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(notesCellKey); }} style={{ display: 'block', marginTop: '3px', padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✏️ כתב יד</button>}
+                            {col.editable === 'both' && !noteParsed.hw && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(notesCellKey); }} style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', alignSelf: 'flex-start' }}>✏️ כתב יד</button>}
                           </div>
                         )}
                       </td>
