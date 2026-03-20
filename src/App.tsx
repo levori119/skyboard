@@ -4104,7 +4104,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
                       >
                         {isImg
-                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#4c1d95', color: '#a78bfa', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold' }}>✏️ כתב יד</span>
+                          ? <span style={{ opacity: 0.4, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>{col.label || '...'}</span>
                           : customVal
                             ? <span>{customVal}</span>
                             : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
@@ -4439,9 +4439,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         ) : (
                           <div onClick={() => setTableEditingCell(notesCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {noteParsed.text && <div style={{ color: '#e2e8f0', background: '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
-                            {noteParsed.hw && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#4c1d95', color: '#a78bfa', borderRadius: '10px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', alignSelf: 'flex-start' }}>✏️ כתב יד</span>}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>הערה...</span>}
-                            {col.editable === 'both' && !noteParsed.hw && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(notesCellKey); }} style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', alignSelf: 'flex-start' }}>✏️ כתב יד</button>}
                           </div>
                         )}
                       </td>
