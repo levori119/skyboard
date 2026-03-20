@@ -4119,14 +4119,54 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               }
 
               switch (colKey) {
-                case 'callSign':
+                case 'callSign': {
+                  const csCellKey = s.id + '__callSign';
+                  const csEditing = tableEditingCell === csCellKey;
+                  if (col.editable === 'keyboard' || col.editable === 'both') {
+                    const saveField = async (val: string) => {
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, callSign: val } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ callSign: val }) });
+                    };
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {csEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <textarea autoFocus defaultValue={s.callSign || ''} rows={1}
+                              onBlur={async e => { if (e.target.value !== (s.callSign || '')) await saveField(e.target.value); setTableEditingCell(null); }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontWeight: 'bold', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {col.editable === 'both' && <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(csCellKey); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️</button>}
+                            </div>
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                            <span>{s.callSign}</span>
+                            {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '1px 4px', borderRadius: '3px' }}>מאוויר</span>}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0, marginRight: 'auto' }}>✏️</button>}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                       <div>{s.callSign}</div>
                       {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
                     </td>
                   );
+                }
                 case 'airborne':
+                  if (col.editable === 'toggle') {
+                    return (
+                      <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: 'center' }}>
+                        <button
+                          onClick={() => handleToggleAirborne(s.id, !s.airborne)}
+                          style={{ padding: '4px 10px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', background: s.airborne ? '#16a34a' : '#334155', color: s.airborne ? 'white' : '#94a3b8', transition: 'all 0.15s' }}
+                        >{s.airborne ? '✈ מאוויר' : '○ קרקע'}</button>
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
@@ -4203,7 +4243,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
                   );
                 }
-                case 'weapons':
+                case 'weapons': {
+                  const wpCellKey = s.id + '__weapons';
+                  const wpEditing = tableEditingCell === wpCellKey;
+                  const weaponsText = weapons.map((w: any) => w.type + (w.quantity ? ` ×${w.quantity}` : '')).join('\n');
+                  if (col.editable === 'keyboard') {
+                    const saveWeapons = async (text: string) => {
+                      const arr = text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+                        const m = line.match(/^(.+?)\s*[×x](\d+)$/);
+                        return m ? { type: m[1].trim(), quantity: m[2] } : { type: line, quantity: '' };
+                      });
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, weapons: arr } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weapons: arr }) });
+                    };
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {wpEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <textarea autoFocus defaultValue={weaponsText} rows={Math.max(2, weapons.length + 1)} placeholder={'שם חימוש ×כמות\nשורה לכל חימוש'}
+                              onBlur={async e => { if (e.target.value !== weaponsText) await saveWeapons(e.target.value); setTableEditingCell(null); }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#fbbf24', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            {weapons.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveWeapons(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑 נקה</button>}
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(wpCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
+                            {weapons.length === 0
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא חימושים</span>
+                              : weapons.map((w: any, i: number) => <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
+                            }
+                          </div>
+                        )}
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {weapons.length === 0
@@ -4216,7 +4289,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       }
                     </td>
                   );
-                case 'targets':
+                }
+                case 'targets': {
+                  const tgCellKey = s.id + '__targets';
+                  const tgEditing = tableEditingCell === tgCellKey;
+                  const targetsText = targets.map((t: any) => t.name + (t.aim_point ? ` / ${t.aim_point}` : '')).join('\n');
+                  if (col.editable === 'keyboard') {
+                    const saveTargets = async (text: string) => {
+                      const arr = text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+                        const parts = line.split('/');
+                        return { name: parts[0].trim(), aim_point: parts[1]?.trim() || '' };
+                      });
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, targets: arr } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targets: arr }) });
+                    };
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {tgEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <textarea autoFocus defaultValue={targetsText} rows={Math.max(2, targets.length + 1)} placeholder={'שם מטרה / נקודת כוון\nשורה לכל מטרה'}
+                              onBlur={async e => { if (e.target.value !== targetsText) await saveTargets(e.target.value); setTableEditingCell(null); }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: '#f87171', padding: '5px 7px', fontSize: '11px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            {targets.length > 0 && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTargets(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑 נקה</button>}
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(tgCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
+                            {targets.length === 0
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא מטרות</span>
+                              : targets.map((t: any, i: number) => <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
+                            }
+                          </div>
+                        )}
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {targets.length === 0
@@ -4229,6 +4336,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       }
                     </td>
                   );
+                }
                 case 'shkadia': {
                   const shkCellKey = s.id + '__shkadia';
                   const shkEditing = tableEditingCell === shkCellKey;
@@ -4262,6 +4370,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   return <td key={col.key} style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>{s.shkadia || '—'}</td>;
                 }
                 case 'sector':
+                  if (col.editable === 'dropdown') {
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        <select
+                          value={s.sectorId || ''}
+                          onChange={async e => {
+                            const newSectorId = Number(e.target.value) || null;
+                            setStrips(prev => prev.map(st => st.id === s.id ? { ...st, sectorId: newSectorId } : st));
+                            await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sectorId: newSectorId }) });
+                          }}
+                          style={{ background: '#0f172a', color: tableSortBySector ? '#38bdf8' : '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
+                        >
+                          <option value="">— ללא —</option>
+                          {allSectors.map(sec => (
+                            <option key={sec.id} value={sec.id}>{sec.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
                   );
@@ -5583,21 +5711,21 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
 // --- הגדרת שדות פמם ---
 const STRIP_FIELD_DEFS = [
-  { key: 'callSign',  label: 'או"ק',          editableOptions: ['none'] as string[] },
-  { key: 'airborne',  label: 'מאוויר',         editableOptions: ['none'] as string[] },
+  { key: 'callSign',  label: 'או"ק',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'airborne',  label: 'מאוויר',         editableOptions: ['none', 'toggle'] },
   { key: 'squadron',  label: 'טייסת',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'alt',       label: 'גובה',           editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'weapons',   label: 'חימושים',        editableOptions: ['none'] as string[] },
-  { key: 'targets',   label: "מטרות",          editableOptions: ['none'] as string[] },
+  { key: 'weapons',   label: 'חימושים',        editableOptions: ['none', 'keyboard'] },
+  { key: 'targets',   label: "מטרות",          editableOptions: ['none', 'keyboard'] },
   { key: 'shkadia',   label: 'שקדיה',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'notes',     label: 'הערות',          editableOptions: ['none', 'keyboard', 'handwriting', 'both'] },
-  { key: 'sector',    label: 'אזור',           editableOptions: ['none'] as string[] },
+  { key: 'sector',    label: 'אזור',           editableOptions: ['none', 'dropdown'] },
   { key: 'transfer',  label: 'העבר',           editableOptions: ['none'] as string[] },
 ];
 
 const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'handwriting', 'both'];
 
-const EDITABLE_LABELS: Record<string, string> = { none: 'צפייה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד', both: 'מקלדת + כתב יד' };
+const EDITABLE_LABELS: Record<string, string> = { none: 'צפייה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד', both: 'מקלדת + כתב יד', toggle: 'מתג', dropdown: 'רשימת בחירה' };
 
 // --- ניהול מודי טבלה ---
 const TableModesManager = () => {
