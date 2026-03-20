@@ -4812,6 +4812,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             title={sidebarPinned ? 'סגור חלונית' : 'פתח חלונית'}
             style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 8 : 0, left: sidebarPinned ? 8 : 0, background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569', zIndex: 10 }}
           >{sidebarPinned ? '📌' : '📌'}</button>
+          {!sidebarPinned && (() => {
+            const closedCount = tableMode
+              ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
+              : myStrips.filter(s => s.status !== 'pending_transfer').length;
+            return closedCount > 0 ? (
+              <div
+                onClick={() => setSidebarPinned(true)}
+                title={`קיימים ${closedCount} פ"מם במאגר — לחץ לפתיחה`}
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                  fontSize: '11px',
+                  color: '#7c3aed',
+                  fontWeight: 'bold',
+                  marginTop: '12px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center',
+                  lineHeight: 1.3,
+                  background: '#f3e8ff',
+                  borderRadius: '6px',
+                  padding: '8px 4px',
+                  border: '1px solid #c4b5fd',
+                }}
+              >
+                קיימים {closedCount} פ"מם
+              </div>
+            ) : null;
+          })()}
           {sidebarPinned && (tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
