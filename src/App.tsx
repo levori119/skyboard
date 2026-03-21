@@ -3977,16 +3977,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         {/* Sector Panels - Far Left — collapsible, open when transfer points exist */}
         {neighbors.length > 0 && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, position: 'relative' }}>
-              {/* Collapse button on far left edge */}
-              <button
-                onClick={() => setNeighborPanelOpen(false)}
-                title="סגור חלונית נקודות העברה"
-                style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '8px 3px', borderRadius: '0 4px 4px 0', fontSize: '12px', zIndex: 10, lineHeight: 1 }}
-              >◀</button>
-              <div style={{ padding: '10px 10px 10px 18px', borderBottom: '1px solid #334155' }}>
-                <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
-                <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
+            <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+              <div style={{ padding: '8px 10px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>גרור למפה להעברה עם מיקום</div>
+                </div>
+                <button
+                  onClick={() => setNeighborPanelOpen(false)}
+                  title="סגור חלונית"
+                  style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
+                >◀</button>
               </div>
               {allSectors.map(n => (
                 <DraggableNeighborPanel
