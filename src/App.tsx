@@ -3058,6 +3058,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
+  const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 1);
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
   // Pointer-events drag from sidebar to table
@@ -3973,30 +3974,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
-        {/* Sector Panels - Far Left — hidden when workstation has no transfer points */}
+        {/* Sector Panels - Far Left — collapsible, open when transfer points exist */}
         {neighbors.length > 0 && (
-          <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-            <div style={{ padding: '10px', borderBottom: '1px solid #334155' }}>
-              <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
-              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
+          neighborPanelOpen ? (
+            <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0, position: 'relative' }}>
+              {/* Collapse button on far left edge */}
+              <button
+                onClick={() => setNeighborPanelOpen(false)}
+                title="סגור חלונית נקודות העברה"
+                style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '8px 3px', borderRadius: '0 4px 4px 0', fontSize: '12px', zIndex: 10, lineHeight: 1 }}
+              >◀</button>
+              <div style={{ padding: '10px 10px 10px 18px', borderBottom: '1px solid #334155' }}>
+                <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
+                <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>גרור למפה להעברה עם מיקום</div>
+              </div>
+              {allSectors.map(n => (
+                <DraggableNeighborPanel
+                  key={n.id}
+                  neighbor={n}
+                  subSectors={subSectors}
+                  onDropOnMap={handleNeighborDropOnMap}
+                  isExpanded={expandedNeighbors.has(n.id)}
+                  onToggle={() => toggleNeighborExpanded(n.id)}
+                  outgoingTransfers={outgoingTransfers}
+                  incomingTransfers={incomingTransfers}
+                  onCancelTransfer={handleCancelTransfer}
+                  onAcceptTransfer={handleAcceptTransfer}
+                  onRejectTransfer={handleRejectTransfer}
+                  onAcceptToMap={handleAcceptToMap}
+                />
+              ))}
             </div>
-            {allSectors.map(n => (
-              <DraggableNeighborPanel
-                key={n.id}
-                neighbor={n}
-                subSectors={subSectors}
-                onDropOnMap={handleNeighborDropOnMap}
-                isExpanded={expandedNeighbors.has(n.id)}
-                onToggle={() => toggleNeighborExpanded(n.id)}
-                outgoingTransfers={outgoingTransfers}
-                incomingTransfers={incomingTransfers}
-                onCancelTransfer={handleCancelTransfer}
-                onAcceptTransfer={handleAcceptTransfer}
-                onRejectTransfer={handleRejectTransfer}
-                onAcceptToMap={handleAcceptToMap}
-              />
-            ))}
-          </div>
+          ) : (
+            /* Collapsed strip — shows toggle button on left edge */
+            <div style={{ width: 28, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '8px', gap: '6px' }}>
+              <button
+                onClick={() => setNeighborPanelOpen(true)}
+                title="פתח נקודות העברה"
+                style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '0 4px 4px 0', fontSize: '12px', lineHeight: 1 }}
+              >▶</button>
+              {(() => {
+                const pendingCount = incomingTransfers.filter(t => neighbors.some(n => n.id === t.from_sector_id)).length;
+                return pendingCount > 0 ? (
+                  <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
+                    {pendingCount} ממתין
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )
         )}
 
         {/* Map Area / Table View */}
