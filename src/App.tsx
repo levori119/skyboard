@@ -1862,6 +1862,7 @@ const DraggableMapMarker = ({
 
   return (
     <div
+      className="marker-drop-zone"
       data-marker-sector={marker.sectorId}
       data-marker-sublabel={marker.subLabel || ''}
       style={{
@@ -2387,14 +2388,27 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   useEffect(() => {
     if (!isDragging) return;
 
+    const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
+    };
+
+    const clearMarkerHighlight = () => {
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+    };
+
     const handlePointerMove = (e: PointerEvent) => {
       setDragPos({ 
         x: e.clientX - startPosRef.current.x, 
         y: e.clientY - startPosRef.current.y 
       });
+      clearMarkerHighlight();
+      const target = findTopmostMarker(e.clientX, e.clientY);
+      if (target) target.classList.add('strip-drag-active');
     };
 
     const handlePointerUp = (e: PointerEvent) => {
+      clearMarkerHighlight();
       setIsDragging(false);
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
@@ -2406,20 +2420,16 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
-        // בדיקה אם נשחרר על סמן נקודת העברה במפה - העברה
-        const markerDropZones = document.querySelectorAll('.marker-drop-zone');
-        for (const zone of markerDropZones) {
-          const zoneRect = zone.getBoundingClientRect();
-          if (e.clientX >= zoneRect.left && e.clientX <= zoneRect.right &&
-              e.clientY >= zoneRect.top && e.clientY <= zoneRect.bottom) {
-            const sectorId = parseInt(zone.getAttribute('data-marker-sector') || '0');
-            const subLabel = zone.getAttribute('data-marker-sublabel') || undefined;
-            if (sectorId && onTransfer) {
-              const x = e.clientX - mapRect.left;
-              const y = e.clientY - mapRect.top;
-              onTransfer(s.id, sectorId, x, y, subLabel || undefined);
-              return;
-            }
+        // בדיקה אם נשחרר על סמן נקודת העברה במפה — שימוש ב-elementsFromPoint לדיוק
+        const topMarker = findTopmostMarker(e.clientX, e.clientY);
+        if (topMarker) {
+          const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
+          const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
+          if (sectorId && onTransfer) {
+            const x = e.clientX - mapRect.left;
+            const y = e.clientY - mapRect.top;
+            onTransfer(s.id, sectorId, x, y, subLabel || undefined);
+            return;
           }
         }
 
@@ -2462,11 +2472,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       }
     };
 
+    const handlePointerCancel = () => {
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      setIsDragging(false);
+    };
+
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
   }, [isDragging, s.id, onMove, neighbors, onTransfer]);
 
