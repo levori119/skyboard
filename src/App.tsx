@@ -2887,7 +2887,7 @@ const FloatingNotepad = ({ data, onUpdate, onClose }: {
   const canvasH = data.mode === 'both' ? Math.floor((data.size.h - 80) * 0.55) : data.size.h - 60;
 
   return (
-    <div style={{ position: 'fixed', left: data.pos.x, top: data.pos.y, width: data.size.w, height: data.size.h, background: 'white', border: '2px solid #94a3b8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 6000, display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', minWidth: 200, minHeight: 160 }}>
+    <div style={{ position: 'absolute', left: data.pos.x, top: data.pos.y, width: data.size.w, height: data.size.h, background: 'white', border: '2px solid #94a3b8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 6000, display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', minWidth: 200, minHeight: 160 }}>
       {/* Title bar */}
       <div
         style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0, gap: '8px' }}
@@ -3259,27 +3259,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     return [];
   });
   const [showNotepadManager, setShowNotepadManager] = useState(false);
-  const notepadManagerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!showNotepadManager) return;
-    const handler = (e: MouseEvent) => {
-      if (notepadManagerRef.current && !notepadManagerRef.current.contains(e.target as Node)) {
-        setShowNotepadManager(false);
-      }
-    };
-    document.addEventListener('mousedown', handler, true);
-    return () => document.removeEventListener('mousedown', handler, true);
-  }, [showNotepadManager]);
   useEffect(() => { localStorage.setItem('bt-notepads', JSON.stringify(notepads)); }, [notepads]);
   const updateNotepad = (id: string, partial: Partial<NotepadData>) => setNotepads(prev => prev.map(n => n.id === id ? { ...n, ...partial } : n));
   const addNotepad = () => {
     const id = Math.random().toString(36).slice(2);
     const count = notepads.length + 1;
     const offset = notepads.length * 30;
-    const cx = Math.max(50, (window.innerWidth - 320) / 2 + offset);
-    const cy = Math.max(50, (window.innerHeight - 280) / 2 + offset);
-    setNotepads(prev => [...prev, { id, name: `פתקית ${count}`, visible: true, pos: { x: cx, y: cy }, size: { w: 320, h: 280 }, text: '', mode: 'keyboard', savedHw: null }]);
-    setShowNotepadManager(false);
+    setNotepads(prev => [...prev, { id, name: `פתקית ${count}`, visible: true, pos: { x: 200 + offset, y: 80 + offset }, size: { w: 320, h: 240 }, text: '', mode: 'keyboard', savedHw: null }]);
   };
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
@@ -4018,7 +4004,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
             style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
           >{lightMode ? '🌙' : '☀️'}</button>
-          <div ref={notepadManagerRef} style={{ position: 'relative' }}>
+          <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowNotepadManager(v => !v)}
               style={{ background: (notepads.some(n => n.visible) || showNotepadManager) ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: notepads.some(n => n.visible) ? 'bold' : 'normal' }}
