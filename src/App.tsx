@@ -3069,6 +3069,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableMode, setTableMode] = useState(false);
   const [showMapDropdown, setShowMapDropdown] = useState(false);
   const [showTableDropdown, setShowTableDropdown] = useState(false);
+  const mapDropdownRef = useRef<HTMLDivElement>(null);
+  const tableDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutside = (e: PointerEvent) => {
+      if (showMapDropdown && mapDropdownRef.current && !mapDropdownRef.current.contains(e.target as Node)) setShowMapDropdown(false);
+      if (showTableDropdown && tableDropdownRef.current && !tableDropdownRef.current.contains(e.target as Node)) setShowTableDropdown(false);
+    };
+    document.addEventListener('pointerdown', handleOutside, true);
+    return () => document.removeEventListener('pointerdown', handleOutside, true);
+  }, [showMapDropdown, showTableDropdown]);
+
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -3842,28 +3854,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* כפתור מפה + תפריט בחירת מפה */}
-          <div style={{ position: 'relative' }}>
+          <div ref={mapDropdownRef} style={{ position: 'relative' }}>
             <button
               onClick={() => { setTableMode(false); setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
               style={{ 
                 background: !tableMode ? '#2563eb' : '#334155', 
-                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                fontWeight: !tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
+                color: 'white', padding: '8px 16px', borderRadius: '6px', fontSize: '14px', border: 'none', cursor: 'pointer',
+                fontWeight: !tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px', minHeight: '40px'
               }}
             >
               🗺 מפה {showMapDropdown ? '▲' : '▼'}
             </button>
             {showMapDropdown && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '140px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
-                onMouseLeave={() => setShowMapDropdown(false)}>
+              <div className="bt-dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '150px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
                 {availableMaps.length === 0
-                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין מפות זמינות</div>
+                  ? <div style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>אין מפות זמינות</div>
                   : availableMaps.map(m => (
                     <div key={m.id}
-                      onClick={() => { selectMap(m.id); setShowMapDropdown(false); }}
-                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      onPointerDown={() => { selectMap(m.id); setShowMapDropdown(false); }}
+                      style={{ padding: '12px 16px', cursor: 'pointer', fontSize: '14px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155', minHeight: '48px', display: 'flex', alignItems: 'center' }}
                     >
                       🗺 {m.name}
                     </div>
@@ -3874,29 +3883,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           </div>
 
           {/* כפתור טבלה + תפריט בחירת טבלה */}
-          <div style={{ position: 'relative' }}>
+          <div ref={tableDropdownRef} style={{ position: 'relative' }}>
             <button
               onClick={() => { setTableMode(true); setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
               style={{ 
                 background: tableMode ? '#2563eb' : '#334155', 
-                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                fontWeight: tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
+                color: 'white', padding: '8px 16px', borderRadius: '6px', fontSize: '14px', border: 'none', cursor: 'pointer',
+                fontWeight: tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px', minHeight: '40px'
               }}
             >
               📋 טבלה {showTableDropdown ? '▲' : '▼'}
             </button>
             {showTableDropdown && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '150px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
-                onMouseLeave={() => setShowTableDropdown(false)}>
+              <div className="bt-dropdown-menu" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '160px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
                 {availableTableModes.length === 0
-                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין טבלאות מוגדרות</div>
+                  ? <div style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '13px' }}>אין טבלאות מוגדרות</div>
                   : availableTableModes.map(tm => (
                     <div key={tm.id}
-                      onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); }}
-                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155',
+                      onPointerDown={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); }}
+                      style={{ padding: '12px 16px', cursor: 'pointer', fontSize: '14px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155', minHeight: '48px', display: 'flex', alignItems: 'center',
                         background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
-                      onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
                     >
                       📋 {tm.name}
                     </div>
@@ -3917,10 +3923,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
             }
             setShowNotepad(v => !v);
-          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
+          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal', minHeight: '40px' }}>
             📄 פתקית
           </button>
-          <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
+          <button onClick={onLogout} style={{ background: '#dc2626', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', border: 'none', color: 'white', minHeight: '40px' }}>
             יציאה
           </button>
         </div>
