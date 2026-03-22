@@ -1368,7 +1368,9 @@ const DraggableNeighborPanel = ({
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
-          onPointerDown={(e) => { if (!dragStripId) handlePointerDown(e); }}
+          onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else { handlePointerDown(e); } }}
+          onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}
+          onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
           onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
           onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
           onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
@@ -3110,6 +3112,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   // Pointer-events drag from sidebar to table
   const sidebarPointerDragRef = useRef<{ id: number; label: string } | null>(null);
   const [sidebarPointerGhost, setSidebarPointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  // Pointer-events drag from table row to neighbor transfer panel
+  const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
+  const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
 
   // Single floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
@@ -3419,6 +3424,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   };
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean) => void>(() => {});
+  const handleTransferRef = useRef<(stripId: string, toSectorId: number) => void>(() => {});
   const tableModeRef = useRef(false);
   const mapZoomRef = useRef(1);
   const mapPanRef = useRef({ x: 0, y: 0 });
@@ -3508,6 +3514,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       console.error('Failed to initiate transfer:', err);
     }
   };
+  handleTransferRef.current = handleTransfer;
 
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
     const sector = allSectors.find(n => n.id === sectorId);
@@ -3598,6 +3605,51 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       setTableDragOver(false);
     };
     window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+  }, []);
+
+  // Global pointer drag: table row → neighbor transfer panel (iPad-compatible)
+  useEffect(() => {
+    const clearHighlights = () => {
+      document.querySelectorAll('.neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!tablePointerDragRef.current) return;
+      e.preventDefault();
+      setTablePointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+      clearHighlights();
+      const els = document.elementsFromPoint(e.clientX, e.clientY);
+      const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+      if (neighborEl) neighborEl.classList.add('strip-drag-active');
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!tablePointerDragRef.current) return;
+      const { id } = tablePointerDragRef.current;
+      tablePointerDragRef.current = null;
+      setTablePointerGhost(null);
+      setTableDragRow(null);
+      clearHighlights();
+      const els = document.elementsFromPoint(e.clientX, e.clientY);
+      const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+      if (neighborEl) {
+        const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
+        handleTransferRef.current(id, sectorId);
+      }
+    };
+    const onCancel = () => {
+      if (!tablePointerDragRef.current) return;
+      tablePointerDragRef.current = null;
+      setTablePointerGhost(null);
+      setTableDragRow(null);
+      clearHighlights();
+    };
+    window.addEventListener('pointermove', onMove, { passive: false });
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onCancel);
     return () => {
@@ -4787,7 +4839,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td className={hasFrozen ? 'frozen-col' : undefined} style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}>
+                        <td
+                          className={hasFrozen ? 'frozen-col' : undefined}
+                          style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          onPointerDown={isPendingTransfer ? undefined : e => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const label = s.callSign || String(s.id);
+                            tablePointerDragRef.current = { id: s.id, label };
+                            setTableDragRow(s.id);
+                            setTablePointerGhost({ x: e.clientX, y: e.clientY, label });
+                          }}
+                        >
                           {isPendingTransfer
                             ? <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '11px', background: '#374151', color: '#9ca3af', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>ממתין ⏳</span>
                             : '⠿'}
@@ -5204,6 +5267,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         {sidebarPointerGhost && (
           <div style={{ position: 'fixed', left: sidebarPointerGhost.x + 12, top: sidebarPointerGhost.y - 14, background: tableDragOver ? '#1d4ed8' : '#334155', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: '2px solid #3b82f6' }}>
             {sidebarPointerGhost.label}
+          </div>
+        )}
+        {tablePointerGhost && (
+          <div style={{ position: 'fixed', left: tablePointerGhost.x + 12, top: tablePointerGhost.y - 14, background: '#7c3aed', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: '2px solid #a78bfa' }}>
+            {tablePointerGhost.label}
           </div>
         )}
 
