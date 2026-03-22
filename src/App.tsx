@@ -5173,7 +5173,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           {!sidebarPinned && (() => {
             const closedCount = tableMode
               ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
-              : myStrips.filter(s => s.status !== 'pending_transfer').length;
+              : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
               <div
                 onClick={() => setSidebarPinned(true)}
