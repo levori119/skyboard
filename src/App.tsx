@@ -4756,17 +4756,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 </tbody>
               </table>
               {tableHandwritingId && (() => {
-                const isCustomHw = tableHandwritingId.includes('__');
-                const [hwStripId, hwColKey] = isCustomHw ? tableHandwritingId.split('__') : [tableHandwritingId, null];
+                const hasColKey = tableHandwritingId.includes('__');
+                const [hwStripId, hwColKey] = hasColKey ? tableHandwritingId.split('__') : [tableHandwritingId, null];
+                const isCustomField = hwColKey != null && hwColKey.startsWith('custom_');
                 const hwStrip = strips.find(s => s.id === hwStripId);
-                const hwExisting = isCustomHw
+                const hwExisting = isCustomField
                   ? ((hwStrip?.custom_fields && typeof hwStrip.custom_fields === 'object') ? hwStrip.custom_fields[hwColKey!] : '') || ''
                   : (tableEditingNotes[hwStripId] || hwStrip?.notes || '');
                 return (
                   <TableHandwritingCanvas
                     existing={hwExisting}
                     onConfirm={async (dataUrl) => {
-                      if (isCustomHw && hwColKey) {
+                      if (isCustomField && hwColKey) {
                         const newCF = { ...(hwStrip?.custom_fields || {}), [hwColKey]: dataUrl };
                         await fetch(`${API_URL}/strips/${hwStripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ custom_fields: newCF }) });
                         setStrips(prev => prev.map(st => st.id === hwStripId ? { ...st, custom_fields: newCF } : st));
