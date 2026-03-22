@@ -176,15 +176,24 @@ body.light-mode .bt-login-bg {
   background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
 }
 
-/* Frozen columns — always dark (night-mode style) regardless of day/night */
+/* Frozen columns in day mode — match light table style */
 body.light-mode .frozen-col {
-  background: #1e293b !important;
-  color: #e2e8f0 !important;
+  background: #edf2f7 !important;
+  color: #0f172a !important;
 }
 body.light-mode .frozen-col-last {
-  background: #1e293b !important;
-  color: #e2e8f0 !important;
+  background: #edf2f7 !important;
+  color: #0f172a !important;
   border-left: 2px solid #7c3aed !important;
+}
+body.light-mode tr:nth-child(even) .frozen-col,
+body.light-mode tr:nth-child(even) .frozen-col-last {
+  background: #dde8f0 !important;
+}
+body.light-mode thead .frozen-col,
+body.light-mode thead .frozen-col-last {
+  background: #c9d7e4 !important;
+  color: #1e293b !important;
 }
 
 /* Grouping/sorting dropdown menu — always dark regardless of mode */
