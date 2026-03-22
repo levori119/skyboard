@@ -2815,6 +2815,190 @@ const OnScreenKeyboard = ({ onType, onBackspace, onEnter, onClose }: {
   );
 };
 
+// --- מערכת פתקיות מרובות ---
+interface NotepadData {
+  id: string;
+  name: string;
+  visible: boolean;
+  pos: { x: number; y: number };
+  size: { w: number; h: number };
+  text: string;
+  mode: 'keyboard' | 'handwriting' | 'both';
+  savedHw: string | null;
+}
+
+const FloatingNotepad = ({ data, onUpdate, onClose }: {
+  data: NotepadData;
+  onUpdate: (partial: Partial<NotepadData>) => void;
+  onClose: () => void;
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingRef = useRef(false);
+  const lastRef = useRef<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showOSK, setShowOSK] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState(data.name);
+
+  useEffect(() => { setNameVal(data.name); }, [data.name]);
+
+  const restoreCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (data.savedHw) {
+      const img = new Image();
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = data.savedHw;
+    }
+  }, [data.savedHw, data.size.w, data.size.h]);
+
+  useEffect(() => { const t = setTimeout(restoreCanvas, 0); return () => clearTimeout(t); }, [data.size.w, data.size.h, data.mode]);
+  useEffect(() => { const t = setTimeout(restoreCanvas, 50); return () => clearTimeout(t); }, []);
+
+  const saveHw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (canvas) onUpdate({ savedHw: canvas.toDataURL() });
+  }, [onUpdate]);
+
+  const insertAtCursor = (char: string) => {
+    const el = textareaRef.current;
+    if (!el) { onUpdate({ text: data.text + char }); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = el.value.slice(0, s) + char + el.value.slice(e2);
+    onUpdate({ text: next });
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + char.length, s + char.length); });
+  };
+  const oskBackspace = () => {
+    const el = textareaRef.current;
+    if (!el) { onUpdate({ text: data.text.slice(0, -1) }); return; }
+    const s = el.selectionStart ?? el.value.length;
+    const e2 = el.selectionEnd ?? s;
+    const next = s === e2 ? el.value.slice(0, Math.max(0, s - 1)) + el.value.slice(e2) : el.value.slice(0, s) + el.value.slice(e2);
+    const ns = s === e2 ? Math.max(0, s - 1) : s;
+    onUpdate({ text: next });
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ns); });
+  };
+
+  const canvasH = data.mode === 'both' ? Math.floor((data.size.h - 80) * 0.55) : data.size.h - 60;
+
+  return (
+    <div style={{ position: 'absolute', left: data.pos.x, top: data.pos.y, width: data.size.w, height: data.size.h, background: 'white', border: '2px solid #94a3b8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 6000, display: 'flex', flexDirection: 'column', overflow: 'hidden', direction: 'rtl', minWidth: 200, minHeight: 160 }}>
+      {/* Title bar */}
+      <div
+        style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0, gap: '8px' }}
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).tagName === 'INPUT') return;
+          e.preventDefault();
+          dragRef.current = { startX: e.clientX, startY: e.clientY, origX: data.pos.x, origY: data.pos.y };
+          const onMove = (me: MouseEvent) => {
+            if (!dragRef.current) return;
+            onUpdate({ pos: { x: dragRef.current.origX + me.clientX - dragRef.current.startX, y: dragRef.current.origY + me.clientY - dragRef.current.startY } });
+          };
+          const onUp = () => { dragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        }}
+      >
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameVal}
+            onChange={e => setNameVal(e.target.value)}
+            onBlur={() => { onUpdate({ name: nameVal }); setEditingName(false); }}
+            onKeyDown={e => { if (e.key === 'Enter') { onUpdate({ name: nameVal }); setEditingName(false); } if (e.key === 'Escape') { setNameVal(data.name); setEditingName(false); } }}
+            style={{ background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '3px', color: 'white', padding: '2px 6px', fontSize: '12px', fontWeight: 'bold', outline: 'none', width: 130 }}
+          />
+        ) : (
+          <span onDoubleClick={() => setEditingName(true)} style={{ fontSize: '12px', fontWeight: 'bold', cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title="לחץ פעמיים לשינוי שם">📄 {data.name}</span>
+        )}
+        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+          {(['keyboard', 'handwriting', 'both'] as const).map(m => (
+            <button key={m} onClick={() => { saveHw(); onUpdate({ mode: m }); }}
+              style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: data.mode === m ? '#3b82f6' : '#334155', color: 'white' }}>
+              {m === 'keyboard' ? '⌨' : m === 'handwriting' ? '✍' : '⌨+✍'}
+            </button>
+          ))}
+          <button onClick={() => { saveHw(); onClose(); }} style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginRight: '4px' }}>×</button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {data.mode !== 'handwriting' && (
+          <div style={{ padding: '2px 8px 0', display: 'flex', justifyContent: 'flex-start' }}>
+            <button onPointerDown={e => { e.preventDefault(); setShowOSK(v => !v); }}
+              style={{ padding: '3px 10px', background: showOSK ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>⌨ מקלדת וירטואלית</button>
+          </div>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={data.text}
+          onChange={e => onUpdate({ text: e.target.value })}
+          placeholder="הקלד טקסט חופשי כאן..."
+          style={{ flex: data.mode === 'both' ? '0 0 45%' : 1, width: '100%', border: 'none', borderBottom: data.mode === 'both' ? '1px solid #e2e8f0' : 'none', outline: 'none', resize: 'none', fontSize: '14px', padding: '10px', direction: 'rtl', fontFamily: 'inherit', background: 'white', boxSizing: 'border-box', display: data.mode === 'handwriting' ? 'none' : undefined }}
+        />
+        {showOSK && data.mode !== 'handwriting' && (
+          <OnScreenKeyboard onType={insertAtCursor} onBackspace={oskBackspace} onEnter={() => insertAtCursor('\n')} onClose={() => setShowOSK(false)} />
+        )}
+        <canvas
+          ref={canvasRef}
+          width={data.size.w - 4}
+          height={canvasH}
+          style={{ flex: 1, width: '100%', display: data.mode === 'keyboard' ? 'none' : 'block', cursor: 'crosshair', touchAction: 'none' }}
+          onPointerDown={(e) => {
+            e.preventDefault(); e.stopPropagation();
+            drawingRef.current = true;
+            const canvas = canvasRef.current; if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            lastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+          }}
+          onPointerMove={(e) => {
+            e.stopPropagation();
+            if (!drawingRef.current || !lastRef.current) return;
+            const canvas = canvasRef.current; if (!canvas) return;
+            const ctx = canvas.getContext('2d'); if (!ctx) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(lastRef.current.x * scaleX, lastRef.current.y * scaleY);
+            ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+            ctx.stroke();
+            lastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+          }}
+          onPointerUp={(e) => { e.stopPropagation(); drawingRef.current = false; lastRef.current = null; saveHw(); }}
+          onPointerLeave={(e) => { e.stopPropagation(); drawingRef.current = false; lastRef.current = null; }}
+        />
+      </div>
+
+      {/* Bottom bar */}
+      <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', direction: 'ltr', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <button
+          onClick={() => { onUpdate({ text: '', savedHw: null }); const canvas = canvasRef.current; if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height); }}
+          style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
+        >נקה</button>
+        <div
+          title="גרור לשינוי גודל"
+          style={{ width: 20, height: 20, cursor: 'nwse-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0 }}
+          onMouseDown={(e) => {
+            e.preventDefault(); e.stopPropagation(); saveHw();
+            const startX = e.clientX, startY = e.clientY, origW = data.size.w, origH = data.size.h;
+            const onMove = (me: MouseEvent) => onUpdate({ size: { w: Math.max(200, origW + me.clientX - startX), h: Math.max(160, origH + me.clientY - startY) } });
+            const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+        >⇲</div>
+      </div>
+    </div>
+  );
+};
+
 // --- קנבס כתב יד לטבלה ---
 const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
   const parsed = parseNoteValue(existing);
@@ -3069,39 +3253,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const sidebarPointerDragRef = useRef<{ id: number; label: string } | null>(null);
   const [sidebarPointerGhost, setSidebarPointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
 
-  // Floating notepad
-  const [showNotepad, setShowNotepad] = useState(false);
-  const [notepadPos, setNotepadPos] = useState({ x: 220, y: 60 });
-  const [notepadSize, setNotepadSize] = useState({ w: 320, h: 240 });
-  const [notepadText, setNotepadText] = useState('');
-  const [notepadMode, setNotepadMode] = useState<'keyboard' | 'handwriting' | 'both'>('keyboard');
-  const notepadDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
-  const notepadDrawingRef = useRef(false);
-  const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
-  const notepadSavedImageRef = useRef<string | null>(null);
-  const notepadTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const [showNotepadOSK, setShowNotepadOSK] = useState(false);
-  const notepadInsertAtCursor = (char: string) => {
-    const el = notepadTextareaRef.current;
-    if (!el) { setNotepadText(v => v + char); return; }
-    const s = el.selectionStart ?? el.value.length;
-    const e2 = el.selectionEnd ?? s;
-    const next = el.value.slice(0, s) + char + el.value.slice(e2);
-    setNotepadText(next);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + char.length, s + char.length); });
+  // Multi-notepad system
+  const [notepads, setNotepads] = useState<NotepadData[]>(() => {
+    try { const s = localStorage.getItem('bt-notepads'); if (s) return JSON.parse(s); } catch {}
+    return [];
+  });
+  const [showNotepadManager, setShowNotepadManager] = useState(false);
+  useEffect(() => { localStorage.setItem('bt-notepads', JSON.stringify(notepads)); }, [notepads]);
+  const updateNotepad = (id: string, partial: Partial<NotepadData>) => setNotepads(prev => prev.map(n => n.id === id ? { ...n, ...partial } : n));
+  const addNotepad = () => {
+    const id = Math.random().toString(36).slice(2);
+    const count = notepads.length + 1;
+    const offset = notepads.length * 30;
+    setNotepads(prev => [...prev, { id, name: `פתקית ${count}`, visible: true, pos: { x: 200 + offset, y: 80 + offset }, size: { w: 320, h: 240 }, text: '', mode: 'keyboard', savedHw: null }]);
   };
-  const notepadOskBackspace = () => {
-    const el = notepadTextareaRef.current;
-    if (!el) { setNotepadText(v => v.slice(0, -1)); return; }
-    const s = el.selectionStart ?? el.value.length;
-    const e2 = el.selectionEnd ?? s;
-    const next = s === e2 ? el.value.slice(0, Math.max(0, s - 1)) + el.value.slice(e2) : el.value.slice(0, s) + el.value.slice(e2);
-    const ns = s === e2 ? Math.max(0, s - 1) : s;
-    setNotepadText(next);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(ns, ns); });
-  };
-
   const primarySector = session.relevantSectors[0];
   const primarySectorId = primarySector?.id;
 
@@ -3542,29 +3707,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     };
   }, []);
 
-  // Restore canvas drawing after size/mode changes or when notepad is re-opened
-  const restoreNotepadCanvas = () => {
-    const saved = notepadSavedImageRef.current;
-    if (!saved) return;
-    const canvas = notepadCanvasRef.current;
-    if (!canvas) return;
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.drawImage(img, 0, 0);
-    };
-    img.src = saved;
-  };
-  useEffect(() => { restoreNotepadCanvas(); }, [notepadSize, notepadMode]);
-  // Restore when notepad is re-opened (canvas just mounted)
-  useEffect(() => {
-    if (showNotepad) {
-      // Small delay to ensure the canvas element is mounted in the DOM
-      const t = setTimeout(restoreNotepadCanvas, 0);
-      return () => clearTimeout(t);
-    }
-  }, [showNotepad]);
-
   const handleAcceptTransfer = async (transferId: string) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/accept`, { method: 'POST' });
@@ -3862,15 +4004,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
             style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
           >{lightMode ? '🌙' : '☀️'}</button>
-          <button onClick={() => {
-            if (showNotepad) {
-              const canvas = notepadCanvasRef.current;
-              if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-            }
-            setShowNotepad(v => !v);
-          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
-            📄 פתקית
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowNotepadManager(v => !v)}
+              style={{ background: (notepads.some(n => n.visible) || showNotepadManager) ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: notepads.some(n => n.visible) ? 'bold' : 'normal' }}
+            >
+              📄 פתקיות{notepads.filter(n => n.visible).length > 0 ? ` (${notepads.filter(n => n.visible).length})` : ''}
+            </button>
+            {showNotepadManager && (
+              <div
+                style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 7000, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 230, padding: '10px', direction: 'rtl' }}
+                onMouseDown={e => e.stopPropagation()}
+              >
+                <div style={{ fontWeight: 'bold', color: '#94a3b8', fontSize: '11px', marginBottom: '8px', paddingBottom: '6px', borderBottom: '1px solid #334155' }}>ניהול פתקיות</div>
+                {notepads.length === 0 && <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '8px 0' }}>אין פתקיות עדיין</div>}
+                {notepads.map((n, i) => (
+                  <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 0', borderBottom: '1px solid #1e3a5f' }}>
+                    <button
+                      onClick={() => updateNotepad(n.id, { visible: !n.visible })}
+                      title={n.visible ? 'הסתר' : 'הצג'}
+                      style={{ background: n.visible ? '#16a34a' : '#475569', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '12px', padding: '3px 7px', flexShrink: 0 }}
+                    >{n.visible ? '👁' : '○'}</button>
+                    <span style={{ flex: 1, color: '#e2e8f0', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+                    <button
+                      onClick={() => setNotepads(prev => prev.filter((_, pi) => pi !== i))}
+                      title="מחק פתקית"
+                      style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '14px', padding: '2px 4px', flexShrink: 0 }}
+                    >🗑</button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => { addNotepad(); }}
+                  style={{ marginTop: '10px', width: '100%', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                >+ פתקית חדשה</button>
+              </div>
+            )}
+          </div>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
           </button>
@@ -5123,222 +5292,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           </div>
         )}
 
-        {/* Floating Notepad */}
-        {showNotepad && (
-          <div
-            style={{
-              position: 'absolute',
-              left: notepadPos.x,
-              top: notepadPos.y,
-              width: notepadSize.w,
-              height: notepadSize.h,
-              background: 'white',
-              border: '2px solid #94a3b8',
-              borderRadius: '8px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-              zIndex: 6000,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              direction: 'rtl',
-              minWidth: 200,
-              minHeight: 160
-            }}
-          >
-            {/* Title bar - drag handle */}
-            <div
-              style={{ background: '#1e293b', color: 'white', padding: '6px 10px', cursor: 'grab', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                notepadDragRef.current = { startX: e.clientX, startY: e.clientY, origX: notepadPos.x, origY: notepadPos.y };
-                const onMove = (me: MouseEvent) => {
-                  if (!notepadDragRef.current) return;
-                  setNotepadPos({
-                    x: notepadDragRef.current.origX + me.clientX - notepadDragRef.current.startX,
-                    y: notepadDragRef.current.origY + me.clientY - notepadDragRef.current.startY
-                  });
-                };
-                const onUp = () => {
-                  notepadDragRef.current = null;
-                  window.removeEventListener('mousemove', onMove);
-                  window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-              }}
-            >
-              <span style={{ fontSize: '12px', fontWeight: 'bold' }}>📄 פתקית</span>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {(['keyboard', 'handwriting', 'both'] as const).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => {
-                      // Save canvas before mode switch because height attribute will change
-                      const canvas = notepadCanvasRef.current;
-                      if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                      setNotepadMode(m);
-                    }}
-                    style={{ padding: '2px 7px', fontSize: '10px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: notepadMode === m ? '#3b82f6' : '#334155', color: 'white' }}
-                  >
-                    {m === 'keyboard' ? '⌨' : m === 'handwriting' ? '✍' : '⌨+✍'}
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    const canvas = notepadCanvasRef.current;
-                    if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                    setShowNotepad(false);
-                  }}
-                  style={{ padding: '2px 7px', fontSize: '12px', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#ef4444', color: 'white', marginRight: '4px' }}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            {/* Content area */}
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {/* Text area — visible in keyboard/both mode; always mounted so text is preserved */}
-              {notepadMode !== 'handwriting' && (
-                <div style={{ padding: '2px 8px 0', display: 'flex', justifyContent: 'flex-start' }}>
-                  <button
-                    onPointerDown={e => { e.preventDefault(); setShowNotepadOSK(v => !v); }}
-                    style={{ padding: '3px 10px', background: showNotepadOSK ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                  >⌨ מקלדת וירטואלית</button>
-                </div>
-              )}
-              <textarea
-                ref={notepadTextareaRef}
-                value={notepadText}
-                onChange={e => setNotepadText(e.target.value)}
-                placeholder="הקלד טקסט חופשי כאן..."
-                style={{
-                  flex: notepadMode === 'both' ? '0 0 45%' : 1,
-                  width: '100%',
-                  border: 'none',
-                  borderBottom: notepadMode === 'both' ? '1px solid #e2e8f0' : 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  fontSize: '14px',
-                  padding: '10px',
-                  direction: 'rtl',
-                  fontFamily: 'inherit',
-                  background: 'white',
-                  boxSizing: 'border-box',
-                  display: notepadMode === 'handwriting' ? 'none' : undefined
-                }}
-              />
-              {showNotepadOSK && notepadMode !== 'handwriting' && (
-                <OnScreenKeyboard
-                  onType={notepadInsertAtCursor}
-                  onBackspace={notepadOskBackspace}
-                  onEnter={() => notepadInsertAtCursor('\n')}
-                  onClose={() => setShowNotepadOSK(false)}
-                />
-              )}
-              {/* Handwriting canvas — always in DOM so content is never lost on mode switch */}
-              <canvas
-                ref={notepadCanvasRef}
-                width={notepadSize.w - 4}
-                height={notepadMode === 'both' ? Math.floor((notepadSize.h - 80) * 0.55) : notepadSize.h - 60}
-                style={{
-                  flex: 1,
-                  width: '100%',
-                  display: notepadMode === 'keyboard' ? 'none' : 'block',
-                  cursor: 'crosshair',
-                  touchAction: 'none'
-                }}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  notepadDrawingRef.current = true;
-                  const canvas = notepadCanvasRef.current;
-                  if (!canvas) return;
-                  const rect = canvas.getBoundingClientRect();
-                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                }}
-                onPointerMove={(e) => {
-                  e.stopPropagation();
-                  if (!notepadDrawingRef.current || !notepadLastRef.current) return;
-                  const canvas = notepadCanvasRef.current;
-                  if (!canvas) return;
-                  const ctx = canvas.getContext('2d');
-                  if (!ctx) return;
-                  const rect = canvas.getBoundingClientRect();
-                  const scaleX = canvas.width / rect.width;
-                  const scaleY = canvas.height / rect.height;
-                  const prevX = notepadLastRef.current.x * scaleX;
-                  const prevY = notepadLastRef.current.y * scaleY;
-                  const curX = (e.clientX - rect.left) * scaleX;
-                  const curY = (e.clientY - rect.top) * scaleY;
-                  ctx.strokeStyle = '#1e293b';
-                  ctx.lineWidth = 2;
-                  ctx.lineCap = 'round';
-                  ctx.lineJoin = 'round';
-                  ctx.beginPath();
-                  ctx.moveTo(prevX, prevY);
-                  ctx.lineTo(curX, curY);
-                  ctx.stroke();
-                  notepadLastRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                }}
-                onPointerUp={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-                onPointerLeave={(e) => { e.stopPropagation(); notepadDrawingRef.current = false; notepadLastRef.current = null; }}
-              />
-            </div>
-
-            {/* Bottom bar: clear button bottom-left, resize handle bottom-right (LTR layout) */}
-            <div style={{ background: '#f8fafc', borderTop: '1px solid #e2e8f0', padding: '4px 10px', display: 'flex', direction: 'ltr', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-              {/* Clear button — bottom-left (first in LTR) */}
-              <button
-                onClick={() => {
-                  setNotepadText('');
-                  notepadSavedImageRef.current = null;
-                  const canvas = notepadCanvasRef.current;
-                  if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-                }}
-                style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
-              >
-                נקה
-              </button>
-              {/* Resize handle — bottom-right (last in LTR) */}
-              <div
-                title="גרור לשינוי גודל"
-                style={{
-                  width: 20, height: 20, cursor: 'nwse-resize',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#94a3b8', fontSize: '14px', userSelect: 'none', flexShrink: 0
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // Save canvas image before resize clears it
-                  const canvas = notepadCanvasRef.current;
-                  if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
-                  const startX = e.clientX;
-                  const startY = e.clientY;
-                  const origW = notepadSize.w;
-                  const origH = notepadSize.h;
-                  const onMove = (me: MouseEvent) => {
-                    const dx = me.clientX - startX;
-                    const dy = me.clientY - startY;
-                    setNotepadSize({
-                      w: Math.max(200, origW + dx),
-                      h: Math.max(160, origH + dy)
-                    });
-                  };
-                  const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                  };
-                  window.addEventListener('mousemove', onMove);
-                  window.addEventListener('mouseup', onUp);
-                }}
-              >
-                ⇲
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Floating Notepads */}
+        {notepads.filter(n => n.visible).map(notepad => (
+          <FloatingNotepad
+            key={notepad.id}
+            data={notepad}
+            onUpdate={(partial) => updateNotepad(notepad.id, partial)}
+            onClose={() => updateNotepad(notepad.id, { visible: false })}
+          />
+        ))}
       </div>
 
       {/* Strip Selection Modal */}
