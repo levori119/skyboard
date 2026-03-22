@@ -1366,6 +1366,8 @@ const DraggableNeighborPanel = ({
     <>
       <div style={{ borderBottom: '1px solid #334155' }}>
         <div
+          className="neighbor-drop-zone"
+          data-sector-id={neighbor.id}
           onPointerDown={(e) => { if (!dragStripId) handlePointerDown(e); }}
           onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
           onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
@@ -2406,8 +2408,13 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
     };
 
-    const clearMarkerHighlight = () => {
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
+    };
+
+    const clearAllDropHighlights = () => {
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
     const handlePointerMove = (e: PointerEvent) => {
@@ -2415,17 +2422,18 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         x: e.clientX - startPosRef.current.x, 
         y: e.clientY - startPosRef.current.y 
       });
-      clearMarkerHighlight();
-      const target = findTopmostMarker(e.clientX, e.clientY);
-      if (target) target.classList.add('strip-drag-active');
+      clearAllDropHighlights();
+      const markerTarget = findTopmostMarker(e.clientX, e.clientY);
+      if (markerTarget) { markerTarget.classList.add('strip-drag-active'); return; }
+      const neighborTarget = findTopmostNeighborPanel(e.clientX, e.clientY);
+      if (neighborTarget) neighborTarget.classList.add('strip-drag-active');
     };
 
     const handlePointerUp = (e: PointerEvent) => {
-      clearMarkerHighlight();
+      clearAllDropHighlights();
       setIsDragging(false);
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
-      const neighborPanel = document.getElementById('neighbor-panel');
       
       if (mapArea && sidebar) {
         const mapRect = mapArea.getBoundingClientRect();
@@ -2433,7 +2441,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
-        // בדיקה אם נשחרר על סמן נקודת העברה במפה — שימוש ב-elementsFromPoint לדיוק
+        // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
         const topMarker = findTopmostMarker(e.clientX, e.clientY);
         if (topMarker) {
           const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
@@ -2446,36 +2454,22 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           }
         }
 
-        // בדיקה אם נשחרר בתוך אזור נקודות ההעברה - העברה
-        if (neighborPanel && neighbors && neighbors.length > 0) {
-          const neighborRect = neighborPanel.getBoundingClientRect();
-          if (e.clientX >= neighborRect.left && e.clientX <= neighborRect.right &&
-              e.clientY >= neighborRect.top && e.clientY <= neighborRect.bottom) {
-            const neighborButtons = neighborPanel.querySelectorAll('[data-sector-id]');
-            for (const btn of neighborButtons) {
-              const btnRect = btn.getBoundingClientRect();
-              if (e.clientX >= btnRect.left && e.clientX <= btnRect.right &&
-                  e.clientY >= btnRect.top && e.clientY <= btnRect.bottom) {
-                const sectorId = parseInt(btn.getAttribute('data-sector-id') || '0');
-                if (sectorId && onTransfer) {
-                  onTransfer(s.id, sectorId);
-                  return;
-                }
-              }
-            }
-            if (onTransfer) {
-              onTransfer(s.id, neighbors[0].id);
-              return;
-            }
+        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
+        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
+        if (topNeighborPanel) {
+          const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
+          if (sectorId && onTransfer) {
+            onTransfer(s.id, sectorId);
+            return;
           }
         }
 
-        // בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
+        // 3. בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
         if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
             e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
           onMove(s.id, 0, 0, false);
         }
-        // בדיקה אם נשחרר בתוך אזור המפה
+        // 4. בדיקה אם נשחרר בתוך אזור המפה
         else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
             e.clientY >= mapRect.top && e.clientY <= mapRect.bottom) {
           const x = dropX - mapRect.left;
@@ -2486,7 +2480,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     };
 
     const handlePointerCancel = () => {
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      clearAllDropHighlights();
       setIsDragging(false);
     };
 
@@ -2497,7 +2491,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('pointercancel', handlePointerCancel);
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      clearAllDropHighlights();
     };
   }, [isDragging, s.id, onMove, neighbors, onTransfer]);
 
