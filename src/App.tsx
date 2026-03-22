@@ -2854,7 +2854,7 @@ const OnScreenKeyboard = ({ onType, onBackspace, onEnter, onClose }: {
   );
 };
 // --- קנבס כתב יד לטבלה ---
-const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void }) => {
+const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true }: { existing: string; onConfirm: (note: string) => void; onCancel: () => void; showText?: boolean }) => {
   const parsed = parseNoteValue(existing);
   const [textValue, setTextValue] = useState(parsed.text);
   const [showOSK, setShowOSK] = useState(false);
@@ -2951,35 +2951,37 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel }: { existing: s
       <div style={{ background:'white', borderRadius:'12px', padding:'16px', display:'flex', flexDirection:'column', gap:'10px', width:'min(92vw, 520px)', maxHeight:'90vh', overflowY:'auto' }}>
         <div style={{ fontWeight:'bold', fontSize:'16px', direction:'rtl', textAlign:'center' }}>עריכת הערה</div>
 
-        {/* Text input — always visible, tap to open keyboard */}
-        <div style={{ direction:'rtl' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
-            <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>⌨️ טקסט</span>
-            <button
-              onPointerDown={e => { e.preventDefault(); setShowOSK(v => !v); }}
-              style={{ padding:'4px 10px', background: showOSK ? '#2563eb' : '#475569', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
-            >⌨ מקלדת וירטואלית</button>
-          </div>
-          <textarea
-            ref={textareaRef}
-            value={textValue}
-            onChange={e => setTextValue(e.target.value)}
-            dir="rtl"
-            rows={3}
-            style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
-            placeholder="כתוב כאן..."
-            autoFocus
-            onFocus={e => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
-          />
-          {showOSK && (
-            <OnScreenKeyboard
-              onType={insertAtCursor}
-              onBackspace={oskBackspace}
-              onEnter={() => insertAtCursor('\n')}
-              onClose={() => setShowOSK(false)}
+        {/* Text input — shown only when showText is true */}
+        {showText && (
+          <div style={{ direction:'rtl' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px' }}>
+              <span style={{ fontSize:'12px', color:'#64748b', fontWeight:'600' }}>⌨️ טקסט</span>
+              <button
+                onPointerDown={e => { e.preventDefault(); setShowOSK(v => !v); }}
+                style={{ padding:'4px 10px', background: showOSK ? '#2563eb' : '#475569', color:'white', border:'none', borderRadius:'5px', cursor:'pointer', fontSize:'12px', fontWeight:'bold' }}
+              >⌨ מקלדת וירטואלית</button>
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={textValue}
+              onChange={e => setTextValue(e.target.value)}
+              dir="rtl"
+              rows={3}
+              style={{ width:'100%', padding:'10px', fontSize:'16px', border:'2px solid #cbd5e1', borderRadius:'8px', resize:'vertical', fontFamily:'inherit', boxSizing:'border-box', outline:'none' }}
+              placeholder="כתוב כאן..."
+              autoFocus
+              onFocus={e => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)}
             />
-          )}
-        </div>
+            {showOSK && (
+              <OnScreenKeyboard
+                onType={insertAtCursor}
+                onBackspace={oskBackspace}
+                onEnter={() => insertAtCursor('\n')}
+                onClose={() => setShowOSK(false)}
+              />
+            )}
+          </div>
+        )}
 
         {/* Handwriting canvas — always visible */}
         <div style={{ direction:'rtl' }}>
@@ -4839,9 +4841,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 const hwExisting = isCustomField
                   ? ((hwStrip?.custom_fields && typeof hwStrip.custom_fields === 'object') ? hwStrip.custom_fields[hwColKey!] : '') || ''
                   : (hwStripId in tableEditingNotes ? tableEditingNotes[hwStripId] : (hwStrip?.notes || ''));
+                const hwColEditable = (() => {
+                  if (!hwColKey) return 'both';
+                  const _activeMode = availableTableModes.find((tm: any) => tm.id === selectedTableModeId);
+                  const _columns: any[] = _activeMode?.columns?.length > 0 ? _activeMode.columns : [];
+                  return _columns.find((c: any) => (c.key || c.field || c.id) === hwColKey)?.editable || 'both';
+                })();
                 return (
                   <TableHandwritingCanvas
                     existing={hwExisting}
+                    showText={hwColEditable !== 'handwriting'}
                     onConfirm={async (dataUrl) => {
                       if (isCustomField && hwColKey) {
                         const newCF = { ...(hwStrip?.custom_fields || {}), [hwColKey]: dataUrl };
@@ -5894,14 +5903,14 @@ const STRIP_FIELD_DEFS = [
   { key: 'weapons',   label: 'חימושים',        editableOptions: ['none', 'keyboard'] },
   { key: 'targets',   label: "מטרות",          editableOptions: ['none', 'keyboard'] },
   { key: 'shkadia',   label: 'שקדיה',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'notes',     label: 'הערות',          editableOptions: ['none', 'keyboard', 'handwriting', 'both'] },
+  { key: 'notes',     label: 'הערות',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'sector',    label: 'אזור',           editableOptions: ['none', 'dropdown'] },
   { key: 'transfer',  label: 'העבר',           editableOptions: ['none'] as string[] },
 ];
 
-const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'handwriting', 'both'];
+const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'both'];
 
-const EDITABLE_LABELS: Record<string, string> = { none: 'צפייה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד', both: 'מקלדת + כתב יד', toggle: 'מתג', dropdown: 'רשימת בחירה' };
+const EDITABLE_LABELS: Record<string, string> = { none: 'קריאה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד', both: 'מקלדת+כתב יד', toggle: 'מתג', dropdown: 'רשימת בחירה' };
 
 // --- ניהול מודי טבלה ---
 const TableModesManager = () => {
@@ -6063,38 +6072,16 @@ const TableModesManager = () => {
                     placeholder={col.isCustom ? "שם השדה (לדוגמה: מהירות)" : "כותרת עמודה"}
                     style={{ flex: 1, background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
                   />
-                  {/* Editability control: primary select + optional HW checkbox */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    <select
-                      value={col.editable === 'both' ? 'keyboard' : col.editable}
-                      onChange={e => {
-                        const val = e.target.value;
-                        // preserve HW flag when switching between keyboard modes
-                        if (val === 'keyboard' && col.editable === 'both') {
-                          updateCol(idx, { editable: 'both' });
-                        } else {
-                          updateCol(idx, { editable: val });
-                        }
-                      }}
-                      style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl' }}
-                    >
-                      {editableOpts.filter((o: string) => o !== 'both').map((opt: string) => (
-                        <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
-                      ))}
-                    </select>
-                    {/* Handwriting checkbox — shown whenever keyboard is selected or supported */}
-                    {(col.editable === 'keyboard' || col.editable === 'both') && editableOpts.includes('both') && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', color: col.editable === 'both' ? '#a78bfa' : '#94a3b8', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}>
-                        <input
-                          type="checkbox"
-                          checked={col.editable === 'both'}
-                          onChange={e => updateCol(idx, { editable: e.target.checked ? 'both' : 'keyboard' })}
-                          style={{ accentColor: '#7c3aed', width: '14px', height: '14px' }}
-                        />
-                        ✏️ כתב יד
-                      </label>
-                    )}
-                  </div>
+                  {/* Editability control: single select */}
+                  <select
+                    value={col.editable}
+                    onChange={e => updateCol(idx, { editable: e.target.value })}
+                    style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px', direction: 'rtl', flexShrink: 0 }}
+                  >
+                    {editableOpts.filter((o: string) => o !== 'handwriting' || !editableOpts.includes('both')).map((opt: string) => (
+                      <option key={opt} value={opt}>{EDITABLE_LABELS[opt]}</option>
+                    ))}
+                  </select>
                   <button
                     title={idx + 1 === form.frozenColumns ? 'בטל הקפאה' : 'הקפא עד עמודה זו'}
                     onClick={() => setForm(f => ({ ...f, frozenColumns: idx + 1 === f.frozenColumns ? 0 : idx + 1 }))}
