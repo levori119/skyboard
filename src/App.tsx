@@ -3058,7 +3058,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
-  const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 1);
+  const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
   // Pointer-events drag from sidebar to table
@@ -3975,7 +3975,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
         {/* Sector Panels - Far Left — collapsible, open when transfer points exist */}
-        {neighbors.length > 0 && (
+        {allSectors.length > 0 && (
           neighborPanelOpen ? (
             <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -4015,7 +4015,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '0 4px 4px 0', fontSize: '12px', lineHeight: 1 }}
               >▶</button>
               {(() => {
-                const pendingCount = incomingTransfers.filter(t => neighbors.some(n => n.id === t.from_sector_id)).length;
+                const pendingCount = incomingTransfers.filter(t => allSectors.some(n => n.id === t.from_sector_id)).length;
                 return pendingCount > 0 ? (
                   <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
                     {pendingCount} ממתין
