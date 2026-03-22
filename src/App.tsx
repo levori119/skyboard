@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -3045,6 +3045,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
   const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
+  const tableElRef = useRef<HTMLTableElement>(null);
+  const [tableStickyOffsets, setTableStickyOffsets] = useState<number[]>([]);
+  const frozenColCountRef = useRef(0);
   const [tableSortKey, setTableSortKey] = useState<string | null>(null);
   const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc');
   const [tableHeaderMenuKey, setTableHeaderMenuKey] = useState<string | null>(null);
@@ -3379,6 +3382,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   tableModeRef.current = tableMode;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
+
+  // Measure frozen column offsets after table mode changes
+  useEffect(() => {
+    const measure = () => {
+      if (!tableMode || !tableElRef.current || frozenColCountRef.current === 0) {
+        setTableStickyOffsets(prev => prev.length === 0 ? prev : []);
+        return;
+      }
+      const thead = tableElRef.current.querySelector('thead tr');
+      if (!thead) { setTableStickyOffsets(prev => prev.length === 0 ? prev : []); return; }
+      const ths = Array.from(thead.querySelectorAll('th')) as HTMLTableCellElement[];
+      const fc = frozenColCountRef.current;
+      const offsets: number[] = [];
+      let right = 0;
+      for (let i = 0; i <= fc && i < ths.length; i++) {
+        offsets.push(right);
+        right += ths[i]?.offsetWidth || 0;
+      }
+      setTableStickyOffsets(offsets);
+    };
+    // Small delay to let the DOM settle
+    const t = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(t);
+  }, [tableMode, selectedTableModeId]); // eslint-disable-line
 
   const handleAltUpdate = async (id: string, alt: string) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, alt} : item));
@@ -4521,23 +4548,38 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               }
             };
 
+            const frozenCount = activeMode?.frozenColumns || 0;
+            frozenColCountRef.current = frozenCount;
+            const hasFrozen = frozenCount > 0;
+
             return (
               <>
               <table
-                style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
+                ref={tableElRef}
+                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
                 <thead>
-                  <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
-                    <th style={{ padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: '2px solid #334155' }} title="גרור לסידור מחדש">⠿</th>
-                    {columns.map(col => {
+                  <tr style={{ background: '#1e293b' }}>
+                    <th
+                      style={{
+                        padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: '2px solid #334155',
+                        position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10,
+                        ...(hasFrozen ? { right: tableStickyOffsets[0] ?? 0, background: '#1e293b' } : {})
+                      }}
+                      title="גרור לסידור מחדש"
+                    >⠿</th>
+                    {columns.map((col, colIdx) => {
                       const colKey = col.key || col.field || '';
                       const isGrouped = tableGroupByKey === colKey;
                       const isSorted = tableSortKey === colKey;
                       const isMenuOpen = tableHeaderMenuKey === colKey;
+                      const isFrozen = colIdx < frozenCount;
+                      const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
+                      const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 1] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'relative', minWidth: '80px', userSelect: 'none' }}>
+                        <th key={colKey} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -4674,12 +4716,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle' }}>
+                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}>
                           {isPendingTransfer
                             ? <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '11px', background: '#374151', color: '#9ca3af', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>ממתין ⏳</span>
                             : '⠿'}
                         </td>
-                        {columns.map(col => renderCell(s, col))}
+                        {columns.map((col, colIdx) => {
+                          const cell = renderCell(s, col);
+                          const isFrozen = colIdx < frozenCount;
+                          if (isFrozen) {
+                            const fr = tableStickyOffsets[colIdx + 1];
+                            const isLastFrozenTd = colIdx === frozenCount - 1;
+                            return React.cloneElement(cell, {
+                              style: { ...cell.props.style, position: 'sticky', right: fr, background: rowBg, zIndex: 3, ...(isLastFrozenTd ? { borderLeft: '2px solid #7c3aed' } : {}) }
+                            });
+                          }
+                          return cell;
+                        })}
                       </tr>
                     );
                   })}
@@ -5760,7 +5813,7 @@ const EDITABLE_LABELS: Record<string, string> = { none: 'צפייה בלבד', k
 const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
-  const [form, setForm] = useState({ name: '', columns: [] as any[] });
+  const [form, setForm] = useState({ name: '', columns: [] as any[], frozenColumns: 0 });
   const [dragColIdx, setDragColIdx] = useState<number | null>(null);
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null);
 
@@ -5773,7 +5826,7 @@ const TableModesManager = () => {
 
   const startNew = () => {
     setEditing(null);
-    setForm({ name: '', columns: [] });
+    setForm({ name: '', columns: [], frozenColumns: 0 });
   };
 
   const startEdit = (mode: any) => {
@@ -5783,7 +5836,7 @@ const TableModesManager = () => {
       key: c.key || c.field || ('custom_' + Date.now()),
       isCustom: c.isCustom || (c.key || c.field || '').startsWith('custom_')
     }));
-    setForm({ name: mode.name, columns: cols });
+    setForm({ name: mode.name, columns: cols, frozenColumns: mode.frozenColumns || 0 });
   };
 
   const addColumn = () => {
@@ -5831,7 +5884,7 @@ const TableModesManager = () => {
     const url = editing ? `${API_URL}/table-modes/${editing.id}` : `${API_URL}/table-modes`;
     await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
     setEditing(null);
-    setForm({ name: '', columns: [] });
+    setForm({ name: '', columns: [], frozenColumns: 0 });
     loadModes();
   };
 
@@ -5960,12 +6013,35 @@ const TableModesManager = () => {
           </div>
         </div>
 
+        {/* Frozen columns control */}
+        {form.columns.length > 0 && (
+          <div style={{ marginTop: '14px', padding: '12px 16px', background: '#0f172a', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '16px', direction: 'rtl' }}>
+            <span style={{ color: '#94a3b8', fontSize: '13px', flexShrink: 0 }}>הקפא עמודות:</span>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[0, ...form.columns.map((_, i) => i + 1)].map(n => (
+                <button
+                  key={n}
+                  onClick={() => setForm(f => ({ ...f, frozenColumns: n }))}
+                  style={{ padding: '5px 12px', background: form.frozenColumns === n ? '#6d28d9' : '#1e293b', color: form.frozenColumns === n ? 'white' : '#94a3b8', border: `1px solid ${form.frozenColumns === n ? '#7c3aed' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: form.frozenColumns === n ? 'bold' : 'normal' }}
+                >
+                  {n === 0 ? 'ללא' : `${n} עמודות`}
+                </button>
+              ))}
+            </div>
+            {form.frozenColumns > 0 && (
+              <span style={{ color: '#6d28d9', fontSize: '12px', flexShrink: 0 }}>
+                📌 {form.columns.slice(0, form.frozenColumns).map(c => c.label || c.key).join(', ')} יהיו קבועות
+              </span>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <button onClick={save} disabled={!form.name.trim()} style={{ padding: '10px 24px', background: form.name.trim() ? '#059669' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}>
             {editing ? 'עדכון' : 'שמירה'}
           </button>
           {editing && (
-            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [] }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+            <button onClick={() => { setEditing(null); setForm({ name: '', columns: [], frozenColumns: 0 }); }} style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
               ביטול
             </button>
           )}

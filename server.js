@@ -150,6 +150,7 @@ async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS table_mode_id INTEGER REFERENCES table_modes(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
 
   // Crew members table
   await pool.query(`
@@ -1318,7 +1319,8 @@ app.get('/api/table-modes', async (req, res) => {
     const result = await pool.query('SELECT * FROM table_modes ORDER BY name');
     res.json(result.rows.map(r => ({
       ...r,
-      columns: Array.isArray(r.columns) ? r.columns : (typeof r.columns === 'string' ? JSON.parse(r.columns) : [])
+      columns: Array.isArray(r.columns) ? r.columns : (typeof r.columns === 'string' ? JSON.parse(r.columns) : []),
+      frozenColumns: r.frozen_columns || 0
     })));
   } catch (err) {
     console.error('Error fetching table modes:', err);
@@ -1328,13 +1330,13 @@ app.get('/api/table-modes', async (req, res) => {
 
 app.post('/api/table-modes', async (req, res) => {
   try {
-    const { name, columns } = req.body;
+    const { name, columns, frozenColumns } = req.body;
     const result = await pool.query(
-      'INSERT INTO table_modes (name, columns) VALUES ($1, $2) RETURNING *',
-      [name, JSON.stringify(columns || [])]
+      'INSERT INTO table_modes (name, columns, frozen_columns) VALUES ($1, $2, $3) RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0]
     );
     const row = result.rows[0];
-    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]') });
+    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]'), frozenColumns: row.frozen_columns || 0 });
   } catch (err) {
     console.error('Error creating table mode:', err);
     res.status(500).json({ error: 'Failed to create table mode' });
@@ -1343,14 +1345,14 @@ app.post('/api/table-modes', async (req, res) => {
 
 app.put('/api/table-modes/:id', async (req, res) => {
   try {
-    const { name, columns } = req.body;
+    const { name, columns, frozenColumns } = req.body;
     const result = await pool.query(
-      'UPDATE table_modes SET name = $1, columns = $2 WHERE id = $3 RETURNING *',
-      [name, JSON.stringify(columns || []), req.params.id]
+      'UPDATE table_modes SET name = $1, columns = $2, frozen_columns = $3 WHERE id = $4 RETURNING *',
+      [name, JSON.stringify(columns || []), frozenColumns || 0, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Table mode not found' });
     const row = result.rows[0];
-    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]') });
+    res.json({ ...row, columns: Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]'), frozenColumns: row.frozen_columns || 0 });
   } catch (err) {
     console.error('Error updating table mode:', err);
     res.status(500).json({ error: 'Failed to update table mode' });
