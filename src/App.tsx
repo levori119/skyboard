@@ -3179,9 +3179,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       : true)
   );
 
-  // Table strips: only strips manually dragged onto the board (includes pending_transfer so they show grayed-out)
+  // Table strips: strips manually placed on board OR placed on map (includes pending_transfer so they show grayed-out)
   const myTableStrips = strips.filter(s =>
-    tableOnBoard.has(s.id) &&
+    (tableOnBoard.has(s.id) || s.onMap) &&
     (session.presetId
       ? Number(s.workstation_preset_id) === Number(session.presetId)
       : true)
@@ -3425,6 +3425,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
+    if (toMap) {
+      // When placed on map, ensure strip appears in table too
+      setTableOnBoard(prev => new Set([...prev, String(id)]));
+    }
     try {
       await fetch(`${API_URL}/strips/${id}`, {
         method: 'PUT',
