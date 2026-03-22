@@ -5105,10 +5105,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({myStrips.filter(s => s.status !== 'pending_transfer').length}):</h4>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>קליק ימני על פמם לבחירת נקודת העברה</div>
-              {myStrips.filter(s => s.status !== 'pending_transfer').map(s => (
-                <div key={s.id} style={{ marginBottom: '8px' }}>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>גרור פמם למפה • קליק ימני לנקודת העברה</div>
+              {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).map(s => (
+                <div
+                  key={s.id}
+                  style={{ marginBottom: '8px', cursor: 'grab', touchAction: 'none' }}
+                  onPointerDown={e => {
+                    e.preventDefault();
+                    sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
+                    setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
+                  }}
+                >
                   <Strip s={s} 
                     onUpdate={handleAltUpdate}
                     onMove={handleMove}
@@ -5120,8 +5128,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   />
                 </div>
               ))}
-              {myStrips.filter(s => s.status !== 'pending_transfer').length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים פעילים</div>
+              {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים על המפה</div>
               )}
             </>
           ))}
