@@ -4567,12 +4567,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   }
                   if (col.editable === 'handwriting') {
                     return (
-                      <td key={colKey} className="hw-cell" style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                      <td key={colKey} onClick={() => setTableHandwritingId(notesCellKey)} style={{ padding: '6px 8px', verticalAlign: 'top', cursor: 'pointer' }} title="לחץ לעריכת כתב יד">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minHeight: '24px' }}>
                           {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                           {!hasAnyNote && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
-                          <button onClick={() => setTableHandwritingId(notesCellKey)} className="hw-edit-btn" style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✏️ כתב יד</button>
                         </div>
                       </td>
                     );

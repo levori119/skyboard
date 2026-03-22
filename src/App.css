@@ -242,13 +242,3 @@ body.light-mode .table-header-menu button:hover {
   box-shadow: inset 0 0 12px rgba(34, 197, 94, 0.3) !important;
 }
 
-/* כפתור כתב יד — מוסתר כברירת מחדל, מופיע ב-hover על התא */
-.hw-cell .hw-edit-btn {
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-.hw-cell:hover .hw-edit-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
