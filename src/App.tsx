@@ -3112,9 +3112,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   // Pointer-events drag from sidebar to table
   const sidebarPointerDragRef = useRef<{ id: number; label: string } | null>(null);
   const [sidebarPointerGhost, setSidebarPointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
-  // Pointer-events drag from table row to neighbor transfer panel
+  // Pointer-events drag from table row to neighbor transfer panel or back to sidebar
   const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
-  const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
 
   // Single floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
@@ -3614,19 +3614,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     };
   }, []);
 
-  // Global pointer drag: table row → neighbor transfer panel (iPad-compatible)
+  // Global pointer drag: table row → neighbor transfer panel OR back to sidebar (iPad-compatible)
   useEffect(() => {
     const clearHighlights = () => {
       document.querySelectorAll('.neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
+    const isOverSidebar = (x: number, y: number) => {
+      const sidebar = document.getElementById('sidebar-area');
+      if (!sidebar) return false;
+      const r = sidebar.getBoundingClientRect();
+      return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
     const onMove = (e: PointerEvent) => {
       if (!tablePointerDragRef.current) return;
       e.preventDefault();
-      setTablePointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+      const overSidebar = isOverSidebar(e.clientX, e.clientY);
+      setTablePointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY, overSidebar } : null);
       clearHighlights();
-      const els = document.elementsFromPoint(e.clientX, e.clientY);
-      const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
-      if (neighborEl) neighborEl.classList.add('strip-drag-active');
+      if (!overSidebar) {
+        const els = document.elementsFromPoint(e.clientX, e.clientY);
+        const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+        if (neighborEl) neighborEl.classList.add('strip-drag-active');
+      }
     };
     const onUp = (e: PointerEvent) => {
       if (!tablePointerDragRef.current) return;
@@ -3635,6 +3644,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       setTablePointerGhost(null);
       setTableDragRow(null);
       clearHighlights();
+      // Dropped on sidebar → remove from table
+      if (isOverSidebar(e.clientX, e.clientY)) {
+        setTableOnBoard(prev => { const next = new Set(prev); next.delete(String(id)); return next; });
+        handleMoveRef.current(String(id), 0, 0, false);
+        return;
+      }
+      // Dropped on neighbor panel → initiate transfer
       const els = document.elementsFromPoint(e.clientX, e.clientY);
       const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
       if (neighborEl) {
@@ -5163,7 +5179,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
         </div>
 
         {/* Sidebar - Right Side - Shows active strips */}
-        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: '#f8fafc', padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: '2px solid #e2e8f0', overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s', flexShrink: 0, position: 'relative' }}>
+        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : '#f8fafc', padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : '2px solid #e2e8f0', overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
           {/* Pin toggle button */}
           <button
             onClick={() => setSidebarPinned(v => !v)}
@@ -5270,8 +5286,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           </div>
         )}
         {tablePointerGhost && (
-          <div style={{ position: 'fixed', left: tablePointerGhost.x + 12, top: tablePointerGhost.y - 14, background: '#7c3aed', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: '2px solid #a78bfa' }}>
-            {tablePointerGhost.label}
+          <div style={{ position: 'fixed', left: tablePointerGhost.x + 12, top: tablePointerGhost.y - 14, background: tablePointerGhost.overSidebar ? '#b91c1c' : '#7c3aed', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: `2px solid ${tablePointerGhost.overSidebar ? '#f87171' : '#a78bfa'}` }}>
+            {tablePointerGhost.overSidebar ? `↩ ${tablePointerGhost.label}` : tablePointerGhost.label}
           </div>
         )}
 
