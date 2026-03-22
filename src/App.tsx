@@ -3514,12 +3514,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if (!sidebarPointerDragRef.current) return;
-      setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
       const mapArea = document.getElementById('map-area');
-      if (mapArea) {
+      let ghostX = e.clientX;
+      if (!tableModeRef.current && mapArea) {
+        const r = mapArea.getBoundingClientRect();
+        ghostX = Math.min(e.clientX, r.right - 60);
+        setTableDragOver(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
+      } else if (mapArea) {
         const r = mapArea.getBoundingClientRect();
         setTableDragOver(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
       }
+      setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
     const onUp = (e: PointerEvent) => {
       if (!sidebarPointerDragRef.current) return;
@@ -5105,27 +5110,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>פ"מ פעילים ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '10px' }}>גרור פמם למפה • קליק ימני לנקודת העברה</div>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
+              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם למפה להוספה</div>
               {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).map(s => (
                 <div
                   key={s.id}
-                  style={{ marginBottom: '8px', cursor: 'grab', touchAction: 'none' }}
                   onPointerDown={e => {
                     e.preventDefault();
+                    const mapArea = document.getElementById('map-area');
+                    const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
-                    setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
+                    setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
                   }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
                 >
-                  <Strip s={s} 
-                    onUpdate={handleAltUpdate}
-                    onMove={handleMove}
-                    neighbors={neighbors}
-                    onTransfer={handleTransfer}
-                    onToggleAirborne={handleToggleAirborne}
-                    onUpdateNotes={handleUpdateStripNotes}
-                    onUpdateDetails={handleUpdateStripDetails}
-                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
+                    {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {s.alt && <span style={{ fontSize: '10px', color: '#94a3b8' }}>גובה: {s.alt}</span>}
+                    {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
+                    {s.sq && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>{s.sq}</span>}
+                    {s.airborne && <span style={{ fontSize: '9px', background: '#1d4ed8', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>באוויר</span>}
+                  </div>
                 </div>
               ))}
               {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length === 0 && (
