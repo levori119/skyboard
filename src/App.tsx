@@ -3067,6 +3067,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   }, [lightMode]);
 
   const [tableMode, setTableMode] = useState(false);
+  const [showMapDropdown, setShowMapDropdown] = useState(false);
+  const [showTableDropdown, setShowTableDropdown] = useState(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -3839,54 +3841,71 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           )}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button
-            onClick={() => setTableMode(false)}
-            style={{ 
-              background: !tableMode ? '#2563eb' : '#334155', 
-              color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-              fontWeight: !tableMode ? 'bold' : 'normal'
-            }}
-          >
-            🗺 מפה
-          </button>
-          {availableTableModes.length > 0 ? (
-            availableTableModes.map(tm => (
-              <button
-                key={tm.id}
-                onClick={() => { setTableMode(true); setSelectedTableModeId(tm.id); }}
-                style={{ 
-                  background: tableMode && selectedTableModeId === tm.id ? '#2563eb' : '#334155', 
-                  color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                  fontWeight: tableMode && selectedTableModeId === tm.id ? 'bold' : 'normal'
-                }}
-              >
-                📋 {tm.name}
-              </button>
-            ))
-          ) : (
+          {/* כפתור מפה + תפריט בחירת מפה */}
+          <div style={{ position: 'relative' }}>
             <button
-              onClick={() => setTableMode(t => !t)}
+              onClick={() => { setTableMode(false); setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
               style={{ 
-                background: tableMode ? '#1e40af' : '#334155', 
+                background: !tableMode ? '#2563eb' : '#334155', 
                 color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                fontWeight: tableMode ? 'bold' : 'normal'
+                fontWeight: !tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
               }}
             >
-              📋 טבלה
+              🗺 מפה {showMapDropdown ? '▲' : '▼'}
             </button>
-          )}
-          {!tableMode && (
-            <select
-              onChange={(e) => e.target.value && selectMap(Number(e.target.value))}
-              style={{ background: '#334155', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer' }}
-              defaultValue=""
+            {showMapDropdown && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '140px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
+                onMouseLeave={() => setShowMapDropdown(false)}>
+                {availableMaps.length === 0
+                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין מפות זמינות</div>
+                  : availableMaps.map(m => (
+                    <div key={m.id}
+                      onClick={() => { selectMap(m.id); setShowMapDropdown(false); }}
+                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      🗺 {m.name}
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+
+          {/* כפתור טבלה + תפריט בחירת טבלה */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setTableMode(true); setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
+              style={{ 
+                background: tableMode ? '#2563eb' : '#334155', 
+                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
+                fontWeight: tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
+              }}
             >
-              <option value="" disabled>בחר מפה</option>
-              {availableMaps.map(m => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          )}
+              📋 טבלה {showTableDropdown ? '▲' : '▼'}
+            </button>
+            {showTableDropdown && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '150px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
+                onMouseLeave={() => setShowTableDropdown(false)}>
+                {availableTableModes.length === 0
+                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין טבלאות מוגדרות</div>
+                  : availableTableModes.map(tm => (
+                    <div key={tm.id}
+                      onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); }}
+                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155',
+                        background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                      onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
+                    >
+                      📋 {tm.name}
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => setLightMode(v => !v)}
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
