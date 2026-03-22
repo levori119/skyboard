@@ -1112,16 +1112,16 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       let left = anchorRect.right + 10;
       
       // If would go off right edge, show to the left instead
-      if (left + 260 > window.innerWidth) {
-        left = anchorRect.left - 270;
+      if (left + 380 > window.innerWidth) {
+        left = anchorRect.left - 390;
       }
       // If would go off left edge, center it
       if (left < 10) {
-        left = Math.max(10, (window.innerWidth - 260) / 2);
+        left = Math.max(10, (window.innerWidth - 380) / 2);
       }
       // If would go off bottom, move up
-      if (top + 300 > window.innerHeight) {
-        top = Math.max(10, window.innerHeight - 310);
+      if (top + 380 > window.innerHeight) {
+        top = Math.max(10, window.innerHeight - 390);
       }
       return { top, left };
     }
@@ -1142,7 +1142,7 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       padding: '12px', 
       borderRadius: '10px', 
       boxShadow: '0 6px 20px rgba(0,0,0,0.25)', 
-      minWidth: '244px', 
+      minWidth: '360px', 
       direction: 'rtl' 
     }}>
       <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
@@ -1151,9 +1151,9 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       
       <canvas 
         ref={canvasRef} 
-        width={220} 
-        height={100} 
-        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '220px', height: '100px' }}
+        width={336} 
+        height={180} 
+        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '336px', height: '180px' }}
         onMouseDown={startDrawing} 
         onMouseMove={draw} 
         onMouseUp={stopDrawing}
@@ -2094,7 +2094,7 @@ const DraggableMapMarker = ({
             >
               {(() => { const np = parseNoteValue(notes || ''); return (<>
                 {np.text && <span>📝 {np.text}</span>}
-                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '40px', display: 'block', marginTop: '2px' }} />}
+                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '28px', display: 'block', marginTop: '2px', maxWidth: '100%' }} />}
               </>); })()}
             </div>
           )}
@@ -2574,7 +2574,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             >
               {(() => { const np = parseNoteValue(s.notes || ''); return (<>
                 {np.text && <div style={{ direction: 'rtl' }}>📝 {np.text}</div>}
-                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '48px', borderRadius: '3px', display: 'block', marginTop: np.text ? '2px' : 0 }} />}
+                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '30px', borderRadius: '3px', display: 'block', marginTop: np.text ? '2px' : 0 }} />}
               </>); })()}
             </div>
           )
@@ -4177,7 +4177,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                     {isEditingThis && isImg ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
+                        <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '36px', borderRadius: '4px', border: '1px solid #334155' }} />
                         <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 מחק</button>
                         {(col.editable === 'handwriting' || col.editable === 'both') && (
                           <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️ ערוך</button>
@@ -4224,7 +4224,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
-                          ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
+                          ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
                           : customVal
                             ? <span>{customVal}</span>
                             : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
@@ -4524,7 +4524,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     return (
                       <td key={colKey} style={{ padding: '6px 8px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
                         {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
-                        {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px' }} />}
+                        {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
                       </td>
                     );
@@ -4550,7 +4550,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                               onBlur={async e => { if (e.target.value !== noteParsed.text) await saveNoteText(e.target.value); setTableEditingCell(null); }}
                               style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
                             />
-                            {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '50px', borderRadius: '4px', border: '1px solid #334155' }} />}
+                            {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: '1px solid #334155' }} />}
                             <div style={{ display: 'flex', gap: '4px' }}>
                               {noteParsed.text && <button onMouseDown={e => e.preventDefault()} onClick={() => { clearNoteText(); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
                               {col.editable === 'both' && <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(notesCellKey); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️ כתב יד</button>}
@@ -4570,7 +4570,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
-                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                           {!hasAnyNote && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
                           <button onClick={() => setTableHandwritingId(notesCellKey)} style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✏️ כתב יד</button>
                         </div>
@@ -4582,7 +4582,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
-                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
                         <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
