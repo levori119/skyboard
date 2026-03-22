@@ -4222,7 +4222,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       </div>
                     ) : (
                       <div
-                        style={{ cursor: 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
+                        onClick={() => (col.editable === 'keyboard' || col.editable === 'both') ? setTableEditingCell(cellKey) : undefined}
+                        style={{ cursor: (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
                           ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
@@ -4230,14 +4231,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             ? <span>{customVal}</span>
                             : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
                         }
-                        <div style={{ display: 'flex', gap: '3px' }}>
-                          {(col.editable === 'keyboard' || col.editable === 'both') && (
-                            <button onClick={e => { e.stopPropagation(); setTableEditingCell(cellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⌨</button>
-                          )}
-                          {(col.editable === 'handwriting' || col.editable === 'both') && (
-                            <button onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
-                          )}
-                        </div>
+                        {(col.editable === 'handwriting' || col.editable === 'both') && (
+                          <button onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -4266,13 +4262,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div style={{ cursor: 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.callSign}</span>
                             {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: lightMode ? '#dcfce7' : '#052e16', padding: '1px 4px', borderRadius: '3px' }}>מאוויר</span>}
-                            {col.editable === 'both' && <>
-                              <button onClick={e => { e.stopPropagation(); setTableEditingCell(csCellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>⌨</button>
-                              <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>
-                            </>}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
                       </td>
@@ -4323,12 +4316,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div style={{ cursor: 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.squadron ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(sqCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.squadron ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.squadron || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
-                            {col.editable === 'both' && <>
-                              <button onClick={e => { e.stopPropagation(); setTableEditingCell(sqCellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>⌨</button>
-                              <button onClick={e => { e.stopPropagation(); setTableHandwritingId(sqCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>
-                            </>}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(sqCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
                       </td>
@@ -4363,12 +4353,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div style={{ cursor: 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(altCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>גובה</span>}</span>
-                            {col.editable === 'both' && <>
-                              <button onClick={e => { e.stopPropagation(); setTableEditingCell(altCellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>⌨</button>
-                              <button onClick={e => { e.stopPropagation(); setTableHandwritingId(altCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>
-                            </>}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(altCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
                       </td>
@@ -4494,12 +4481,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div style={{ cursor: 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(shkCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>שקדיה</span>}</span>
-                            {col.editable === 'both' && <>
-                              <button onClick={e => { e.stopPropagation(); setTableEditingCell(shkCellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>⌨</button>
-                              <button onClick={e => { e.stopPropagation(); setTableHandwritingId(shkCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>
-                            </>}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(shkCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
                       </td>
@@ -4571,16 +4555,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div style={{ cursor: 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <div onClick={() => setTableEditingCell(notesCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {noteParsed.text && <div style={{ color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
                             {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>הערה...</span>}
-                            {col.editable === 'both' && (
-                              <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
-                                <button onClick={e => { e.stopPropagation(); setTableEditingCell(notesCellKey); }} title="עריכת טקסט" style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⌨</button>
-                                <button onClick={e => { e.stopPropagation(); setTableHandwritingId(notesCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>✏️</button>
-                              </div>
-                            )}
+                            {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(notesCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', alignSelf: 'flex-start' }}>✏️</button>}
                           </div>
                         )}
                       </td>
