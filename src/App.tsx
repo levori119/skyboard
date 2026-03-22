@@ -3046,6 +3046,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
   const [tableGroupOrder, setTableGroupOrder] = useState<string[]>([]);
   const tableElRef = useRef<HTMLTableElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [tableStickyOffsets, setTableStickyOffsets] = useState<number[]>([]);
   const frozenColCountRef = useRef(0);
   const [tableSortKey, setTableSortKey] = useState<string | null>(null);
@@ -3382,6 +3383,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   tableModeRef.current = tableMode;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
+
+  // Auto-scroll table container to the right when table mode activates
+  useEffect(() => {
+    if (!tableMode || !tableScrollRef.current) return;
+    const el = tableScrollRef.current;
+    requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
+  }, [tableMode, selectedTableModeId]);
 
   // Measure frozen column offsets after table mode changes
   useEffect(() => {
@@ -4055,6 +4063,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
 
         {/* Map Area / Table View */}
         <div
+          ref={tableScrollRef}
           id="map-area"
           style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? '#1a2744' : '#0f172a') : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
@@ -4563,6 +4572,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 <thead>
                   <tr style={{ background: '#1e293b' }}>
                     <th
+                      className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
                         padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: '2px solid #334155',
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10,
@@ -4579,7 +4589,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 1] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -4716,7 +4726,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}>
+                        <td className={hasFrozen ? 'frozen-col' : undefined} style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}>
                           {isPendingTransfer
                             ? <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '11px', background: '#374151', color: '#9ca3af', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>ממתין ⏳</span>
                             : '⠿'}
@@ -4728,6 +4738,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             const fr = tableStickyOffsets[colIdx + 1];
                             const isLastFrozenTd = colIdx === frozenCount - 1;
                             return React.cloneElement(cell, {
+                              className: isLastFrozenTd ? 'frozen-col-last' : 'frozen-col',
                               style: { ...cell.props.style, position: 'sticky', right: fr, background: rowBg, zIndex: 3, ...(isLastFrozenTd ? { borderLeft: '2px solid #7c3aed' } : {}) }
                             });
                           }

@@ -176,6 +176,17 @@ body.light-mode .bt-login-bg {
   background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
 }
 
+/* Frozen columns — always dark (night-mode style) regardless of day/night */
+body.light-mode .frozen-col {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+body.light-mode .frozen-col-last {
+  background: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-left: 2px solid #7c3aed !important;
+}
+
 /* Grouping/sorting dropdown menu — always dark regardless of mode */
 body.light-mode .table-header-menu {
   background: #0f2444 !important;
