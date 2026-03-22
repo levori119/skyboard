@@ -11,7 +11,17 @@ body {
   background-color: var(--bg-dark);
   color: white;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  user-select: none; /* מונע סימון טקסט בטעות בזמן גרירה בטאבלט */
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none; /* מונע גלילת bounce של iOS בזמן גרירה */
+  touch-action: manipulation;
+}
+
+/* מניעת גלילה על אלמנטים שמסומנים כ-touchAction:none */
+[style*="touch-action: none"],
+[style*="touchAction: none"] {
+  touch-action: none !important;
+  -webkit-touch-callout: none;
 }
 
 .de {
@@ -147,6 +157,8 @@ body.light-mode #sidebar-area > * {
 /* Strip cards (bt-strip) — always dark text since strip background is white */
 .bt-strip {
   color: #0f172a;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 .bt-strip * {
   color: inherit;

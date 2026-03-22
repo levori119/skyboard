@@ -2215,6 +2215,8 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
       startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -2392,6 +2394,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
       startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -2500,7 +2504,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
       <div 
         onPointerDown={handlePointerDown}
-        style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none' }}
+        style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
       >⋮</div>
       <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
