@@ -423,36 +423,49 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
               <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
             </div>
             
-            {/* Workstation Presets Dropdown */}
-            {workstationPresets.length > 0 && (
-              <div style={{ marginBottom: '25px' }}>
-                <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
-                <select
-                  onChange={(e) => {
-                    const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
-                    if (preset) handlePresetLogin(preset);
-                  }}
-                  defaultValue=""
-                  style={{
-                    width: '100%',
-                    padding: '15px',
-                    border: '2px solid #2563eb',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    background: 'white',
-                    cursor: 'pointer',
-                    direction: 'rtl'
-                  }}
-                >
-                  <option value="" disabled>-- בחר עמדה --</option>
-                  {workstationPresets.map((preset: any) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Workstation Presets Dropdown — filtered by approved_workstations */}
+            {(() => {
+              const approvedIds: number[] = selectedCrewMember?.approved_workstations || [];
+              const isAdmin = selectedCrewMember?.is_admin ?? false;
+              const visiblePresets = (approvedIds.length > 0 && !isAdmin)
+                ? workstationPresets.filter((p: any) => approvedIds.includes(p.id))
+                : workstationPresets;
+              if (workstationPresets.length === 0) return null;
+              if (visiblePresets.length === 0) return (
+                <div style={{ marginBottom: '25px', padding: '12px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#991b1b', fontSize: '14px', textAlign: 'center' }}>
+                  אין עמדות מאושרות לאיש צוות זה
+                </div>
+              );
+              return (
+                <div style={{ marginBottom: '25px' }}>
+                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
+                  <select
+                    onChange={(e) => {
+                      const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
+                      if (preset) handlePresetLogin(preset);
+                    }}
+                    defaultValue=""
+                    style={{
+                      width: '100%',
+                      padding: '15px',
+                      border: '2px solid #2563eb',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      background: 'white',
+                      cursor: 'pointer',
+                      direction: 'rtl'
+                    }}
+                  >
+                    <option value="" disabled>-- בחר עמדה --</option>
+                    {visiblePresets.map((preset: any) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
             
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
               <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>או הגדר עמדה חדשה:</label>
