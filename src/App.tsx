@@ -4114,7 +4114,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '80px', borderRadius: '4px', border: '1px solid #334155' }} />
                         <button onMouseDown={e => e.preventDefault()} onClick={() => { saveCustom(''); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 מחק</button>
-                        <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️ ערוך</button>
+                        {(col.editable === 'handwriting' || col.editable === 'both') && (
+                          <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }} style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️ ערוך</button>
+                        )}
                         <button onMouseDown={e => e.preventDefault()} onClick={() => setTableEditingCell(null)} style={{ fontSize: '10px', padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>סגור</button>
                       </div>
                     ) : isEditingThis ? (
@@ -4781,13 +4783,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               style={{ position: 'fixed', top: tableRowCtxMenu.y, left: tableRowCtxMenu.x, background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '150px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}
             >
-              <button
-                onClick={() => {
-                  setTableHandwritingId(tableRowCtxMenu.stripId);
-                  setTableRowCtxMenu(null);
-                }}
-                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-              >📝 הערות</button>
+              {(() => {
+                const notesColEditable = columns.find((c: any) => (c.key || c.field) === 'notes')?.editable ?? 'handwriting';
+                const notesHwAllowed = notesColEditable === 'handwriting' || notesColEditable === 'both';
+                return notesHwAllowed ? (
+                  <button
+                    onClick={() => { setTableHandwritingId(tableRowCtxMenu.stripId); setTableRowCtxMenu(null); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >📝 הערות</button>
+                ) : null;
+              })()}
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
