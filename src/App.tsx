@@ -4164,19 +4164,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     ) : (
                       <div
                         onClick={() => setTableEditingCell(cellKey)}
-                        style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
+                        style={{ cursor: 'text', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
-                          ? <span style={{ opacity: 0.4, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>{col.label || '...'}</span>
+                          ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '60px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
                           : customVal
                             ? <span>{customVal}</span>
                             : <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{col.label || '...'}</span>
                         }
-                        {!isImg && (col.editable === 'handwriting' || col.editable === 'both') && (
+                        {(col.editable === 'handwriting' || col.editable === 'both') && (
                           <button
                             onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }}
                             title="כתב יד"
-                            style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0, marginRight: 'auto' }}
+                            style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}
                           >✏️</button>
                         )}
                       </div>
@@ -4207,9 +4207,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span>{s.callSign}</span>
-                            {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '1px 4px', borderRadius: '3px' }}>מאוויר</span>}
+                            {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: lightMode ? '#dcfce7' : '#052e16', padding: '1px 4px', borderRadius: '3px' }}>מאוויר</span>}
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0, marginRight: 'auto' }}>✏️</button>}
                           </div>
                         )}
@@ -4217,9 +4217,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                       <div>{s.callSign}</div>
-                      {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
+                      {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: lightMode ? '#dcfce7' : '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
                     </td>
                   );
                 }
@@ -4337,7 +4337,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           <div onClick={() => setTableEditingCell(wpCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
                             {weapons.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא חימושים</span>
-                              : weapons.map((w: any, i: number) => <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
+                              : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
                             }
                           </div>
                         )}
@@ -4350,7 +4350,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {weapons.map((w: any, i: number) => (
-                              <div key={i} style={{ color: '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                              <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
                             ))}
                           </div>
                       }
@@ -4384,7 +4384,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           <div onClick={() => setTableEditingCell(tgCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
                             {targets.length === 0
                               ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא מטרות</span>
-                              : targets.map((t: any, i: number) => <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
+                              : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
                             }
                           </div>
                         )}
@@ -4397,7 +4397,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                         ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {targets.map((t: any, i: number) => (
-                              <div key={i} style={{ color: '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
+                              <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
                             ))}
                           </div>
                       }
@@ -4512,8 +4512,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     return (
                       <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: '#e2e8f0', background: '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
-                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: '1px solid #334155' }} />}
+                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                           {!hasAnyNote && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
                           <button onClick={() => setTableHandwritingId(notesCellKey)} style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✏️ כתב יד</button>
                         </div>
@@ -4524,8 +4524,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: '#e2e8f0', background: '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
-                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: '1px solid #334155' }} />}
+                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                          {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '70px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
                         <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
@@ -4762,7 +4762,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                 const hwStrip = strips.find(s => s.id === hwStripId);
                 const hwExisting = isCustomField
                   ? ((hwStrip?.custom_fields && typeof hwStrip.custom_fields === 'object') ? hwStrip.custom_fields[hwColKey!] : '') || ''
-                  : (tableEditingNotes[hwStripId] || hwStrip?.notes || '');
+                  : (hwStripId in tableEditingNotes ? tableEditingNotes[hwStripId] : (hwStrip?.notes || ''));
                 return (
                   <TableHandwritingCanvas
                     existing={hwExisting}
