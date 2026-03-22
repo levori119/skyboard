@@ -1269,7 +1269,9 @@ const DraggableNeighborPanel = ({
   onCancelTransfer,
   onAcceptTransfer,
   onRejectTransfer,
-  onAcceptToMap
+  onAcceptToMap,
+  dragStripId,
+  onStripDrop,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -1282,8 +1284,11 @@ const DraggableNeighborPanel = ({
   onAcceptTransfer: (id: string) => void;
   onRejectTransfer: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
+  dragStripId?: string | null;
+  onStripDrop?: (stripId: string, sectorId: number) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isStripDragOver, setIsStripDragOver] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dragLabel, setDragLabel] = useState<string | null>(null);
 
@@ -1348,15 +1353,20 @@ const DraggableNeighborPanel = ({
     <>
       <div style={{ borderBottom: '1px solid #334155' }}>
         <div
-          onPointerDown={(e) => handlePointerDown(e)}
+          onPointerDown={(e) => { if (!dragStripId) handlePointerDown(e); }}
+          onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
+          onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
+          onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
           style={{
             padding: '8px 12px',
-            background: isExpanded ? '#334155' : 'transparent',
+            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (isExpanded ? '#334155' : 'transparent')),
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            cursor: 'grab',
-            userSelect: 'none'
+            cursor: dragStripId ? 'copy' : 'grab',
+            userSelect: 'none',
+            transition: 'background 0.15s',
+            border: isStripDragOver ? '2px solid #22c55e' : '2px solid transparent',
           }}
         >
           <div 
@@ -4006,7 +4016,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               <div style={{ padding: '8px 10px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>גרור למפה להעברה עם מיקום</div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
                 </div>
                 <button
                   onClick={() => setNeighborPanelOpen(false)}
@@ -4028,6 +4038,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                   onAcceptTransfer={handleAcceptTransfer}
                   onRejectTransfer={handleRejectTransfer}
                   onAcceptToMap={handleAcceptToMap}
+                  dragStripId={tableMode ? tableDragRow : null}
+                  onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
                 />
               ))}
             </div>
@@ -4682,14 +4694,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                     return (
                       <tr
                         key={s.id}
-                        draggable={!tableSortBySector && !tableGroupByKey && !tableSortKey && !isPendingTransfer}
-                        onDragStart={() => { if (!isPendingTransfer) { setTableDragRow(s.id); setTableSortBySector(false); } }}
+                        draggable={!isPendingTransfer}
+                        onDragStart={e => { if (!isPendingTransfer) { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); } }}
                         onDragOver={e => {
                           e.preventDefault();
                           if (tableSidebarDragId.current) { e.dataTransfer.dropEffect = 'move'; setTableDragOver(true); return; }
                           if (!isPendingTransfer) setTableDragOverRow(s.id);
                         }}
                         onDragLeave={() => setTableDragOverRow(null)}
+                        onDragEnd={() => { setTableDragRow(null); setTableDragOverRow(null); }}
                         onDrop={e => {
                           setTableDragOver(false);
                           const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
@@ -4697,9 +4710,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
                           if (droppedFromSidebar) {
                             setTableOnBoard(prev => new Set([...prev, String(droppedFromSidebar)]));
                             tableSidebarDragId.current = null;
+                            setTableDragRow(null); setTableDragOverRow(null);
                             return;
                           }
-                          if (tableDragRow && tableDragRow !== s.id) {
+                          if (tableDragRow && tableDragRow !== s.id && !tableSortBySector && !tableGroupByKey && !tableSortKey) {
                             setTableRowOrder(prev => {
                               const arr = [...prev];
                               const fi = arr.indexOf(tableDragRow);
@@ -4784,7 +4798,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               onClick={e => e.stopPropagation()}
             >
               {(() => {
-                const notesColEditable = columns.find((c: any) => (c.key || c.field) === 'notes')?.editable ?? 'handwriting';
+                const _activeMode = availableTableModes.find((tm: any) => tm.id === selectedTableModeId);
+                const _columns: any[] = _activeMode?.columns?.length > 0 ? _activeMode.columns : [{ key: 'notes', editable: 'handwriting' }];
+                const notesColEditable = _columns.find((c: any) => (c.key || c.field) === 'notes')?.editable ?? 'handwriting';
                 const notesHwAllowed = notesColEditable === 'handwriting' || notesColEditable === 'both';
                 return notesHwAllowed ? (
                   <button
