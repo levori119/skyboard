@@ -5935,8 +5935,8 @@ const TableModesManager = () => {
                   onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null); }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
-                    background: isDragOver ? '#1d4ed8' : (col.isCustom ? '#1a1040' : '#1e293b'),
-                    border: isDragOver ? '2px solid #3b82f6' : (col.isCustom ? '1px solid #6d28d9' : '1px solid #334155'),
+                    background: isDragOver ? '#1d4ed8' : (idx < form.frozenColumns ? '#1a0e2e' : col.isCustom ? '#1a1040' : '#1e293b'),
+                    border: isDragOver ? '2px solid #3b82f6' : (idx + 1 === form.frozenColumns ? '1px solid #7c3aed' : idx < form.frozenColumns ? '1px solid #4c1d95' : col.isCustom ? '1px solid #6d28d9' : '1px solid #334155'),
                     borderRadius: '6px', padding: '8px 10px',
                     opacity: dragColIdx === idx ? 0.5 : 1, cursor: 'grab', transition: 'background 0.1s'
                   }}
@@ -6001,6 +6001,11 @@ const TableModesManager = () => {
                       </label>
                     )}
                   </div>
+                  <button
+                    title={idx + 1 === form.frozenColumns ? 'בטל הקפאה' : 'הקפא עד עמודה זו'}
+                    onClick={() => setForm(f => ({ ...f, frozenColumns: idx + 1 === f.frozenColumns ? 0 : idx + 1 }))}
+                    style={{ padding: '4px 7px', background: idx < form.frozenColumns ? '#4c1d95' : 'transparent', color: idx + 1 === form.frozenColumns ? '#c4b5fd' : idx < form.frozenColumns ? '#a78bfa' : '#475569', border: `1px solid ${idx + 1 === form.frozenColumns ? '#7c3aed' : idx < form.frozenColumns ? '#4c1d95' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0, transition: 'all 0.1s' }}
+                  >📌</button>
                   <button onClick={() => removeCol(idx)} style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✕</button>
                 </div>
               );
@@ -6012,29 +6017,6 @@ const TableModesManager = () => {
             )}
           </div>
         </div>
-
-        {/* Frozen columns control */}
-        {form.columns.length > 0 && (
-          <div style={{ marginTop: '14px', padding: '12px 16px', background: '#0f172a', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '16px', direction: 'rtl' }}>
-            <span style={{ color: '#94a3b8', fontSize: '13px', flexShrink: 0 }}>הקפא עמודות:</span>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {[0, ...form.columns.map((_, i) => i + 1)].map(n => (
-                <button
-                  key={n}
-                  onClick={() => setForm(f => ({ ...f, frozenColumns: n }))}
-                  style={{ padding: '5px 12px', background: form.frozenColumns === n ? '#6d28d9' : '#1e293b', color: form.frozenColumns === n ? 'white' : '#94a3b8', border: `1px solid ${form.frozenColumns === n ? '#7c3aed' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: form.frozenColumns === n ? 'bold' : 'normal' }}
-                >
-                  {n === 0 ? 'ללא' : `${n} עמודות`}
-                </button>
-              ))}
-            </div>
-            {form.frozenColumns > 0 && (
-              <span style={{ color: '#6d28d9', fontSize: '12px', flexShrink: 0 }}>
-                📌 {form.columns.slice(0, form.frozenColumns).map(c => c.label || c.key).join(', ')} יהיו קבועות
-              </span>
-            )}
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
           <button onClick={save} disabled={!form.name.trim()} style={{ padding: '10px 24px', background: form.name.trim() ? '#059669' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: form.name.trim() ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}>
