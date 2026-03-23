@@ -81,7 +81,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool = leaf.field === 'airborne';
-  const boolCmp = cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
+  const boolCmp = cmp === 'באוויר' || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
     case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
@@ -6836,10 +6836,10 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
       </select>
       {needsValue && (
         fieldDef.ftype === 'bool' ? (
-          <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+          <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
             style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-            <option value="כן">כן</option>
-            <option value="לא">לא</option>
+            <option value="באוויר">✈ באוויר</option>
+            <option value="קרקע">⬛ קרקע</option>
           </select>
         ) : (
           <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
