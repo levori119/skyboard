@@ -68,6 +68,7 @@ Preferred communication style: Simple, everyday language.
 - Light/dark mode toggle persisted in localStorage (`bt-lightMode`)
 - Table mode grouping/sorting with draggable group rows
 - In table mode, transferred strips (`pending_transfer`) remain visible grayed-out with "ממתין ⏳" badge until recipient accepts; only then do they disappear from the sending workstation's table (`myStrips` excludes them from map view; `myTableStrips` includes them for table view)
+- Load mode (מוד עומס): per-workstation thresholds (`partial_load`, `full_load`) stored in `workstation_presets`; flashing orange badge for partial load, flashing red for full load; load count = active strips at workstation + pending incoming transfers
 
 # External Dependencies
 

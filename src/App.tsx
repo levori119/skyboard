@@ -3010,7 +3010,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- דשבורד עמדה ---
-const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void }) => {
+const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
@@ -3201,6 +3201,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
       ? Number(s.workstation_preset_id) === Number(session.presetId)
       : true)
   );
+
+  // Load mode computation
+  const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
+  const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
+  // Count = active strips at my workstation (not yet transferred out) + pending incoming transfers
+  const activeStripCount = myStrips.filter(s => s.status !== 'pending_transfer').length;
+  const pendingIncomingCount = incomingTransfers.filter(t => t.status === 'pending').length;
+  const loadCount = activeStripCount + pendingIncomingCount;
+  const loadLevel: 'none' | 'partial' | 'full' =
+    loadCount >= fullLoadThreshold ? 'full' :
+    loadCount >= partialLoadThreshold ? 'partial' : 'none';
 
   // Computed strips order for table display
   const tableDisplayStrips = (() => {
@@ -3940,6 +3952,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
               >
                 החלף
               </button>
+            </div>
+          )}
+          {/* Load mode badge */}
+          {loadLevel !== 'none' && (
+            <div
+              className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
+              style={{
+                padding: '4px 14px',
+                borderRadius: '6px',
+                background: loadLevel === 'full' ? '#dc2626' : '#d97706',
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '13px',
+                letterSpacing: '0.5px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                border: `2px solid ${loadLevel === 'full' ? '#fca5a5' : '#fde68a'}`,
+                cursor: 'default',
+                userSelect: 'none',
+              }}
+              title={`עומס ${loadLevel === 'full' ? 'מלא' : 'חלקי'}: ${loadCount} פ"ממים (סף חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
+            >
+              {loadLevel === 'full' ? '🔴' : '🟠'}
+              {loadLevel === 'full' ? 'עומס מלא' : 'עומס חלקי'}
+              <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '4px', padding: '1px 6px', fontSize: '12px' }}>{loadCount}</span>
             </div>
           )}
         </div>
@@ -6341,7 +6379,9 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     name: '',
     map_id: '',
     relevant_sectors: [] as number[],
-    table_mode_id: '' as string | number
+    table_mode_id: '' as string | number,
+    partial_load: 3 as number,
+    full_load: 5 as number,
   });
 
   const loadData = async () => {
@@ -6473,11 +6513,13 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           name: presetForm.name,
           map_id: presetForm.map_id ? parseInt(presetForm.map_id as string) : null,
           relevant_sectors: presetForm.relevant_sectors,
-          table_mode_id: presetForm.table_mode_id ? Number(presetForm.table_mode_id) : null
+          table_mode_id: presetForm.table_mode_id ? Number(presetForm.table_mode_id) : null,
+          partial_load: presetForm.partial_load,
+          full_load: presetForm.full_load,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '' });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5 });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -6490,7 +6532,9 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       name: preset.name,
       map_id: preset.map_id?.toString() || '',
       relevant_sectors: preset.relevant_sectors || [],
-      table_mode_id: preset.table_mode_id || ''
+      table_mode_id: preset.table_mode_id || '',
+      partial_load: preset.partial_load ?? 3,
+      full_load: preset.full_load ?? 5,
     });
   };
 
@@ -6642,6 +6686,38 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   )}
                 </div>
                 
+                {/* Load thresholds */}
+                <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155' }}>
+                  <label style={{ display: 'block', marginBottom: '10px', color: '#f59e0b', fontSize: '14px', fontWeight: 'bold' }}>⚡ מוד עומס</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', color: '#fbbf24', fontSize: '13px' }}>עומס חלקי (כתום) — מספר פ"ממים:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={presetForm.partial_load}
+                        onChange={e => setPresetForm(p => ({ ...p, partial_load: Math.max(1, parseInt(e.target.value) || 1) }))}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #f59e0b', borderRadius: '6px', background: '#0f172a', color: '#fbbf24', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '5px', color: '#f87171', fontSize: '13px' }}>עומס מלא (אדום) — מספר פ"ממים:</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={presetForm.full_load}
+                        onChange={e => setPresetForm(p => ({ ...p, full_load: Math.max(1, parseInt(e.target.value) || 1) }))}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #ef4444', borderRadius: '6px', background: '#0f172a', color: '#f87171', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    סופרים: פ"ממים באוויר בעמדה + פ"ממים בקרקע בעמדה (טרם המראה) + העברות נכנסות פעילות
+                  </p>
+                </div>
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -7186,5 +7262,5 @@ export default function App() {
     return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} onDistribution={() => setPage('distribution')} />;
   }
 
-  return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} />;
+  return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} />;
 }
