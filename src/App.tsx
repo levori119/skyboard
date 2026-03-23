@@ -5730,7 +5730,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [newStrip, setNewStrip] = useState({ callSign: '', alt: '', task: '', squadron: '' });
+  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '' });
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
   const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
   const [savingStripId, setSavingStripId] = useState<string | null>(null);
@@ -5775,10 +5775,11 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newStrip,
-          sectorId: null
+          sectorId: null,
+          takeoff_time: newStrip.takeoff_time || null
         })
       });
-      setNewStrip({ callSign: '', alt: '', task: '', squadron: '' });
+      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '' });
       loadData();
     } catch (err) {
       console.error('Failed to create strip:', err);
@@ -5924,13 +5925,22 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               onChange={e => setNewStrip({ ...newStrip, callSign: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
-            <input
-              type="text"
-              placeholder="טייסת"
-              value={newStrip.squadron}
-              onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="טייסת"
+                value={newStrip.squadron}
+                onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
+                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 2 }}
+              />
+              <input
+                type="text"
+                placeholder="מס׳"
+                value={newStrip.sq}
+                onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
+                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
+              />
+            </div>
             <input
               type="text"
               placeholder="גובה"
@@ -5945,6 +5955,15 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               onChange={e => setNewStrip({ ...newStrip, task: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
+            <div>
+              <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>זמן המראה</label>
+              <input
+                type="datetime-local"
+                value={newStrip.takeoff_time}
+                onChange={e => setNewStrip({ ...newStrip, takeoff_time: e.target.value })}
+                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '13px', width: '100%', background: '#0f172a', color: 'white', boxSizing: 'border-box' }}
+              />
+            </div>
             <button
               onClick={createStrip}
               style={{ padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
@@ -5988,9 +6007,40 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
         {/* Main Area - Strips by Workstation */}
         <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
             {presets.map(preset => {
-              const workstationStrips = strips.filter(s => Number(s.workstation_preset_id) === Number(preset.id));
+              const now = new Date();
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+              const formatTakeoffTime = (t: string | null): string => {
+                if (!t) return '';
+                const d = new Date(t);
+                if (isNaN(d.getTime())) return t;
+                const stripDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                const hh = d.getHours().toString().padStart(2, '0');
+                const mm = d.getMinutes().toString().padStart(2, '0');
+                const timeStr = `${hh}:${mm}`;
+                if (stripDate.getTime() !== today.getTime()) {
+                  const dd = d.getDate().toString().padStart(2, '0');
+                  const mo = (d.getMonth() + 1).toString().padStart(2, '0');
+                  return `${dd}/${mo} ${timeStr}`;
+                }
+                return timeStr;
+              };
+
+              const isTakeoffPast = (t: string | null): boolean => {
+                if (!t) return false;
+                const d = new Date(t);
+                return !isNaN(d.getTime()) && d < now;
+              };
+
+              const workstationStrips = strips
+                .filter(s => Number(s.workstation_preset_id) === Number(preset.id))
+                .sort((a, b) => {
+                  const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
+                  const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
+                  return ta - tb;
+                });
               
               return (
                 <div key={preset.id} style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
@@ -6005,15 +6055,33 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                         const isExpanded = expandedStripId === strip.id;
                         const det = stripDetails[strip.id];
                         const hasDetails = (strip.weapons?.length > 0) || (strip.targets?.length > 0) || (strip.systems?.length > 0) || strip.shkadia;
+                        const past = isTakeoffPast(strip.takeoff_time);
+                        const takeoffDisplay = formatTakeoffTime(strip.takeoff_time);
                         return (
                         <div key={strip.id} style={{ background: '#0f172a', borderRadius: '6px', overflow: 'hidden', border: isExpanded ? '1px solid #3b82f6' : '1px solid transparent' }}>
-                          <div style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {strip.call_sign}
-                                {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block' }} title="יש נתוני חימוש/מטרות" />}
+                                {strip.squadron && <span style={{ color: '#94a3b8', fontWeight: 'normal', fontSize: '12px' }}>{strip.squadron}{strip.sq ? `/${strip.sq}` : ''}</span>}
+                                {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} title="יש נתוני חימוש/מטרות" />}
+                                {past && (
+                                  <span
+                                    style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }}
+                                    title="זמן ההמראה חלף"
+                                  />
+                                )}
                               </div>
-                              <div style={{ color: '#64748b', fontSize: '11px' }}>{strip.squadron && `טייסת: ${strip.squadron} | `}גובה: {strip.alt}{strip.task && ` | ${strip.task}`}</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                                {strip.task && <span style={{ color: '#60a5fa', fontSize: '11px', background: '#1e3a5f', padding: '1px 5px', borderRadius: '3px' }}>{strip.task}</span>}
+                                {strip.alt && <span style={{ color: '#94a3b8', fontSize: '11px' }}>↑{strip.alt}</span>}
+                                <span style={{ color: strip.airborne ? '#34d399' : '#f59e0b', fontSize: '11px' }}>{strip.airborne ? '✈ באוויר' : '⬛ על הקרקע'}</span>
+                                {takeoffDisplay && (
+                                  <span style={{ color: past ? '#ef4444' : '#e2e8f0', fontSize: '11px', fontWeight: past ? 'bold' : 'normal' }}>
+                                    🕐 {takeoffDisplay}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                               <button

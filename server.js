@@ -114,6 +114,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS systems JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS shkadia TEXT`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_time TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
@@ -494,7 +495,8 @@ app.get('/api/strips/all', async (req, res) => {
       weapons: r.weapons || [],
       targets: r.targets || [],
       systems: r.systems || [],
-      shkadia: r.shkadia || ''
+      shkadia: r.shkadia || '',
+      takeoff_time: r.takeoff_time || null
     })));
   } catch (err) {
     console.error('Error fetching all strips:', err);
@@ -535,10 +537,10 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
 
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task, squadron, sectorId } = req.body;
+    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-      [callSign, sq, alt, task, squadron, sectorId || null]
+      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
@@ -567,6 +569,7 @@ app.put('/api/strips/:id', async (req, res) => {
     if (systems !== undefined) { updates.push(`systems = $${paramIndex++}`); values.push(JSON.stringify(systems)); }
     if (shkadia !== undefined) { updates.push(`shkadia = $${paramIndex++}`); values.push(shkadia); }
     if (req.body.custom_fields !== undefined) { updates.push(`custom_fields = $${paramIndex++}`); values.push(JSON.stringify(req.body.custom_fields)); }
+    if (req.body.takeoff_time !== undefined) { updates.push(`takeoff_time = $${paramIndex++}`); values.push(req.body.takeoff_time || null); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -1259,7 +1262,8 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       systems: r.systems || [],
       shkadia: r.shkadia,
       workstation_preset_id: r.workstation_preset_id,
-      custom_fields: r.custom_fields || {}
+      custom_fields: r.custom_fields || {},
+      takeoff_time: r.takeoff_time || null
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
