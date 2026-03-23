@@ -44,7 +44,7 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'task', label: 'משימה', ftype: 'text' },
   { key: 'alt', label: 'גובה', ftype: 'text' },
   { key: 'sq', label: 'סקוודרון', ftype: 'text' },
-  { key: 'airborne', label: 'באוויר', ftype: 'bool' },
+  { key: 'airborne', label: 'סטטוס באוויר', ftype: 'bool' },
   { key: 'status', label: 'מצב', ftype: 'text' },
 ];
 
