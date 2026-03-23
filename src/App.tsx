@@ -7169,23 +7169,63 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                     const getField = (row: Record<string, string>, ...keys: string[]) => {
                       for (const k of keys) {
                         const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
-                        if (found && row[found]) return row[found];
+                        if (found && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
                       }
                       return '';
                     };
 
+                    const parseTakeoffDatetime = (dateStr: string, timeStr: string): string | null => {
+                      if (!dateStr && !timeStr) return null;
+                      let day = '', month = '', year = '', hh = '', mm = '';
+                      const d = dateStr.trim();
+                      if (d) {
+                        if (/^\d{8}$/.test(d)) {
+                          if (parseInt(d.slice(0, 4)) > 1900) { year = d.slice(0,4); month = d.slice(4,6); day = d.slice(6,8); }
+                          else { day = d.slice(0,2); month = d.slice(2,4); year = d.slice(4,8); }
+                        } else if (/^\d{6}$/.test(d)) {
+                          day = d.slice(0,2); month = d.slice(2,4); year = '20' + d.slice(4,6);
+                        } else {
+                          const parts = d.split(/[\/\-\.]/);
+                          if (parts.length === 3) {
+                            if (parts[0].length === 4) { year = parts[0]; month = parts[1]; day = parts[2]; }
+                            else { day = parts[0]; month = parts[1]; year = parts[2].length === 2 ? '20' + parts[2] : parts[2]; }
+                          }
+                        }
+                      }
+                      const t = timeStr.trim().replace(/:/g, '');
+                      if (t.length >= 4) { hh = t.slice(0,2); mm = t.slice(2,4); }
+                      else if (t.length === 3) { hh = '0' + t.slice(0,1); mm = t.slice(1,3); }
+                      else if (t.length > 0) { hh = t.padStart(2,'0'); mm = '00'; }
+                      if (!year || !month || !day) {
+                        const now = new Date();
+                        year = year || String(now.getFullYear());
+                        month = month || String(now.getMonth() + 1).padStart(2,'0');
+                        day = day || String(now.getDate()).padStart(2,'0');
+                      }
+                      if (!hh) { hh = '00'; mm = '00'; }
+                      const iso = `${year.padStart(4,'0')}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hh}:${mm}:00`;
+                      const dt = new Date(iso);
+                      return isNaN(dt.getTime()) ? null : dt.toISOString();
+                    };
+
                     const strips = rows
                       .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה'))
-                      .map(row => ({
-                        callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
-                        squadron: getField(row, 'squadron', 'טייסת'),
-                        alt: getField(row, 'alt', 'גובה'),
-                        task: getField(row, 'task', 'משימה'),
-                        weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
-                        targets: parseTargets(getField(row, 'targets', 'מטרות')),
-                        systems: parseSystems(getField(row, 'systems', 'מערכות')),
-                        shkadia: getField(row, 'shkadia', 'שקדיה')
-                      }));
+                      .map(row => {
+                        const dateVal = getField(row, 'DATE', 'date', 'תאריך');
+                        const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה');
+                        const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
+                        return {
+                          callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
+                          squadron: getField(row, 'squadron', 'טייסת'),
+                          alt: getField(row, 'alt', 'גובה'),
+                          task: getField(row, 'task', 'משימה'),
+                          weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
+                          targets: parseTargets(getField(row, 'targets', 'מטרות')),
+                          systems: parseSystems(getField(row, 'systems', 'מערכות')),
+                          shkadia: getField(row, 'shkadia', 'שקדיה'),
+                          takeoff_time
+                        };
+                      });
                     
                     try {
                       const res = await fetch(`${API_URL}/strips/import`, {
@@ -7240,6 +7280,8 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>squadron</code> — טייסת<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>alt</code> — גובה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>DATE</code> — תאריך המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DD/MM/YYYY</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DDMMYYYY</code><br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>TAKEOFF TIME</code> — שעת המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HHMM</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HH:MM</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> — חימושים, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> — מטרות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> — מערכות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
@@ -7249,10 +7291,10 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
                 <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left' }}>
-{`callSign,squadron,alt,task,weapons,targets,systems,shkadia
-BLUE01,101,FL350,CAP,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
-HAWK23,105,FL280,ESCORT,,,FLIR,
-VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
+{`callSign,squadron,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
+BLUE01,101,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
+HAWK23,105,FL280,ESCORT,23/03/2026,0800,,,FLIR,
+VIPER07,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
                 </pre>
 
                 <h4 style={{ margin: '15px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (Excel):</h4>
@@ -7260,20 +7302,20 @@ VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '11px', direction: 'ltr', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#334155' }}>
-                        {['callSign','squadron','alt','task','weapons','targets','systems','shkadia'].map(h => (
-                          <th key={h} style={{ padding: '6px 10px', color: '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
+                        {['callSign','squadron','alt','task','DATE','TAKEOFF TIME','weapons','targets','systems','shkadia'].map(h => (
+                          <th key={h} style={{ padding: '6px 10px', color: h === 'DATE' || h === 'TAKEOFF TIME' ? '#86efac' : '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {[
-                        ['BLUE01','101','FL350','CAP','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
-                        ['HAWK23','105','FL280','ESCORT','','','FLIR',''],
-                        ['VIPER07','117','FL400','STRIKE','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
+                        ['BLUE01','101','FL350','CAP','23/03/2026','0630','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
+                        ['HAWK23','105','FL280','ESCORT','23/03/2026','0800','','','FLIR',''],
+                        ['VIPER07','117','FL400','STRIKE','23/03/2026','0945','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
                       ].map((row, i) => (
                         <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
                           {row.map((cell, j) => (
-                            <td key={j} style={{ padding: '5px 10px', color: '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
+                            <td key={j} style={{ padding: '5px 10px', color: j === 4 || j === 5 ? '#86efac' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
                           ))}
                         </tr>
                       ))}
