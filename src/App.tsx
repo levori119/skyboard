@@ -7224,11 +7224,20 @@ VIPER07,117,FL400,STRIKE,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
   const [page, setPage] = useState<'login' | 'dashboard' | 'management' | 'distribution'>('login');
+  const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
 
   // Apply stored light/dark preference immediately on app load
   useEffect(() => {
     const stored = localStorage.getItem('bt-lightMode') === 'true';
     document.body.classList.toggle('light-mode', stored);
+  }, []);
+
+  // Load workstation presets so load-mode thresholds are available in SectorDashboard
+  useEffect(() => {
+    fetch(`${API_URL}/workstation-presets`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setWorkstationPresets(data))
+      .catch(() => {});
   }, []);
 
   const handleLogin = (newSession: WorkstationSession) => {
