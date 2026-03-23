@@ -3532,6 +3532,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           toWorkstationId: toWorkstationId || null
         })
       });
+      // Optimistic update: immediately mark the strip as pending_transfer in local state
+      // so the load count drops right away without waiting for the next poll cycle
+      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
