@@ -970,7 +970,7 @@ app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, 
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label,
              t.target_x, t.target_y, t.sub_sector_label

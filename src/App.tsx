@@ -3418,10 +3418,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       );
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
-  // Count = active strips at my workstation (not yet transferred out) + pending incoming transfers
-  const activeStripCount = myStrips.filter(s => s.status !== 'pending_transfer').length;
-  const pendingIncomingCount = incomingTransfers.filter(t => t.status === 'pending').length;
-  const loadCount = activeStripCount + pendingIncomingCount;
+
+  // Load count per the rules:
+  // 1. Airborne strips at my workstation
+  // 2. Ground strips at my workstation with takeoff within next 10 min
+  // 3. Pending incoming transfers where strip is airborne OR takeoff within next 10 min
+  const nowMs = Date.now();
+  const in10Ms = nowMs + 10 * 60 * 1000;
+  const isWithin10Min = (t: string | null | undefined) => {
+    if (!t) return false;
+    const ms = new Date(t).getTime();
+    return ms >= nowMs && ms <= in10Ms;
+  };
+  const myActiveStrips = myStrips.filter(s => s.status !== 'pending_transfer');
+  const airborneMine = myActiveStrips.filter(s => s.airborne).length;
+  const groundSoonMine = myActiveStrips.filter(s => !s.airborne && isWithin10Min(s.takeoff_time)).length;
+  const relevantIncoming = incomingTransfers.filter(t =>
+    t.status === 'pending' && (t.airborne || isWithin10Min(t.takeoff_time))
+  ).length;
+  const loadCount = airborneMine + groundSoonMine + relevantIncoming;
   const loadLevel: 'none' | 'partial' | 'full' =
     loadCount >= fullLoadThreshold ? 'full' :
     loadCount >= partialLoadThreshold ? 'partial' : 'none';
@@ -4188,7 +4203,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 cursor: 'default',
                 userSelect: 'none',
               }}
-              title={`עומס ${loadLevel === 'full' ? 'מלא' : 'חלקי'}: ${loadCount} פ"ממים (סף חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
+              title={`עומס ${loadLevel === 'full' ? 'מלא' : 'חלקי'}: ${loadCount} פ"ממים | באוויר: ${airborneMine} | ממריאים תוך 10 ד': ${groundSoonMine} | נכנסות: ${relevantIncoming} | (סף חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
             >
               {loadLevel === 'full' ? '🔴' : '🟠'}
               {loadLevel === 'full' ? 'עומס מלא' : 'עומס חלקי'}
@@ -7279,7 +7294,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                     </div>
                   </div>
                   <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    סופרים: פ"ממים באוויר בעמדה + פ"ממים בקרקע בעמדה (טרם המראה) + העברות נכנסות פעילות
+                    סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
                   </p>
                 </div>
 
