@@ -5844,12 +5844,64 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
   const unassignedStrips = strips.filter(s => !s.workstation_preset_id || s.workstation_preset_id === null);
 
+  const [randomizing, setRandomizing] = useState(false);
+
+  const randomDistribute = async () => {
+    if (unassignedStrips.length === 0 || presets.length === 0) return;
+    setRandomizing(true);
+    try {
+      // Shuffle unassigned strips
+      const shuffled = [...unassignedStrips].sort(() => Math.random() - 0.5);
+      // Round-robin across presets
+      const assignments: { stripId: string; presetId: number }[] = shuffled.map((strip, idx) => ({
+        stripId: strip.id,
+        presetId: presets[idx % presets.length].id
+      }));
+      await Promise.all(
+        assignments.map(({ stripId, presetId }) =>
+          fetch(`${API_URL}/strips/${stripId}/assign-workstation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workstationPresetId: presetId })
+          })
+        )
+      );
+      await loadData();
+    } catch (err) {
+      console.error('Failed to randomly distribute:', err);
+    } finally {
+      setRandomizing(false);
+    }
+  };
+
   return (
     <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
       <header style={{ padding: '15px 30px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <h1 style={{ margin: 0, color: 'white', fontSize: '24px' }}>חלוקה כללית</h1>
           <span style={{ color: '#94a3b8', fontSize: '14px' }}>סה"כ {strips.length} פממים</span>
+          {unassignedStrips.length > 0 && presets.length > 0 && (
+            <button
+              onClick={randomDistribute}
+              disabled={randomizing}
+              style={{
+                padding: '8px 18px',
+                background: randomizing ? '#475569' : '#7c3aed',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: randomizing ? 'default' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.2s'
+              }}
+            >
+              🎲 {randomizing ? 'מחלק...' : `חלוקה רנדומלית (${unassignedStrips.length})`}
+            </button>
+          )}
         </div>
         <button
           onClick={onBack}
