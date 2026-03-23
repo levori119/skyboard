@@ -3032,7 +3032,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   const [drawingMode, setDrawingMode] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(3);
-  const [eraserMode, setEraserMode] = useState(false);
+  const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
+  const eraserMode = drawTool === 'eraser';
+  type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
+  const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
+  const [shapeFilled, setShapeFilled] = useState(false);
+  const [shapePreview, setShapePreview] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
+  const shapeStartRef = useRef<{x:number;y:number}|null>(null);
+  const [selectedShapeId, setSelectedShapeId] = useState<string|null>(null);
+  const shapeMoveRef = useRef<{id:string;ox:number;oy:number;sx:number;sy:number}|null>(null);
+  const shapeResizeRef = useRef<{id:string;ox:number;oy:number;origW:number;origH:number}|null>(null);
+  const drawingModeRef = useRef(false);
   const [availableMaps, setAvailableMaps] = useState<{id: number; name: string}[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
@@ -3449,6 +3459,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   tableModeRef.current = tableMode;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
+  drawingModeRef.current = drawingMode;
 
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
@@ -3835,7 +3846,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   };
 
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingMode) return;
+    if (!drawingModeRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -3847,7 +3859,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
   };
 
   const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!drawingMode || !isDrawingRef.current) return;
+    if (!drawingModeRef.current || !isDrawingRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx || !lastPosRef.current) return;
@@ -3895,6 +3907,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
     window.addEventListener('resize', resizeCanvas);
     return () => window.removeEventListener('resize', resizeCanvas);
   }, []);
+
+  // iPad fix: directly update canvas DOM pointer events so first pen stroke is captured immediately
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) canvas.style.pointerEvents = drawingMode ? 'auto' : 'none';
+    if (!drawingMode) {
+      setSelectedShapeId(null);
+      setShapePreview(null);
+      shapeStartRef.current = null;
+      shapeMoveRef.current = null;
+      shapeResizeRef.current = null;
+    }
+  }, [drawingMode]);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -5062,23 +5087,119 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
           {/* Drawing Canvas Overlay - outside transform so coordinates are 1:1 with pointer position */}
           <canvas
             ref={canvasRef}
-            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrawing(e); }}
-            onPointerMove={(e) => { e.stopPropagation(); draw(e); }}
-            onPointerUp={(e) => { e.stopPropagation(); stopDrawing(); }}
-            onPointerLeave={(e) => { e.stopPropagation(); stopDrawing(); }}
-            onPointerCancel={(e) => { e.stopPropagation(); stopDrawing(); }}
+            onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                startDrawing(e);
+              } else if (drawingModeRef.current) {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setSelectedShapeId(null);
+                const rect = e.currentTarget.getBoundingClientRect();
+                shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
+              }
+            }}
+            onPointerMove={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                draw(e);
+              } else if (shapeStartRef.current) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
+              }
+            }}
+            onPointerUp={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                stopDrawing();
+              } else if (shapeStartRef.current && shapePreview) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
+                const x = Math.min(shapeStartRef.current.x, x2);
+                const y = Math.min(shapeStartRef.current.y, y2);
+                const w = Math.abs(x2 - shapeStartRef.current.x);
+                const h = Math.abs(y2 - shapeStartRef.current.y);
+                if (w > 5 || h > 5) {
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                }
+                shapeStartRef.current = null; setShapePreview(null);
+              }
+            }}
+            onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
+            onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
               pointerEvents: drawingMode ? 'auto' : 'none',
               cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
-              touchAction: 'none',
-              zIndex: 200
+              touchAction: 'none', zIndex: 200
             }}
           />
+          {/* SVG Shape Overlay — always visible, interactive only in drawing mode */}
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 201, overflow: 'visible', pointerEvents: 'none', touchAction: 'none' }}>
+            {mapShapes.map(shape => {
+              const isSelected = selectedShapeId === shape.id && drawingMode;
+              const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2;
+              const shapeProps = {
+                fill: shape.filled ? shape.color : 'none',
+                stroke: shape.color, strokeWidth: shape.strokeWidth,
+                style: { cursor: drawingMode ? 'move' : 'default', pointerEvents: (drawingMode ? 'auto' : 'none') as React.CSSProperties['pointerEvents'] },
+                onPointerDown: drawingMode ? (e: React.PointerEvent) => {
+                  e.preventDefault(); e.stopPropagation();
+                  setSelectedShapeId(shape.id);
+                  shapeMoveRef.current = { id: shape.id, ox: e.clientX, oy: e.clientY, sx: shape.x, sy: shape.y };
+                  (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                } : undefined,
+                onPointerMove: drawingMode ? (e: React.PointerEvent) => {
+                  if (!shapeMoveRef.current || shapeMoveRef.current.id !== shape.id) return;
+                  const dx = e.clientX - shapeMoveRef.current.ox; const dy = e.clientY - shapeMoveRef.current.oy;
+                  setMapShapes(prev => prev.map(s => s.id === shape.id ? { ...s, x: shapeMoveRef.current!.sx + dx, y: shapeMoveRef.current!.sy + dy } : s));
+                } : undefined,
+                onPointerUp: drawingMode ? () => { shapeMoveRef.current = null; } : undefined,
+                onContextMenu: drawingMode ? (e: React.MouseEvent) => { e.preventDefault(); setMapShapes(prev => prev.filter(s => s.id !== shape.id)); setSelectedShapeId(null); } : undefined,
+              };
+              return (
+                <g key={shape.id}>
+                  {shape.type === 'rect'
+                    ? <rect x={shape.x} y={shape.y} width={Math.max(shape.w,1)} height={Math.max(shape.h,1)} {...shapeProps} />
+                    : <ellipse cx={cx} cy={cy} rx={Math.max(shape.w/2,1)} ry={Math.max(shape.h/2,1)} {...shapeProps} />
+                  }
+                  {isSelected && <>
+                    {/* Resize handle — bottom-right corner */}
+                    <circle cx={shape.x+shape.w} cy={shape.y+shape.h} r={9} fill="white" stroke="#3b82f6" strokeWidth={2}
+                      style={{ cursor: 'se-resize', pointerEvents: 'auto' }}
+                      onPointerDown={e => {
+                        e.preventDefault(); e.stopPropagation();
+                        shapeResizeRef.current = { id: shape.id, ox: e.clientX, oy: e.clientY, origW: shape.w, origH: shape.h };
+                        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+                      }}
+                      onPointerMove={e => {
+                        if (!shapeResizeRef.current || shapeResizeRef.current.id !== shape.id) return;
+                        const dw = e.clientX - shapeResizeRef.current.ox; const dh = e.clientY - shapeResizeRef.current.oy;
+                        setMapShapes(prev => prev.map(s => s.id === shape.id ? { ...s, w: Math.max(10, shapeResizeRef.current!.origW+dw), h: Math.max(10, shapeResizeRef.current!.origH+dh) } : s));
+                      }}
+                      onPointerUp={() => { shapeResizeRef.current = null; }}
+                    />
+                    <text x={shape.x+shape.w} y={shape.y+shape.h} textAnchor="middle" dominantBaseline="middle" fill="#3b82f6" fontSize={11} style={{ pointerEvents: 'none', userSelect: 'none' }}>↔</text>
+                    {/* Delete badge — top-right corner */}
+                    <g style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                      onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setMapShapes(prev => prev.filter(s => s.id !== shape.id)); setSelectedShapeId(null); }}>
+                      <circle cx={shape.x+shape.w} cy={shape.y} r={10} fill="#dc2626" />
+                      <text x={shape.x+shape.w} y={shape.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={13} fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>✕</text>
+                    </g>
+                  </>}
+                </g>
+              );
+            })}
+            {/* Shape preview while drawing */}
+            {shapePreview && (() => {
+              const x = Math.min(shapePreview.x1, shapePreview.x2); const y = Math.min(shapePreview.y1, shapePreview.y2);
+              const w = Math.max(Math.abs(shapePreview.x2-shapePreview.x1), 1); const h = Math.max(Math.abs(shapePreview.y2-shapePreview.y1), 1);
+              return drawTool === 'rect'
+                ? <rect x={x} y={y} width={w} height={h} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />
+                : <ellipse cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />;
+            })()}
+          </svg>
           
           {/* Drawing Toolbar */}
           <div style={{
@@ -5111,67 +5232,59 @@ const SectorDashboard = ({ session, onLogout, onCrewChange }: { session: Worksta
             
             {drawingMode && (
               <>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
-                    <button
-                      key={color}
-                      onClick={() => { setPenColor(color); setEraserMode(false); }}
-                      style={{
-                        width: 24,
-                        height: 24,
-                        background: color,
-                        border: !eraserMode && penColor === color ? '3px solid #fff' : '1px solid #64748b',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        boxShadow: !eraserMode && penColor === color ? '0 0 0 2px #3b82f6' : 'none'
-                      }}
-                    />
+                {/* Tool selector */}
+                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                  {([
+                    { id: 'pen', label: '✏️', title: 'עט' },
+                    { id: 'eraser', label: '🧹', title: 'מחק' },
+                    { id: 'rect', label: '⬜', title: 'מלבן' },
+                    { id: 'circle', label: '⭕', title: 'עיגול' },
+                  ] as const).map(t => (
+                    <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
+                      padding: '5px 7px', fontSize: '15px', lineHeight: 1,
+                      background: drawTool === t.id ? '#3b82f6' : '#334155',
+                      color: 'white', border: drawTool === t.id ? '2px solid #fff' : '1px solid #64748b',
+                      borderRadius: '5px', cursor: 'pointer',
+                    }}>{t.label}</button>
                   ))}
                 </div>
-                
-                <button
-                  onClick={() => setEraserMode(!eraserMode)}
-                  style={{
-                    padding: '6px',
-                    background: eraserMode ? '#f59e0b' : '#475569',
-                    color: 'white',
-                    border: eraserMode ? '2px solid #fff' : 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: eraserMode ? 'bold' : 'normal'
-                  }}
-                >
-                  {eraserMode ? 'מחק פעיל' : 'מחק'}
-                </button>
-                
+
+                {/* Fill toggle — visible only for shape tools */}
+                {(drawTool === 'rect' || drawTool === 'circle') && (
+                  <button onClick={() => setShapeFilled(f => !f)} style={{
+                    padding: '5px 8px', fontSize: '11px', fontWeight: 'bold',
+                    background: shapeFilled ? '#10b981' : '#475569',
+                    color: 'white', border: shapeFilled ? '2px solid #fff' : '1px solid #64748b',
+                    borderRadius: '5px', cursor: 'pointer'
+                  }}>{shapeFilled ? 'מלא ✓' : 'קו בלבד'}</button>
+                )}
+
+                {/* Color palette */}
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
+                    <button key={color} onClick={() => { setPenColor(color); if (drawTool === 'eraser') setDrawTool('pen'); }}
+                      style={{
+                        width: 24, height: 24, background: color,
+                        border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
+                        borderRadius: '4px', cursor: 'pointer',
+                        boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
+                      }} />
+                  ))}
+                </div>
+
+                {/* Stroke width */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={penSize}
-                    onChange={(e) => setPenSize(Number(e.target.value))}
-                    style={{ flex: 1, cursor: 'pointer' }}
-                  />
+                  <input type="range" min="1" max="10" value={penSize}
+                    onChange={e => setPenSize(Number(e.target.value))}
+                    style={{ flex: 1, cursor: 'pointer' }} />
                   <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
                 </div>
                 
-                <button
-                  onClick={clearCanvas}
-                  style={{
-                    padding: '6px',
-                    background: '#dc2626',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px'
-                  }}
-                >
-                  נקה הכל
-                </button>
+                <button onClick={() => { clearCanvas(); setMapShapes([]); setSelectedShapeId(null); }} style={{
+                  padding: '6px', background: '#dc2626', color: 'white', border: 'none',
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
+                }}>נקה הכל</button>
               </>
             )}
           </div>
