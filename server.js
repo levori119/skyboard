@@ -154,6 +154,17 @@ async function initDb() {
   await pool.query(`ALTER TABLE table_modes ADD COLUMN IF NOT EXISTS frozen_columns INTEGER DEFAULT 0`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workstation_personal_filters (
+      id SERIAL PRIMARY KEY,
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      crew_member_id INTEGER REFERENCES crew_members(id) ON DELETE CASCADE,
+      filter_query JSONB,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(preset_id, crew_member_id)
+    )
+  `);
 
   // Crew members table
   await pool.query(`
@@ -1394,11 +1405,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load) 
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1410,10 +1421,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6 WHERE id = $7 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7 WHERE id = $8 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -1433,6 +1444,46 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting workstation preset:', err);
     res.status(500).json({ error: 'Failed to delete workstation preset' });
+  }
+});
+
+// Personal filters CRUD API
+app.get('/api/workstation-personal-filters', async (req, res) => {
+  try {
+    const { preset_id, crew_member_id } = req.query;
+    if (!preset_id || !crew_member_id) return res.json(null);
+    const result = await pool.query(
+      'SELECT filter_query FROM workstation_personal_filters WHERE preset_id = $1 AND crew_member_id = $2',
+      [preset_id, crew_member_id]
+    );
+    res.json(result.rows[0] ? result.rows[0].filter_query : null);
+  } catch (err) {
+    console.error('Error fetching personal filter:', err);
+    res.status(500).json({ error: 'Failed to fetch personal filter' });
+  }
+});
+
+app.put('/api/workstation-personal-filters', async (req, res) => {
+  try {
+    const { preset_id, crew_member_id, filter_query } = req.body;
+    if (!preset_id || !crew_member_id) return res.status(400).json({ error: 'preset_id and crew_member_id required' });
+    if (filter_query === null || filter_query === undefined) {
+      await pool.query(
+        'DELETE FROM workstation_personal_filters WHERE preset_id = $1 AND crew_member_id = $2',
+        [preset_id, crew_member_id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO workstation_personal_filters (preset_id, crew_member_id, filter_query)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (preset_id, crew_member_id) DO UPDATE SET filter_query = $3, updated_at = CURRENT_TIMESTAMP`,
+        [preset_id, crew_member_id, JSON.stringify(filter_query)]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error saving personal filter:', err);
+    res.status(500).json({ error: 'Failed to save personal filter' });
   }
 });
 

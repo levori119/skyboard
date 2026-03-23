@@ -28,6 +28,87 @@ interface WorkstationSession {
   crewMember?: CrewMember;
 }
 
+// --- Query Builder Types & Logic ---
+type QOperator = 'all' | 'any' | 'none';
+type QCompare = 'eq' | 'neq' | 'contains' | 'not_contains' | 'in' | 'not_in' | 'gt' | 'lt' | 'empty' | 'not_empty';
+interface QLeaf { id: string; type: 'leaf'; field: string; compare: QCompare; value: string; }
+interface QGroup { id: string; type: 'group'; operator: QOperator; children: QNode[]; }
+type QNode = QGroup | QLeaf;
+
+const qGenId = () => Math.random().toString(36).slice(2, 10);
+const emptyQGroup = (): QGroup => ({ id: qGenId(), type: 'group', operator: 'all', children: [] });
+
+const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
+  { key: 'callSign', label: 'או"ק', ftype: 'text' },
+  { key: 'squadron', label: 'טייסת', ftype: 'text' },
+  { key: 'task', label: 'משימה', ftype: 'text' },
+  { key: 'alt', label: 'גובה', ftype: 'text' },
+  { key: 'sq', label: 'סקוודרון', ftype: 'text' },
+  { key: 'airborne', label: 'מאוויר', ftype: 'bool' },
+  { key: 'status', label: 'מצב', ftype: 'text' },
+];
+
+const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
+  { key: 'contains', label: 'מכיל' },
+  { key: 'not_contains', label: 'לא מכיל' },
+  { key: 'eq', label: 'שווה ל' },
+  { key: 'neq', label: 'לא שווה ל' },
+  { key: 'in', label: 'אחד מ (פסיק)' },
+  { key: 'not_in', label: 'לא אחד מ' },
+  { key: 'gt', label: 'גדול מ' },
+  { key: 'lt', label: 'קטן מ' },
+  { key: 'empty', label: 'ריק' },
+  { key: 'not_empty', label: 'לא ריק' },
+];
+const Q_BOOL_OPS: { key: QCompare; label: string }[] = [
+  { key: 'eq', label: 'שווה ל' },
+  { key: 'neq', label: 'לא שווה ל' },
+];
+const Q_OPERATOR_LABELS: Record<QOperator, string> = {
+  all: 'כל התנאים מתקיימים',
+  any: 'לפחות אחד מתקיים',
+  none: 'אף אחד לא מתקיים',
+};
+
+const getQFieldValue = (strip: any, field: string): any => {
+  if (field === 'callSign') return strip.callSign || strip.callsign || '';
+  if (field === 'airborne') return !!strip.airborne;
+  return strip[field] ?? '';
+};
+
+const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
+  const raw = getQFieldValue(strip, leaf.field);
+  const val = String(raw).toLowerCase();
+  const cmp = (leaf.value || '').toLowerCase().trim();
+  const isBool = leaf.field === 'airborne';
+  const boolCmp = cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
+  switch (leaf.compare) {
+    case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
+    case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
+    case 'contains': return val.includes(cmp);
+    case 'not_contains': return !val.includes(cmp);
+    case 'in': return cmp.split(',').map(v => v.trim()).some(v => val === v);
+    case 'not_in': return !cmp.split(',').map(v => v.trim()).some(v => val === v);
+    case 'gt': return !isNaN(parseFloat(val)) && parseFloat(val) > parseFloat(cmp);
+    case 'lt': return !isNaN(parseFloat(val)) && parseFloat(val) < parseFloat(cmp);
+    case 'empty': return !raw || val === '';
+    case 'not_empty': return !!(raw && val !== '');
+    default: return true;
+  }
+};
+
+const evaluateQuery = (strip: any, node: QNode): boolean => {
+  if (node.type === 'leaf') return evalQLeaf(strip, node);
+  if (node.children.length === 0) return true;
+  const results = node.children.map(c => evaluateQuery(strip, c));
+  switch (node.operator) {
+    case 'all': return results.every(Boolean);
+    case 'any': return results.some(Boolean);
+    case 'none': return results.every(r => !r);
+    default: return true;
+  }
+};
+
 const getSession = (): WorkstationSession | null => {
   try {
     const data = sessionStorage.getItem('workstation_session');
@@ -3139,6 +3220,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
+  // Personal filter state
+  const [personalFilter, setPersonalFilter] = useState<QGroup | null>(null);
+  const [showPersonalFilter, setShowPersonalFilter] = useState(false);
+  const [personalFilterDraft, setPersonalFilterDraft] = useState<QGroup | null>(null);
+
+  // Load personal filter on mount
+  useEffect(() => {
+    const presetId = session.presetId;
+    const crewId = session.crewMember?.id;
+    if (!presetId || !crewId) return;
+    fetch(`${API_URL}/workstation-personal-filters?preset_id=${presetId}&crew_member_id=${crewId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.type === 'group') {
+          setPersonalFilter(data as QGroup);
+          setPersonalFilterDraft(data as QGroup);
+        }
+      })
+      .catch(() => {});
+  }, [session.presetId, session.crewMember?.id]);
+
+  const savePersonalFilter = async (q: QGroup | null) => {
+    const presetId = session.presetId;
+    const crewId = session.crewMember?.id;
+    if (!presetId || !crewId) return;
+    await fetch(`${API_URL}/workstation-personal-filters`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset_id: presetId, crew_member_id: crewId, filter_query: q }),
+    });
+    setPersonalFilter(q);
+  };
+
   // Keep the drawing canvas sized to the map area so 1px on canvas = 1px on screen
   useEffect(() => {
     const syncCanvasSize = () => {
@@ -3277,24 +3391,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     });
   }, [strips.map(s => s.id).join(',')]);
 
+  // Determine the effective query filter for this workstation
+  const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
+  // Personal filter takes priority over admin filter; if either is active, use query-based filtering
+  const effectiveFilter: QGroup | null = personalFilter || adminFilterQuery;
+
   // Only show strips that belong to this workstation (not neighboring sector strips)
-  const myStrips = strips.filter(s =>
-    s.status !== 'pending_transfer' &&
-    (session.presetId
-      ? Number(s.workstation_preset_id) === Number(session.presetId)
-      : true)
-  );
+  const myStrips = effectiveFilter
+    ? strips.filter(s => s.status !== 'pending_transfer' && evaluateQuery(s, effectiveFilter))
+    : strips.filter(s =>
+        s.status !== 'pending_transfer' &&
+        (session.presetId
+          ? Number(s.workstation_preset_id) === Number(session.presetId)
+          : true)
+      );
 
   // Table strips: strips manually placed on board OR placed on map (includes pending_transfer so they show grayed-out)
-  const myTableStrips = strips.filter(s =>
-    (tableOnBoard.has(s.id) || s.onMap) &&
-    (session.presetId
-      ? Number(s.workstation_preset_id) === Number(session.presetId)
-      : true)
-  );
-
-  // Load mode computation
-  const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const myTableStrips = effectiveFilter
+    ? strips.filter(s => (tableOnBoard.has(s.id) || s.onMap) && evaluateQuery(s, effectiveFilter))
+    : strips.filter(s =>
+        (tableOnBoard.has(s.id) || s.onMap) &&
+        (session.presetId
+          ? Number(s.workstation_preset_id) === Number(session.presetId)
+          : true)
+      );
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
   // Count = active strips at my workstation (not yet transferred out) + pending incoming transfers
@@ -4141,6 +4262,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
 
+          {/* Personal filter button */}
+          <button
+            onClick={() => { setPersonalFilterDraft(personalFilter); setShowPersonalFilter(v => !v); }}
+            title="סינון אישי"
+            style={{
+              background: (personalFilter || adminFilterQuery) ? (personalFilter ? '#1d4ed8' : '#334155') : '#334155',
+              border: (personalFilter || adminFilterQuery) ? `2px solid ${personalFilter ? '#60a5fa' : '#4ade80'}` : '2px solid #475569',
+              borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '13px', color: 'white',
+              fontWeight: personalFilter ? 'bold' : 'normal',
+              display: 'flex', alignItems: 'center', gap: '5px'
+            }}
+          >
+            🔍 {personalFilter ? 'סינון אישי ✓' : adminFilterQuery ? 'סינון עמדה' : 'סינון'}
+          </button>
+
           <button
             onClick={() => setLightMode(v => !v)}
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
@@ -4160,6 +4296,61 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </button>
         </div>
       </header>
+
+      {/* Personal Filter Panel */}
+      {showPersonalFilter && (
+        <div style={{ background: '#0f172a', borderBottom: '2px solid #2563eb', padding: '16px 20px', direction: 'rtl' }}>
+          <div style={{ maxWidth: '800px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div>
+                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '15px' }}>🔍 סינון אישי</span>
+                {adminFilterQuery && !personalFilter && (
+                  <span style={{ marginRight: '12px', color: '#4ade80', fontSize: '12px' }}>⬆ מופעל סינון עמדה (מנהל)</span>
+                )}
+                {adminFilterQuery && personalFilter && (
+                  <span style={{ marginRight: '12px', color: '#fbbf24', fontSize: '12px' }}>⚠ דריסת סינון עמדה בסינון אישי</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {personalFilter && (
+                  <button
+                    onClick={async () => { await savePersonalFilter(null); setPersonalFilterDraft(null); }}
+                    style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    🗑 מחק סינון אישי
+                  </button>
+                )}
+                <button
+                  onClick={async () => { await savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); }}
+                  style={{ padding: '5px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  ✓ שמור וסגור
+                </button>
+                <button
+                  onClick={() => setShowPersonalFilter(false)}
+                  style={{ padding: '5px 12px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Admin filter preview (read-only label) */}
+            {adminFilterQuery && (
+              <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #16a34a', color: '#4ade80', fontSize: '12px' }}>
+                🔒 סינון עמדה (מנהל, {adminFilterQuery.children.length} תנאים) — {personalFilter ? 'מוחלף ע"י הסינון האישי שלך' : 'פעיל כרגע'}
+              </div>
+            )}
+
+            <QueryBuilder
+              value={personalFilterDraft}
+              onChange={q => setPersonalFilterDraft(q)}
+              label='סינון אישי (דריסת סינון עמדה)'
+            />
+          </div>
+        </div>
+      )}
+
       {showLearn && <LearnDigitsOverlay onClose={() => setShowLearn(false)} crewMemberId={session.crewMember?.id} crewMemberName={session.crewMember?.name} />}
       
       {/* Crew Swap Modal */}
@@ -6613,6 +6804,119 @@ const TableModesManager = () => {
   );
 };
 
+// --- Query Builder Components ---
+const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: QLeaf) => void; onDelete: () => void }) => {
+  const fieldDef = Q_FIELDS.find(f => f.key === leaf.field) || Q_FIELDS[0];
+  const ops = fieldDef.ftype === 'bool' ? Q_BOOL_OPS : Q_TEXT_OPS;
+  const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
+      <select value={leaf.field} onChange={e => onUpdate({ ...leaf, field: e.target.value, compare: fieldDef.ftype === 'bool' ? 'eq' : 'contains', value: '' })}
+        style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+        {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+      </select>
+      <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}
+        style={{ padding: '4px 6px', background: '#1e293b', color: '#a78bfa', border: '1px solid #6d28d9', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+        {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+      </select>
+      {needsValue && (
+        fieldDef.ftype === 'bool' ? (
+          <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+            style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+            <option value="כן">כן</option>
+            <option value="לא">לא</option>
+          </select>
+        ) : (
+          <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+            placeholder={leaf.compare === 'in' || leaf.compare === 'not_in' ? 'ערך1, ערך2, ...' : 'ערך...'}
+            style={{ padding: '4px 8px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', width: '110px', direction: 'rtl' }} />
+        )
+      )}
+      <button onClick={onDelete} title="מחק תנאי" style={{ padding: '2px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginRight: 'auto' }}>✕</button>
+    </div>
+  );
+};
+
+const QGroupEditor = ({ group, onUpdate, onDelete, isRoot = false, depth = 0 }: {
+  group: QGroup; onUpdate: (g: QGroup) => void; onDelete?: () => void; isRoot?: boolean; depth?: number;
+}) => {
+  const addLeaf = () => {
+    const leaf: QLeaf = { id: qGenId(), type: 'leaf', field: 'task', compare: 'contains', value: '' };
+    onUpdate({ ...group, children: [...group.children, leaf] });
+  };
+  const addGroup = () => {
+    onUpdate({ ...group, children: [...group.children, emptyQGroup()] });
+  };
+  const updateChild = (updated: QNode) => {
+    onUpdate({ ...group, children: group.children.map(c => c.id === updated.id ? updated : c) });
+  };
+  const deleteChild = (id: string) => {
+    onUpdate({ ...group, children: group.children.filter(c => c.id !== id) });
+  };
+
+  const borderColor = depth === 0 ? '#2563eb' : depth === 1 ? '#7c3aed' : '#059669';
+  return (
+    <div style={{ borderRight: `3px solid ${borderColor}`, paddingRight: '12px', marginRight: depth > 0 ? '8px' : '0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap', direction: 'rtl' }}>
+        <select value={group.operator} onChange={e => onUpdate({ ...group, operator: e.target.value as QOperator })}
+          style={{ padding: '5px 10px', background: '#1e3a5f', color: '#93c5fd', border: `1px solid ${borderColor}`, borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }}>
+          {(Object.keys(Q_OPERATOR_LABELS) as QOperator[]).map(op => (
+            <option key={op} value={op}>{Q_OPERATOR_LABELS[op]}</option>
+          ))}
+        </select>
+        <button onClick={addLeaf} style={{ padding: '4px 10px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>+ תנאי</button>
+        <button onClick={addGroup} style={{ padding: '4px 10px', background: '#1e1b4b', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>+ קבוצה</button>
+        {!isRoot && onDelete && (
+          <button onClick={onDelete} style={{ padding: '4px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>✕ קבוצה</button>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {group.children.map(child =>
+          child.type === 'group' ? (
+            <QGroupEditor key={child.id} group={child} onUpdate={updateChild} onDelete={() => deleteChild(child.id)} depth={depth + 1} />
+          ) : (
+            <QLeafEditor key={child.id} leaf={child as QLeaf} onUpdate={updateChild as any} onDelete={() => deleteChild(child.id)} />
+          )
+        )}
+        {group.children.length === 0 && (
+          <div style={{ color: '#475569', fontSize: '12px', padding: '10px', textAlign: 'center', border: '1px dashed #334155', borderRadius: '6px', direction: 'rtl' }}>
+            לחץ &quot;+ תנאי&quot; כדי להוסיף תנאי ראשון
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממים' }: { value: QGroup | null; onChange: (q: QGroup | null) => void; label?: string }) => {
+  const [enabled, setEnabled] = useState(!!value);
+  const [group, setGroup] = useState<QGroup>(value || emptyQGroup());
+
+  useEffect(() => {
+    if (value) { setGroup(value); setEnabled(true); }
+    else { setEnabled(false); }
+  }, [JSON.stringify(value)]);
+
+  const handleToggle = () => {
+    if (enabled) { setEnabled(false); onChange(null); }
+    else { setEnabled(true); onChange(group); }
+  };
+  const handleUpdate = (g: QGroup) => { setGroup(g); onChange(g); };
+
+  return (
+    <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${enabled ? '#2563eb' : '#334155'}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: enabled ? '14px' : '0', direction: 'rtl' }}>
+        <span style={{ color: enabled ? '#60a5fa' : '#64748b', fontSize: '14px', fontWeight: 'bold' }}>🔍 {label}</span>
+        <button onClick={handleToggle}
+          style={{ padding: '5px 14px', background: enabled ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+          {enabled ? '✓ פעיל' : 'הפעל'}
+        </button>
+      </div>
+      {enabled && <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />}
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes'>('presets');
@@ -6640,6 +6944,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     table_mode_id: '' as string | number,
     partial_load: 3 as number,
     full_load: 5 as number,
+    filter_query: null as QGroup | null,
   });
 
   const loadData = async () => {
@@ -6774,10 +7079,11 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           table_mode_id: presetForm.table_mode_id ? Number(presetForm.table_mode_id) : null,
           partial_load: presetForm.partial_load,
           full_load: presetForm.full_load,
+          filter_query: presetForm.filter_query || null,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5 });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, filter_query: null });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -6793,6 +7099,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       table_mode_id: preset.table_mode_id || '',
       partial_load: preset.partial_load ?? 3,
       full_load: preset.full_load ?? 5,
+      filter_query: preset.filter_query || null,
     });
   };
 
@@ -7007,6 +7314,13 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </div>
                 </div>
                 
+                {/* Filter Query Builder */}
+                <QueryBuilder
+                  value={presetForm.filter_query}
+                  onChange={q => setPresetForm(p => ({ ...p, filter_query: q }))}
+                  label='שאילתת סינון פממים לעמדה'
+                />
+
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button
                     onClick={savePreset}

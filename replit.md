@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 - Table mode grouping/sorting with draggable group rows
 - In table mode, transferred strips (`pending_transfer`) remain visible grayed-out with "ממתין ⏳" badge until recipient accepts; only then do they disappear from the sending workstation's table (`myStrips` excludes them from map view; `myTableStrips` includes them for table view)
 - Load mode (מוד עומס): per-workstation thresholds (`partial_load`, `full_load`) stored in `workstation_presets`; flashing orange badge for partial load, flashing red for full load; load count = active strips at workstation + pending incoming transfers
+- Query-based strip filtering (מנגנון שאילתות): tree-based visual query builder with nested AND/OR/NONE groups and leaf conditions (field + operator + value); two levels: admin-level (`filter_query JSONB` on `workstation_presets`) and personal-level (`workstation_personal_filters` table per crew member per preset); personal filter overrides admin filter; when active, replaces distribution-based `workstation_preset_id` assignment; filter button in workstation header (🔍) opens editor panel with QueryBuilder component; `evaluateQuery()` used to filter `myStrips`/`myTableStrips`
 
 # External Dependencies
 
