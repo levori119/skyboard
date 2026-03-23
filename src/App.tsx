@@ -3395,7 +3395,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Personal filter takes priority over admin filter; if either is active, use query-based filtering
-  const effectiveFilter: QGroup | null = personalFilter || adminFilterQuery;
+  // While the panel is open, apply the draft filter live for real-time preview
+  const effectiveFilter: QGroup | null = (showPersonalFilter && personalFilterDraft)
+    ? personalFilterDraft
+    : (personalFilter || adminFilterQuery);
 
   // Only show strips that belong to this workstation (not neighboring sector strips)
   const myStrips = effectiveFilter
