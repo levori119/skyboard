@@ -4280,21 +4280,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
 
-          {/* Personal filter button */}
-          <button
-            onClick={() => { setPersonalFilterDraft(personalFilter); setShowPersonalFilter(v => !v); }}
-            title="סינון אישי"
-            style={{
-              background: (personalFilter || adminFilterQuery) ? (personalFilter ? '#1d4ed8' : '#334155') : '#334155',
-              border: (personalFilter || adminFilterQuery) ? `2px solid ${personalFilter ? '#60a5fa' : '#4ade80'}` : '2px solid #475569',
-              borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '13px', color: 'white',
-              fontWeight: personalFilter ? 'bold' : 'normal',
-              display: 'flex', alignItems: 'center', gap: '5px'
-            }}
-          >
-            🔍 {personalFilter ? 'סינון אישי ✓' : adminFilterQuery ? 'סינון עמדה' : 'סינון'}
-          </button>
-
           <button
             onClick={() => setLightMode(v => !v)}
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
@@ -4315,13 +4300,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
       </header>
 
-      {/* Personal Filter Panel */}
+      {/* Personal Filter Overlay */}
       {showPersonalFilter && (
-        <div style={{ background: '#0f172a', borderBottom: '2px solid #2563eb', padding: '16px 20px', direction: 'rtl' }}>
-          <div style={{ maxWidth: '800px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setShowPersonalFilter(false); }}>
+          <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: 'rtl', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
-                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '15px' }}>🔍 סינון אישי</span>
+                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>🔍 סינון אישי</span>
                 {adminFilterQuery && !personalFilter && (
                   <span style={{ marginRight: '12px', color: '#4ade80', fontSize: '12px' }}>⬆ מופעל סינון עמדה (מנהל)</span>
                 )}
@@ -4353,9 +4339,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             </div>
 
-            {/* Admin filter preview (read-only label) */}
             {adminFilterQuery && (
-              <div style={{ marginBottom: '8px', padding: '8px 12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #16a34a', color: '#4ade80', fontSize: '12px' }}>
+              <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #16a34a', color: '#4ade80', fontSize: '12px' }}>
                 🔒 סינון עמדה (מנהל, {adminFilterQuery.children.length} תנאים) — {personalFilter ? 'מוחלף ע"י הסינון האישי שלך' : 'פעיל כרגע'}
               </div>
             )}
@@ -5634,12 +5619,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         {/* Sidebar - Right Side - Shows active strips */}
         <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : '#f8fafc', padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : '2px solid #e2e8f0', overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
-          {/* Pin toggle button */}
-          <button
-            onClick={() => setSidebarPinned(v => !v)}
-            title={sidebarPinned ? 'סגור חלונית' : 'פתח חלונית'}
-            style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 8 : 0, left: sidebarPinned ? 8 : 0, background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569', zIndex: 10 }}
-          >{sidebarPinned ? '📌' : '📌'}</button>
+          {/* Pin toggle button + filter button */}
+          <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? 4 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <button
+              onClick={() => setSidebarPinned(v => !v)}
+              title={sidebarPinned ? 'סגור חלונית' : 'פתח חלונית'}
+              style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569' }}
+            >📌</button>
+            {sidebarPinned && (
+              <button
+                onClick={() => { setPersonalFilterDraft(personalFilter); setShowPersonalFilter(v => !v); }}
+                title="סינון אישי"
+                style={{
+                  background: personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
+                  border: personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #cbd5e1',
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px', color: personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#475569',
+                  fontWeight: personalFilter ? 'bold' : 'normal'
+                }}
+              >{personalFilter ? '🔍✓' : '🔍'}</button>
+            )}
+          </div>
           {!sidebarPinned && (() => {
             const closedCount = tableMode
               ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
