@@ -2377,6 +2377,16 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     });
   }, [s.weapons, s.targets, s.systems, s.shkadia]);
 
+  useEffect(() => {
+    if (s.takeoff_time) {
+      const d = new Date(s.takeoff_time);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        setLocalTakeoffTime(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+      }
+    }
+  }, [s.takeoff_time]);
+
   const saveDetails = (updated: typeof detailsData) => {
     setDetailsData(updated);
     if (onUpdateDetails) onUpdateDetails(s.id, updated);
@@ -2533,49 +2543,55 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
-          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '2px 6px', background: '#f1f5f9', borderRadius: '3px' }}>
-            גובה: {s.alt || '-'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px', gap: '4px' }}>
+          {/* RIGHT side (RTL start) — takeoff time */}
+          <div>
+            {s.takeoff_time && (() => {
+              const now = new Date();
+              const d = new Date(s.takeoff_time);
+              if (isNaN(d.getTime())) return null;
+              const past = d < now;
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const stripDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+              const hh = d.getHours().toString().padStart(2, '0');
+              const mm = d.getMinutes().toString().padStart(2, '0');
+              let label = `${hh}:${mm}`;
+              if (stripDay.getTime() !== today.getTime()) {
+                label = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} ${label}`;
+              }
+              return (
+                <div
+                  title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
+                  style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: past ? 'white' : '#475569', background: past ? '#ef4444' : '#e2e8f0', padding: '1px 5px', borderRadius: '3px', fontWeight: past ? 'bold' : 'normal' }}
+                >
+                  {past && <span style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
+                  🕐 {label}
+                </div>
+              );
+            })()}
           </div>
-          {onToggleAirborne && (
-            <button 
-              onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
-              style={{ 
-                padding: '2px 5px', 
-                fontSize: '9px', 
-                background: s.airborne ? '#1d4ed8' : '#94a3b8', 
-                color: 'white', 
-                border: s.airborne ? '1px solid #3b82f6' : 'none',
-                borderRadius: '3px', 
-                cursor: 'pointer',
-              }}
-            >
-              {s.airborne ? '✈ באוויר' : '⬛ קרקע'}
-            </button>
-          )}
-          {s.takeoff_time && (() => {
-            const now = new Date();
-            const d = new Date(s.takeoff_time);
-            if (isNaN(d.getTime())) return null;
-            const past = d < now;
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const stripDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-            const hh = d.getHours().toString().padStart(2, '0');
-            const mm = d.getMinutes().toString().padStart(2, '0');
-            let label = `${hh}:${mm}`;
-            if (stripDay.getTime() !== today.getTime()) {
-              label = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} ${label}`;
-            }
-            return (
-              <div
-                title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: past ? 'white' : '#475569', background: past ? '#ef4444' : '#e2e8f0', padding: '1px 5px', borderRadius: '3px', fontWeight: past ? 'bold' : 'normal' }}
+          {/* LEFT side (RTL end) — alt + airborne */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '2px 6px', background: '#f1f5f9', borderRadius: '3px' }}>
+              גובה: {s.alt || '-'}
+            </div>
+            {onToggleAirborne && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
+                style={{
+                  padding: '2px 5px',
+                  fontSize: '9px',
+                  background: s.airborne ? '#1d4ed8' : '#94a3b8',
+                  color: 'white',
+                  border: s.airborne ? '1px solid #3b82f6' : 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                }}
               >
-                {past && <span style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
-                🕐 {label}
-              </div>
-            );
-          })()}
+                {s.airborne ? '✈ באוויר' : '⬛ קרקע'}
+              </button>
+            )}
+          </div>
         </div>
         {/* Notes section */}
         {(s.notes || editingNotes) ? (
@@ -2652,7 +2668,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 value={localTakeoffTime}
                 onChange={e => setLocalTakeoffTime(e.target.value)}
                 onBlur={async e => {
-                  const val = e.target.value || null;
+                  const val = e.target.value;
+                  if (!val) return;
                   try {
                     await fetch(`${API_URL}/strips/${s.id}`, {
                       method: 'PUT',
@@ -5448,7 +5465,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
-              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').map(s => (
+              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
+                const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
+                const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
+                return ta - tb;
+              }).map(s => {
+                const now = new Date();
+                const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
+                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
+                let tkLabel = '';
+                if (tkDt && !isNaN(tkDt.getTime())) {
+                  const hh = tkDt.getHours().toString().padStart(2,'0');
+                  const mm = tkDt.getMinutes().toString().padStart(2,'0');
+                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  const tkDay = new Date(tkDt.getFullYear(), tkDt.getMonth(), tkDt.getDate());
+                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
+                }
+                return (
                 <div
                   key={s.id}
                   onPointerDown={e => {
@@ -5456,18 +5489,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
                   }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: tableDragOver && sidebarPointerDragRef.current?.id === s.id ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: tableDragOver && sidebarPointerDragRef.current?.id === s.id ? '#1d4ed8' : '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : '#334155'}`, borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
-                    {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
+                      {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
                     {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
                     {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>גובה: {s.alt}</span>}
                   </div>
                 </div>
-              ))}
+              );})}
               {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בטבלה</div>
               )}
@@ -5476,7 +5512,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם למפה להוספה</div>
-              {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).map(s => (
+              {[...myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap)].sort((a,b) => {
+                const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
+                const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
+                return ta - tb;
+              }).map(s => {
+                const now = new Date();
+                const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
+                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
+                let tkLabel = '';
+                if (tkDt && !isNaN(tkDt.getTime())) {
+                  const hh = tkDt.getHours().toString().padStart(2,'0');
+                  const mm = tkDt.getMinutes().toString().padStart(2,'0');
+                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                  const tkDay = new Date(tkDt.getFullYear(), tkDt.getMonth(), tkDt.getDate());
+                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
+                }
+                return (
                 <div
                   key={s.id}
                   onPointerDown={e => {
@@ -5486,11 +5538,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
                   }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : '#334155'}`, borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
-                    {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
+                      {s.squadron && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>/{s.squadron}</span>}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap', alignItems: 'center' }}>
                     {s.alt && <span style={{ fontSize: '10px', color: '#94a3b8' }}>גובה: {s.alt}</span>}
@@ -5499,7 +5554,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     {s.airborne && <span style={{ fontSize: '9px', background: '#1d4ed8', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>באוויר</span>}
                   </div>
                 </div>
-              ))}
+              );})}
               {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length === 0 && (
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים על המפה</div>
               )}
