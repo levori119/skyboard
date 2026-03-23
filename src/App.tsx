@@ -2360,6 +2360,13 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     systems: (s.systems || []) as {name: string}[],
     shkadia: s.shkadia || ''
   });
+  const [localTakeoffTime, setLocalTakeoffTime] = useState<string>(() => {
+    if (!s.takeoff_time) return '';
+    const d = new Date(s.takeoff_time);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
 
   useEffect(() => {
     setDetailsData({
@@ -2511,33 +2518,64 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-            <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{s.callSign}</div>
-            {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>/{s.squadron}</div>}
+            <div style={{
+              fontWeight: 'bold',
+              fontSize: '12px',
+              ...(s.airborne ? {
+                background: '#1d4ed8',
+                color: 'white',
+                border: '2px solid #3b82f6',
+                borderRadius: '4px',
+                padding: '1px 5px',
+              } : {})
+            }}>{s.callSign}</div>
+            {s.squadron && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>/{s.squadron}{s.sq ? `/${s.sq}` : ''}</div>}
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
           <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '2px 6px', background: '#f1f5f9', borderRadius: '3px' }}>
             גובה: {s.alt || '-'}
           </div>
-          <div style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>{s.sq}</div>
           {onToggleAirborne && (
             <button 
               onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
               style={{ 
                 padding: '2px 5px', 
                 fontSize: '9px', 
-                background: s.airborne ? '#3b82f6' : '#94a3b8', 
+                background: s.airborne ? '#1d4ed8' : '#94a3b8', 
                 color: 'white', 
-                border: 'none', 
+                border: s.airborne ? '1px solid #3b82f6' : 'none',
                 borderRadius: '3px', 
                 cursor: 'pointer',
-                marginRight: 'auto'
               }}
             >
-              {s.airborne ? 'באוויר' : 'טרם המראה'}
+              {s.airborne ? '✈ באוויר' : '⬛ קרקע'}
             </button>
           )}
+          {s.takeoff_time && (() => {
+            const now = new Date();
+            const d = new Date(s.takeoff_time);
+            if (isNaN(d.getTime())) return null;
+            const past = d < now;
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const stripDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            const hh = d.getHours().toString().padStart(2, '0');
+            const mm = d.getMinutes().toString().padStart(2, '0');
+            let label = `${hh}:${mm}`;
+            if (stripDay.getTime() !== today.getTime()) {
+              label = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} ${label}`;
+            }
+            return (
+              <div
+                title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: past ? 'white' : '#475569', background: past ? '#ef4444' : '#e2e8f0', padding: '1px 5px', borderRadius: '3px', fontWeight: past ? 'bold' : 'normal' }}
+              >
+                {past && <span style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
+                🕐 {label}
+              </div>
+            );
+          })()}
         </div>
         {/* Notes section */}
         {(s.notes || editingNotes) ? (
@@ -2606,6 +2644,42 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         {showDetails && (
           <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px', background: '#f8fafc', borderRadius: '4px', padding: '6px', fontSize: '9px', direction: 'rtl' }}>
             
+            {/* זמן המראה */}
+            <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>זמן המראה:</span>
+              <input
+                type="datetime-local"
+                value={localTakeoffTime}
+                onChange={e => setLocalTakeoffTime(e.target.value)}
+                onBlur={async e => {
+                  const val = e.target.value || null;
+                  try {
+                    await fetch(`${API_URL}/strips/${s.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ takeoff_time: val })
+                    });
+                  } catch {}
+                }}
+                style={{ flex: 1, padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', minWidth: 0 }}
+              />
+              {localTakeoffTime && (
+                <button
+                  onClick={async () => {
+                    setLocalTakeoffTime('');
+                    try {
+                      await fetch(`${API_URL}/strips/${s.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ takeoff_time: null })
+                      });
+                    } catch {}
+                  }}
+                  style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', padding: '1px 5px', fontSize: '9px', cursor: 'pointer' }}
+                >✕</button>
+              )}
+            </div>
+
             {/* חימושים */}
             <div style={{ marginBottom: '6px' }}>
               <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
