@@ -3467,6 +3467,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     switch (colKey) {
       case 'callSign': return s.callSign || '—';
       case 'squadron': return s.sq || s.squadron || '—';
+      case 'numberOfFormation': return s.numberOfFormation || '—';
       case 'sector': return sectorName;
       case 'shkadia': return s.shkadia || '—';
       case 'alt': return String(s.alt || '—');
@@ -4754,6 +4755,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <td key={col.key} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
                       {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {s.alt}</div>}
+                    </td>
+                  );
+                }
+                case 'numberOfFormation': {
+                  const nofCellKey = s.id + '__numberOfFormation';
+                  const nofEditing = tableEditingCell === nofCellKey;
+                  if (col.editable === 'keyboard') {
+                    const saveField = async (val: string) => {
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, numberOfFormation: val } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numberOfFormation: val }) });
+                    };
+                    const current = s.numberOfFormation || '';
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {nofEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <textarea autoFocus defaultValue={current} rows={1}
+                              onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
+                            </div>
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                            {current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  }
+                  return (
+                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '13px' }}>
+                      {s.numberOfFormation || '—'}
                     </td>
                   );
                 }
@@ -6646,9 +6682,10 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
 // --- הגדרת שדות פמם ---
 const STRIP_FIELD_DEFS = [
-  { key: 'callSign',  label: 'או"ק',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'airborne',  label: 'מאוויר',         editableOptions: ['none', 'toggle'] },
-  { key: 'squadron',  label: 'SQ',             editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'callSign',         label: 'או"ק',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'airborne',         label: 'מאוויר',         editableOptions: ['none', 'toggle'] },
+  { key: 'squadron',         label: 'SQ',             editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'numberOfFormation', label: 'מ׳ מערך',        editableOptions: ['none', 'keyboard'] },
   { key: 'alt',       label: 'גובה',           editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'weapons',   label: 'חימושים',        editableOptions: ['none', 'keyboard'] },
   { key: 'targets',   label: "מטרות",          editableOptions: ['none', 'keyboard'] },
