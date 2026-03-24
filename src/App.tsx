@@ -6142,6 +6142,22 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
+  const updateStripInline = async (stripId: string, fields: Record<string, any>) => {
+    setStrips(prev => prev.map(s => s.id === stripId ? { ...s, ...fields } : s));
+    try {
+      await fetch(`${API_URL}/strips/${stripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+      });
+    } catch (err) {
+      console.error('Failed to update strip:', err);
+      loadData();
+    }
+  };
+
+  const [editingTakeoffId, setEditingTakeoffId] = useState<string | null>(null);
+
   const toggleExpandStrip = (strip: any) => {
     if (expandedStripId === strip.id) {
       setExpandedStripId(null);
@@ -6421,13 +6437,38 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                                   />
                                 )}
                               </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
                                 {strip.task && <span style={{ color: '#60a5fa', fontSize: '11px', background: '#1e3a5f', padding: '1px 5px', borderRadius: '3px' }}>{strip.task}</span>}
                                 {strip.alt && <span style={{ color: '#94a3b8', fontSize: '11px' }}>↑{strip.alt}</span>}
-                                <span style={{ color: strip.airborne ? '#34d399' : '#f59e0b', fontSize: '11px' }}>{strip.airborne ? '✈ באוויר' : '⬛ על הקרקע'}</span>
-                                {takeoffDisplay && (
-                                  <span style={{ color: past ? '#ef4444' : '#e2e8f0', fontSize: '11px', fontWeight: past ? 'bold' : 'normal' }}>
-                                    🕐 {takeoffDisplay}
+                                {/* Airborne toggle */}
+                                <button
+                                  onClick={() => updateStripInline(strip.id, { airborne: !strip.airborne })}
+                                  title={strip.airborne ? 'לחץ להחזיר לקרקע' : 'לחץ לסמן כ"באוויר"'}
+                                  style={{
+                                    background: strip.airborne ? '#064e3b' : '#422006',
+                                    border: `1px solid ${strip.airborne ? '#34d399' : '#f59e0b'}`,
+                                    color: strip.airborne ? '#34d399' : '#f59e0b',
+                                    borderRadius: '4px', padding: '2px 8px', fontSize: '11px',
+                                    cursor: 'pointer', fontWeight: 'bold'
+                                  }}
+                                >{strip.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
+                                {/* Takeoff time */}
+                                {editingTakeoffId === strip.id ? (
+                                  <input
+                                    type="datetime-local"
+                                    autoFocus
+                                    defaultValue={strip.takeoff_time ? new Date(strip.takeoff_time).toISOString().slice(0,16) : ''}
+                                    onBlur={e => { updateStripInline(strip.id, { takeoff_time: e.target.value || null }); setEditingTakeoffId(null); }}
+                                    onChange={e => e.stopPropagation()}
+                                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #3b82f6', background: '#0f172a', color: 'white', fontSize: '11px' }}
+                                  />
+                                ) : (
+                                  <span
+                                    onClick={() => setEditingTakeoffId(strip.id)}
+                                    title="לחץ לעריכת זמן המראה"
+                                    style={{ color: past ? '#ef4444' : takeoffDisplay ? '#e2e8f0' : '#475569', fontSize: '11px', cursor: 'pointer', borderBottom: '1px dashed #475569', paddingBottom: '1px' }}
+                                  >
+                                    🕐 {takeoffDisplay || 'הגדר המראה'}
                                   </span>
                                 )}
                               </div>
