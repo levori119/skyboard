@@ -85,7 +85,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool = leaf.field === 'airborne';
-  const boolCmp = cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
+  const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
     case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
@@ -6894,7 +6894,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
-      <select value={leaf.field} onChange={e => onUpdate({ ...leaf, field: e.target.value, compare: fieldDef.ftype === 'bool' ? 'eq' : 'contains', value: '' })}
+      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? 'באוויר' : '' }); }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
