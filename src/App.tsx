@@ -2605,11 +2605,15 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
     <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
-      <div 
-        onPointerDown={handlePointerDown}
-        style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
-      >⋮</div>
-      <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
+      <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
+        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '14px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
+          title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
+          style={{ background: 'transparent', border: 'none', color: hasDetails ? '#60a5fa' : '#94a3b8', fontSize: '10px', cursor: 'pointer', padding: '2px 0', lineHeight: 1 }}
+        >{showDetails ? '▴' : '▾'}</button>
+      </div>
+      <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '3px 5px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
             <div style={{
@@ -2654,27 +2658,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               );
             })()}
           </div>
-          {/* LEFT side (RTL end) — alt + airborne */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '2px 6px', background: '#f1f5f9', borderRadius: '3px' }}>
-              גובה: {s.alt || '-'}
-            </div>
-            {onToggleAirborne && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onToggleAirborne(s.id, !s.airborne); }}
-                style={{
-                  padding: '2px 5px',
-                  fontSize: '9px',
-                  background: s.airborne ? '#1d4ed8' : '#94a3b8',
-                  color: 'white',
-                  border: s.airborne ? '1px solid #3b82f6' : 'none',
-                  borderRadius: '3px',
-                  cursor: 'pointer',
-                }}
-              >
-                {s.airborne ? '✈ באוויר' : '⬛ קרקע'}
-              </button>
-            )}
+          {/* LEFT side (RTL end) — alt */}
+          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '1px 5px', background: '#f1f5f9', borderRadius: '3px', whiteSpace: 'nowrap' }}>
+            {s.alt || '-'}
           </div>
         </div>
         {/* Notes section */}
@@ -2728,17 +2714,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             </button>
           </div>
         )}
-
-        {/* Details toggle button */}
-        <div style={{ marginTop: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '3px', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
-            style={{ background: 'transparent', border: 'none', color: hasDetails ? '#3b82f6' : '#94a3b8', fontSize: '9px', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: hasDetails ? 'bold' : 'normal' }}
-          >
-            {hasDetails && <span style={{ width: '6px', height: '6px', background: '#3b82f6', borderRadius: '50%', display: 'inline-block' }} />}
-            {showDetails ? '▲ פחות' : '▼ חימוש / מטרות / מערכות'}
-          </button>
-        </div>
 
         {/* Expandable Details Panel */}
         {showDetails && (
@@ -2885,7 +2860,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   );
 
   const baseStyle: React.CSSProperties = {
-    width: 180, 
+    width: 155, 
     background: s.airborne ? '#dbeafe' : 'white', 
     border: s.airborne ? '2px solid #3b82f6' : '2px solid black',
     display: 'flex', flexDirection: 'row-reverse',
