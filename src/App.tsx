@@ -7624,10 +7624,17 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                       });
                     }
 
+                    const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_\-]+/g, '');
                     const getField = (row: Record<string, string>, ...keys: string[]) => {
+                      const rowKeys = Object.keys(row);
                       for (const k of keys) {
-                        const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
+                        // Exact case-insensitive match first
+                        const found = rowKeys.find(rk => rk.toLowerCase() === k.toLowerCase());
                         if (found && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
+                        // Normalized match (ignores spaces, underscores, hyphens)
+                        const normK = normalizeKey(k);
+                        const foundNorm = rowKeys.find(rk => normalizeKey(rk) === normK);
+                        if (foundNorm && row[foundNorm] !== undefined && String(row[foundNorm]).trim() !== '') return String(row[foundNorm]).trim();
                       }
                       return '';
                     };
@@ -7675,7 +7682,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
-                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'מספר_מערך', 'מ׳ מערך'),
+                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך'),
                           alt: getField(row, 'alt', 'גובה'),
                           task: getField(row, 'task', 'משימה'),
                           weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
