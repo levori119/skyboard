@@ -7655,6 +7655,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                         const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
+                          sq: getField(row, 'sq', 'SQ', 'סקוודרון'),
                           squadron: getField(row, 'squadron', 'טייסת'),
                           alt: getField(row, 'alt', 'גובה'),
                           task: getField(row, 'task', 'משימה'),
@@ -7730,10 +7731,10 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
                 <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left' }}>
-{`callSign,squadron,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
-BLUE01,101,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
-HAWK23,105,FL280,ESCORT,23/03/2026,0800,,,FLIR,
-VIPER07,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
+{`callSign,sq,squadron,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
+BLUE01,69,101,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
+HAWK23,105,105,FL280,ESCORT,23/03/2026,0800,,,FLIR,
+VIPER07,117,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
                 </pre>
 
                 <h4 style={{ margin: '15px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (Excel):</h4>
@@ -7741,20 +7742,20 @@ VIPER07,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מ�
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '11px', direction: 'ltr', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#334155' }}>
-                        {['callSign','squadron','alt','task','DATE','TAKEOFF TIME','weapons','targets','systems','shkadia'].map(h => (
+                        {['callSign','sq','squadron','alt','task','DATE','TAKEOFF TIME','weapons','targets','systems','shkadia'].map(h => (
                           <th key={h} style={{ padding: '6px 10px', color: h === 'DATE' || h === 'TAKEOFF TIME' ? '#86efac' : '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {[
-                        ['BLUE01','101','FL350','CAP','23/03/2026','0630','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
-                        ['HAWK23','105','FL280','ESCORT','23/03/2026','0800','','','FLIR',''],
-                        ['VIPER07','117','FL400','STRIKE','23/03/2026','0945','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
+                        ['BLUE01','69','101','FL350','CAP','23/03/2026','0630','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
+                        ['HAWK23','105','105','FL280','ESCORT','23/03/2026','0800','','','FLIR',''],
+                        ['VIPER07','117','117','FL400','STRIKE','23/03/2026','0945','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
                       ].map((row, i) => (
                         <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
                           {row.map((cell, j) => (
-                            <td key={j} style={{ padding: '5px 10px', color: j === 4 || j === 5 ? '#86efac' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
+                            <td key={j} style={{ padding: '5px 10px', color: j === 5 || j === 6 ? '#86efac' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
                           ))}
                         </tr>
                       ))}

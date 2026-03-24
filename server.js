@@ -634,9 +634,10 @@ app.post('/api/strips/import', async (req, res) => {
       
       try {
         await pool.query(
-          'INSERT INTO strips (callsign, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+          'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
           [
             strip.callSign,
+            strip.sq || '',
             strip.squadron || '',
             strip.alt || '',
             strip.task || '',
