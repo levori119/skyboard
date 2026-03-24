@@ -4737,6 +4737,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
                     </td>
                   );
+                case 'sq':
                 case 'squadron': {
                   const sqCellKey = s.id + '__squadron';
                   const sqEditing = tableEditingCell === sqCellKey;
@@ -5086,8 +5087,87 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </select>
                     </td>
                   );
-                default:
+                case 'takeoffTime': {
+                  const t = s.takeoffTime || s.takeoff_time;
+                  let display = '—';
+                  if (t) {
+                    try {
+                      const d = new Date(t);
+                      display = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+                    } catch { display = String(t); }
+                  }
+                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
+                }
+                case 'systems': {
+                  const sysCellKey = s.id + '__systems';
+                  const sysEditing = tableEditingCell === sysCellKey;
+                  const sysArr: any[] = Array.isArray(s.systems) ? s.systems : [];
+                  const sysText = sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || JSON.stringify(x))).join('\n');
+                  if (col.editable === 'keyboard') {
+                    const saveSystems = async (text: string) => {
+                      const arr = text.split('\n').map((l: string) => l.trim()).filter(Boolean).map((l: string) => ({ name: l }));
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, systems: arr } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systems: arr }) });
+                    };
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {sysEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <textarea autoFocus defaultValue={sysText} rows={2}
+                              onBlur={async e => { if (e.target.value !== sysText) await saveSystems(e.target.value); setTableEditingCell(null); }}
+                              placeholder="מערכת אחת בכל שורה"
+                              style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: sysText ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                            {sysText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  }
+                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
+                }
+                default: {
+                  const EDITABLE_TEXT_FIELDS: Record<string, string> = {
+                    task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע'
+                  };
+                  if (colKey in EDITABLE_TEXT_FIELDS) {
+                    const cellKey = s.id + '__' + colKey;
+                    const isEditing = tableEditingCell === cellKey;
+                    const current: string = (s as any)[colKey] || '';
+                    const saveField = async (val: string) => {
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, [colKey]: val } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [colKey]: val }) });
+                    };
+                    if (col.editable === 'keyboard' || col.editable === 'both') {
+                      return (
+                        <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <textarea autoFocus defaultValue={current} rows={1}
+                                onBlur={async e => { if (e.target.value !== current) await saveField(e.target.value); setTableEditingCell(null); }}
+                                style={{ width: '100%', background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                              />
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                {current && <button onMouseDown={e => e.preventDefault()} onClick={() => { saveField(''); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑 נקה</button>}
+                                {col.editable === 'both' && <button onMouseDown={e => e.preventDefault()} onClick={() => { setTableHandwritingId(cellKey); setTableEditingCell(null); }} style={{ fontSize: '11px', padding: '2px 6px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✏️</button>}
+                              </div>
+                            </div>
+                          ) : (
+                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                              <span style={{ flex: 1 }}>{current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{EDITABLE_TEXT_FIELDS[colKey]}</span>}</span>
+                              {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(cellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
+                    return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{current || '—'}</td>;
+                  }
                   return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>—</td>;
+                }
               }
             };
 
@@ -6738,17 +6818,23 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
 // --- הגדרת שדות פמם ---
 const STRIP_FIELD_DEFS = [
-  { key: 'callSign',         label: 'או"ק',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'airborne',         label: 'מאוויר',         editableOptions: ['none', 'toggle'] },
-  { key: 'squadron',         label: 'SQ',             editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'numberOfFormation', label: 'מ׳ מערך',        editableOptions: ['none', 'keyboard'] },
-  { key: 'alt',       label: 'גובה',           editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'weapons',   label: 'חימושים',        editableOptions: ['none', 'keyboard'] },
-  { key: 'targets',   label: "מטרות",          editableOptions: ['none', 'keyboard'] },
-  { key: 'shkadia',   label: 'שקדיה',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'notes',     label: 'הערות',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'sector',    label: 'אזור',           editableOptions: ['none', 'dropdown'] },
-  { key: 'transfer',  label: 'העבר',           editableOptions: ['none'] as string[] },
+  { key: 'callSign',          label: 'או"ק',         editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'airborne',          label: 'מאוויר',        editableOptions: ['none', 'toggle'] },
+  { key: 'sq',                label: 'SQ',            editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'numberOfFormation', label: "מ' מערך",       editableOptions: ['none', 'keyboard'] },
+  { key: 'task',              label: 'משימה',         editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'alt',               label: 'גובה',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'takeoffTime',       label: 'זמן המראה',     editableOptions: ['none'] as string[] },
+  { key: 'weapons',           label: 'חימושים',       editableOptions: ['none', 'keyboard'] },
+  { key: 'targets',           label: 'מטרות',         editableOptions: ['none', 'keyboard'] },
+  { key: 'systems',           label: 'מערכות',        editableOptions: ['none', 'keyboard'] },
+  { key: 'shkadia',           label: 'שקדיה',         editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'erka',              label: 'ערכה',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'koteret',           label: 'כותרת',         editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'mivtza',            label: 'מבצע',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
+  { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
 ];
 
 const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'both'];
