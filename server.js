@@ -158,6 +158,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS in_table BOOLEAN DEFAULT false`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS workstation_personal_filters (
       id SERIAL PRIMARY KEY,
@@ -1034,7 +1035,7 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
     // Update strip: move to target sector AND assign to receiving workstation
     // This ensures the strip disappears from the sending workstation
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7 WHERE id = $8',
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
       [to_sector_id, 'queued', false, target_x || 0, target_y || 0, to_workstation_id, to_workstation_id, strip_id]
     );
     
@@ -1287,7 +1288,8 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       shkadia: r.shkadia,
       workstation_preset_id: r.workstation_preset_id,
       custom_fields: r.custom_fields || {},
-      takeoff_time: r.takeoff_time || null
+      takeoff_time: r.takeoff_time || null,
+      inTable: r.in_table || false
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);

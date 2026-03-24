@@ -3414,11 +3414,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           : true)
       );
 
-  // Table strips: strips manually placed on board OR placed on map (includes pending_transfer so they show grayed-out)
+  // Table strips: strips manually placed on board OR placed on map OR received via transfer (inTable=true)
   const myTableStrips = effectiveFilter
-    ? strips.filter(s => (tableOnBoard.has(s.id) || s.onMap) && evaluateQuery(s, effectiveFilter))
+    ? strips.filter(s => (tableOnBoard.has(s.id) || s.onMap || s.inTable) && evaluateQuery(s, effectiveFilter))
     : strips.filter(s =>
-        (tableOnBoard.has(s.id) || s.onMap) &&
+        (tableOnBoard.has(s.id) || s.onMap || s.inTable) &&
         (session.presetId
           ? Number(s.workstation_preset_id) === Number(session.presetId)
           : true)
@@ -5644,7 +5644,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {!sidebarPinned && (() => {
             const closedCount = tableMode
-              ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
+              ? myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer').length
               : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
               <div
@@ -5674,9 +5674,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {sidebarPinned && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
-              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
+              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer')].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
                 const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
@@ -5730,7 +5730,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </div>
                 </div>
               );})}
-              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
+              {myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer').length === 0 && (
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בטבלה</div>
               )}
             </>
