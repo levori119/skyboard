@@ -5696,6 +5696,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const tkDay = new Date(Date.UTC(tkDt.getUTCFullYear(), tkDt.getUTCMonth(), tkDt.getUTCDate()));
                   tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getUTCDate().toString().padStart(2,'0')}/${(tkDt.getUTCMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
                 }
+                const isDraggingThis = tableDragOver && sidebarPointerDragRef.current?.id === s.id;
                 return (
                 <div
                   key={s.id}
@@ -5704,18 +5705,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
                   }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: tableDragOver && sidebarPointerDragRef.current?.id === s.id ? '#1d4ed8' : '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : '#334155'}`, borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: isDraggingThis ? '#1d4ed8' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
-                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>{s.sq || s.squadron}</span>}
+                  <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
+                  <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                          {s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                        </span>
+                        {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
+                      </div>
+                      <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
-                    {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
-                    {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>גובה: {s.alt}</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                      <div>
+                        {tkLabel && (
+                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
+                            🕐 {tkLabel}
+                          </span>
+                        )}
+                      </div>
+                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
+                    </div>
                   </div>
                 </div>
               );})}
@@ -5755,20 +5768,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
                   }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', background: '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : '#334155'}`, borderRadius: '4px', padding: '6px 8px', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
-                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>{s.sq || s.squadron}</span>}
+                  <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
+                  <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                          {s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                        </span>
+                        {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
+                      </div>
+                      <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {s.alt && <span style={{ fontSize: '10px', color: '#94a3b8' }}>גובה: {s.alt}</span>}
-                    {s.task && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{s.task}</span>}
-                    {s.sq && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>{s.sq}</span>}
-                    {s.airborne && <span style={{ fontSize: '9px', background: '#1d4ed8', color: 'white', padding: '1px 4px', borderRadius: '3px' }}>באוויר</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
+                      <div>
+                        {tkLabel && (
+                          <span style={{ fontSize: '10px', color: tkPast ? 'white' : (lightMode ? '#475569' : '#64748b'), background: tkPast ? '#ef4444' : (lightMode ? '#e2e8f0' : '#0f172a'), padding: '1px 5px', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            {tkPast && <span style={{ width: '5px', height: '5px', background: 'white', borderRadius: '50%', display: 'inline-block' }} />}
+                            🕐 {tkLabel}
+                          </span>
+                        )}
+                      </div>
+                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
+                    </div>
                   </div>
                 </div>
               );})}
