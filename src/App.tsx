@@ -4690,8 +4690,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         ) : (
                           <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1 }}>{s.callSign}</span>
-                            {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: lightMode ? '#dcfce7' : '#052e16', padding: '1px 4px', borderRadius: '3px' }}>מאוויר</span>}
+                            <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
@@ -4699,9 +4698,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : 'white', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                      <div>{s.callSign}</div>
-                      {s.airborne && <span style={{ fontSize: '10px', color: '#22c55e', background: lightMode ? '#dcfce7' : '#052e16', padding: '2px 5px', borderRadius: '4px', display: 'block', marginTop: '2px' }}>מאוויר</span>}
+                    <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
+                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
                     </td>
                   );
                 }
