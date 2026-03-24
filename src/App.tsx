@@ -6097,7 +6097,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}</div>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
                     <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{s.sq}</div>
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {s.alt} | {s.task}</div>
@@ -6405,7 +6405,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   key={strip.id}
                   style={{ background: '#334155', padding: '10px', borderRadius: '6px', color: 'white', fontSize: '13px' }}
                 >
-                  <div style={{ fontWeight: 'bold' }}>{strip.call_sign}</div>
+                  <div style={{ fontWeight: 'bold' }}>{strip.call_sign}{strip.number_of_formation ? ` / ${strip.number_of_formation}` : ''}</div>
                   <div style={{ fontSize: '11px', color: '#94a3b8' }}>{(strip.sq || strip.squadron) && `${strip.sq || strip.squadron} | `}גובה: {strip.alt}</div>
                   <select
                     onChange={e => {
@@ -6489,7 +6489,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                           <div style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ flex: 1 }}>
                               <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {strip.call_sign}
+                                {strip.call_sign}{strip.number_of_formation ? ` / ${strip.number_of_formation}` : ''}
                                 {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontWeight: 'normal', fontSize: '12px' }}>{strip.sq || strip.squadron}</span>}
                                 {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} title="יש נתוני חימוש/מטרות" />}
                                 {past && (
@@ -6672,7 +6672,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                       >
                         <option value="" disabled>+ הוסף פמם לעמדה</option>
                         {unassignedStrips.map(s => (
-                          <option key={s.id} value={s.id}>{s.call_sign}{(s.sq || s.squadron) ? ` (${s.sq || s.squadron})` : ''}</option>
+                          <option key={s.id} value={s.id}>{s.call_sign}{s.number_of_formation ? ` / ${s.number_of_formation}` : ''}{(s.sq || s.squadron) ? ` (${s.sq || s.squadron})` : ''}</option>
                         ))}
                       </select>
                     )}
