@@ -37,6 +37,11 @@ type QNode = QGroup | QLeaf;
 
 const qGenId = () => Math.random().toString(36).slice(2, 10);
 const emptyQGroup = (): QGroup => ({ id: qGenId(), type: 'group', operator: 'all', children: [] });
+const hasConditions = (node: QNode | null): boolean => {
+  if (!node) return false;
+  if (node.type === 'leaf') return true;
+  return node.children.some(c => hasConditions(c));
+};
 
 const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'callSign', label: 'או"ק', ftype: 'text' },
@@ -81,7 +86,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool = leaf.field === 'airborne';
-  const boolCmp = cmp === 'באוויר' || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
+  const boolCmp = cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes';
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
     case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
@@ -3396,9 +3401,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Personal filter takes priority over admin filter; if either is active, use query-based filtering
   // While the panel is open, apply the draft filter live for real-time preview
-  const effectiveFilter: QGroup | null = (showPersonalFilter && personalFilterDraft)
+  const _rawFilter: QGroup | null = (showPersonalFilter && personalFilterDraft)
     ? personalFilterDraft
     : (personalFilter || adminFilterQuery);
+  const effectiveFilter: QGroup | null = hasConditions(_rawFilter) ? _rawFilter : null;
 
   // Only show strips that belong to this workstation (not neighboring sector strips)
   const myStrips = effectiveFilter
