@@ -5172,6 +5172,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </th>
                       );
                     })}
+                    <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: '#1e293b', border: 'none' }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -5206,7 +5207,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1
                           }}
                         >
-                          <td colSpan={columns.length + 1} style={{ padding: '5px 12px', direction: 'rtl' }}>
+                          <td colSpan={columns.length + 2} style={{ padding: '5px 12px', direction: 'rtl' }}>
                             <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
                             <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', marginLeft: '8px' }}>{item.groupKey}</span>
                             <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px' }}>({item.count})</span>
@@ -5291,11 +5292,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           }
                           return cell;
                         })}
+                        <td style={{ position: 'sticky', left: 0, zIndex: 10, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
+                          {isPendingTransfer && (
+                            <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                   {myTableStrips.length === 0 && (
-                    <tr><td colSpan={columns.length + 1} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
+                    <tr><td colSpan={columns.length + 2} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
                       <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
                       <div style={{ fontSize: '15px', color: '#64748b' }}>גרור פממים מהצד הימני לכאן</div>
                     </td></tr>
