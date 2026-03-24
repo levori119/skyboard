@@ -2609,7 +2609,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         onPointerDown={handlePointerDown}
         style={{ width: 28, background: '#1e293b', cursor: 'grab', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '16px', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none' }}
       >⋮</div>
-      <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
+      <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
             <div style={{
@@ -2742,7 +2742,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
         {/* Expandable Details Panel */}
         {showDetails && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px', background: '#f8fafc', borderRadius: '4px', padding: '6px', fontSize: '9px', direction: 'rtl' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px', background: '#f8fafc', borderRadius: '4px', padding: '6px', fontSize: '9px', direction: 'rtl', width: '100%', boxSizing: 'border-box' }}>
             
             {/* זמן המראה */}
             <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
