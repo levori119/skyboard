@@ -6132,7 +6132,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '' });
+  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '' });
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
   const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
   const [savingStripId, setSavingStripId] = useState<string | null>(null);
@@ -6181,7 +6181,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           takeoff_time: newStrip.takeoff_time || null
         })
       });
-      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '' });
+      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '' });
       loadData();
     } catch (err) {
       console.error('Failed to create strip:', err);
@@ -6364,6 +6364,13 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               placeholder="גובה"
               value={newStrip.alt}
               onChange={e => setNewStrip({ ...newStrip, alt: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <input
+              type="text"
+              placeholder="מספר מערך (numberOfFormation)"
+              value={newStrip.numberOfFormation}
+              onChange={e => setNewStrip({ ...newStrip, numberOfFormation: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
             <input

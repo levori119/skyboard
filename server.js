@@ -554,10 +554,10 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
 
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time } = req.body;
+    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null]
+      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null, numberOfFormation || null]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
