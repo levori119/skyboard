@@ -2449,7 +2449,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const d = new Date(s.takeoff_time);
     if (isNaN(d.getTime())) return '';
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   });
 
   useEffect(() => {
@@ -2466,7 +2466,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       const d = new Date(s.takeoff_time);
       if (!isNaN(d.getTime())) {
         const pad = (n: number) => n.toString().padStart(2, '0');
-        setLocalTakeoffTime(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        setLocalTakeoffTime(`${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`);
       }
     }
   }, [s.takeoff_time]);
@@ -2635,13 +2635,13 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               const d = new Date(s.takeoff_time);
               if (isNaN(d.getTime())) return null;
               const past = d < now;
-              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const stripDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-              const hh = d.getHours().toString().padStart(2, '0');
-              const mm = d.getMinutes().toString().padStart(2, '0');
+              const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+              const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+              const hh = d.getUTCHours().toString().padStart(2, '0');
+              const mm = d.getUTCMinutes().toString().padStart(2, '0');
               let label = `${hh}:${mm}`;
-              if (stripDay.getTime() !== today.getTime()) {
-                label = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} ${label}`;
+              if (stripDayUTC.getTime() !== todayUTC.getTime()) {
+                label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
               }
               return (
                 <div
@@ -2758,7 +2758,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     await fetch(`${API_URL}/strips/${s.id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ takeoff_time: val })
+                      body: JSON.stringify({ takeoff_time: val + ':00Z' })
                     });
                   } catch {}
                 }}
@@ -5690,11 +5690,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
                 let tkLabel = '';
                 if (tkDt && !isNaN(tkDt.getTime())) {
-                  const hh = tkDt.getHours().toString().padStart(2,'0');
-                  const mm = tkDt.getMinutes().toString().padStart(2,'0');
-                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                  const tkDay = new Date(tkDt.getFullYear(), tkDt.getMonth(), tkDt.getDate());
-                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
+                  const hh = tkDt.getUTCHours().toString().padStart(2,'0');
+                  const mm = tkDt.getUTCMinutes().toString().padStart(2,'0');
+                  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                  const tkDay = new Date(Date.UTC(tkDt.getUTCFullYear(), tkDt.getUTCMonth(), tkDt.getUTCDate()));
+                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getUTCDate().toString().padStart(2,'0')}/${(tkDt.getUTCMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
                 }
                 return (
                 <div
@@ -5739,11 +5739,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
                 let tkLabel = '';
                 if (tkDt && !isNaN(tkDt.getTime())) {
-                  const hh = tkDt.getHours().toString().padStart(2,'0');
-                  const mm = tkDt.getMinutes().toString().padStart(2,'0');
-                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                  const tkDay = new Date(tkDt.getFullYear(), tkDt.getMonth(), tkDt.getDate());
-                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
+                  const hh = tkDt.getUTCHours().toString().padStart(2,'0');
+                  const mm = tkDt.getUTCMinutes().toString().padStart(2,'0');
+                  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                  const tkDay = new Date(Date.UTC(tkDt.getUTCFullYear(), tkDt.getUTCMonth(), tkDt.getUTCDate()));
+                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getUTCDate().toString().padStart(2,'0')}/${(tkDt.getUTCMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
                 }
                 return (
                 <div
@@ -6371,19 +6371,19 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
             {presets.map(preset => {
               const now = new Date();
-              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
               const formatTakeoffTime = (t: string | null): string => {
                 if (!t) return '';
                 const d = new Date(t);
                 if (isNaN(d.getTime())) return t;
-                const stripDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                const hh = d.getHours().toString().padStart(2, '0');
-                const mm = d.getMinutes().toString().padStart(2, '0');
+                const stripDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+                const hh = d.getUTCHours().toString().padStart(2, '0');
+                const mm = d.getUTCMinutes().toString().padStart(2, '0');
                 const timeStr = `${hh}:${mm}`;
                 if (stripDate.getTime() !== today.getTime()) {
-                  const dd = d.getDate().toString().padStart(2, '0');
-                  const mo = (d.getMonth() + 1).toString().padStart(2, '0');
+                  const dd = d.getUTCDate().toString().padStart(2, '0');
+                  const mo = (d.getUTCMonth() + 1).toString().padStart(2, '0');
                   return `${dd}/${mo} ${timeStr}`;
                 }
                 return timeStr;
@@ -7635,12 +7635,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                       else if (t.length > 0) { hh = t.padStart(2,'0'); mm = '00'; }
                       if (!year || !month || !day) {
                         const now = new Date();
-                        year = year || String(now.getFullYear());
-                        month = month || String(now.getMonth() + 1).padStart(2,'0');
-                        day = day || String(now.getDate()).padStart(2,'0');
+                        year = year || String(now.getUTCFullYear());
+                        month = month || String(now.getUTCMonth() + 1).padStart(2,'0');
+                        day = day || String(now.getUTCDate()).padStart(2,'0');
                       }
                       if (!hh) { hh = '00'; mm = '00'; }
-                      const iso = `${year.padStart(4,'0')}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hh}:${mm}:00`;
+                      const iso = `${year.padStart(4,'0')}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${hh}:${mm}:00Z`;
                       const dt = new Date(iso);
                       return isNaN(dt.getTime()) ? null : dt.toISOString();
                     };
