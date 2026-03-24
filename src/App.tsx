@@ -2451,6 +2451,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   });
+  const [localErka, setLocalErka] = useState(s.erka || '');
+  const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
+  const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
 
   useEffect(() => {
     setDetailsData({
@@ -2631,6 +2634,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
         </div>
+        {s.koteret && (
+          <div style={{ fontSize: '9px', color: '#7c3aed', fontStyle: 'italic', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.koteret}</div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px', gap: '4px' }}>
           {/* RIGHT side (RTL start) — takeoff time */}
           <div>
@@ -2833,6 +2839,42 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 onChange={(e) => saveDetails({ ...detailsData, shkadia: e.target.value })}
                 style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', boxSizing: 'border-box' }}
               />
+            </div>
+
+            {/* כותרת / ערכה / מבצע */}
+            <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <input
+                value={localKoteret}
+                placeholder="כותרת"
+                onChange={e => setLocalKoteret(e.target.value)}
+                onBlur={async e => {
+                  const val = e.target.value;
+                  try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ koteret: val }) }); } catch {}
+                }}
+                style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  value={localErka}
+                  placeholder="ערכה"
+                  onChange={e => setLocalErka(e.target.value)}
+                  onBlur={async e => {
+                    const val = e.target.value;
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ erka: val }) }); } catch {}
+                  }}
+                  style={{ flex: 1, padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }}
+                />
+                <input
+                  value={localMivtza}
+                  placeholder="מבצע"
+                  onChange={e => setLocalMivtza(e.target.value)}
+                  onBlur={async e => {
+                    const val = e.target.value;
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mivtza: val }) }); } catch {}
+                  }}
+                  style={{ flex: 1, padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -6107,7 +6149,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '' });
+  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
   const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
   const [savingStripId, setSavingStripId] = useState<string | null>(null);
@@ -6156,7 +6198,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           takeoff_time: newStrip.takeoff_time || null
         })
       });
-      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '' });
+      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
       loadData();
     } catch (err) {
       console.error('Failed to create strip:', err);
@@ -6355,6 +6397,29 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               onChange={e => setNewStrip({ ...newStrip, task: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
+            <input
+              type="text"
+              placeholder="כותרת"
+              value={newStrip.koteret}
+              onChange={e => setNewStrip({ ...newStrip, koteret: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="ערכה"
+                value={newStrip.erka}
+                onChange={e => setNewStrip({ ...newStrip, erka: e.target.value })}
+                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
+              />
+              <input
+                type="text"
+                placeholder="מבצע"
+                value={newStrip.mivtza}
+                onChange={e => setNewStrip({ ...newStrip, mivtza: e.target.value })}
+                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
+              />
+            </div>
             <div>
               <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>זמן המראה</label>
               <input
@@ -6474,9 +6539,12 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                                   />
                                 )}
                               </div>
+                              {strip.koteret && <div style={{ color: '#a78bfa', fontSize: '11px', fontStyle: 'italic', marginTop: '2px' }}>{strip.koteret}</div>}
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
                                 {strip.task && <span style={{ color: '#60a5fa', fontSize: '11px', background: '#1e3a5f', padding: '1px 5px', borderRadius: '3px' }}>{strip.task}</span>}
                                 {strip.alt && <span style={{ color: '#94a3b8', fontSize: '11px' }}>↑{strip.alt}</span>}
+                                {strip.erka && <span style={{ color: '#f59e0b', fontSize: '11px', background: '#292524', padding: '1px 5px', borderRadius: '3px' }}>ערכה: {strip.erka}</span>}
+                                {strip.mivtza && <span style={{ color: '#34d399', fontSize: '11px', background: '#022c22', padding: '1px 5px', borderRadius: '3px' }}>מבצע: {strip.mivtza}</span>}
                                 {/* Airborne toggle */}
                                 <button
                                   onClick={() => updateStripInline(strip.id, { airborne: !strip.airborne })}
@@ -7708,6 +7776,9 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                           targets: parseTargets(getField(row, 'targets', 'מטרות')),
                           systems: parseSystems(getField(row, 'systems', 'מערכות')),
                           shkadia: getField(row, 'shkadia', 'שקדיה'),
+                          erka: getField(row, 'erka', 'ערכה', 'ERKA'),
+                          koteret: getField(row, 'koteret', 'כותרת', 'KOTERET'),
+                          mivtza: getField(row, 'mivtza', 'מבצע', 'MIVTZA'),
                           takeoff_time
                         };
                       });
