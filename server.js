@@ -633,10 +633,11 @@ app.post('/api/strips/import', async (req, res) => {
       return res.status(400).json({ error: 'Invalid strips data' });
     }
     
-    const existingResult = await pool.query('SELECT callsign FROM strips');
-    const existingCallSigns = new Set(existingResult.rows.map(r => r.callsign?.toLowerCase()));
+    const existingResult = await pool.query('SELECT id, callsign FROM strips');
+    const existingMap = new Map(existingResult.rows.map(r => [r.callsign?.toLowerCase(), r.id]));
     
     let imported = 0;
+    let updated = 0;
     let skipped = 0;
     const errors = [];
     
@@ -646,39 +647,74 @@ app.post('/api/strips/import', async (req, res) => {
         continue;
       }
       
-      if (existingCallSigns.has(strip.callSign.toLowerCase())) {
-        skipped++;
-        continue;
-      }
+      const existingId = existingMap.get(strip.callSign.toLowerCase());
       
-      try {
-        await pool.query(
-          'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)',
-          [
-            strip.callSign,
-            strip.sq || '',
-            strip.squadron || '',
-            strip.alt || '',
-            strip.task || '',
-            JSON.stringify(strip.weapons || []),
-            JSON.stringify(strip.targets || []),
-            JSON.stringify(strip.systems || []),
-            strip.shkadia || null,
-            strip.takeoff_time || null,
-            strip.numberOfFormation || null,
-            strip.erka || null,
-            strip.koteret || null,
-            strip.mivtza || null
-          ]
-        );
-        existingCallSigns.add(strip.callSign.toLowerCase());
-        imported++;
-      } catch (err) {
-        errors.push(`Failed to import ${strip.callSign}: ${err.message}`);
+      if (existingId) {
+        // Build UPDATE for non-empty fields only
+        const updateParts = [];
+        const updateVals = [];
+        let pi = 1;
+        const addField = (col, val) => {
+          if (val !== undefined && val !== null && val !== '') {
+            updateParts.push(`${col} = $${pi++}`);
+            updateVals.push(val);
+          }
+        };
+        addField('sq', strip.sq);
+        addField('squadron', strip.squadron);
+        addField('alt', strip.alt);
+        addField('task', strip.task);
+        addField('number_of_formation', strip.numberOfFormation);
+        addField('takeoff_time', strip.takeoff_time);
+        addField('shkadia', strip.shkadia);
+        addField('erka', strip.erka);
+        addField('koteret', strip.koteret);
+        addField('mivtza', strip.mivtza);
+        if (strip.weapons && strip.weapons.length > 0) { updateParts.push(`weapons = $${pi++}`); updateVals.push(JSON.stringify(strip.weapons)); }
+        if (strip.targets && strip.targets.length > 0) { updateParts.push(`targets = $${pi++}`); updateVals.push(JSON.stringify(strip.targets)); }
+        if (strip.systems && strip.systems.length > 0) { updateParts.push(`systems = $${pi++}`); updateVals.push(JSON.stringify(strip.systems)); }
+
+        if (updateParts.length === 0) {
+          skipped++;
+          continue;
+        }
+        try {
+          updateVals.push(existingId);
+          await pool.query(`UPDATE strips SET ${updateParts.join(', ')} WHERE id = $${pi}`, updateVals);
+          updated++;
+        } catch (err) {
+          errors.push(`Failed to update ${strip.callSign}: ${err.message}`);
+        }
+      } else {
+        try {
+          await pool.query(
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)',
+            [
+              strip.callSign,
+              strip.sq || '',
+              strip.squadron || '',
+              strip.alt || '',
+              strip.task || '',
+              JSON.stringify(strip.weapons || []),
+              JSON.stringify(strip.targets || []),
+              JSON.stringify(strip.systems || []),
+              strip.shkadia || null,
+              strip.takeoff_time || null,
+              strip.numberOfFormation || null,
+              strip.erka || null,
+              strip.koteret || null,
+              strip.mivtza || null
+            ]
+          );
+          existingMap.set(strip.callSign.toLowerCase(), true);
+          imported++;
+        } catch (err) {
+          errors.push(`Failed to import ${strip.callSign}: ${err.message}`);
+        }
       }
     }
     
-    res.json({ imported, skipped, errors });
+    res.json({ imported, updated, skipped, errors });
   } catch (err) {
     console.error('Error importing strips:', err);
     res.status(500).json({ error: 'Failed to import strips' });

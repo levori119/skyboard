@@ -7090,7 +7090,7 @@ const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממ
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes'>('presets');
-  const [csvImportResult, setCsvImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
@@ -7808,12 +7808,19 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                 
                 {csvImportResult && (
                   <div style={{ marginTop: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px' }}>
-                    <div style={{ color: '#22c55e', marginBottom: '8px', fontSize: '15px' }}>
-                      נטענו בהצלחה: {csvImportResult.imported} פממים
-                    </div>
+                    {csvImportResult.imported > 0 && (
+                      <div style={{ color: '#22c55e', marginBottom: '8px', fontSize: '15px' }}>
+                        נוספו חדשים: {csvImportResult.imported} פממים
+                      </div>
+                    )}
+                    {csvImportResult.updated > 0 && (
+                      <div style={{ color: '#60a5fa', marginBottom: '8px', fontSize: '15px' }}>
+                        עודכנו: {csvImportResult.updated} פממים
+                      </div>
+                    )}
                     {csvImportResult.skipped > 0 && (
-                      <div style={{ color: '#f59e0b', marginBottom: '8px', fontSize: '14px' }}>
-                        נדלגו (כפילויות): {csvImportResult.skipped} פממים
+                      <div style={{ color: '#94a3b8', marginBottom: '8px', fontSize: '14px' }}>
+                        ללא שינוי: {csvImportResult.skipped} פממים
                       </div>
                     )}
                     {csvImportResult.errors.length > 0 && (
