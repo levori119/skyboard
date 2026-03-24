@@ -2622,8 +2622,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 borderRadius: '4px',
                 padding: '1px 5px',
               } : {})
-            }}>{s.callSign}</div>
-            {(s.sq || s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>SQ {s.sq || s.squadron}</div>}
+            }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
+            {(s.sq || s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>{s.sq || s.squadron}</div>}
           </div>
           <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
         </div>
@@ -2913,10 +2913,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             <div style={{ width: 35, background: '#1e293b', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px' }}>⋮</div>
             <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
                 <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
               </div>
-              {(!s.sq && s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>SQ: {s.squadron}</div>}
+              {(!s.sq && s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>{s.squadron}</div>}
               <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
                 <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {s.alt}</div>
                 <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
@@ -5710,7 +5710,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
-                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>SQ {s.sq || s.squadron}</span>}
+                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>{s.sq || s.squadron}</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
@@ -5761,7 +5761,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span style={{ fontWeight: 'bold', fontSize: '12px', color: '#f1f5f9' }}>{s.callSign}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       {tkLabel && <span style={{ fontSize: '10px', color: tkPast ? 'white' : '#94a3b8', background: tkPast ? '#ef4444' : 'transparent', padding: tkPast ? '1px 4px' : '0', borderRadius: '3px', fontWeight: tkPast ? 'bold' : 'normal' }}>🕐 {tkLabel}</span>}
-                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>SQ {s.sq || s.squadron}</span>}
+                      {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#a78bfa', fontWeight: 'bold' }}>{s.sq || s.squadron}</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -6342,7 +6342,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   style={{ background: '#334155', padding: '10px', borderRadius: '6px', color: 'white', fontSize: '13px' }}
                 >
                   <div style={{ fontWeight: 'bold' }}>{strip.call_sign}</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{(strip.sq || strip.squadron) && `SQ: ${strip.sq || strip.squadron} | `}גובה: {strip.alt}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{(strip.sq || strip.squadron) && `${strip.sq || strip.squadron} | `}גובה: {strip.alt}</div>
                   <select
                     onChange={e => {
                       if (e.target.value) {
@@ -6426,7 +6426,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                             <div style={{ flex: 1 }}>
                               <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 {strip.call_sign}
-                                {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontWeight: 'normal', fontSize: '12px' }}>SQ {strip.sq || strip.squadron}</span>}
+                                {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontWeight: 'normal', fontSize: '12px' }}>{strip.sq || strip.squadron}</span>}
                                 {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} title="יש נתוני חימוש/מטרות" />}
                                 {past && (
                                   <span
@@ -7654,6 +7654,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
+                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'מספר_מערך', 'מ׳ מערך'),
                           alt: getField(row, 'alt', 'גובה'),
                           task: getField(row, 'task', 'משימה'),
                           weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
@@ -7715,6 +7716,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   <div><strong style={{color:'white'}}>עמודות אופציונליות:</strong></div>
                   <div style={{paddingRight:'16px'}}>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>sq</code> — SQ (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>SQ</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>squadron</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>טייסת</code>)<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>NUMBEROFFORMATION</code> — מספר מערך (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>numberOfFormation</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>number_of_formation</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>alt</code> — גובה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>DATE</code> — תאריך המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DD/MM/YYYY</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DDMMYYYY</code><br/>
@@ -7728,10 +7730,10 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
 
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
                 <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left' }}>
-{`callSign,sq,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
-BLUE01,69,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
-HAWK23,105,FL280,ESCORT,23/03/2026,0800,,,FLIR,
-VIPER07,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
+{`callSign,sq,NUMBEROFFORMATION,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
+BLUE01,69,1,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
+HAWK23,105,2,FL280,ESCORT,23/03/2026,0800,,,FLIR,
+VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
                 </pre>
 
                 <h4 style={{ margin: '15px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (Excel):</h4>
@@ -7739,20 +7741,20 @@ VIPER07,117,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מ�
                   <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '11px', direction: 'ltr', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: '#334155' }}>
-                        {['callSign','sq','alt','task','DATE','TAKEOFF TIME','weapons','targets','systems','shkadia'].map(h => (
+                        {['callSign','sq','NUMBEROFFORMATION','alt','task','DATE','TAKEOFF TIME','weapons','targets','systems','shkadia'].map(h => (
                           <th key={h} style={{ padding: '6px 10px', color: h === 'DATE' || h === 'TAKEOFF TIME' ? '#86efac' : '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {[
-                        ['BLUE01','69','FL350','CAP','23/03/2026','0630','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
-                        ['HAWK23','105','FL280','ESCORT','23/03/2026','0800','','','FLIR',''],
-                        ['VIPER07','117','FL400','STRIKE','23/03/2026','0945','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
+                        ['BLUE01','69','1','FL350','CAP','23/03/2026','0630','AIM120:4; AIM9:2','TANGO1:IP_NORTH','LANTIRN; EW','מטוס 2'],
+                        ['HAWK23','105','2','FL280','ESCORT','23/03/2026','0800','','','FLIR',''],
+                        ['VIPER07','117','1','FL400','STRIKE','23/03/2026','0945','GBU12:2; GBU31:1','BRIDGE_A:IP_SOUTH','','מטוס 1'],
                       ].map((row, i) => (
                         <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
                           {row.map((cell, j) => (
-                            <td key={j} style={{ padding: '5px 10px', color: j === 4 || j === 5 ? '#86efac' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
+                            <td key={j} style={{ padding: '5px 10px', color: j === 5 || j === 6 ? '#86efac' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
                           ))}
                         </tr>
                       ))}

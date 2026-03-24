@@ -117,6 +117,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_time TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS airborne BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS squadron VARCHAR(100)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS number_of_formation VARCHAR(50)`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_x REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS target_y REAL DEFAULT 0`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS sub_sector_label VARCHAR(50)`);
@@ -473,6 +474,7 @@ app.get('/api/strips', async (req, res) => {
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       callSign: r.callsign,
+      numberOfFormation: r.number_of_formation || null,
       sq: r.sq,
       alt: r.alt,
       task: r.task,
@@ -495,6 +497,7 @@ app.get('/api/strips/all', async (req, res) => {
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       call_sign: r.callsign,
+      number_of_formation: r.number_of_formation || null,
       sq: r.sq,
       alt: r.alt,
       task: r.task,
@@ -583,6 +586,9 @@ app.put('/api/strips/:id', async (req, res) => {
     if (shkadia !== undefined) { updates.push(`shkadia = $${paramIndex++}`); values.push(shkadia); }
     if (req.body.custom_fields !== undefined) { updates.push(`custom_fields = $${paramIndex++}`); values.push(JSON.stringify(req.body.custom_fields)); }
     if (req.body.takeoff_time !== undefined) { updates.push(`takeoff_time = $${paramIndex++}`); values.push(req.body.takeoff_time || null); }
+    if (req.body.sq !== undefined) { updates.push(`sq = $${paramIndex++}`); values.push(req.body.sq); }
+    if (req.body.numberOfFormation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.numberOfFormation || null); }
+    if (req.body.number_of_formation !== undefined) { updates.push(`number_of_formation = $${paramIndex++}`); values.push(req.body.number_of_formation || null); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -634,7 +640,7 @@ app.post('/api/strips/import', async (req, res) => {
       
       try {
         await pool.query(
-          'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+          'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
           [
             strip.callSign,
             strip.sq || '',
@@ -645,7 +651,8 @@ app.post('/api/strips/import', async (req, res) => {
             JSON.stringify(strip.targets || []),
             JSON.stringify(strip.systems || []),
             strip.shkadia || null,
-            strip.takeoff_time || null
+            strip.takeoff_time || null,
+            strip.numberOfFormation || null
           ]
         );
         existingCallSigns.add(strip.callSign.toLowerCase());
@@ -718,6 +725,7 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       callSign: r.callsign,
+      numberOfFormation: r.number_of_formation || null,
       sq: r.sq,
       alt: r.alt,
       task: r.task,
@@ -1261,6 +1269,7 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       callSign: r.callsign,
+      numberOfFormation: r.number_of_formation || null,
       sq: r.sq,
       alt: r.alt,
       task: r.task,
@@ -1297,6 +1306,7 @@ app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       callSign: r.callsign,
+      numberOfFormation: r.number_of_formation || null,
       sq: r.sq,
       alt: r.alt,
       task: r.task,
