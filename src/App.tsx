@@ -6986,7 +6986,13 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   const [selectedRecipients, setSelectedRecipients] = useState<Set<number>>(new Set());
   const [showColorPicker, setShowColorPicker] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const dragRef = useRef<{ noteId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const canEdit = (note: any) => note.allow_all_edit || note.creator_preset_id === presetId;
 
@@ -7023,7 +7029,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
       body: JSON.stringify({ preset_ids: [...selectedRecipients] }),
     });
     setShowDistribute(null);
-    alert(`הפתקית הופצה ל-${selectedRecipients.size} נמענים`);
+    showToast(`הפתקית הופצה ל-${selectedRecipients.size} נמענים`);
   };
 
   const startDrag = (noteId: number, e: React.PointerEvent) => {
@@ -7184,6 +7190,12 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Toast notification */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#1e293b', border: '1px solid #38bdf8', color: 'white', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          ✅ {toast}
         </div>
       )}
     </>
