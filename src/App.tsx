@@ -5371,8 +5371,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     return (
                       <tr
                         key={s.id}
-                        draggable={!isPendingTransfer}
-                        onDragStart={e => { if (!isPendingTransfer) { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); } }}
+                        draggable
+                        onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
                           e.preventDefault();
                           if (tableSidebarDragId.current) { e.dataTransfer.dropEffect = 'move'; setTableDragOver(true); return; }
@@ -5411,8 +5411,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       >
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '10px 6px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey || isPendingTransfer) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
-                          onPointerDown={isPendingTransfer ? undefined : e => {
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          onPointerDown={e => {
+                            if (tableSortBySector || tableGroupByKey || tableSortKey) return;
                             e.preventDefault();
                             e.stopPropagation();
                             const label = s.callSign || String(s.id);
@@ -5421,9 +5422,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             setTablePointerGhost({ x: e.clientX, y: e.clientY, label });
                           }}
                         >
-                          {isPendingTransfer
-                            ? <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '11px', background: '#374151', color: '#9ca3af', borderRadius: '4px', padding: '2px 6px', whiteSpace: 'nowrap' }}>ממתין ⏳</span>
-                            : '⠿'}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                            <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
+                            {isPendingTransfer && (
+                              <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>ממתין ⏳</span>
+                            )}
+                          </div>
                         </td>
                         {columns.map((col, colIdx) => {
                           const cell = renderCell(s, col);
