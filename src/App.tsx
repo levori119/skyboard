@@ -2608,91 +2608,77 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
     <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
-      <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
-        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '14px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
+      <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
+        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
-          style={{ background: 'transparent', border: 'none', color: hasDetails ? '#60a5fa' : '#94a3b8', fontSize: '10px', cursor: 'pointer', padding: '2px 0', lineHeight: 1 }}
+          style={{ background: 'transparent', border: 'none', color: hasDetails ? '#60a5fa' : '#94a3b8', fontSize: '9px', cursor: 'pointer', padding: '1px 0', lineHeight: 1 }}
         >{showDetails ? '▴' : '▾'}</button>
       </div>
-      <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '3px 5px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-            <div style={{
-              fontWeight: 'bold',
-              fontSize: '12px',
-              ...(s.airborne ? {
-                background: '#1d4ed8',
-                color: 'white',
-                border: '2px solid #3b82f6',
-                borderRadius: '4px',
-                padding: '1px 5px',
-              } : {})
-            }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
-            {(s.sq || s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold' }}>{s.sq || s.squadron}</div>}
-          </div>
-          <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{s.task}</div>
+      <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '2px 4px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
+        {/* שורה 1: שם + טייסת */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'nowrap', overflow: 'hidden' }}>
+          <div style={{
+            fontWeight: 'bold',
+            fontSize: '11px',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
+            ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '3px', padding: '0 3px' } : {})
+          }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
+          {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
         </div>
-        {s.koteret && (
-          <div style={{ fontSize: '9px', color: '#7c3aed', fontStyle: 'italic', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.koteret}</div>
-        )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px', gap: '4px' }}>
-          {/* RIGHT side (RTL start) — takeoff time */}
-          <div>
-            {s.takeoff_time && (() => {
-              const now = new Date();
-              const d = new Date(s.takeoff_time);
-              if (isNaN(d.getTime())) return null;
-              const past = d < now;
-              const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-              const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-              const hh = d.getUTCHours().toString().padStart(2, '0');
-              const mm = d.getUTCMinutes().toString().padStart(2, '0');
-              let label = `${hh}:${mm}`;
-              if (stripDayUTC.getTime() !== todayUTC.getTime()) {
-                label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
-              }
-              return (
-                <div
-                  title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: past ? 'white' : '#475569', background: past ? '#ef4444' : '#e2e8f0', padding: '1px 5px', borderRadius: '3px', fontWeight: past ? 'bold' : 'normal' }}
-                >
-                  {past && <span style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
-                  🕐 {label}
-                </div>
-              );
-            })()}
-          </div>
-          {/* LEFT side (RTL end) — alt */}
-          <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '10px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: '1px 5px', background: '#f1f5f9', borderRadius: '3px', whiteSpace: 'nowrap' }}>
-            {s.alt || '-'}
-          </div>
+        {/* שורה 2: משימה */}
+        {s.task && <div style={{ fontSize: '9px', color: '#475569', lineHeight: 1.2 }}>{s.task}</div>}
+        {/* שורה 3: זמן המראה (קטן, מתחת למשימה) */}
+        {s.takeoff_time && (() => {
+          const now = new Date();
+          const d = new Date(s.takeoff_time);
+          if (isNaN(d.getTime())) return null;
+          const past = d < now;
+          const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+          const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+          const hh = d.getUTCHours().toString().padStart(2, '0');
+          const mm = d.getUTCMinutes().toString().padStart(2, '0');
+          let label = `${hh}:${mm}`;
+          if (stripDayUTC.getTime() !== todayUTC.getTime()) {
+            label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
+          }
+          return (
+            <div title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
+              style={{ fontSize: '9px', lineHeight: 1.2, color: past ? '#dc2626' : '#64748b', fontWeight: past ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              {past && <span style={{ width: '5px', height: '5px', background: '#dc2626', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
+              🕐 {label}
+            </div>
+          );
+        })()}
+        {/* שורה 4: גובה */}
+        <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '9px', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          גובה: {s.alt || '-'}
         </div>
-        {/* Notes section */}
+        {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
           editingNotes ? (
-            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px' }}>
+            <div onClick={(e) => e.stopPropagation()}>
               <textarea
                 value={tempNotes}
                 onChange={(e) => setTempNotes(e.target.value)}
-                style={{ width: '100%', padding: '3px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', resize: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '2px', border: '1px solid #cbd5e1', borderRadius: '2px', fontSize: '8px', resize: 'none', boxSizing: 'border-box' }}
                 rows={2}
                 autoFocus
               />
-              <div style={{ display: 'flex', gap: '3px', marginTop: '3px' }}>
+              <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
                 <button 
                   onClick={() => { 
                     if (onUpdateNotes) onUpdateNotes(s.id, tempNotes);
                     setEditingNotes(false);
                   }} 
-                  style={{ flex: 1, padding: '2px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', fontSize: '8px', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '1px', background: '#10b981', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
                 >
                   שמור
                 </button>
                 <button 
                   onClick={() => { setTempNotes(s.notes || ''); setEditingNotes(false); }} 
-                  style={{ flex: 1, padding: '2px', background: '#64748b', color: 'white', border: 'none', borderRadius: '3px', fontSize: '8px', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '1px', background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
                 >
                   ביטול
                 </button>
@@ -2701,17 +2687,17 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           ) : (
             <div 
               onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
-              style={{ marginTop: '4px', fontSize: '9px', color: '#64748b', cursor: 'pointer', background: '#f8fafc', padding: '2px 4px', borderRadius: '3px' }}
+              style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', lineHeight: 1.2 }}
               title="לחץ לעריכה"
             >
               {(() => { const np = parseNoteValue(s.notes || ''); return (<>
                 {np.text && <div style={{ direction: 'rtl' }}>📝 {np.text}</div>}
-                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '30px', borderRadius: '3px', display: 'block', marginTop: np.text ? '2px' : 0 }} />}
+                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '24px', borderRadius: '2px', display: 'block' }} />}
               </>); })()}
             </div>
           )
         ) : onUpdateNotes && (
-          <div style={{ marginTop: '4px', textAlign: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
             <button
               onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
               style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer' }}
@@ -2902,11 +2888,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   );
 
   const baseStyle: React.CSSProperties = {
-    width: 155, 
+    width: 130, 
     background: s.airborne ? '#dbeafe' : 'white', 
     border: s.airborne ? '2px solid #3b82f6' : '2px solid black',
     display: 'flex', flexDirection: 'row-reverse',
-    marginBottom: '8px', touchAction: 'none'
+    marginBottom: '6px', touchAction: 'none'
   };
 
   // אם בגרירה, מציג בפורטל שיעקוב אחרי העכבר
