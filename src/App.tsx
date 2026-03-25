@@ -8445,7 +8445,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '' }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, filter_query: null }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
