@@ -3333,6 +3333,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableHeaderMenuKey, setTableHeaderMenuKey] = useState<string | null>(null);
   const [tableGroupDragKey, setTableGroupDragKey] = useState<string | null>(null);
   const [tableGroupDragOverKey, setTableGroupDragOverKey] = useState<string | null>(null);
+  const [tableCollapsedGroups, setTableCollapsedGroups] = useState<Set<string>>(new Set());
   // Strips manually placed onto the table board (empty by default)
   const [tableOnBoard, setTableOnBoard] = useState<Set<string>>(new Set());
   // Right-click context menu for a table row
@@ -3483,13 +3484,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
     switch (colKey) {
       case 'callSign': return s.callSign || '—';
-      case 'squadron': return s.sq || s.squadron || '—';
+      case 'sq': case 'squadron': return s.sq || s.squadron || '—';
       case 'numberOfFormation': return s.numberOfFormation || '—';
       case 'sector': return sectorName;
       case 'shkadia': return s.shkadia || '—';
       case 'alt': return String(s.alt || '—');
+      case 'task': return s.task || '—';
+      case 'erka': return s.erka || '—';
+      case 'koteret': return s.koteret || '—';
+      case 'mivtza': return s.mivtza || '—';
+      case 'airborne': return s.airborne ? 'מאוויר' : 'קרקע';
+      case 'systems': return (Array.isArray(s.systems) ? s.systems : []).map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—';
       case 'weapons': return (Array.isArray(s.weapons) ? s.weapons : []).map((w: any) => w.type).join(', ') || '—';
       case 'targets': return (Array.isArray(s.targets) ? s.targets : []).map((t: any) => t.name).join(', ') || '—';
+      case 'takeoffTime': {
+        const t = s.takeoffTime || s.takeoff_time;
+        if (!t) return '—';
+        try { const d = new Date(t); return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0'); } catch { return String(t); }
+      }
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -3522,17 +3534,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     ];
     const items: any[] = [];
     orderedKeys.forEach(gk => {
-      items.push({ _type: 'groupHeader', groupKey: gk, count: grouped[gk].length });
-      let grpStrips = grouped[gk];
-      if (tableSortKey) {
-        grpStrips = [...grpStrips].sort((a, b) => {
-          const av = getStripFieldValue(a, tableSortKey);
-          const bv = getStripFieldValue(b, tableSortKey);
-          const cmp = av.localeCompare(bv, 'he');
-          return tableSortDir === 'asc' ? cmp : -cmp;
-        });
+      const isCollapsed = tableCollapsedGroups.has(gk);
+      items.push({ _type: 'groupHeader', groupKey: gk, count: grouped[gk].length, collapsed: isCollapsed });
+      if (!isCollapsed) {
+        let grpStrips = grouped[gk];
+        if (tableSortKey) {
+          grpStrips = [...grpStrips].sort((a, b) => {
+            const av = getStripFieldValue(a, tableSortKey);
+            const bv = getStripFieldValue(b, tableSortKey);
+            const cmp = av.localeCompare(bv, 'he');
+            return tableSortDir === 'asc' ? cmp : -cmp;
+          });
+        }
+        grpStrips.forEach(s => items.push({ ...s, _type: 'strip' }));
       }
-      grpStrips.forEach(s => items.push({ ...s, _type: 'strip' }));
     });
     return items;
   })();
@@ -5068,7 +5083,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     </td>
                   );
                 }
-                case 'transfer':
+                case 'transfer': {
+                  const isAlreadyPending = s.status === 'pending_transfer';
+                  if (isAlreadyPending) {
+                    return (
+                      <td key={col.key} style={{ padding: '8px', verticalAlign: 'top' }}>
+                        <span style={{ fontSize: '11px', color: '#9ca3af', fontStyle: 'italic' }}>ממתין ⏳</span>
+                      </td>
+                    );
+                  }
                   return (
                     <td key={col.key} style={{ padding: '8px', verticalAlign: 'top', position: 'relative' }}>
                       <select
@@ -5087,6 +5110,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </select>
                     </td>
                   );
+                }
                 case 'takeoffTime': {
                   const t = s.takeoffTime || s.takeoff_time;
                   let display = '—';
@@ -5224,10 +5248,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   if (isGrouped) {
                                     setTableGroupByKey(null);
                                     setTableGroupOrder([]);
+                                    setTableCollapsedGroups(new Set());
                                   } else {
                                     const vals = [...new Set(myStrips.map(s => getStripFieldValue(s, colKey)))];
                                     setTableGroupByKey(colKey);
                                     setTableGroupOrder(vals);
+                                    setTableCollapsedGroups(new Set());
                                   }
                                   setTableHeaderMenuKey(null);
                                 }}
@@ -5283,12 +5309,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             background: isDragOverGroup ? '#1d4ed8' : '#131f35',
                             borderTop: '2px solid #2d4a8a',
                             borderBottom: isDragOverGroup ? '2px solid #3b82f6' : '1px solid #2d4a8a',
-                            cursor: 'grab',
+                            cursor: 'pointer',
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1
+                          }}
+                          onClick={e => {
+                            if ((e.target as HTMLElement).closest('[data-drag-handle]')) return;
+                            setTableCollapsedGroups(prev => {
+                              const next = new Set(prev);
+                              if (next.has(item.groupKey)) next.delete(item.groupKey); else next.add(item.groupKey);
+                              return next;
+                            });
                           }}
                         >
                           <td colSpan={columns.length + 2} style={{ padding: '5px 12px', direction: 'rtl' }}>
-                            <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
+                            <span data-drag-handle style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
+                            <span style={{ display: 'inline-block', marginLeft: '6px', fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
                             <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', marginLeft: '8px' }}>{item.groupKey}</span>
                             <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px' }}>({item.count})</span>
                           </td>
