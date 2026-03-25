@@ -5352,14 +5352,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {isSorted && <span style={{ fontSize: '11px' }}>{tableSortDir === 'asc' ? '↑' : '↓'}</span>}
                             <button
                               onClick={e => { e.stopPropagation(); setTableHeaderMenuKey(prev => prev === colKey ? null : colKey); }}
-                              style={{ background: isMenuOpen ? '#334155' : 'transparent', border: 'none', color: lightMode ? '#64748b' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
+                              style={{ background: isMenuOpen ? (lightMode ? '#e2e8f0' : '#334155') : 'transparent', border: 'none', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
                             >▾</button>
                           </div>
                           {isMenuOpen && (
                             <div
                               className="table-header-menu"
                               onClick={e => e.stopPropagation()}
-                              style={{ position: 'absolute', top: '100%', right: 0, background: '#0f2444', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', padding: '4px', direction: 'rtl' }}
+                              style={{ position: 'absolute', top: '100%', right: 0, background: lightMode ? '#ffffff' : '#0f2444', border: `1px solid ${lightMode ? '#c4b5fd' : '#3b82f6'}`, borderRadius: '6px', zIndex: 300, minWidth: '140px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)', padding: '4px', direction: 'rtl' }}
                             >
                               <button
                                 onClick={() => {
@@ -5375,20 +5375,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   }
                                   setTableHeaderMenuKey(null);
                                 }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? '#2d1b69' : 'transparent', color: isGrouped ? '#c4b5fd' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (lightMode ? '#1e293b' : '#e2e8f0'), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >{isGrouped ? '✕ הסר קיבוץ' : '⊞ קבץ לפי'}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? '#1e3a5f' : 'transparent', color: '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↑ מיין עולה</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? '#1e3a5f' : 'transparent', color: '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↓ מיין יורד</button>
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
-                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: lightMode ? '#64748b' : '#94a3b8', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                                 >✕ הסר מיון</button>
                               )}
                             </div>
@@ -5439,11 +5439,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 2} style={{ padding: '0', direction: 'rtl', overflow: 'visible' }}>
-                            <div style={{ position: 'sticky', left: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '5px 10px', width: '100vw', maxWidth: '100%', boxSizing: 'border-box' }}>
+                          <td colSpan={columns.length + 2} style={{ padding: '0', direction: 'rtl' }}>
+                            <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px' }}>{item.groupKey}</span>
+                              <span style={{ background: lightMode ? '#ddd6fe' : '#3b0764', color: lightMode ? '#5b21b6' : '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px' }}>{item.groupKey}</span>
                               <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', flexShrink: 0 }}>({item.count})</span>
                             </div>
                           </td>
