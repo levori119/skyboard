@@ -45,7 +45,7 @@ const hasConditions = (node: QNode | null): boolean => {
 
 const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'callSign', label: 'או"ק', ftype: 'text' },
-  { key: 'sq', label: 'SQ', ftype: 'text' },
+  { key: 'sq', label: 'טייסת', ftype: 'text' },
   { key: 'task', label: 'משימה', ftype: 'text' },
   { key: 'alt', label: 'גובה', ftype: 'text' },
   { key: 'airborne', label: 'סטטוס באוויר', ftype: 'bool' },
@@ -3438,25 +3438,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     : (personalFilter || adminFilterQuery);
   const effectiveFilter: QGroup | null = hasConditions(_rawFilter) ? _rawFilter : null;
 
-  // Only show strips that belong to this workstation (not neighboring sector strips)
-  const myStrips = effectiveFilter
-    ? strips.filter(s => s.status !== 'pending_transfer' && evaluateQuery(s, effectiveFilter))
-    : strips.filter(s =>
-        s.status !== 'pending_transfer' &&
-        (session.presetId
-          ? Number(s.workstation_preset_id) === Number(session.presetId)
-          : true)
-      );
+  // Only show strips that belong to this workstation (always restrict by preset, then optionally by filter)
+  const myStrips = strips.filter(s =>
+    s.status !== 'pending_transfer' &&
+    (!session.presetId || Number(s.workstation_preset_id) === Number(session.presetId)) &&
+    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
+  );
 
   // Table strips: strips manually placed on board OR placed on map OR received via transfer (inTable=true)
-  const myTableStrips = effectiveFilter
-    ? strips.filter(s => (tableOnBoard.has(s.id) || s.onMap || s.inTable) && evaluateQuery(s, effectiveFilter))
-    : strips.filter(s =>
-        (tableOnBoard.has(s.id) || s.onMap || s.inTable) &&
-        (session.presetId
-          ? Number(s.workstation_preset_id) === Number(session.presetId)
-          : true)
-      );
+  // Filter applies to table as well
+  const myTableStrips = strips.filter(s =>
+    (tableOnBoard.has(s.id) || s.onMap || s.inTable) &&
+    (!session.presetId || Number(s.workstation_preset_id) === Number(session.presetId)) &&
+    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
+  );
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
 
@@ -4376,7 +4371,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Personal Filter Overlay */}
       {showPersonalFilter && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setShowPersonalFilter(false); }}>
+          onClick={e => { if (e.target === e.currentTarget) { savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); } }}>
           <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: 'rtl', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
@@ -4389,12 +4384,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {personalFilter && (
+                {(personalFilter || hasConditions(personalFilterDraft)) && (
                   <button
-                    onClick={async () => { await savePersonalFilter(null); setPersonalFilterDraft(null); }}
+                    onClick={async () => { await savePersonalFilter(null); setPersonalFilter(null); setPersonalFilterDraft(null); }}
                     style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
                   >
-                    🗑 מחק סינון אישי
+                    🗑 נקה סינון
                   </button>
                 )}
                 <button
@@ -4404,7 +4399,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   ✓ שמור וסגור
                 </button>
                 <button
-                  onClick={() => setShowPersonalFilter(false)}
+                  onClick={async () => { await savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); }}
                   style={{ padding: '5px 12px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
                 >
                   ✕
@@ -7558,30 +7553,35 @@ const QGroupEditor = ({ group, onUpdate, onDelete, isRoot = false, depth = 0 }: 
 };
 
 const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממים' }: { value: QGroup | null; onChange: (q: QGroup | null) => void; label?: string }) => {
-  const [enabled, setEnabled] = useState(!!value);
   const [group, setGroup] = useState<QGroup>(value || emptyQGroup());
 
   useEffect(() => {
-    if (value) { setGroup(value); setEnabled(true); }
-    else { setEnabled(false); }
+    if (value) setGroup(value);
+    else setGroup(emptyQGroup());
   }, [JSON.stringify(value)]);
 
-  const handleToggle = () => {
-    if (enabled) { setEnabled(false); onChange(null); }
-    else { setEnabled(true); onChange(group); }
+  const handleUpdate = (g: QGroup) => { setGroup(g); onChange(hasConditions(g) ? g : null); };
+  const addCondition = () => {
+    const leaf: QLeaf = { id: qGenId(), type: 'leaf', field: 'task', compare: 'contains', value: '' };
+    const updated = { ...group, children: [...group.children, leaf] };
+    setGroup(updated);
+    onChange(hasConditions(updated) ? updated : null);
   };
-  const handleUpdate = (g: QGroup) => { setGroup(g); onChange(g); };
+
+  const isActive = hasConditions(group);
 
   return (
-    <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${enabled ? '#2563eb' : '#334155'}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: enabled ? '14px' : '0', direction: 'rtl' }}>
-        <span style={{ color: enabled ? '#60a5fa' : '#64748b', fontSize: '14px', fontWeight: 'bold' }}>🔍 {label}</span>
-        <button onClick={handleToggle}
-          style={{ padding: '5px 14px', background: enabled ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-          {enabled ? '✓ פעיל' : 'הפעל'}
+    <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${isActive ? '#2563eb' : '#334155'}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', direction: 'rtl' }}>
+        <span style={{ color: isActive ? '#60a5fa' : '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>
+          🔍 {label} {isActive && <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'normal' }}>(פעיל — {group.children.length} תנאים)</span>}
+        </span>
+        <button onClick={addCondition}
+          style={{ padding: '5px 14px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+          + הוסף תנאי
         </button>
       </div>
-      {enabled && <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />}
+      <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />
     </div>
   );
 };
