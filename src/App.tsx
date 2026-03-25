@@ -5397,11 +5397,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 2} style={{ padding: '5px 12px', direction: 'rtl' }}>
-                            <span data-drag-handle style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>⠿</span>
-                            <span style={{ display: 'inline-block', marginLeft: '6px', fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
-                            <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px', marginLeft: '8px' }}>{item.groupKey}</span>
-                            <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px' }}>({item.count})</span>
+                          <td colSpan={columns.length + 2} style={{ padding: '0', direction: 'rtl', overflow: 'visible' }}>
+                            <div style={{ position: 'sticky', left: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '5px 10px', width: '100vw', maxWidth: '100%', boxSizing: 'border-box' }}>
+                              <span data-drag-handle style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
+                              <span style={{ background: '#3b0764', color: '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px' }}>{item.groupKey}</span>
+                              <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', flexShrink: 0 }}>({item.count})</span>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -5456,9 +5458,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       >
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableGroupByKey || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
                           onPointerDown={e => {
-                            if (tableSortBySector || tableGroupByKey || tableSortKey) return;
+                            if (tableSortBySector || tableSortKey) return;
                             e.preventDefault();
                             e.stopPropagation();
                             const label = s.callSign || String(s.id);
