@@ -4658,7 +4658,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? '#1a2744' : '#0f172a') : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
+          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -4706,7 +4706,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   setStrips(prev => prev.map(st => st.id === s.id ? { ...st, custom_fields: newCF } : st));
                 };
                 if (col.editable === 'none') {
-                  return <td key={colKey} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
+                  return <td key={colKey} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
                 }
                 const isImg = customVal.startsWith('data:image');
                 const cellKey = s.id + '__' + colKey;
@@ -4861,7 +4861,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: '#e2e8f0', verticalAlign: 'top' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
                       {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {s.alt}</div>}
                     </td>
@@ -4933,7 +4933,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
                   );
                 }
                 case 'weapons': {
@@ -5084,14 +5084,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : (lightMode ? '#475569' : '#94a3b8'), verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
                   );
                 case 'notes': {
                   const noteParsed = parseNoteValue(currentNote);
                   const hasAnyNote = noteParsed.text.trim().length > 0 || noteParsed.hw.startsWith('data:');
                   if (col.editable === 'none') {
                     return (
-                      <td key={colKey} style={{ padding: '6px 8px', color: '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
+                      <td key={colKey} style={{ padding: '6px 8px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
                         {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
                         {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
@@ -5196,7 +5196,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       display = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
                     } catch { display = String(t); }
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
                 }
                 case 'systems': {
                   const sysCellKey = s.id + '__systems';
@@ -5227,7 +5227,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
                 default: {
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
@@ -5266,7 +5266,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     }
                     return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{current || '—'}</td>;
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>—</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>—</td>;
                 }
               }
             };
@@ -5284,13 +5284,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
                 <thead>
-                  <tr style={{ background: '#1e293b' }}>
+                  <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
                     <th
                       className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
-                        padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: '2px solid #334155',
+                        padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10,
-                        ...(hasFrozen ? { right: tableStickyOffsets[0] ?? 0, background: '#1e293b' } : {})
+                        ...(hasFrozen ? { right: tableStickyOffsets[0] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
                       title="גרור לסידור מחדש"
                     >⠿</th>
@@ -5303,7 +5303,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 1] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : '#94a3b8', borderBottom: '2px solid #334155', position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 10px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (lightMode ? '#475569' : '#94a3b8'), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -5354,7 +5354,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </th>
                       );
                     })}
-                    <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: '#1e293b', border: 'none' }} />
+                    <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: lightMode ? '#e2e8f0' : '#1e293b', border: 'none' }} />
                   </tr>
                 </thead>
                 <tbody>
@@ -5382,9 +5382,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             setTableGroupDragKey(null); setTableGroupDragOverKey(null);
                           }}
                           style={{
-                            background: isDragOverGroup ? '#1d4ed8' : '#131f35',
-                            borderTop: '2px solid #2d4a8a',
-                            borderBottom: isDragOverGroup ? '2px solid #3b82f6' : '1px solid #2d4a8a',
+                            background: isDragOverGroup ? '#1d4ed8' : (lightMode ? '#ede9fe' : '#131f35'),
+                            borderTop: `2px solid ${lightMode ? '#c4b5fd' : '#2d4a8a'}`,
+                            borderBottom: isDragOverGroup ? '2px solid #3b82f6' : (lightMode ? '1px solid #c4b5fd' : '1px solid #2d4a8a'),
                             cursor: 'pointer',
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1
                           }}
@@ -5413,8 +5413,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isDragOver = tableDragOverRow === s.id;
                     const isPendingTransfer = s.status === 'pending_transfer';
                     const rowBg = isDragOver ? '#1d4ed8'
-                      : isPendingTransfer ? (isEven ? '#2d3344' : '#252b3a')
-                      : (isEven ? '#1e293b' : '#0f172a');
+                      : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
+                      : (isEven ? (lightMode ? '#ffffff' : '#1e293b') : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
                       <tr
                         key={s.id}
@@ -5451,7 +5451,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : '1px solid #334155',
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : (lightMode ? '1px solid #e2e8f0' : '1px solid #1e293b'),
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
@@ -5877,7 +5877,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
 
         {/* Sidebar - Right Side - Shows active strips */}
-        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : '#f8fafc', padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : '2px solid #e2e8f0', overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
+        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
           {/* Pin toggle button + filter button */}
           <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? 4 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
             <button
@@ -5930,7 +5930,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {sidebarPinned && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable).length}):</h4>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
               {[...myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer')].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
@@ -5992,7 +5992,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: '#1e293b' }}>פ"מ עמדה ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם למפה להוספה</div>
               {[...myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap)].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
