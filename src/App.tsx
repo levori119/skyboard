@@ -2627,33 +2627,36 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
         </div>
-        {/* שורה 2: משימה */}
-        {s.task && <div style={{ fontSize: '9px', color: '#475569', lineHeight: 1.2 }}>{s.task}</div>}
-        {/* שורה 3: זמן המראה (קטן, מתחת למשימה) */}
-        {s.takeoff_time && (() => {
-          const now = new Date();
-          const d = new Date(s.takeoff_time);
-          if (isNaN(d.getTime())) return null;
-          const past = d < now;
-          const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-          const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-          const hh = d.getUTCHours().toString().padStart(2, '0');
-          const mm = d.getUTCMinutes().toString().padStart(2, '0');
-          let label = `${hh}:${mm}`;
-          if (stripDayUTC.getTime() !== todayUTC.getTime()) {
-            label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
-          }
-          return (
-            <div title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
-              style={{ fontSize: '9px', lineHeight: 1.2, color: past ? '#dc2626' : '#64748b', fontWeight: past ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '2px' }}>
-              {past && <span style={{ width: '5px', height: '5px', background: '#dc2626', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
-              🕐 {label}
-            </div>
-          );
-        })()}
-        {/* שורה 4: גובה */}
-        <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '9px', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          גובה: {s.alt || '-'}
+        {/* שורה 2: משימה + זמן המראה */}
+        {(s.task || s.takeoff_time) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', lineHeight: 1.2 }}>
+            {s.task && <div style={{ fontSize: '9px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{s.task}</div>}
+            {s.takeoff_time && (() => {
+              const now = new Date();
+              const d = new Date(s.takeoff_time);
+              if (isNaN(d.getTime())) return null;
+              const past = d < now;
+              const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+              const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+              const hh = d.getUTCHours().toString().padStart(2, '0');
+              const mm = d.getUTCMinutes().toString().padStart(2, '0');
+              let label = `${hh}:${mm}`;
+              if (stripDayUTC.getTime() !== todayUTC.getTime()) {
+                label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
+              }
+              return (
+                <div title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
+                  style={{ fontSize: '9px', color: past ? '#dc2626' : '#64748b', fontWeight: past ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                  {past && <span style={{ width: '5px', height: '5px', background: '#dc2626', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
+                  🕐{label}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+        {/* שורה 3: גובה (גדול יותר) */}
+        <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {s.alt || '-'}
         </div>
         {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
@@ -3733,6 +3736,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const tableSortBySectorRef = useRef(false);
   const tableSortKeyRef = useRef<string | null>(null);
   const tableReorderRowRef = useRef<((dragId: string, targetId: string) => void) | null>(null);
+  const myTableStripsRef = useRef<any[]>([]);
+  const getStripGroupValueRef = useRef<((strip: any) => string) | null>(null);
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
@@ -3758,6 +3763,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   tableGroupByKeyRef.current = tableGroupByKey || null;
   tableSortBySectorRef.current = tableSortBySector;
   tableSortKeyRef.current = tableSortKey || null;
+  myTableStripsRef.current = myTableStrips;
+  getStripGroupValueRef.current = (strip: any) => tableGroupByKey ? getStripFieldValue(strip, tableGroupByKey) : '';
   tableReorderRowRef.current = (dragId: string, targetId: string) => {
     setTableRowOrder(prev => {
       const arr = [...prev];
@@ -3955,7 +3962,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
       return null;
     };
-    const canReorder = () => !tableSortBySectorRef.current && !tableGroupByKeyRef.current && !tableSortKeyRef.current;
+    const canReorder = () => !tableSortBySectorRef.current && !tableSortKeyRef.current;
     const onMove = (e: PointerEvent) => {
       if (!tablePointerDragRef.current) return;
       e.preventDefault();
@@ -3997,10 +4004,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         handleTransferRef.current(id, sectorId);
         return;
       }
-      // Dropped on another row → reorder (only when no sort/group active)
+      // Dropped on another row → reorder (only when no sort active; within same group when grouped)
       if (canReorder()) {
         const targetId = getStripRowUnder(e.clientX, e.clientY);
         if (targetId && targetId !== id && tableReorderRowRef.current) {
+          if (tableGroupByKeyRef.current && getStripGroupValueRef.current) {
+            const dragStrip = myTableStripsRef.current.find((s: any) => String(s.id) === String(id));
+            const tgtStrip = myTableStripsRef.current.find((s: any) => String(s.id) === String(targetId));
+            if (!dragStrip || !tgtStrip || getStripGroupValueRef.current(dragStrip) !== getStripGroupValueRef.current(tgtStrip)) return;
+          }
           tableReorderRowRef.current(id, targetId);
         }
       }
@@ -5480,14 +5492,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             setTableDragRow(null); setTableDragOverRow(null);
                             return;
                           }
-                          if (tableDragRow && tableDragRow !== s.id && !tableSortBySector && !tableGroupByKey && !tableSortKey) {
-                            setTableRowOrder(prev => {
-                              const arr = [...prev];
-                              const fi = arr.indexOf(tableDragRow);
-                              const ti = arr.indexOf(s.id);
-                              if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableDragRow); }
-                              return arr;
-                            });
+                          if (tableDragRow && tableDragRow !== s.id && !tableSortBySector && !tableSortKey) {
+                            const sameGroup = !tableGroupByKey || (() => {
+                              const dragStrip = myTableStrips.find((x: any) => String(x.id) === String(tableDragRow));
+                              const tgtStrip = myTableStrips.find((x: any) => String(x.id) === String(s.id));
+                              return dragStrip && tgtStrip && getStripFieldValue(dragStrip, tableGroupByKey) === getStripFieldValue(tgtStrip, tableGroupByKey);
+                            })();
+                            if (sameGroup) {
+                              setTableRowOrder(prev => {
+                                const arr = [...prev];
+                                const fi = arr.indexOf(tableDragRow);
+                                const ti = arr.indexOf(s.id);
+                                if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, tableDragRow); }
+                                return arr;
+                              });
+                            }
                           }
                           setTableDragRow(null); setTableDragOverRow(null);
                         }}
@@ -5671,7 +5690,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <Strip key={s.id} s={s} 
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
-                neighbors={neighbors}
+                neighbors={allSectors}
                 onTransfer={handleTransfer}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
