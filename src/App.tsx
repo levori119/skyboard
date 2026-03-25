@@ -3354,6 +3354,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Sticky Notes (collaborative floating notes)
   const [stickyNotes, setStickyNotes] = useState<any[]>([]);
+  const [showStickyDropdown, setShowStickyDropdown] = useState(false);
   const loadStickyNotes = async () => {
     try {
       const res = await fetch(`${API_URL}/sticky-notes?presetId=${session.presetId}`);
@@ -4342,31 +4343,70 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
           </button>
-          <button
-            onClick={async () => {
-              const x = 120 + (stickyNotes.length % 5) * 30;
-              const y = 140 + (stickyNotes.length % 5) * 30;
-              const res = await fetch(`${API_URL}/sticky-notes`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: '', content: '', creator_preset_id: session.presetId, creator_preset_name: session.workstationName, creator_crew_name: session.crewMember?.name || '', x, y }),
-              });
-              if (res.ok) { const note = await res.json(); setStickyNotes(prev => [...prev, note]); }
-            }}
-            title="הוסף פתקית שיתופית"
-            style={{ background: '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            📝 פתקיות
-            {stickyNotes.length > 0 && (
-              <span style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
-                {stickyNotes.length}
-              </span>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowStickyDropdown(v => !v)}
+              title="פתקיות שיתופיות"
+              style={{ background: showStickyDropdown ? '#475569' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              📝 פתקיות
+              {stickyNotes.filter(n => !n.minimized).length > 0 && (
+                <span title="פתקיות פתוחות" style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                  {stickyNotes.filter(n => !n.minimized).length}
+                </span>
+              )}
+              {stickyNotes.filter(n => n.minimized).length > 0 && (
+                <span title="פתקיות סגורות" style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                  {stickyNotes.filter(n => n.minimized).length} סגורות
+                </span>
+              )}
+            </button>
+            {showStickyDropdown && (
+              <>
+                <div onClick={() => setShowStickyDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{ position: 'absolute', top: '110%', left: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl' }}
+              >
+                <div style={{ padding: '4px 12px 6px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155', marginBottom: '4px' }}>פתקיות סגורות</div>
+                {stickyNotes.filter(n => n.minimized).length === 0 && (
+                  <div style={{ padding: '6px 12px', fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>אין פתקיות סגורות</div>
+                )}
+                {stickyNotes.filter(n => n.minimized).map(note => (
+                  <button key={note.id} onClick={() => {
+                    setStickyNotes(prev => prev.map(n => n.id === note.id ? { ...n, minimized: false } : n));
+                    fetch(`${API_URL}/sticky-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minimized: false, preset_id: session.presetId }) });
+                    setShowStickyDropdown(false);
+                  }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '6px 12px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '12px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    📝 {note.title || '(ללא כותרת)'}
+                  </button>
+                ))}
+                <div style={{ borderTop: '1px solid #334155', marginTop: '4px', paddingTop: '4px' }}>
+                  <button onClick={async () => {
+                    const x = 120 + (stickyNotes.length % 5) * 30;
+                    const y = 140 + (stickyNotes.length % 5) * 30;
+                    const res = await fetch(`${API_URL}/sticky-notes`, {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ title: '', content: '', creator_preset_id: session.presetId, creator_preset_name: session.workstationName, creator_crew_name: session.crewMember?.name || '', x, y }),
+                    });
+                    if (res.ok) { const note = await res.json(); setStickyNotes(prev => [...prev, note]); }
+                    setShowStickyDropdown(false);
+                  }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '6px 12px', background: 'none', border: 'none', color: '#38bdf8', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    + הוסף פתקית חדשה
+                  </button>
+                </div>
+              </div>
+              </>
             )}
-            {stickyNotes.filter(n => n.minimized).length > 0 && (
-              <span title="פתקיות סגורות" style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
-                {stickyNotes.filter(n => n.minimized).length} סגורות
-              </span>
-            )}
-          </button>
+          </div>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
           </button>
@@ -7007,7 +7047,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
 
   return (
     <>
-      {notes.map(note => {
+      {notes.filter(n => !n.minimized).map(note => {
         const editable = canEdit(note);
         const lastEdit = note.last_edited_at
           ? `עודכן: ${note.last_edited_by_preset_name || ''} / ${note.last_edited_by_crew_name || ''} — ${new Date(note.last_edited_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`
@@ -7050,7 +7090,6 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                 <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
                   onBlur={e => updateNote(note.id, { title: e.target.value })}
                   disabled={!editable} placeholder="כותרת..."
-                  title={lastEdit}
                   style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', borderBottom: '1px solid rgba(0,0,0,0.1)', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none' }}
                 />
                 <textarea value={note.content} onChange={e => updateNote(note.id, { content: e.target.value }, false)}
