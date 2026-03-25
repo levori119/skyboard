@@ -2032,9 +2032,16 @@ app.get('/api/presets/:id/aid-group', async (req, res) => {
     const grpId = link.rows[0].group_id;
     const grp = await pool.query('SELECT * FROM aid_groups WHERE id=$1', [grpId]);
     const items = await pool.query('SELECT id,name,type,content,sort_order FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [grpId]);
-    // count how many presets share this group
-    const shared = await pool.query('SELECT COUNT(*)::int as cnt FROM preset_aid_groups WHERE group_id=$1', [grpId]);
-    res.json({ ...grp.rows[0], items: items.rows, shared_count: shared.rows[0].cnt });
+    // count how many presets share this group and get their names
+    const shared = await pool.query(
+      `SELECT pag.preset_id, wp.name
+       FROM preset_aid_groups pag
+       JOIN workstation_presets wp ON wp.id = pag.preset_id
+       WHERE pag.group_id=$1`,
+      [grpId]
+    );
+    const linked_presets = shared.rows.filter(r => String(r.preset_id) !== String(req.params.id)).map(r => r.name);
+    res.json({ ...grp.rows[0], items: items.rows, shared_count: shared.rows.length, linked_presets });
   } catch (err) { res.status(500).json({ error: 'Failed to get preset aid group' }); }
 });
 

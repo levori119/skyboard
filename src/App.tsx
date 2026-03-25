@@ -7915,10 +7915,13 @@ const AidsManager = ({ presets }: { presets: any[] }) => {
               <input value={groupNameEdit} onChange={e => setGroupNameEdit(e.target.value)}
                 onBlur={saveGroupName}
                 style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '5px', padding: '5px 10px', fontSize: '14px', fontWeight: 'bold', flex: 1 }} />
-              {aidGroup.shared_count > 1 && (
-                <span style={{ fontSize: '11px', color: '#60a5fa', background: '#1e3a5f', padding: '2px 8px', borderRadius: '10px' }}>
-                  משותף עם {aidGroup.shared_count - 1} עמדות נוספות
-                </span>
+              {aidGroup.linked_presets?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#1e3a5f', padding: '4px 10px', borderRadius: '8px', fontSize: '11px' }}>
+                  <div style={{ color: '#93c5fd', fontWeight: 'bold' }}>🔗 מקושר לעמדות:</div>
+                  {(aidGroup.linked_presets as string[]).map((name: string) => (
+                    <div key={name} style={{ color: '#bfdbfe', paddingRight: '6px' }}>• {name}</div>
+                  ))}
+                </div>
               )}
               <button onClick={() => { setShowShareModal(true); setShareMode('duplicate'); setShareTargets(new Set()); }} style={btnSecondary}>שכפל ▶</button>
               <button onClick={() => { setShowShareModal(true); setShareMode('link'); setShareTargets(new Set()); }} style={btnSecondary}>קשר ▶</button>
