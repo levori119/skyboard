@@ -97,3 +97,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Environment Variables Required
 - `DATABASE_URL` - PostgreSQL connection string
+
+## Workstation Aids (עזרים לעמדה)
+- `aid_groups` table: named collections of aid items (id, name)
+- `aid_items` table: individual items in a group (id, group_id, name, type [image/text], content TEXT base64, sort_order)
+- `preset_aid_groups` table: links a preset to a group (preset_id PRIMARY KEY, group_id)
+- Admin tab "עזרים לעמדה" with `AidsManager` component: create/edit/delete groups and items per preset, duplicate (independent copy) or link (shared group) to other presets
+- Workstation view: aids panel displayed to the right of the strips sidebar; collapsible with 📌 pin; accordion items expandable with ▶/▼ triangle; only shows when the preset has an aid group
+- Sharing modes: "שכפל" creates independent copies per target preset; "קשר" links same group (shared — updates affect all linked presets)

@@ -357,6 +357,33 @@ async function initDb() {
     )
   `);
 
+  // Workstation Aids
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS aid_groups (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS aid_items (
+      id SERIAL PRIMARY KEY,
+      group_id INTEGER REFERENCES aid_groups(id) ON DELETE CASCADE,
+      name VARCHAR(200) NOT NULL,
+      type VARCHAR(10) NOT NULL CHECK (type IN ('image','text')),
+      content TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS preset_aid_groups (
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      group_id INTEGER REFERENCES aid_groups(id) ON DELETE CASCADE,
+      PRIMARY KEY (preset_id)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -1909,6 +1936,154 @@ if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
+
+// --- Aid Groups API ---
+
+// GET all aid groups (with item count)
+app.get('/api/aid-groups', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ag.*, COUNT(ai.id)::int as item_count
+      FROM aid_groups ag
+      LEFT JOIN aid_items ai ON ai.group_id = ag.id
+      GROUP BY ag.id ORDER BY ag.name
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get aid groups' }); }
+});
+
+// GET single aid group with items
+app.get('/api/aid-groups/:id', async (req, res) => {
+  try {
+    const grp = await pool.query('SELECT * FROM aid_groups WHERE id=$1', [req.params.id]);
+    if (!grp.rows.length) return res.status(404).json({ error: 'Not found' });
+    const items = await pool.query('SELECT * FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [req.params.id]);
+    res.json({ ...grp.rows[0], items: items.rows });
+  } catch (err) { res.status(500).json({ error: 'Failed to get aid group' }); }
+});
+
+// POST create aid group
+app.post('/api/aid-groups', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING *', [name]);
+    res.json({ ...result.rows[0], items: [] });
+  } catch (err) { res.status(500).json({ error: 'Failed to create aid group' }); }
+});
+
+// PUT update aid group name
+app.put('/api/aid-groups/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    await pool.query('UPDATE aid_groups SET name=$1 WHERE id=$2', [name, req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to update aid group' }); }
+});
+
+// DELETE aid group
+app.delete('/api/aid-groups/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM aid_groups WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete aid group' }); }
+});
+
+// POST add item to group
+app.post('/api/aid-groups/:id/items', async (req, res) => {
+  try {
+    const { name, type, content, sort_order } = req.body;
+    const result = await pool.query(
+      'INSERT INTO aid_items (group_id, name, type, content, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [req.params.id, name, type, content || '', sort_order || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to add aid item' }); }
+});
+
+// PUT update aid item
+app.put('/api/aid-items/:id', async (req, res) => {
+  try {
+    const { name, type, content, sort_order } = req.body;
+    const fields = []; const vals = []; let i = 1;
+    if (name !== undefined) { fields.push(`name=$${i++}`); vals.push(name); }
+    if (type !== undefined) { fields.push(`type=$${i++}`); vals.push(type); }
+    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(content); }
+    if (sort_order !== undefined) { fields.push(`sort_order=$${i++}`); vals.push(sort_order); }
+    if (!fields.length) return res.json({ success: true });
+    vals.push(req.params.id);
+    await pool.query(`UPDATE aid_items SET ${fields.join(', ')} WHERE id=$${i}`, vals);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to update aid item' }); }
+});
+
+// DELETE aid item
+app.delete('/api/aid-items/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM aid_items WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete aid item' }); }
+});
+
+// GET aid group for a preset (with items)
+app.get('/api/presets/:id/aid-group', async (req, res) => {
+  try {
+    const link = await pool.query('SELECT group_id FROM preset_aid_groups WHERE preset_id=$1', [req.params.id]);
+    if (!link.rows.length) return res.json(null);
+    const grpId = link.rows[0].group_id;
+    const grp = await pool.query('SELECT * FROM aid_groups WHERE id=$1', [grpId]);
+    const items = await pool.query('SELECT id,name,type,content,sort_order FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [grpId]);
+    // count how many presets share this group
+    const shared = await pool.query('SELECT COUNT(*)::int as cnt FROM preset_aid_groups WHERE group_id=$1', [grpId]);
+    res.json({ ...grp.rows[0], items: items.rows, shared_count: shared.rows[0].cnt });
+  } catch (err) { res.status(500).json({ error: 'Failed to get preset aid group' }); }
+});
+
+// PUT set/change aid group for a preset (group_id=null unlinks)
+app.put('/api/presets/:id/aid-group', async (req, res) => {
+  try {
+    const { group_id } = req.body;
+    if (group_id === null || group_id === undefined) {
+      await pool.query('DELETE FROM preset_aid_groups WHERE preset_id=$1', [req.params.id]);
+    } else {
+      await pool.query(
+        'INSERT INTO preset_aid_groups (preset_id, group_id) VALUES ($1,$2) ON CONFLICT (preset_id) DO UPDATE SET group_id=$2',
+        [req.params.id, group_id]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to set preset aid group' }); }
+});
+
+// POST duplicate aid group to target presets (creates independent copy per target)
+app.post('/api/aid-groups/:id/duplicate', async (req, res) => {
+  try {
+    const { preset_ids } = req.body; // array of preset IDs
+    const src = await pool.query('SELECT * FROM aid_groups WHERE id=$1', [req.params.id]);
+    if (!src.rows.length) return res.status(404).json({ error: 'Source group not found' });
+    const srcItems = await pool.query('SELECT * FROM aid_items WHERE group_id=$1 ORDER BY sort_order, id', [req.params.id]);
+    for (const pid of preset_ids) {
+      const newGrp = await pool.query('INSERT INTO aid_groups (name) VALUES ($1) RETURNING id', [src.rows[0].name]);
+      const newId = newGrp.rows[0].id;
+      for (const item of srcItems.rows) {
+        await pool.query('INSERT INTO aid_items (group_id, name, type, content, sort_order) VALUES ($1,$2,$3,$4,$5)',
+          [newId, item.name, item.type, item.content, item.sort_order]);
+      }
+      await pool.query('INSERT INTO preset_aid_groups (preset_id, group_id) VALUES ($1,$2) ON CONFLICT (preset_id) DO UPDATE SET group_id=$2', [pid, newId]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to duplicate aid group' }); }
+});
+
+// POST link aid group to additional presets (shared - same group_id)
+app.post('/api/aid-groups/:id/link', async (req, res) => {
+  try {
+    const { preset_ids } = req.body;
+    for (const pid of preset_ids) {
+      await pool.query('INSERT INTO preset_aid_groups (preset_id, group_id) VALUES ($1,$2) ON CONFLICT (preset_id) DO UPDATE SET group_id=$2', [pid, req.params.id]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to link aid group' }); }
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {

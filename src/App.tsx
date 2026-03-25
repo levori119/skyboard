@@ -3329,6 +3329,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
+  // Aids panel
+  const [aidsPinned, setAidsPinned] = useState(true);
+  const [aidGroup, setAidGroup] = useState<any | null>(null);
+  const [aidExpandedIds, setAidExpandedIds] = useState<Set<number>>(new Set());
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
   // Pointer-events drag from sidebar to table
@@ -3352,6 +3356,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       loadStickyNotes();
       const interval = setInterval(loadStickyNotes, 15000);
       return () => clearInterval(interval);
+    }
+  }, [session.presetId]);
+
+  // Aids panel data
+  useEffect(() => {
+    if (session.presetId) {
+      fetch(`${API_URL}/presets/${session.presetId}/aid-group`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => setAidGroup(data))
+        .catch(() => {});
     }
   }, [session.presetId]);
 
@@ -6040,6 +6054,46 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           ))}
         </div>
 
+        {/* Aids Panel */}
+        {aidGroup && (
+          <div style={{ width: aidsPinned ? 220 : 30, background: '#1e293b', borderLeft: '2px solid #334155', display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
+            {/* Pin toggle */}
+            <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? '1px solid #334155' : 'none', flexShrink: 0 }}>
+              {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup.name}</span>}
+              <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
+                style={{ background: 'transparent', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: '#94a3b8', flexShrink: 0 }}>📌</button>
+            </div>
+            {/* Items accordion */}
+            {aidsPinned && (
+              <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
+                {(aidGroup.items || []).length === 0 && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                {(aidGroup.items || []).map((item: any) => (
+                  <div key={item.id} style={{ marginBottom: '4px', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                    <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: 'none', color: 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                      <span style={{ fontSize: '9px', color: '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                      <span style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                    </button>
+                    {aidExpandedIds.has(item.id) && (
+                      <div style={{ background: '#1e293b', padding: '8px' }}>
+                        {item.type === 'text' && <div style={{ fontSize: '11px', color: '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
+                        {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Collapsed label */}
+            {!aidsPinned && (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Sidebar pointer-drag ghost */}
         {sidebarPointerGhost && (
           <div style={{ position: 'fixed', left: sidebarPointerGhost.x + 12, top: sidebarPointerGhost.y - 14, background: tableDragOver ? '#1d4ed8' : '#334155', color: 'white', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 'bold', pointerEvents: 'none', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.4)', border: '2px solid #3b82f6' }}>
@@ -7644,9 +7698,274 @@ const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממ
   );
 };
 
+// --- ניהול עזרים לעמדה ---
+const AidsManager = ({ presets }: { presets: any[] }) => {
+  const [selectedPresetId, setSelectedPresetId] = useState<number | null>(presets[0]?.id ?? null);
+  const [aidGroup, setAidGroup] = useState<any | null>(null);
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemType, setNewItemType] = useState<'text'|'image'>('text');
+  const [newItemContent, setNewItemContent] = useState('');
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [editingName, setEditingName] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareMode, setShareMode] = useState<'duplicate'|'link'>('duplicate');
+  const [shareTargets, setShareTargets] = useState<Set<number>>(new Set());
+  const [groupNameEdit, setGroupNameEdit] = useState('');
+  const [linkExistingId, setLinkExistingId] = useState<number | null>(null);
+
+  const loadAidGroup = async (pid: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/presets/${pid}/aid-group`);
+      const data = res.ok ? await res.json() : null;
+      setAidGroup(data);
+      setGroupNameEdit(data?.name || '');
+    } finally { setLoading(false); }
+  };
+
+  const loadAllGroups = async () => {
+    const res = await fetch(`${API_URL}/aid-groups`);
+    if (res.ok) setAllGroups(await res.json());
+  };
+
+  useEffect(() => { if (selectedPresetId) loadAidGroup(selectedPresetId); }, [selectedPresetId]);
+  useEffect(() => { loadAllGroups(); }, []);
+
+  const createNewGroup = async () => {
+    if (!selectedPresetId) return;
+    const res = await fetch(`${API_URL}/aid-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: `עזרים - ${presets.find(p => p.id === selectedPresetId)?.name || ''}` }) });
+    if (res.ok) {
+      const grp = await res.json();
+      await fetch(`${API_URL}/presets/${selectedPresetId}/aid-group`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: grp.id }) });
+      loadAidGroup(selectedPresetId);
+      loadAllGroups();
+    }
+  };
+
+  const unlinkGroup = async () => {
+    if (!selectedPresetId) return;
+    await fetch(`${API_URL}/presets/${selectedPresetId}/aid-group`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: null }) });
+    setAidGroup(null);
+    loadAllGroups();
+  };
+
+  const saveGroupName = async () => {
+    if (!aidGroup) return;
+    await fetch(`${API_URL}/aid-groups/${aidGroup.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: groupNameEdit }) });
+    setAidGroup((prev: any) => ({ ...prev, name: groupNameEdit }));
+  };
+
+  const addItem = async () => {
+    if (!aidGroup || !newItemName.trim()) return;
+    const maxOrder = Math.max(0, ...(aidGroup.items || []).map((i: any) => i.sort_order));
+    const res = await fetch(`${API_URL}/aid-groups/${aidGroup.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newItemName, type: newItemType, content: newItemContent, sort_order: maxOrder + 1 }) });
+    if (res.ok) {
+      const item = await res.json();
+      setAidGroup((prev: any) => ({ ...prev, items: [...(prev.items || []), item] }));
+      setNewItemName(''); setNewItemContent(''); setAddingItem(false);
+    }
+  };
+
+  const deleteItem = async (itemId: number) => {
+    await fetch(`${API_URL}/aid-items/${itemId}`, { method: 'DELETE' });
+    setAidGroup((prev: any) => ({ ...prev, items: prev.items.filter((i: any) => i.id !== itemId) }));
+  };
+
+  const saveItem = async (itemId: number) => {
+    await fetch(`${API_URL}/aid-items/${itemId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingName, content: editingContent }) });
+    setAidGroup((prev: any) => ({ ...prev, items: prev.items.map((i: any) => i.id === itemId ? { ...i, name: editingName, content: editingContent } : i) }));
+    setEditingItemId(null);
+  };
+
+  const doShare = async () => {
+    if (!aidGroup || shareTargets.size === 0) return;
+    const url = shareMode === 'duplicate' ? `${API_URL}/aid-groups/${aidGroup.id}/duplicate` : `${API_URL}/aid-groups/${aidGroup.id}/link`;
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_ids: [...shareTargets] }) });
+    setShowShareModal(false);
+    setShareTargets(new Set());
+    loadAllGroups();
+  };
+
+  const linkExisting = async () => {
+    if (!selectedPresetId || !linkExistingId) return;
+    await fetch(`${API_URL}/presets/${selectedPresetId}/aid-group`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group_id: linkExistingId }) });
+    loadAidGroup(selectedPresetId);
+    setLinkExistingId(null);
+  };
+
+  const readImageFile = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target?.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const labelStyle = { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' as const, textTransform: 'uppercase' as const };
+  const btnPrimary = { background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' };
+  const btnSecondary = { background: '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' };
+  const btnDanger = { background: 'rgba(220,38,38,0.2)', color: '#f87171', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' };
+
+  return (
+    <div style={{ display: 'flex', gap: '20px', direction: 'rtl', minHeight: '400px' }}>
+      {/* Preset list */}
+      <div style={{ width: '200px', flexShrink: 0 }}>
+        <div style={labelStyle}>עמדות</div>
+        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {presets.map(p => (
+            <button key={p.id} onClick={() => setSelectedPresetId(p.id)}
+              style={{ background: selectedPresetId === p.id ? '#2563eb' : '#0f172a', color: 'white', border: selectedPresetId === p.id ? '1px solid #60a5fa' : '1px solid #334155', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', textAlign: 'right', fontSize: '13px' }}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Aid group management */}
+      <div style={{ flex: 1 }}>
+        {!selectedPresetId && <div style={{ color: '#64748b' }}>בחר עמדה</div>}
+        {selectedPresetId && loading && <div style={{ color: '#64748b' }}>טוען...</div>}
+        {selectedPresetId && !loading && !aidGroup && (
+          <div>
+            <div style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '13px' }}>אין קבוצת עזרים לעמדה זו</div>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button onClick={createNewGroup} style={btnPrimary}>+ צור קבוצת עזרים חדשה</button>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <select value={linkExistingId ?? ''} onChange={e => setLinkExistingId(Number(e.target.value) || null)}
+                  style={{ background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '5px', padding: '5px 8px', fontSize: '12px' }}>
+                  <option value="">קשר לקבוצה קיימת...</option>
+                  {allGroups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.item_count} פריטים)</option>)}
+                </select>
+                {linkExistingId && <button onClick={linkExisting} style={btnPrimary}>קשר</button>}
+              </div>
+            </div>
+          </div>
+        )}
+        {selectedPresetId && !loading && aidGroup && (
+          <div>
+            {/* Group header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <input value={groupNameEdit} onChange={e => setGroupNameEdit(e.target.value)}
+                onBlur={saveGroupName}
+                style={{ background: '#0f172a', color: 'white', border: '1px solid #475569', borderRadius: '5px', padding: '5px 10px', fontSize: '14px', fontWeight: 'bold', flex: 1 }} />
+              {aidGroup.shared_count > 1 && (
+                <span style={{ fontSize: '11px', color: '#60a5fa', background: '#1e3a5f', padding: '2px 8px', borderRadius: '10px' }}>
+                  משותף עם {aidGroup.shared_count - 1} עמדות נוספות
+                </span>
+              )}
+              <button onClick={() => { setShowShareModal(true); setShareMode('duplicate'); setShareTargets(new Set()); }} style={btnSecondary}>שכפל ▶</button>
+              <button onClick={() => { setShowShareModal(true); setShareMode('link'); setShareTargets(new Set()); }} style={btnSecondary}>קשר ▶</button>
+              <button onClick={unlinkGroup} style={btnDanger}>נתק</button>
+            </div>
+
+            {/* Items list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(aidGroup.items || []).map((item: any) => (
+                <div key={item.id} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '10px 12px' }}>
+                  {editingItemId === item.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <input value={editingName} onChange={e => setEditingName(e.target.value)}
+                        style={{ background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '13px' }} />
+                      {item.type === 'text' ? (
+                        <textarea value={editingContent} onChange={e => setEditingContent(e.target.value)} rows={4}
+                          style={{ background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '12px', resize: 'vertical', fontFamily: 'inherit' }} />
+                      ) : (
+                        <div>
+                          {editingContent && <img src={editingContent} alt="תצוגה מקדימה" style={{ maxWidth: '200px', maxHeight: '100px', borderRadius: '4px', display: 'block', marginBottom: '6px' }} />}
+                          <input type="file" accept="image/*" onChange={async e => { const f = e.target.files?.[0]; if (f) setEditingContent(await readImageFile(f)); }} />
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => saveItem(item.id)} style={btnPrimary}>שמור</button>
+                        <button onClick={() => setEditingItemId(null)} style={btnSecondary}>ביטול</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                          <span style={{ color: '#94a3b8', fontSize: '9px', background: item.type === 'image' ? '#1e3a5f' : '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                          <span style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{item.name}</span>
+                        </div>
+                        {item.type === 'text' && item.content && <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'pre-wrap', maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.content}</div>}
+                        {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '120px', maxHeight: '60px', borderRadius: '4px', objectFit: 'contain' }} />}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                        <button onClick={() => { setEditingItemId(item.id); setEditingName(item.name); setEditingContent(item.content); }} style={btnSecondary}>✏️</button>
+                        <button onClick={() => deleteItem(item.id)} style={btnDanger}>🗑</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Add item */}
+            {!addingItem ? (
+              <button onClick={() => setAddingItem(true)} style={{ ...btnPrimary, marginTop: '12px' }}>+ הוסף עזר</button>
+            ) : (
+              <div style={{ marginTop: '12px', background: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                  <input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="שם העזר..."
+                    style={{ background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '5px 10px', fontSize: '13px', flex: 1 }} />
+                  <select value={newItemType} onChange={e => setNewItemType(e.target.value as 'text'|'image')}
+                    style={{ background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '5px 8px', fontSize: '12px' }}>
+                    <option value="text">📄 טקסט</option>
+                    <option value="image">🖼 תמונה</option>
+                  </select>
+                </div>
+                {newItemType === 'text' ? (
+                  <textarea value={newItemContent} onChange={e => setNewItemContent(e.target.value)} rows={3} placeholder="תוכן..."
+                    style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '5px 10px', fontSize: '12px', resize: 'vertical', fontFamily: 'inherit' }} />
+                ) : (
+                  <div>
+                    {newItemContent && <img src={newItemContent} alt="תצוגה מקדימה" style={{ maxWidth: '200px', maxHeight: '100px', borderRadius: '4px', display: 'block', marginBottom: '6px' }} />}
+                    <input type="file" accept="image/*" onChange={async e => { const f = e.target.files?.[0]; if (f) setNewItemContent(await readImageFile(f)); }} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                  <button onClick={addItem} style={btnPrimary}>הוסף</button>
+                  <button onClick={() => { setAddingItem(false); setNewItemName(''); setNewItemContent(''); }} style={btnSecondary}>ביטול</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Share modal */}
+      {showShareModal && aidGroup && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowShareModal(false); }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '360px', direction: 'rtl', boxShadow: '0 20px 50px rgba(0,0,0,0.7)' }}>
+            <h3 style={{ margin: '0 0 6px', color: 'white', fontSize: '15px' }}>{shareMode === 'duplicate' ? 'שכפל עזרים לעמדות' : 'קשר עזרים לעמדות'}</h3>
+            <p style={{ margin: '0 0 14px', color: '#94a3b8', fontSize: '12px' }}>
+              {shareMode === 'duplicate' ? 'יווצר עותק עצמאי לכל עמדה שתבחר.' : 'כל העמדות שתבחר יצביעו לאותה קבוצה — עדכון אחד ישפיע על כולן.'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '220px', overflowY: 'auto', marginBottom: '14px' }}>
+              {presets.filter(p => p.id !== selectedPresetId).map(p => (
+                <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'white', cursor: 'pointer', padding: '5px', background: shareTargets.has(p.id) ? '#1e3a5f' : 'transparent', borderRadius: '5px' }}>
+                  <input type="checkbox" checked={shareTargets.has(p.id)} onChange={e => setShareTargets(prev => { const s = new Set(prev); e.target.checked ? s.add(p.id) : s.delete(p.id); return s; })} />
+                  {p.name}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={doShare} disabled={shareTargets.size === 0} style={{ ...btnPrimary, opacity: shareTargets.size === 0 ? 0.5 : 1 }}>אשר</button>
+              <button onClick={() => setShowShareModal(false)} style={btnSecondary}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids'>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
@@ -7878,6 +8197,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>
         <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>
         <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>
+        <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
@@ -8576,6 +8896,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           {/* Table Modes Tab */}
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
+          {activeTab === 'aids' && <AidsManager presets={presets} />}
 
         </div>
       </div>
