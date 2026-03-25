@@ -6058,28 +6058,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         {/* Aids Panel */}
         {aidGroup && (
-          <div style={{ width: aidsPinned ? 220 : 30, background: '#1e293b', borderLeft: '2px solid #334155', display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
+          <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
             {/* Pin toggle */}
-            <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? '1px solid #334155' : 'none', flexShrink: 0 }}>
-              {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup.name}</span>}
+            <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', flexShrink: 0 }}>
+              {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup.name}</span>}
               <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
-                style={{ background: 'transparent', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: '#94a3b8', flexShrink: 0 }}>📌</button>
+                style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
             </div>
             {/* Items accordion */}
             {aidsPinned && (
               <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
-                {(aidGroup.items || []).length === 0 && <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                {(aidGroup.items || []).length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
                 {(aidGroup.items || []).map((item: any) => (
-                  <div key={item.id} style={{ marginBottom: '4px', border: '1px solid #334155', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
                     <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: 'none', color: 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '9px', color: '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                      <span style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                      <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
                     </button>
                     {aidExpandedIds.has(item.id) && (
-                      <div style={{ background: '#1e293b', padding: '8px' }}>
-                        {item.type === 'text' && <div style={{ fontSize: '11px', color: '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
+                      <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
+                        {item.type === 'text' && <div style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
                         {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
                       </div>
                     )}
@@ -6090,7 +6090,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Collapsed label */}
             {!aidsPinned && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
+                <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
               </div>
             )}
           </div>
