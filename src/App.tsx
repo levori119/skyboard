@@ -4361,6 +4361,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {stickyNotes.length}
               </span>
             )}
+            {stickyNotes.filter(n => n.minimized).length > 0 && (
+              <span title="פתקיות סגורות" style={{ background: '#64748b', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                {stickyNotes.filter(n => n.minimized).length} סגורות
+              </span>
+            )}
           </button>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
@@ -7009,7 +7014,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
           : `נוצר: ${note.creator_preset_name || ''} / ${note.creator_crew_name || ''}`;
 
         return (
-          <div key={note.id} style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 210 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none' }} title={lastEdit}>
+          <div key={note.id} style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 220 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none' }}>
             {/* Header */}
             <div
               onPointerDown={e => startDrag(note.id, e)}
@@ -7018,6 +7023,9 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
               style={{ background: note.background_color, borderRadius: note.minimized ? '8px' : '8px 8px 0 0', padding: '5px 7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'grab', borderBottom: note.minimized ? 'none' : '1px solid rgba(0,0,0,0.12)' }}
             >
               <span style={{ fontSize: '10px', color: 'rgba(0,0,0,0.4)', flexShrink: 0 }}>⠿</span>
+              {!editable && (
+                <span title="קריאה בלבד — אינך מורשה לערוך" style={{ fontSize: '11px', flexShrink: 0 }}>🔒</span>
+              )}
               <span style={{ flex: 1, fontWeight: 'bold', fontSize: '12px', color: '#1e293b', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {note.title || 'פתקית'}
               </span>
@@ -7025,8 +7033,15 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                 style={{ background: 'rgba(0,0,0,0.1)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '9px', flexShrink: 0, lineHeight: 1.4 }}>
                 {note.minimized ? '▼' : '▲'}
               </button>
-              <button onPointerDown={e => e.stopPropagation()} onClick={() => setConfirmDelete(note.id)}
-                style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '10px', color: '#dc2626', flexShrink: 0, lineHeight: 1.4 }}>✕</button>
+              {editable && (
+                <button onPointerDown={e => e.stopPropagation()} onClick={() => setConfirmDelete(note.id)}
+                  title="מחק פתקית"
+                  style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '11px', color: '#dc2626', flexShrink: 0, lineHeight: 1.4 }}>🗑</button>
+              )}
+              <button onPointerDown={e => e.stopPropagation()}
+                onClick={() => updateNote(note.id, { minimized: true, preset_id: presetId })}
+                title="סגור (הפתקית תישמר)"
+                style={{ background: 'rgba(0,0,0,0.1)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '10px', color: '#475569', flexShrink: 0, lineHeight: 1.4 }}>✕</button>
             </div>
 
             {/* Body */}
@@ -7035,12 +7050,14 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                 <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
                   onBlur={e => updateNote(note.id, { title: e.target.value })}
                   disabled={!editable} placeholder="כותרת..."
+                  title={lastEdit}
                   style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', borderBottom: '1px solid rgba(0,0,0,0.1)', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none' }}
                 />
                 <textarea value={note.content} onChange={e => updateNote(note.id, { content: e.target.value }, false)}
                   onBlur={e => updateNote(note.id, { content: e.target.value })}
                   disabled={!editable} placeholder={editable ? 'כתוב כאן...' : '(קריאה בלבד)'}
                   rows={4}
+                  title={lastEdit}
                   style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', padding: '6px 8px', fontSize: '12px', direction: 'rtl', color: '#1e293b', outline: 'none', resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}
                 />
                 {/* Bottom bar */}
