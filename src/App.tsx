@@ -3729,6 +3729,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const tableModeRef = useRef(false);
   const mapZoomRef = useRef(1);
   const mapPanRef = useRef({ x: 0, y: 0 });
+  const tableGroupByKeyRef = useRef<string | null>(null);
+  const tableSortBySectorRef = useRef(false);
+  const tableSortKeyRef = useRef<string | null>(null);
+  const tableReorderRowRef = useRef<((dragId: string, targetId: string) => void) | null>(null);
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
@@ -3751,6 +3755,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
   drawingModeRef.current = drawingMode;
+  tableGroupByKeyRef.current = tableGroupByKey || null;
+  tableSortBySectorRef.current = tableSortBySector;
+  tableSortKeyRef.current = tableSortKey || null;
+  tableReorderRowRef.current = (dragId: string, targetId: string) => {
+    setTableRowOrder(prev => {
+      const arr = [...prev];
+      const fi = arr.indexOf(dragId);
+      const ti = arr.indexOf(targetId);
+      if (fi !== -1 && ti !== -1) { arr.splice(fi, 1); arr.splice(ti, 0, dragId); }
+      return arr;
+    });
+  };
 
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
@@ -3930,6 +3946,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const r = sidebar.getBoundingClientRect();
       return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     };
+    const getStripRowUnder = (x: number, y: number): string | null => {
+      const els = document.elementsFromPoint(x, y);
+      for (const el of els) {
+        const tr = el.closest ? el.closest('tr[data-strip-id]') : null;
+        if (tr) return tr.getAttribute('data-strip-id');
+        if ((el as HTMLElement).getAttribute && (el as HTMLElement).getAttribute('data-strip-id')) return (el as HTMLElement).getAttribute('data-strip-id');
+      }
+      return null;
+    };
+    const canReorder = () => !tableSortBySectorRef.current && !tableGroupByKeyRef.current && !tableSortKeyRef.current;
     const onMove = (e: PointerEvent) => {
       if (!tablePointerDragRef.current) return;
       e.preventDefault();
@@ -3940,6 +3966,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const els = document.elementsFromPoint(e.clientX, e.clientY);
         const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
         if (neighborEl) neighborEl.classList.add('strip-drag-active');
+        // Row reorder hover highlight
+        if (canReorder()) {
+          const hoverStripId = getStripRowUnder(e.clientX, e.clientY);
+          setTableDragOverRow(hoverStripId !== tablePointerDragRef.current?.id ? hoverStripId : null);
+        }
+      } else {
+        setTableDragOverRow(null);
       }
     };
     const onUp = (e: PointerEvent) => {
@@ -3948,6 +3981,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       tablePointerDragRef.current = null;
       setTablePointerGhost(null);
       setTableDragRow(null);
+      setTableDragOverRow(null);
       clearHighlights();
       // Dropped on sidebar → remove from table
       if (isOverSidebar(e.clientX, e.clientY)) {
@@ -3955,12 +3989,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         handleMoveRef.current(String(id), 0, 0, false);
         return;
       }
-      // Dropped on neighbor panel → initiate transfer
       const els = document.elementsFromPoint(e.clientX, e.clientY);
+      // Dropped on neighbor panel → initiate transfer
       const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
       if (neighborEl) {
         const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
         handleTransferRef.current(id, sectorId);
+        return;
+      }
+      // Dropped on another row → reorder (only when no sort/group active)
+      if (canReorder()) {
+        const targetId = getStripRowUnder(e.clientX, e.clientY);
+        if (targetId && targetId !== id && tableReorderRowRef.current) {
+          tableReorderRowRef.current(id, targetId);
+        }
       }
     };
     const onCancel = () => {
@@ -5418,6 +5460,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     return (
                       <tr
                         key={s.id}
+                        data-strip-id={s.id}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
