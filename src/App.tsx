@@ -3352,6 +3352,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
   const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
 
+  // Sticky Notes (collaborative floating notes)
+  const [stickyNotes, setStickyNotes] = useState<any[]>([]);
+  const loadStickyNotes = async () => {
+    try {
+      const res = await fetch(`${API_URL}/sticky-notes?presetId=${session.presetId}`);
+      if (res.ok) setStickyNotes(await res.json());
+    } catch {}
+  };
+  useEffect(() => {
+    if (session.presetId) {
+      loadStickyNotes();
+      const interval = setInterval(loadStickyNotes, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [session.presetId]);
+
   // Single floating notepad
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadPos, setNotepadPos] = useState({ x: 200, y: 80 });
@@ -4330,6 +4346,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             setShowNotepad(v => !v);
           }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
+          </button>
+          <button
+            onClick={async () => {
+              const x = 120 + (stickyNotes.length % 5) * 30;
+              const y = 140 + (stickyNotes.length % 5) * 30;
+              const res = await fetch(`${API_URL}/sticky-notes`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: '', content: '', creator_preset_id: session.presetId, creator_preset_name: session.workstationName, creator_crew_name: session.crewMember?.name || '', x, y }),
+              });
+              if (res.ok) { const note = await res.json(); setStickyNotes(prev => [...prev, note]); }
+            }}
+            title="הוסף פתקית שיתופית"
+            style={{ background: '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            📝 פתקיות
+            {stickyNotes.length > 0 && (
+              <span style={{ background: '#2563eb', color: 'white', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 'bold', minWidth: '16px', textAlign: 'center' }}>
+                {stickyNotes.length}
+              </span>
+            )}
           </button>
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
@@ -6192,6 +6228,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           </div>
         )}
+
+        {/* Sticky Notes Layer */}
+        <StickyNotesLayer
+          presetId={session.presetId ?? 0}
+          presetName={session.workstationName || ''}
+          crewName={session.crewMember?.name || ''}
+          notes={stickyNotes}
+          setNotes={setStickyNotes}
+        />
       </div>
 
       {/* Strip Selection Modal */}
@@ -6876,6 +6921,333 @@ const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'both'];
 
 const EDITABLE_LABELS: Record<string, string> = { none: 'קריאה בלבד', keyboard: 'מקלדת', handwriting: 'כתב יד', both: 'מקלדת+כתב יד', toggle: 'מתג', dropdown: 'רשימת בחירה' };
 
+// --- פתקיות (Sticky Notes) ---
+const STICKY_COLORS = [
+  { label: 'צהוב',   value: '#fef08a' },
+  { label: 'ורוד',   value: '#fbcfe8' },
+  { label: 'תכלת',   value: '#bae6fd' },
+  { label: 'ירוק',   value: '#bbf7d0' },
+  { label: 'לבנדר',  value: '#ddd6fe' },
+  { label: 'כתום',   value: '#fed7aa' },
+  { label: 'אדום',   value: '#fecaca' },
+  { label: 'לבן',    value: '#f1f5f9' },
+];
+
+const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
+  presetId: number; presetName: string; crewName: string;
+  notes: any[]; setNotes: React.Dispatch<React.SetStateAction<any[]>>;
+}) => {
+  const [showDistribute, setShowDistribute] = useState<number | null>(null);
+  const [peers, setPeers] = useState<any[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<number>>(new Set());
+  const [showColorPicker, setShowColorPicker] = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const dragRef = useRef<{ noteId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  const canEdit = (note: any) => note.allow_all_edit || note.creator_preset_id === presetId;
+
+  const updateNote = async (id: number, changes: any, saveToServer = true) => {
+    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...changes } : n));
+    if (saveToServer) {
+      await fetch(`${API_URL}/sticky-notes/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...changes, preset_id: presetId, preset_name: presetName, crew_name: crewName }),
+      });
+    }
+  };
+
+  const deleteNote = async (id: number) => {
+    await fetch(`${API_URL}/sticky-notes/${id}`, { method: 'DELETE' });
+    setNotes(prev => prev.filter(n => n.id !== id));
+    setConfirmDelete(null);
+  };
+
+  const openDistribute = async (noteId: number) => {
+    const res = await fetch(`${API_URL}/workstations/${presetId}/work-group-peers`);
+    if (res.ok) {
+      const data = await res.json();
+      setPeers(data.filter((p: any) => p.id !== presetId));
+    }
+    setSelectedRecipients(new Set());
+    setShowDistribute(noteId);
+  };
+
+  const distribute = async () => {
+    if (!showDistribute || selectedRecipients.size === 0) return;
+    await fetch(`${API_URL}/sticky-notes/${showDistribute}/distribute`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preset_ids: [...selectedRecipients] }),
+    });
+    setShowDistribute(null);
+    alert(`הפתקית הופצה ל-${selectedRecipients.size} נמענים`);
+  };
+
+  const startDrag = (noteId: number, e: React.PointerEvent) => {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { noteId, startX: e.clientX, startY: e.clientY, origX: note.x, origY: note.y };
+  };
+  const onDragMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { noteId, startX, startY, origX, origY } = dragRef.current;
+    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, x: Math.max(0, origX + e.clientX - startX), y: Math.max(40, origY + e.clientY - startY) } : n));
+  };
+  const endDrag = () => {
+    if (!dragRef.current) return;
+    const { noteId } = dragRef.current;
+    const note = notes.find(n => n.id === noteId);
+    if (note) fetch(`${API_URL}/sticky-notes/${noteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ x: note.x, y: note.y, preset_id: presetId }) });
+    dragRef.current = null;
+  };
+
+  return (
+    <>
+      {notes.map(note => {
+        const editable = canEdit(note);
+        const lastEdit = note.last_edited_at
+          ? `עודכן: ${note.last_edited_by_preset_name || ''} / ${note.last_edited_by_crew_name || ''} — ${new Date(note.last_edited_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`
+          : `נוצר: ${note.creator_preset_name || ''} / ${note.creator_crew_name || ''}`;
+
+        return (
+          <div key={note.id} style={{ position: 'fixed', left: note.x, top: note.y, zIndex: 2100, width: note.minimized ? 210 : 270, boxShadow: '0 6px 24px rgba(0,0,0,0.4)', borderRadius: '8px', overflow: 'visible', userSelect: 'none' }} title={lastEdit}>
+            {/* Header */}
+            <div
+              onPointerDown={e => startDrag(note.id, e)}
+              onPointerMove={onDragMove}
+              onPointerUp={endDrag}
+              style={{ background: note.background_color, borderRadius: note.minimized ? '8px' : '8px 8px 0 0', padding: '5px 7px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'grab', borderBottom: note.minimized ? 'none' : '1px solid rgba(0,0,0,0.12)' }}
+            >
+              <span style={{ fontSize: '10px', color: 'rgba(0,0,0,0.4)', flexShrink: 0 }}>⠿</span>
+              <span style={{ flex: 1, fontWeight: 'bold', fontSize: '12px', color: '#1e293b', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {note.title || 'פתקית'}
+              </span>
+              <button onPointerDown={e => e.stopPropagation()} onClick={() => updateNote(note.id, { minimized: !note.minimized, preset_id: presetId })}
+                style={{ background: 'rgba(0,0,0,0.1)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '9px', flexShrink: 0, lineHeight: 1.4 }}>
+                {note.minimized ? '▼' : '▲'}
+              </button>
+              <button onPointerDown={e => e.stopPropagation()} onClick={() => setConfirmDelete(note.id)}
+                style={{ background: 'rgba(220,38,38,0.15)', border: 'none', borderRadius: '3px', padding: '1px 5px', cursor: 'pointer', fontSize: '10px', color: '#dc2626', flexShrink: 0, lineHeight: 1.4 }}>✕</button>
+            </div>
+
+            {/* Body */}
+            {!note.minimized && (
+              <div style={{ background: note.background_color, borderRadius: '0 0 8px 8px', filter: 'brightness(1.04)' }}>
+                <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
+                  onBlur={e => updateNote(note.id, { title: e.target.value })}
+                  disabled={!editable} placeholder="כותרת..."
+                  style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', borderBottom: '1px solid rgba(0,0,0,0.1)', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none' }}
+                />
+                <textarea value={note.content} onChange={e => updateNote(note.id, { content: e.target.value }, false)}
+                  onBlur={e => updateNote(note.id, { content: e.target.value })}
+                  disabled={!editable} placeholder={editable ? 'כתוב כאן...' : '(קריאה בלבד)'}
+                  rows={4}
+                  style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', padding: '6px 8px', fontSize: '12px', direction: 'rtl', color: '#1e293b', outline: 'none', resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}
+                />
+                {/* Bottom bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px 6px', borderTop: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
+                  <button onClick={() => setShowColorPicker(showColorPicker === note.id ? null : note.id)} title="צבע רקע"
+                    style={{ background: note.background_color, border: '2px solid rgba(0,0,0,0.2)', borderRadius: '50%', width: '16px', height: '16px', cursor: 'pointer', padding: 0, flexShrink: 0 }} />
+                  {showColorPicker === note.id && (
+                    <div style={{ position: 'absolute', bottom: '28px', right: 0, background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px', display: 'flex', gap: '5px', flexWrap: 'wrap', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', width: '140px' }}>
+                      {STICKY_COLORS.map(c => (
+                        <button key={c.value} title={c.label} onClick={() => { updateNote(note.id, { background_color: c.value }); setShowColorPicker(null); }}
+                          style={{ background: c.value, border: note.background_color === c.value ? '2px solid #1d4ed8' : '1px solid rgba(0,0,0,0.15)', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', padding: 0 }} />
+                      ))}
+                    </div>
+                  )}
+                  {note.creator_preset_id === presetId && (
+                    <button onClick={() => updateNote(note.id, { allow_all_edit: !note.allow_all_edit })}
+                      title={note.allow_all_edit ? 'כולם יכולים לערוך — לחץ לנעול' : 'רק יוצר יכול לערוך — לחץ לפתוח'}
+                      style={{ background: note.allow_all_edit ? '#d1fae5' : '#fee2e2', border: 'none', borderRadius: '4px', padding: '2px 5px', cursor: 'pointer', fontSize: '9px', color: note.allow_all_edit ? '#065f46' : '#991b1b', flexShrink: 0 }}>
+                      {note.allow_all_edit ? '🔓' : '🔒'}
+                    </button>
+                  )}
+                  <div style={{ flex: 1 }} />
+                  <button onClick={() => openDistribute(note.id)} title="הפץ לנמענים"
+                    style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>הפץ ▶</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Confirm Delete */}
+      {confirmDelete !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '20px 24px', width: '320px', direction: 'rtl', boxShadow: '0 20px 50px rgba(0,0,0,0.7)', textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗑</div>
+            <p style={{ color: 'white', marginBottom: '16px', fontSize: '14px' }}>
+              {(() => { const n = notes.find(x => x.id === confirmDelete); return (!n || n.creator_preset_id === presetId || n.allow_all_edit) ? 'למחוק פתקית זו?' : 'אין הרשאה למחוק פתקית זו'; })()}
+            </p>
+            {(() => { const n = notes.find(x => x.id === confirmDelete); return (!n || n.creator_preset_id === presetId || n.allow_all_edit); })() ? (
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button onClick={() => setConfirmDelete(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: 'pointer' }}>ביטול</button>
+                <button onClick={() => deleteNote(confirmDelete!)} style={{ background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: 'pointer' }}>מחק</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: 'pointer' }}>סגור</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Distribute Modal */}
+      {showDistribute !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3100, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setShowDistribute(null); }}>
+          <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '24px', width: '380px', direction: 'rtl', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
+            <h3 style={{ margin: '0 0 16px', color: 'white', fontSize: '16px' }}>הפץ פתקית לנמענים</h3>
+            {peers.length === 0 ? (
+              <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>אין עמדות בקבוצות העבודה של עמדה זו.<br/>הגדר קבוצות עבודה בניהול המערכת.</p>
+            ) : (
+              <>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', marginBottom: '8px', padding: '6px', background: '#1e293b', borderRadius: '6px' }}>
+                  <input type="checkbox" checked={selectedRecipients.size === peers.length && peers.length > 0}
+                    onChange={e => setSelectedRecipients(e.target.checked ? new Set(peers.map((p: any) => p.id)) : new Set())} />
+                  <strong>בחר הכל ({peers.length})</strong>
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '280px', overflowY: 'auto', marginBottom: '16px' }}>
+                  {peers.map((peer: any) => (
+                    <label key={peer.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'white', fontSize: '13px', cursor: 'pointer', padding: '5px 8px', background: selectedRecipients.has(peer.id) ? '#1e3a5f' : '#1e293b', borderRadius: '5px', border: selectedRecipients.has(peer.id) ? '1px solid #3b82f6' : '1px solid transparent' }}>
+                      <input type="checkbox" checked={selectedRecipients.has(peer.id)}
+                        onChange={e => setSelectedRecipients(prev => { const next = new Set(prev); e.target.checked ? next.add(peer.id) : next.delete(peer.id); return next; })} />
+                      <span style={{ flex: 1 }}>{peer.name}</span>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{(peer.groups || []).join(', ')}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowDistribute(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+              {peers.length > 0 && (
+                <button onClick={distribute} disabled={selectedRecipients.size === 0}
+                  style={{ background: selectedRecipients.size === 0 ? '#475569' : '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 18px', cursor: selectedRecipients.size === 0 ? 'default' : 'pointer', fontSize: '13px' }}>
+                  שלח ({selectedRecipients.size})
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// --- ניהול קבוצות עבודה ---
+const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+
+  const loadGroups = async () => {
+    const res = await fetch(`${API_URL}/work-groups`);
+    if (res.ok) setGroups(await res.json());
+  };
+  useEffect(() => { loadGroups(); }, []);
+
+  const createGroup = async () => {
+    if (!newGroupName.trim()) return;
+    await fetch(`${API_URL}/work-groups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newGroupName.trim() }) });
+    setNewGroupName('');
+    loadGroups();
+  };
+
+  const renameGroup = async (id: number) => {
+    if (!editingName.trim()) return;
+    await fetch(`${API_URL}/work-groups/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editingName.trim() }) });
+    setEditingId(null);
+    loadGroups();
+  };
+
+  const deleteGroup = async (id: number) => {
+    if (!confirm('למחוק קבוצת עבודה זו?')) return;
+    await fetch(`${API_URL}/work-groups/${id}`, { method: 'DELETE' });
+    loadGroups();
+  };
+
+  const addMember = async (groupId: number, presetId: number) => {
+    await fetch(`${API_URL}/work-groups/${groupId}/members`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId }) });
+    loadGroups();
+  };
+
+  const removeMember = async (groupId: number, presetId: number) => {
+    await fetch(`${API_URL}/work-groups/${groupId}/members/${presetId}`, { method: 'DELETE' });
+    loadGroups();
+  };
+
+  return (
+    <div style={{ direction: 'rtl' }}>
+      <h2 style={{ margin: '0 0 20px', fontSize: '18px' }}>קבוצות עבודה</h2>
+
+      {/* Create New Group */}
+      <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', marginBottom: '20px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} onKeyDown={e => e.key === 'Enter' && createGroup()}
+          placeholder="שם קבוצה חדשה..."
+          style={{ flex: 1, padding: '8px 12px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '6px', fontSize: '14px', direction: 'rtl' }} />
+        <button onClick={createGroup} disabled={!newGroupName.trim()}
+          style={{ padding: '8px 18px', background: newGroupName.trim() ? '#2563eb' : '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: newGroupName.trim() ? 'pointer' : 'default', fontSize: '14px', flexShrink: 0 }}>
+          + קבוצה חדשה
+        </button>
+      </div>
+
+      {groups.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#64748b', padding: '40px', fontSize: '14px' }}>אין קבוצות עבודה. צור קבוצה חדשה למעלה.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {groups.map(group => {
+            const memberIds = new Set(group.members.map((m: any) => m.preset_id));
+            const nonMembers = presets.filter(p => !memberIds.has(p.id));
+            return (
+              <div key={group.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '16px', border: '1px solid #1e3a5f' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  {editingId === group.id ? (
+                    <>
+                      <input value={editingName} onChange={e => setEditingName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') renameGroup(group.id); if (e.key === 'Escape') setEditingId(null); }}
+                        autoFocus style={{ flex: 1, padding: '5px 10px', background: '#1e293b', color: 'white', border: '1px solid #3b82f6', borderRadius: '5px', fontSize: '15px', direction: 'rtl' }} />
+                      <button onClick={() => renameGroup(group.id)} style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>שמור</button>
+                      <button onClick={() => setEditingId(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, fontWeight: 'bold', fontSize: '15px', color: '#e2e8f0' }}>{group.name}</span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{group.members.length} עמדות</span>
+                      <button onClick={() => { setEditingId(group.id); setEditingName(group.name); }} style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>✎ שנה שם</button>
+                      <button onClick={() => deleteGroup(group.id)} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px' }}>🗑 מחק</button>
+                    </>
+                  )}
+                </div>
+
+                {/* Members */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: group.members.length > 0 ? '10px' : 0 }}>
+                  {group.members.map((m: any) => (
+                    <span key={m.preset_id} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#1e3a5f', color: '#93c5fd', borderRadius: '20px', padding: '3px 10px', fontSize: '12px' }}>
+                      {m.preset_name}
+                      <button onClick={() => removeMember(group.id, m.preset_id)} style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', padding: '0 0 0 2px', fontSize: '12px', lineHeight: 1 }}>✕</button>
+                    </span>
+                  ))}
+                  {group.members.length === 0 && <span style={{ color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>אין עמדות בקבוצה</span>}
+                </div>
+
+                {/* Add member */}
+                {nonMembers.length > 0 && (
+                  <select defaultValue="" onChange={e => { if (e.target.value) { addMember(group.id, Number(e.target.value)); e.target.value = ''; } }}
+                    style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', direction: 'rtl' }}>
+                    <option value="">+ הוסף עמדה...</option>
+                    {nonMembers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- ניהול מודי טבלה ---
 const TableModesManager = () => {
   const [modes, setModes] = useState<any[]>([]);
@@ -7216,7 +7588,7 @@ const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממ
 
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups'>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
@@ -7447,6 +7819,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
         <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>
         <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>
+        <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', maxWidth: '1000px' }}>
@@ -8144,6 +8517,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
           {/* Table Modes Tab */}
           {activeTab === 'table_modes' && <TableModesManager />}
+          {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
 
         </div>
       </div>

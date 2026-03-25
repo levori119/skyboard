@@ -314,6 +314,49 @@ async function initDb() {
     }
   }
 
+  // Work Groups
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS work_groups (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS work_group_members (
+      work_group_id INTEGER REFERENCES work_groups(id) ON DELETE CASCADE,
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      PRIMARY KEY (work_group_id, preset_id)
+    )
+  `);
+
+  // Sticky Notes
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sticky_notes (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(200) DEFAULT '',
+      content TEXT DEFAULT '',
+      background_color VARCHAR(20) DEFAULT '#fef08a',
+      creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL,
+      creator_preset_name VARCHAR(100),
+      creator_crew_name VARCHAR(100),
+      allow_all_edit BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      last_edited_by_preset_name VARCHAR(100),
+      last_edited_by_crew_name VARCHAR(100),
+      last_edited_at TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sticky_note_recipients (
+      sticky_note_id INTEGER REFERENCES sticky_notes(id) ON DELETE CASCADE,
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      x FLOAT DEFAULT 100,
+      y FLOAT DEFAULT 100,
+      minimized BOOLEAN DEFAULT FALSE,
+      PRIMARY KEY (sticky_note_id, preset_id)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -1656,6 +1699,206 @@ app.delete('/api/sectors/:id/neighbors/:neighborId', async (req, res) => {
   } catch (err) {
     console.error('Error removing sector neighbor:', err);
     res.status(500).json({ error: 'Failed to remove sector neighbor' });
+  }
+});
+
+// --- Work Groups API ---
+app.get('/api/work-groups', async (req, res) => {
+  try {
+    const { rows: groups } = await pool.query(`SELECT * FROM work_groups ORDER BY name`);
+    const { rows: members } = await pool.query(`
+      SELECT wgm.work_group_id, wgm.preset_id, wp.name as preset_name
+      FROM work_group_members wgm
+      JOIN workstation_presets wp ON wp.id = wgm.preset_id
+      ORDER BY wp.name
+    `);
+    const result = groups.map(g => ({
+      ...g,
+      members: members.filter(m => m.work_group_id === g.id).map(m => ({ preset_id: m.preset_id, preset_name: m.preset_name }))
+    }));
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching work groups:', err);
+    res.status(500).json({ error: 'Failed to fetch work groups' });
+  }
+});
+
+app.post('/api/work-groups', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const { rows } = await pool.query(`INSERT INTO work_groups (name) VALUES ($1) RETURNING *`, [name]);
+    res.json({ ...rows[0], members: [] });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create work group' });
+  }
+});
+
+app.put('/api/work-groups/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    await pool.query(`UPDATE work_groups SET name=$1 WHERE id=$2`, [name, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update work group' });
+  }
+});
+
+app.delete('/api/work-groups/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM work_groups WHERE id=$1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete work group' });
+  }
+});
+
+app.post('/api/work-groups/:id/members', async (req, res) => {
+  try {
+    const { preset_id } = req.body;
+    await pool.query(`INSERT INTO work_group_members (work_group_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [req.params.id, preset_id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add member' });
+  }
+});
+
+app.delete('/api/work-groups/:id/members/:presetId', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM work_group_members WHERE work_group_id=$1 AND preset_id=$2`, [req.params.id, req.params.presetId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// Get all workstation peers (other workstations in same work groups) for a preset
+app.get('/api/workstations/:presetId/work-group-peers', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT wp.id, wp.name,
+        ARRAY_AGG(DISTINCT wg.name ORDER BY wg.name) as groups
+      FROM work_group_members wgm1
+      JOIN work_group_members wgm2 ON wgm1.work_group_id = wgm2.work_group_id
+      JOIN workstation_presets wp ON wp.id = wgm2.preset_id
+      JOIN work_groups wg ON wg.id = wgm1.work_group_id
+      WHERE wgm1.preset_id = $1
+      GROUP BY wp.id, wp.name
+      ORDER BY wp.name
+    `, [req.params.presetId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch peers' });
+  }
+});
+
+// --- Sticky Notes API ---
+app.get('/api/sticky-notes', async (req, res) => {
+  try {
+    const { presetId } = req.query;
+    if (!presetId) return res.status(400).json({ error: 'presetId required' });
+    // Return notes created by this preset OR distributed to this preset
+    const { rows } = await pool.query(`
+      SELECT sn.*,
+        snr.x, snr.y, snr.minimized,
+        TRUE as is_recipient
+      FROM sticky_notes sn
+      JOIN sticky_note_recipients snr ON snr.sticky_note_id = sn.id
+      WHERE snr.preset_id = $1
+      UNION ALL
+      SELECT sn.*,
+        COALESCE((SELECT x FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), 100) as x,
+        COALESCE((SELECT y FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), 100) as y,
+        COALESCE((SELECT minimized FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1), FALSE) as minimized,
+        FALSE as is_recipient
+      FROM sticky_notes sn
+      WHERE sn.creator_preset_id = $1
+        AND NOT EXISTS (SELECT 1 FROM sticky_note_recipients WHERE sticky_note_id=sn.id AND preset_id=$1)
+    `, [presetId]);
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching sticky notes:', err);
+    res.status(500).json({ error: 'Failed to fetch sticky notes' });
+  }
+});
+
+app.post('/api/sticky-notes', async (req, res) => {
+  try {
+    const { title, content, background_color, creator_preset_id, creator_preset_name, creator_crew_name, allow_all_edit, x, y } = req.body;
+    const { rows } = await pool.query(`
+      INSERT INTO sticky_notes (title, content, background_color, creator_preset_id, creator_preset_name, creator_crew_name, allow_all_edit)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [title || '', content || '', background_color || '#fef08a', creator_preset_id, creator_preset_name, creator_crew_name, allow_all_edit || false]);
+    const note = rows[0];
+    // Add to own recipients list with initial position
+    await pool.query(`
+      INSERT INTO sticky_note_recipients (sticky_note_id, preset_id, x, y, minimized)
+      VALUES ($1, $2, $3, $4, FALSE) ON CONFLICT DO NOTHING
+    `, [note.id, creator_preset_id, x || 100, y || 100]);
+    res.json({ ...note, x: x || 100, y: y || 100, minimized: false });
+  } catch (err) {
+    console.error('Error creating sticky note:', err);
+    res.status(500).json({ error: 'Failed to create sticky note' });
+  }
+});
+
+app.put('/api/sticky-notes/:id', async (req, res) => {
+  try {
+    const { title, content, background_color, allow_all_edit, x, y, minimized, preset_id, crew_name } = req.body;
+    const fields = [];
+    const vals = [];
+    let idx = 1;
+    if (title !== undefined) { fields.push(`title=$${idx++}`); vals.push(title); }
+    if (content !== undefined) { fields.push(`content=$${idx++}`); vals.push(content); }
+    if (background_color !== undefined) { fields.push(`background_color=$${idx++}`); vals.push(background_color); }
+    if (allow_all_edit !== undefined) { fields.push(`allow_all_edit=$${idx++}`); vals.push(allow_all_edit); }
+    if (fields.length > 0) {
+      if (preset_id) {
+        fields.push(`last_edited_by_preset_name=$${idx++}`); vals.push(req.body.preset_name || '');
+        fields.push(`last_edited_by_crew_name=$${idx++}`); vals.push(crew_name || '');
+        fields.push(`last_edited_at=NOW()`);
+      }
+      vals.push(req.params.id);
+      await pool.query(`UPDATE sticky_notes SET ${fields.join(', ')} WHERE id=$${idx}`, vals);
+    }
+    // Update per-recipient position/minimized
+    if (preset_id && (x !== undefined || y !== undefined || minimized !== undefined)) {
+      const posFields = [];
+      const posVals = [];
+      let pi = 1;
+      if (x !== undefined) { posFields.push(`x=$${pi++}`); posVals.push(x); }
+      if (y !== undefined) { posFields.push(`y=$${pi++}`); posVals.push(y); }
+      if (minimized !== undefined) { posFields.push(`minimized=$${pi++}`); posVals.push(minimized); }
+      posVals.push(req.params.id, preset_id);
+      await pool.query(`UPDATE sticky_note_recipients SET ${posFields.join(', ')} WHERE sticky_note_id=$${pi} AND preset_id=$${pi+1}`, posVals);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating sticky note:', err);
+    res.status(500).json({ error: 'Failed to update sticky note' });
+  }
+});
+
+app.delete('/api/sticky-notes/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM sticky_notes WHERE id=$1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete sticky note' });
+  }
+});
+
+app.post('/api/sticky-notes/:id/distribute', async (req, res) => {
+  try {
+    const { preset_ids } = req.body; // array of preset IDs to send to
+    for (const pid of preset_ids) {
+      await pool.query(`
+        INSERT INTO sticky_note_recipients (sticky_note_id, preset_id, x, y, minimized)
+        VALUES ($1, $2, 120, 120, FALSE) ON CONFLICT DO NOTHING
+      `, [req.params.id, pid]);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to distribute sticky note' });
   }
 });
 
