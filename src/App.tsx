@@ -5901,6 +5901,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     </td>
                   );
                 }
+                case 'serials': {
+                  const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
+                  if (mySelections.length === 0) {
+                    return <td key={col.key} style={{ padding: '8px 10px', verticalAlign: 'top', color: lightMode ? '#94a3b8' : '#475569', fontSize: '11px' }}>—</td>;
+                  }
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {mySelections.map((sel: any) => {
+                          const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
+                          const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                          const isOutdated = latest && latest.id !== sel.serial_id;
+                          return (
+                            <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''}
+                              style={{ fontSize: '10px', background: isOutdated ? '#dc2626' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isOutdated ? 'white' : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                              {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  );
+                }
                 case 'transfer': {
                   const isAlreadyPending = s.status === 'pending_transfer';
                   if (isAlreadyPending) {
@@ -7868,6 +7891,7 @@ const STRIP_FIELD_DEFS = [
   { key: 'mivtza',            label: 'מבצע',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
+  { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
 ];
 
