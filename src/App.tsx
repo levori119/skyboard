@@ -5309,7 +5309,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {/* כפתור ספרורים */}
           {(() => {
-            const myStripIds = new Set([...myStrips, ...myTableStrips].map(s => s.id));
+            const myStripIds = new Set(myTableStrips.map(s => s.id));
             const hasSerialAlerts = stripSerialSelections.some(sel => {
               if (sel.dismissed) return false;
               if (!myStripIds.has(sel.strip_id)) return false;
@@ -7016,6 +7016,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
                     </div>
                     {(() => {
+                      if (!myTableStrips.find(ts => ts.id === s.id)) return null;
                       const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
                       if (mySelections.length === 0) return null;
                       return (
@@ -7097,6 +7098,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
                     </div>
                     {(() => {
+                      if (!myTableStrips.find(ts => ts.id === s.id)) return null;
                       const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
                       if (mySelections.length === 0) return null;
                       return (
