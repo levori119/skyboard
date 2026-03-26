@@ -119,3 +119,12 @@ Preferred communication style: Simple, everyday language.
 - `SerialsPanelModal`: full-panel overlay showing all serials grouped by control station; filter by station (checkboxes); time filter (click header → show serials from last N hours); first serial per station highlighted in blue
 - API: GET/POST(import)/DELETE(all) `/api/serials`; GET/POST(upsert)/DELETE `/api/strip-serial-selections`
 - Serials polled every 30 seconds in SectorDashboard
+
+## Altitude Conflict Detection (זיהוי קונפליקט גובה)
+- `conflict_alt_delta INTEGER DEFAULT 500` column on `workstation_presets`
+- Admin preset form has a new field "⚠️ סף קונפליקט גובה (±רגל)" below full_load
+- When outgoing and incoming transfers at the same transfer point have an altitude difference ≤ delta, they are flagged as a conflict
+- `DraggableNeighborPanel` receives `conflictAltDelta` prop from SectorDashboard (reads `myPresetConfig.conflict_alt_delta`)
+- Conflict visual: panel header turns dark red with a red border + "⚠️ קונפליקט גובה" badge; each conflicting outgoing card goes dark red; `DraggableIncomingTransferMini` receives `isConflict` prop and also turns dark red
+- Alt parsing: first integer found in alt string via regex (handles "176", "400-330", etc.)
+- Setting delta to 0 disables conflict detection entirely

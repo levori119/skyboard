@@ -1473,6 +1473,7 @@ const DraggableNeighborPanel = ({
   onAcceptToMap: (id: string, x: number, y: number) => void;
   dragStripId?: string | null;
   onStripDrop?: (stripId: string, sectorId: number) => void;
+  conflictAltDelta?: number;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -1481,6 +1482,30 @@ const DraggableNeighborPanel = ({
 
   const sectorOutgoing = outgoingTransfers.filter(t => t.to_sector_id === neighbor.id);
   const sectorIncoming = incomingTransfers.filter(t => t.to_sector_id === neighbor.id);
+
+  const parseAlt = (alt: string | null | undefined): number | null => {
+    if (!alt) return null;
+    const m = alt.match(/\d+/);
+    return m ? parseInt(m[0]) : null;
+  };
+
+  const delta = conflictAltDelta ?? 0;
+  const conflictingTransferIds = new Set<string>();
+  if (delta > 0) {
+    for (const out of sectorOutgoing) {
+      const outAlt = parseAlt(out.alt);
+      if (outAlt == null) continue;
+      for (const inc of sectorIncoming) {
+        const incAlt = parseAlt(inc.alt);
+        if (incAlt == null) continue;
+        if (Math.abs(outAlt - incAlt) <= delta) {
+          conflictingTransferIds.add(String(out.id));
+          conflictingTransferIds.add(String(inc.id));
+        }
+      }
+    }
+  }
+  const hasConflict = conflictingTransferIds.size > 0;
 
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
@@ -1550,14 +1575,14 @@ const DraggableNeighborPanel = ({
           onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
           style={{
             padding: '8px 12px',
-            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (isExpanded ? '#334155' : 'transparent')),
+            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (hasConflict ? '#3b0000' : (isExpanded ? '#334155' : 'transparent'))),
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             cursor: dragStripId ? 'copy' : 'grab',
             userSelect: 'none',
             transition: 'background 0.15s',
-            border: isStripDragOver ? '2px solid #22c55e' : '2px solid transparent',
+            border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '2px solid transparent'),
           }}
         >
           <div 
@@ -1567,7 +1592,14 @@ const DraggableNeighborPanel = ({
               userSelect: 'none'
             }}
           >
-            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
+              {hasConflict && (
+                <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                  ⚠️ קונפליקט גובה
+                </span>
+              )}
+            </div>
             {neighbor.notes && (
               <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
                 {neighbor.notes}
@@ -1626,15 +1658,17 @@ const DraggableNeighborPanel = ({
                   </div>
                   {sectorOutgoing.map(t => (
                     <div key={t.id} style={{ 
-                      background: '#fef3c7', 
-                      border: '1px solid #f59e0b',
+                      background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#fef3c7', 
+                      border: conflictingTransferIds.has(String(t.id)) ? '2px solid #ef4444' : '1px solid #f59e0b',
                       borderRadius: '4px',
                       padding: '4px',
                       marginBottom: '4px',
                       fontSize: '9px'
                     }}>
-                      <div style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</div>
-                      <div style={{ color: '#b45309' }}>גובה: {t.alt}</div>
+                      <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#92400e' }}>
+                        {conflictingTransferIds.has(String(t.id)) && '⚠️ '}{t.callsign}
+                      </div>
+                      <div style={{ color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#b45309' }}>גובה: {t.alt}</div>
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
                         style={{
@@ -1670,6 +1704,7 @@ const DraggableNeighborPanel = ({
                       onAccept={onAcceptTransfer}
                       onReject={onRejectTransfer}
                       onAcceptToMap={onAcceptToMap}
+                      isConflict={conflictingTransferIds.has(String(t.id))}
                     />
                   ))}
                   {sectorIncoming.length === 0 && (
@@ -1712,12 +1747,14 @@ const DraggableIncomingTransferMini = ({
   transfer,
   onAccept,
   onReject,
-  onAcceptToMap
+  onAcceptToMap,
+  isConflict = false
 }: {
   transfer: any;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
+  isConflict?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -1782,8 +1819,8 @@ const DraggableIncomingTransferMini = ({
       <div 
         onPointerDown={handlePointerDown}
         style={{ 
-          background: '#dcfce7', 
-          border: '1px solid #22c55e',
+          background: isConflict ? '#450a0a' : '#dcfce7', 
+          border: isConflict ? '2px solid #ef4444' : '1px solid #22c55e',
           borderRadius: '4px',
           padding: '4px',
           marginBottom: '4px',
@@ -1791,8 +1828,10 @@ const DraggableIncomingTransferMini = ({
           cursor: 'grab'
         }}
       >
-        <div style={{ fontWeight: 'bold', color: '#166534' }}>{transfer.callsign}</div>
-        <div style={{ color: '#15803d' }}>גובה: {transfer.alt}</div>
+        <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>
+          {isConflict && '⚠️ '}{transfer.callsign}
+        </div>
+        <div style={{ color: isConflict ? '#fca5a5' : '#15803d' }}>גובה: {transfer.alt}</div>
         <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
           <button
             onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }}
@@ -5512,6 +5551,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onAcceptToMap={handleAcceptToMap}
                   dragStripId={tableMode ? tableDragRow : null}
                   onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
+                  conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                 />
               ))}
             </div>
@@ -9382,6 +9422,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     table_mode_id: '' as string | number,
     partial_load: 3 as number,
     full_load: 5 as number,
+    conflict_alt_delta: 500 as number,
     filter_query: null as QGroup | null,
   });
 
@@ -9517,11 +9558,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           table_mode_id: presetForm.table_mode_id ? Number(presetForm.table_mode_id) : null,
           partial_load: presetForm.partial_load,
           full_load: presetForm.full_load,
+          conflict_alt_delta: presetForm.conflict_alt_delta,
           filter_query: presetForm.filter_query || null,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, filter_query: null });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, filter_query: null });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -9537,6 +9579,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       table_mode_id: preset.table_mode_id || '',
       partial_load: preset.partial_load ?? 3,
       full_load: preset.full_load ?? 5,
+      conflict_alt_delta: preset.conflict_alt_delta ?? 500,
       filter_query: preset.filter_query || null,
     });
   };
@@ -9722,6 +9765,21 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
                     סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
                   </p>
+                  <div style={{ marginTop: '12px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#f472b6', fontSize: '13px' }}>⚠️ סף קונפליקט גובה (±רגל) בנקודות העברה:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="9999"
+                      step="100"
+                      value={presetForm.conflict_alt_delta}
+                      onChange={e => setPresetForm(p => ({ ...p, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ec4899', borderRadius: '6px', background: '#0f172a', color: '#f472b6', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                    />
+                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                      אם יוצא ונכנס באותה נקודת העברה נמצאים בפרש גובה קטן מ-±ערך זה — יסומן קונפליקט באדום. 0 = כבוי.
+                    </p>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '15px' }}>

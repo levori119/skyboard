@@ -158,6 +158,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS partial_load INTEGER DEFAULT 3`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS full_load INTEGER DEFAULT 5`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS filter_query JSONB`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 500`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS in_table BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS erka VARCHAR(100)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS koteret VARCHAR(200)`);
@@ -1574,11 +1575,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1590,10 +1591,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7 WHERE id = $8 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8 WHERE id = $9 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
