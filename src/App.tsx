@@ -44,12 +44,25 @@ const hasConditions = (node: QNode | null): boolean => {
 };
 
 const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
+  // ── שדות פמם ──
   { key: 'callSign', label: 'או"ק', ftype: 'text' },
   { key: 'sq', label: 'טייסת', ftype: 'text' },
+  { key: 'numberOfFormation', label: 'מס׳ גיחה', ftype: 'text' },
   { key: 'task', label: 'משימה', ftype: 'text' },
   { key: 'alt', label: 'גובה', ftype: 'text' },
-  { key: 'airborne', label: 'סטטוס באוויר', ftype: 'bool' },
+  { key: 'takeoff_time', label: 'זמן המראה', ftype: 'text' },
+  { key: 'weapons', label: 'חימושים', ftype: 'text' },
+  { key: 'targets', label: 'מטרות', ftype: 'text' },
+  { key: 'systems', label: 'מערכות', ftype: 'text' },
+  { key: 'erka', label: 'ערכה', ftype: 'text' },
+  { key: 'mivtza', label: 'מבצע', ftype: 'text' },
+  { key: 'koteret', label: 'כותרת', ftype: 'text' },
+  { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'status', label: 'מצב', ftype: 'text' },
+  { key: 'airborne', label: 'באוויר', ftype: 'bool' },
+  // ── טקסט חופשי ──
+  { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
+  { key: 'notes', label: 'הערות', ftype: 'text' },
 ];
 
 const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
@@ -77,6 +90,10 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
 const getQFieldValue = (strip: any, field: string): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
+  if (field === 'sq') return strip.sq || strip.squadron || '';
+  if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
+  if (field === 'notes') return strip.notes || '';
+  if (field === 'shkadia') return strip.shkadia || '';
   return strip[field] ?? '';
 };
 
