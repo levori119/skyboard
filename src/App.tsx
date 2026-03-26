@@ -3460,7 +3460,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
                 <>
                   <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${nowPct}%`, width: 2, background: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
                   <div style={{ position: 'absolute', top: 2, left: `${nowPct}%`, transform: 'translateX(3px)', fontSize: '9px', color: '#ef4444', fontWeight: 'bold', zIndex: 6, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-                    {now.getUTCHours().toString().padStart(2,'0')}:{now.getUTCMinutes().toString().padStart(2,'0')}
+                    {now.getHours().toString().padStart(2,'0')}:{now.getMinutes().toString().padStart(2,'0')}
                   </div>
                 </>
               );
@@ -3553,8 +3553,8 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
               const pct = (t - START_MS) / TOTAL_MS * 100;
               if (pct < 0 || pct > 100) return null;
               const d = new Date(t);
-              const hh = d.getUTCHours().toString().padStart(2, '0');
-              const mm = d.getUTCMinutes().toString().padStart(2, '0');
+              const hh = d.getHours().toString().padStart(2, '0');
+              const mm = d.getMinutes().toString().padStart(2, '0');
               const isHour = mm === '00';
               return (
                 <div key={t} style={{ position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)', top: 3, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal', fontSize: isHour ? '11px' : '10px', whiteSpace: 'nowrap' }}>
