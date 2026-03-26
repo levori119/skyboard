@@ -21,7 +21,7 @@ interface CrewMember {
 interface WorkstationSession {
   workstationId: string;
   workstationName: string;
-  relevantSectors: { id: number; name: string; label_he: string; category?: string; notes?: string }[];
+  relevantSectors: { id: number; name: string; label_he: string; category?: string; notes?: string; conflict_alt_delta?: number }[];
   mapId?: number;
   presetId?: number;
   authToken: string;
@@ -9327,7 +9327,7 @@ const SerialsAdminTab = () => {
         {Object.keys(grouped).length === 0 ? (
           <p style={{ color: '#64748b', fontSize: '13px' }}>אין ספרורים במערכת</p>
         ) : (
-          Object.entries(grouped).map(([station, stSerials]: [string, any[]]) => (
+          (Object.entries(grouped) as [string, any[]][]).map(([station, stSerials]) => (
             <div key={station} style={{ marginBottom: '16px' }}>
               <div style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '13px', marginBottom: '6px', borderBottom: '1px solid #334155', paddingBottom: '4px' }}>
                 📡 {station} ({stSerials.length} ספרורים)
@@ -9439,7 +9439,7 @@ const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; on
           {Object.keys(grouped).length === 0 ? (
             <div style={{ color: textSub, textAlign: 'center', marginTop: '40px', fontSize: '14px' }}>אין ספרורים להצגה</div>
           ) : (
-            Object.entries(grouped).map(([station, stSerials]: [string, any[]]) => (
+            (Object.entries(grouped) as [string, any[]][]).map(([station, stSerials]) => (
               <div key={station} style={{ marginBottom: '20px' }}>
                 <div style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '15px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   📡 {station}
