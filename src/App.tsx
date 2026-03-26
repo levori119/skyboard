@@ -8818,24 +8818,77 @@ const SerialsAdminTab = () => {
     reader.onload = async (ev) => {
       try {
         const buffer = ev.target?.result as ArrayBuffer;
-        const wb = XLSX.read(buffer, { type: 'array' });
+        const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[];
+
+        // Normalize a key: remove whitespace, lowercase, remove special chars
+        const normalizeKey = (k: string) => k.trim().toLowerCase().replace(/[\s_\-\.]+/g, '');
+
+        // Flexible column map: normalized key → field name
         const colMap: Record<string, string> = {
-          'תא שליטה': 'control_station', 'תא_שליטה': 'control_station', 'control_station': 'control_station',
-          'מספר ספרור': 'serial_number', 'מספר_ספרור': 'serial_number', 'serial_number': 'serial_number',
-          'מהות ספרור': 'essence', 'מהות_ספרור': 'essence', 'essence': 'essence', 'מהות': 'essence',
-          'רלוונטי ל': 'relevant_to', 'רלוונטי_ל': 'relevant_to', 'relevant_to': 'relevant_to',
-          'תאריך ושעה': 'created_at', 'תאריך': 'created_at', 'created_at': 'created_at',
+          'תאשליטה': 'control_station',
+          'controlstation': 'control_station',
+          'תאשלד': 'control_station',
+          'מספרספרור': 'serial_number',
+          'serialnumber': 'serial_number',
+          'מספרסדרה': 'serial_number',
+          'מהותספרור': 'essence',
+          'מהות': 'essence',
+          'essence': 'essence',
+          'תוכן': 'essence',
+          'רלוונטיל': 'relevant_to',
+          'רלוונטי': 'relevant_to',
+          'relevantto': 'relevant_to',
+          'קהלמטרה': 'relevant_to',
+          'תאריךושעה': 'created_at',
+          'תאריך': 'created_at',
+          'createdat': 'created_at',
+          'שעהותאריך': 'created_at',
+          'זמן': 'created_at',
         };
+
+        // Helper: convert Excel date value to ISO string
+        const toDateStr = (v: any): string | null => {
+          if (!v) return null;
+          if (v instanceof Date) return v.toISOString();
+          if (typeof v === 'string' && v.trim()) {
+            const d = new Date(v);
+            if (!isNaN(d.getTime())) return d.toISOString();
+            // Try DD/MM/YYYY HH:MM format
+            const m = v.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\s*(?:(\d{1,2}):(\d{2}))?/);
+            if (m) {
+              const year = m[3].length === 2 ? `20${m[3]}` : m[3];
+              const dateStr = `${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${(m[4]||'00').padStart(2,'0')}:${(m[5]||'00').padStart(2,'0')}:00`;
+              const d2 = new Date(dateStr);
+              if (!isNaN(d2.getTime())) return d2.toISOString();
+            }
+          }
+          if (typeof v === 'number') {
+            // Excel serial date: days since 1900-01-00
+            const d = new Date((v - 25569) * 86400 * 1000);
+            if (!isNaN(d.getTime())) return d.toISOString();
+          }
+          return String(v);
+        };
+
         const rows = rawRows.map(r => {
           const mapped: any = {};
           for (const [k, v] of Object.entries(r)) {
-            const norm = colMap[k.trim()] || colMap[k.trim().replace(/\s+/g, '_')];
-            if (norm) mapped[norm] = v;
+            const norm = normalizeKey(k);
+            const field = colMap[norm];
+            if (field) {
+              if (field === 'created_at') {
+                mapped[field] = toDateStr(v);
+              } else {
+                mapped[field] = v;
+              }
+            }
           }
           return mapped;
         });
+
+        const detectedCols = rawRows.length > 0 ? Object.keys(rawRows[0]).join(', ') : '';
         const res = await fetch(`${API_URL}/serials/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8843,13 +8896,13 @@ const SerialsAdminTab = () => {
         });
         if (res.ok) {
           const { imported } = await res.json();
-          setImportResult(`יובאו ${imported} ספרורים בהצלחה`);
+          setImportResult(`יובאו ${imported} ספרורים בהצלחה${detectedCols ? ` (עמודות: ${detectedCols})` : ''}`);
           loadSerials();
         } else {
           setImportResult('שגיאה בייבוא');
         }
       } catch (err) {
-        setImportResult('שגיאה בקריאת הקובץ');
+        setImportResult(`שגיאה בקריאת הקובץ: ${err}`);
       }
       setImporting(false);
     };
