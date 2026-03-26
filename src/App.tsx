@@ -7227,6 +7227,8 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
   const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
+  const [newStripSerials, setNewStripSerials] = useState<Record<string, number | null>>({});
+  const [allSerials, setAllSerials] = useState<any[]>([]);
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
   const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
   const [savingStripId, setSavingStripId] = useState<string | null>(null);
@@ -7235,12 +7237,14 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
   const loadData = async () => {
     try {
-      const [stripsRes, presetsRes] = await Promise.all([
+      const [stripsRes, presetsRes, serialsRes] = await Promise.all([
         fetch(`${API_URL}/strips/all`),
-        fetch(`${API_URL}/workstation-presets`)
+        fetch(`${API_URL}/workstation-presets`),
+        fetch(`${API_URL}/serials`)
       ]);
       if (stripsRes.ok) setStrips(await stripsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
+      if (serialsRes.ok) setAllSerials(await serialsRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -7266,7 +7270,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const createStrip = async () => {
     if (!newStrip.callSign.trim()) return;
     try {
-      await fetch(`${API_URL}/strips`, {
+      const res = await fetch(`${API_URL}/strips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -7275,7 +7279,21 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           takeoff_time: newStrip.takeoff_time || null
         })
       });
+      if (res.ok) {
+        const { id: newId } = await res.json();
+        // Apply serial selections
+        for (const [controlStation, serialId] of Object.entries(newStripSerials)) {
+          if (serialId) {
+            await fetch(`${API_URL}/strip-serial-selections`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ strip_id: newId, control_station: controlStation, serial_id: serialId, dismissed: false })
+            });
+          }
+        }
+      }
       setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
+      setNewStripSerials({});
       loadData();
     } catch (err) {
       console.error('Failed to create strip:', err);
@@ -7506,6 +7524,40 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                 style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '13px', width: '100%', background: '#0f172a', color: 'white', boxSizing: 'border-box' }}
               />
             </div>
+            {(() => {
+              const stations = Array.from(new Set(allSerials.map((s: any) => s.control_station))).sort() as string[];
+              if (stations.length === 0) return null;
+              return (
+                <div style={{ background: '#0f172a', borderRadius: '8px', padding: '10px', border: '1px solid #1e3a5f' }}>
+                  <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px', display: 'block', fontWeight: 'bold' }}>📡 ספרורים</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {stations.map(station => {
+                      const stationSerials = allSerials
+                        .filter((s: any) => s.control_station === station)
+                        .sort((a: any, b: any) => b.serial_number - a.serial_number);
+                      const selected = newStripSerials[station] ?? null;
+                      return (
+                        <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: '#cbd5e1', fontSize: '12px', minWidth: '80px', textAlign: 'right' }}>{station}</span>
+                          <select
+                            value={selected ?? ''}
+                            onChange={e => setNewStripSerials(prev => ({ ...prev, [station]: e.target.value ? Number(e.target.value) : null }))}
+                            style={{ flex: 1, padding: '5px 8px', borderRadius: '5px', border: 'none', background: '#1e293b', color: 'white', fontSize: '12px' }}
+                          >
+                            <option value="">— ללא —</option>
+                            {stationSerials.map((sr: any) => (
+                              <option key={sr.id} value={sr.id}>
+                                #{sr.serial_number}{sr.essence ? ` — ${sr.essence}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <button
               onClick={createStrip}
               style={{ padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
