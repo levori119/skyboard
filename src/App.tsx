@@ -2542,7 +2542,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
-  const [serialRowMenu, setSerialRowMenu] = useState<{x: number; y: number; station: string; latestSerialId: number} | null>(null);
+  const [serialRowMenu, setSerialRowMenu] = useState<{x: number; y: number; station: string; latestSerialId: number; specificSerialId?: number} | null>(null);
+  const [expandedStationHistory, setExpandedStationHistory] = useState<string | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
@@ -3010,32 +3011,65 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 {(() => {
                   const allStations = Array.from(new Set(serials.map((sr: any) => sr.control_station))).sort() as string[];
                   return allStations.map((station: string) => {
-                    const latestSerial = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                    const stationSerials = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number);
+                    const latestSerial = stationSerials[0];
+                    const last5 = stationSerials.slice(0, 5);
                     const mySelection = serialSelections.find((sel: any) => sel.strip_id === s.id && sel.control_station === station);
                     const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
                     const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
+                    const isExpanded = expandedStationHistory === station;
                     return (
-                      <div
-                        key={station}
-                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setSerialRowMenu({ x: e.clientX, y: e.clientY, station, latestSerialId: latestSerial.id }); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', fontSize: '8px', cursor: 'context-menu' }}
-                      >
-                        <span style={{ color: '#64748b', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
-                        <span style={{ color: isOutdated ? '#dc2626' : '#374151', fontWeight: isOutdated ? 'bold' : 'normal', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️ חדש: #${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
-                        </span>
-                        <button
-                          onClick={() => onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false)}
-                          style={{ background: isOutdated ? '#dc2626' : '#2563eb', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 4px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                      <div key={station} style={{ marginBottom: '3px' }}>
+                        {/* שורת תחנה ראשית */}
+                        <div
+                          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setSerialRowMenu({ x: e.clientX, y: e.clientY, station, latestSerialId: latestSerial.id }); }}
+                          onClick={() => setExpandedStationHistory(isExpanded ? null : station)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', cursor: 'pointer', borderRadius: '3px', padding: '1px 2px', background: isExpanded ? '#e0f2fe' : 'transparent' }}
                         >
-                          {mySerial ? (isOutdated ? `עדכן #${latestSerial.serial_number}` : '✓') : `בחר #${latestSerial.serial_number}`}
-                        </button>
-                        {mySelection && (
+                          <span style={{ color: '#94a3b8', fontSize: '7px' }}>{isExpanded ? '▼' : '▶'}</span>
+                          <span style={{ color: '#64748b', minWidth: '58px', flexShrink: 0 }}>{station}:</span>
+                          <span style={{ color: isOutdated ? '#dc2626' : '#374151', fontWeight: isOutdated ? 'bold' : 'normal', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️ חדש: #${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
+                          </span>
                           <button
-                            onClick={() => onSerialRemove && onSerialRemove(s.id, station)}
-                            style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 3px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
-                            title="הסר"
-                          >✕</button>
+                            onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); }}
+                            style={{ background: isOutdated ? '#dc2626' : '#2563eb', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 4px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                          >
+                            {mySerial ? (isOutdated ? `עדכן #${latestSerial.serial_number}` : '✓') : `בחר #${latestSerial.serial_number}`}
+                          </button>
+                          {mySelection && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onSerialRemove && onSerialRemove(s.id, station); }}
+                              style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 3px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                              title="הסר"
+                            >✕</button>
+                          )}
+                        </div>
+                        {/* 5 ספרורים אחרונים */}
+                        {isExpanded && (
+                          <div style={{ marginTop: '2px', marginRight: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                            {last5.map((sr: any) => {
+                              const isSelected = mySelection?.serial_id === sr.id && !mySelection?.dismissed;
+                              return (
+                                <div
+                                  key={sr.id}
+                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setSerialRowMenu({ x: e.clientX, y: e.clientY, station, latestSerialId: latestSerial.id, specificSerialId: sr.id }); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', fontSize: '8px', borderBottom: '1px solid #f1f5f9', background: isSelected ? '#dbeafe' : 'transparent', cursor: 'context-menu' }}
+                                >
+                                  <span style={{ fontWeight: isSelected ? 'bold' : 'normal', color: isSelected ? '#1d4ed8' : '#374151', flex: 1 }}>
+                                    #{sr.serial_number} {isSelected ? '✓' : ''}
+                                  </span>
+                                  {sr.essence && <span style={{ color: '#64748b', fontSize: '7px', flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sr.essence}</span>}
+                                  <button
+                                    onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, sr.id, false); setExpandedStationHistory(null); }}
+                                    style={{ background: isSelected ? '#1d4ed8' : '#475569', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 4px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                                  >
+                                    {isSelected ? '✓ נבחר' : 'קבל'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                     );
@@ -3059,7 +3093,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           <div style={{ position: 'fixed', left: serialRowMenu.x, top: serialRowMenu.y, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '160px', overflow: 'hidden', direction: 'rtl' }}>
             <div style={{ padding: '4px 0' }}>
               <button
-                onClick={() => { onSerialSelect && onSerialSelect(s.id, serialRowMenu.station, serialRowMenu.latestSerialId, false); setSerialRowMenu(null); }}
+                onClick={() => { onSerialSelect && onSerialSelect(s.id, serialRowMenu.station, serialRowMenu.specificSerialId ?? serialRowMenu.latestSerialId, false); setSerialRowMenu(null); }}
                 style={{ width: '100%', background: 'none', border: 'none', color: '#e2e8f0', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
