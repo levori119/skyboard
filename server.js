@@ -2181,7 +2181,9 @@ app.get('/api/strip-serial-selections', async (req, res) => {
 
 app.post('/api/strip-serial-selections', async (req, res) => {
   try {
-    const { strip_id, control_station, serial_id, dismissed } = req.body;
+    const { strip_id: rawStripId, control_station, serial_id, dismissed } = req.body;
+    const strip_id = parseInt(String(rawStripId).replace(/^s/, ''), 10);
+    if (isNaN(strip_id)) return res.status(400).json({ error: 'Invalid strip_id' });
     await pool.query(
       `INSERT INTO strip_serial_selections (strip_id, control_station, serial_id, dismissed, assigned_at)
        VALUES ($1,$2,$3,$4,NOW())
@@ -2195,7 +2197,9 @@ app.post('/api/strip-serial-selections', async (req, res) => {
 
 app.delete('/api/strip-serial-selections', async (req, res) => {
   try {
-    const { strip_id, control_station } = req.body;
+    const { strip_id: rawStripId, control_station } = req.body;
+    const strip_id = parseInt(String(rawStripId).replace(/^s/, ''), 10);
+    if (isNaN(strip_id)) return res.status(400).json({ error: 'Invalid strip_id' });
     await pool.query('DELETE FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete strip serial selection' }); }
