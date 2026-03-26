@@ -2745,7 +2745,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         )}
         {/* שורה 3: גובה (גדול יותר) */}
         <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {s.alt || '-'}
+          {s.alt ? `גובה: ${s.alt}` : '-'}
         </div>
         {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
@@ -3381,16 +3381,24 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
       const a = placed[i], b = placed[j];
-      // Skip conflict nudge for range strips — they represent a block
-      if (a._isRange || b._isRange) continue;
+      // Must overlap in time
       const xOvlp = a._x < b._x + STRIP_W && b._x < a._x + STRIP_W;
-      const yDiff = Math.abs(a._y - b._y);
-      if (xOvlp && yDiff < STRIP_H) {
+      if (!xOvlp) continue;
+      // Real altitude conflict: gap between altitude ranges ≤ 500ft
+      // altGap < 0 means ranges actually overlap; altGap 0-500 = close proximity
+      const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
+      if (altGap <= 500) {
         placed[i]._hasConflict = true;
         placed[j]._hasConflict = true;
-        const shift = (STRIP_H - yDiff) / 2 + 2;
-        if (a._y <= b._y) { placed[i]._y -= shift; placed[j]._y += shift; }
-        else { placed[i]._y += shift; placed[j]._y -= shift; }
+      }
+      // Nudge point-altitude strips apart visually if they visually overlap (readability only)
+      if (!a._isRange && !b._isRange) {
+        const yDiff = Math.abs(a._y - b._y);
+        if (yDiff < STRIP_H) {
+          const shift = (STRIP_H - yDiff) / 2 + 2;
+          if (a._y <= b._y) { placed[i]._y -= shift; placed[j]._y += shift; }
+          else { placed[i]._y += shift; placed[j]._y -= shift; }
+        }
       }
     }
   }
