@@ -3297,7 +3297,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const START_MS = now.getTime() - 60 * 60 * 1000;
   const END_MS = now.getTime() + 5 * 60 * 60 * 1000;
   const TOTAL_MS = END_MS - START_MS;
-  const STRIP_DUR_MS = 0.5 * 60 * 60 * 1000; // 30 minutes
+  const STRIP_DUR_MS = 1 * 60 * 60 * 1000; // 1 hour
 
   // Parse single altitude value
   const parseAltSingle = (s: string): number | null => {
@@ -3439,6 +3439,9 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const MIN_CHART_W = 600;
   const segCount = segments.length;
   const segW = Math.max(chartW / segCount, MIN_CHART_W);
+  const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
+  const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
+  const SEG_DIVIDER = lightMode ? '4px solid #94a3b8' : '4px solid #475569';
   const HEADER_H = groupBy !== 'none' ? 20 : 0;
   const TOOLBAR_H = 30;
 
@@ -3532,9 +3535,9 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
                 display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
                 overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
               }}>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '11px', lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'baseline' }}>
+              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                 <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                {s.alt && <span style={{ fontSize: '10px', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
+                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
               </div>
             </div>
           );
@@ -3584,7 +3587,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
         {/* Scrollable segments area */}
         <div ref={containerRef} style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
           {segments.map((seg, idx) => (
-            <div key={idx} style={{ width: segW, minWidth: segW, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: idx < segments.length - 1 ? `2px solid ${gridLine}` : 'none', boxSizing: 'border-box' }}>
+            <div key={idx} style={{ width: segW, minWidth: segW, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: idx < segments.length - 1 ? SEG_DIVIDER : 'none', boxSizing: 'border-box' }}>
               {/* Segment header label */}
               {HEADER_H > 0 && (
                 <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
