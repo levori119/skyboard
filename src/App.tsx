@@ -4138,6 +4138,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [serials, setSerials] = useState<any[]>([]);
   const [stripSerialSelections, setStripSerialSelections] = useState<any[]>([]);
   const [showSerialsPanel, setShowSerialsPanel] = useState(false);
+  const [livePresetConfig, setLivePresetConfig] = useState<any | null>(null);
 
   const loadSerials = async () => {
     try {
@@ -4263,7 +4264,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [strips.map(s => s.id).join(',')]);
 
   // Determine the effective query filter for this workstation
-  const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // If the preset defines relevant control stations, filter serials to those only
   const relevantControlStations: string[] | null = (myPresetConfig?.relevant_control_stations && myPresetConfig.relevant_control_stations.length > 0)
@@ -4533,9 +4534,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           if (presetRes.ok) {
             const presets = await presetRes.json();
             const myPreset = presets.find((p: any) => Number(p.id) === Number(session.presetId));
-            if (myPreset?.table_mode_id) {
-              setSelectedTableModeId(Number(myPreset.table_mode_id));
-              setTableMode(true);
+            if (myPreset) {
+              setLivePresetConfig(myPreset);
+              if (myPreset.table_mode_id) {
+                setSelectedTableModeId(Number(myPreset.table_mode_id));
+                setTableMode(true);
+              }
             }
           }
         }

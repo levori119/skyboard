@@ -119,9 +119,10 @@ Preferred communication style: Simple, everyday language.
 - `SerialsPanelModal`: full-panel overlay showing all serials grouped by control station; filter by station (checkboxes); time filter (click header → show serials from last N hours); first serial per station highlighted in blue
 - API: GET/POST(import)/DELETE(all) `/api/serials`; GET/POST(upsert)/DELETE `/api/strip-serial-selections`
 - Serials polled every 30 seconds in SectorDashboard
+- `livePresetConfig` state in SectorDashboard: refreshed from server every 3 seconds (via `loadData`); used as source-of-truth for `myPresetConfig` (overrides static `workstationPresets` prop from parent); ensures `relevantControlStations` filter always reflects latest admin configuration without page refresh
 
 ## Altitude Conflict Detection (זיהוי קונפליקט גובה)
-- `conflict_alt_delta INTEGER DEFAULT 5` column on `sectors` table (stored in hundreds of feet; 5 = ±500 ft)
+- `conflict_alt_delta INTEGER DEFAULT 500` column on `sectors` table (stored **directly in feet**; 500 = ±500 ft)
 - Admin sector form has field "⚠️ סף קונפליקט גובה (מאות רגליים)" — user enters e.g. 5 meaning ±500 ft
 - When outgoing and incoming transfers at the same transfer point have an altitude difference ≤ delta*100 ft, they are flagged as a conflict
 - `DraggableNeighborPanel` reads `neighbor.conflict_alt_delta` directly; multiplies by 100 for comparison
