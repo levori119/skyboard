@@ -3314,105 +3314,127 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const textColor = lightMode ? '#64748b' : '#94a3b8';
   const boldTextColor = lightMode ? '#1e293b' : '#e2e8f0';
 
+  // chartW is width of the scrollable chart column; min 600px so strips always stretch
+  const MIN_CHART_W = 600;
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflowX: 'auto', overflowY: 'hidden', direction: 'ltr', boxSizing: 'border-box', display: 'flex', alignItems: 'stretch' }}>
-      <div style={{ position: 'relative', minWidth: chartW + Y_AXIS_W, height: CHART_H + X_AXIS_H + 8, margin: '4px 0 0 0', flexShrink: 0 }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden', direction: 'ltr', background: bg, boxSizing: 'border-box' }}>
 
-        {/* Chart area */}
-        <div style={{ position: 'absolute', left: 0, top: 0, width: chartW, height: CHART_H, background: bg, borderBottom: `1px solid ${gridLine}`, borderRight: `1px solid ${gridLine}`, overflow: 'visible' }}>
-          {/* Altitude grid lines */}
-          {altTicks.map(a => (
-            <div key={a} style={{ position: 'absolute', top: altToY(a), left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />
-          ))}
-
-          {/* "Now" vertical line */}
-          <div style={{ position: 'absolute', top: 0, bottom: 0, left: timeToX(now.getTime()), width: 2, background: '#ef4444', opacity: 0.7, zIndex: 1 }} />
-
-          {/* Conflict zone red background between conflicting strips */}
-          {(() => {
-            const zones: { x1: number; x2: number }[] = [];
-            for (let i = 0; i < placed.length; i++) {
-              for (let j = i + 1; j < placed.length; j++) {
-                const a = placed[i], b = placed[j];
-                if (a._hasConflict && b._hasConflict) {
-                  const x1 = Math.max(a._x, b._x);
-                  const x2 = Math.min(a._x + STRIP_W, b._x + STRIP_W);
-                  if (x2 > x1) zones.push({ x1, x2 });
-                }
-              }
-            }
-            return zones.map((z, idx) => (
-              <div key={idx} style={{ position: 'absolute', top: 0, bottom: 0, left: Math.max(z.x1, 0), width: Math.min(z.x2, chartW) - Math.max(z.x1, 0), background: 'rgba(239,68,68,0.18)', zIndex: 0, pointerEvents: 'none' }} />
-            ));
-          })()}
-
-          {/* Strips */}
-          {placed.map(s => {
-            if (s._x + STRIP_W < 0 || s._x > chartW) return null;
-            const isConflict = s._hasConflict;
-            const clampedX = Math.max(s._x, 0);
-            const clampedY = Math.min(Math.max(s._y - STRIP_H / 2, 0), CHART_H - STRIP_H);
-            return (
-              <div key={s.id} title={`${s.callSign} | גובה: ${s.alt} | ${timeField === 'zmm' ? 'זמ"מ' : 'המראה'}: ${s.takeoff_time ? new Date(s.takeoff_time).toISOString().slice(11, 16) : '—'}`} style={{
-                position: 'absolute',
-                left: clampedX,
-                top: clampedY,
-                width: STRIP_W - 2,
-                height: STRIP_H,
-                background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
-                border: `2px solid ${s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569'))}`,
-                borderRadius: 3,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                overflow: 'hidden', padding: '1px 4px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
-              }}>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', fontWeight: 'bold', color: s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : boldTextColor) }}>
-                  {s.callSign || '—'}
-                </div>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '9px', color: textColor }}>
-                  {[s.sq || s.squadron, s.alt].filter(Boolean).join(' | ')}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Y-axis labels */}
-        <div style={{ position: 'absolute', left: chartW, top: 0, width: Y_AXIS_W, height: CHART_H, fontSize: '10px', color: textColor }}>
+      {/* ── Y-axis column (always visible, no horizontal scroll) ── */}
+      <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg, position: 'relative' }}>
+        {/* Labels stretch over CHART_H area; spacer below for X-axis row */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {altTicks.map(a => {
-            const y = altToY(a);
-            if (y < 0 || y > CHART_H) return null;
+            const pct = (1 - (a - minAlt) / altRange) * 100;
+            if (pct < 0 || pct > 100) return null;
             const label = a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
             return (
-              <div key={a} style={{ position: 'absolute', top: y - 7, left: 5, lineHeight: '14px', whiteSpace: 'nowrap', fontWeight: 'bold', color: boldTextColor, fontSize: '10px' }}>
+              <div key={a} style={{ position: 'absolute', top: `${pct}%`, transform: 'translateY(-50%)', right: 5, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1 }}>
                 {label}
               </div>
             );
           })}
         </div>
+        {/* spacer matches X-axis row height */}
+        <div style={{ height: X_AXIS_H, flexShrink: 0, borderTop: `1px solid ${gridLine}`, background: bg }} />
+      </div>
 
-        {/* X-axis ticks */}
-        <div style={{ position: 'absolute', top: CHART_H + 2, left: 0, width: chartW, height: X_AXIS_H, fontSize: '10px' }}>
-          {ticks.map(t => {
-            const x = timeToX(t);
-            if (x < 0 || x > chartW) return null;
-            const d = new Date(t);
-            const hh = d.getUTCHours().toString().padStart(2, '0');
-            const mm = d.getUTCMinutes().toString().padStart(2, '0');
-            const isHour = mm === '00';
-            return (
-              <div key={t} style={{ position: 'absolute', left: x, transform: 'translateX(-50%)', top: 2, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal', fontSize: isHour ? '11px' : '10px' }}>
-                {hh}:{mm}
+      {/* ── Scrollable chart + X-axis column ── */}
+      <div ref={containerRef} style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ minWidth: Math.max(chartW, MIN_CHART_W), width: Math.max(chartW, MIN_CHART_W), height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Chart area */}
+          <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', borderBottom: `1px solid ${gridLine}` }}>
+
+            {/* Altitude grid lines */}
+            {altTicks.map(a => {
+              const pct = (1 - (a - minAlt) / altRange) * 100;
+              if (pct < 0 || pct > 100) return null;
+              return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />;
+            })}
+
+            {/* "Now" vertical line */}
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(now.getTime() - START_MS) / TOTAL_MS * 100}%`, width: 2, background: '#ef4444', opacity: 0.7, zIndex: 1, pointerEvents: 'none' }} />
+
+            {/* Conflict zone highlights */}
+            {(() => {
+              const zones: { x1: number; x2: number }[] = [];
+              for (let i = 0; i < placed.length; i++) {
+                for (let j = i + 1; j < placed.length; j++) {
+                  const a = placed[i], b = placed[j];
+                  if (a._hasConflict && b._hasConflict) {
+                    const x1 = Math.max(a._x, b._x) / chartW * 100;
+                    const x2 = Math.min(a._x + STRIP_W, b._x + STRIP_W) / chartW * 100;
+                    if (x2 > x1) zones.push({ x1, x2 });
+                  }
+                }
+              }
+              return zones.map((z, idx) => (
+                <div key={idx} style={{ position: 'absolute', top: 0, bottom: 0, left: `${z.x1}%`, width: `${z.x2 - z.x1}%`, background: 'rgba(239,68,68,0.18)', zIndex: 0, pointerEvents: 'none' }} />
+              ));
+            })()}
+
+            {/* Strips */}
+            {placed.map(s => {
+              // _x is pixel-based; convert to % of chartW
+              const xPct = s._x / chartW * 100;
+              const wPct = STRIP_W / chartW * 100;
+              if (xPct + wPct < 0 || xPct > 100) return null;
+              // _y is pixel from top (altToY result, adjusted for conflicts)
+              // convert to % of CHART_H so it renders correctly inside the flex chart area
+              const yPct = s._y / CHART_H * 100;
+              const halfPct = (STRIP_H / 2 / CHART_H) * 100;
+              const clampedYPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+              const isConflict = s._hasConflict;
+              return (
+                <div key={s.id} title={`${s.callSign} | גובה: ${s.alt} | ${timeField === 'zmm' ? 'זמ"מ' : 'המראה'}: ${s.takeoff_time ? new Date(s.takeoff_time).toISOString().slice(11, 16) : '—'}`} style={{
+                  position: 'absolute',
+                  left: `${Math.max(xPct, 0)}%`,
+                  top: `${clampedYPct}%`,
+                  width: `${wPct}%`,
+                  height: STRIP_H,
+                  background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
+                  border: `2px solid ${s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569'))}`,
+                  borderRadius: 3,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', padding: '1px 4px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
+                }}>
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', fontWeight: 'bold', color: s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : boldTextColor) }}>
+                    {s.callSign || '—'}
+                  </div>
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '9px', color: textColor }}>
+                    {[s.sq || s.squadron, s.alt].filter(Boolean).join(' | ')}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Empty state */}
+            {candidates.length === 0 && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '13px', direction: 'rtl' }}>
+                אין פממים עם זמן וגובה להצגה
               </div>
-            );
-          })}
-        </div>
-
-        {/* Empty state */}
-        {candidates.length === 0 && (
-          <div style={{ position: 'absolute', top: 0, left: 0, width: chartW, height: CHART_H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
-            אין פממים עם זמן וגובה להצגה
+            )}
           </div>
-        )}
+
+          {/* ── X-axis row ── */}
+          <div style={{ height: X_AXIS_H, flexShrink: 0, position: 'relative', background: bg, borderTop: `1px solid ${gridLine}`, overflow: 'visible' }}>
+            {ticks.map(t => {
+              const pct = (t - START_MS) / TOTAL_MS * 100;
+              if (pct < 0 || pct > 100) return null;
+              const d = new Date(t);
+              const hh = d.getUTCHours().toString().padStart(2, '0');
+              const mm = d.getUTCMinutes().toString().padStart(2, '0');
+              const isHour = mm === '00';
+              return (
+                <div key={t} style={{ position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)', top: 3, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal', fontSize: isHour ? '11px' : '10px', whiteSpace: 'nowrap' }}>
+                  {hh}:{mm}
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
       </div>
     </div>
   );
