@@ -1480,7 +1480,7 @@ const DraggableNeighborPanel = ({
   const [dragLabel, setDragLabel] = useState<string | null>(null);
 
   const sectorOutgoing = outgoingTransfers.filter(t => t.to_sector_id === neighbor.id);
-  const sectorIncoming = incomingTransfers.filter(t => t.from_sector_id === neighbor.id);
+  const sectorIncoming = incomingTransfers.filter(t => t.to_sector_id === neighbor.id);
 
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
@@ -5152,7 +5152,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '0 4px 4px 0', fontSize: '12px', lineHeight: 1 }}
               >▶</button>
               {(() => {
-                const pendingCount = incomingTransfers.filter(t => allSectors.some(n => n.id === t.from_sector_id)).length;
+                const pendingCount = incomingTransfers.filter(t => allSectors.some(n => n.id === t.to_sector_id)).length;
                 return pendingCount > 0 ? (
                   <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
                     {pendingCount} ממתין
