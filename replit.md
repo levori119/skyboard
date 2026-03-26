@@ -1,6 +1,6 @@
 # Overview
 
-This is a React TypeScript application built with Vite, designed as a flight strip management system called "BLUE TORCH" (לפיד כחול) for military aviation operations. The application features a drag-and-drop interface for managing flight strips (פממים) across different workstations, with OCR capabilities for digit recognition using Tesseract.js.
+This is a React TypeScript application built with Vite, designed as a flight strip management system called "SKYBOARD" (לוח שמיים) for military aviation operations. The application features a drag-and-drop interface for managing flight strips (פממים) across different workstations, with OCR capabilities for digit recognition using Tesseract.js.
 
 The system is fully in Hebrew (RTL) and designed for tablet use, with session-based workstation authentication and real-time collaboration features.
 

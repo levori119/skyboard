@@ -282,7 +282,37 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
         minWidth: '450px',
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
-        <h1 style={{ margin: '0 0 10px', color: '#0f172a', textAlign: 'center', fontSize: '32px' }}>BLUE TORCH</h1>
+        {/* Logo */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="72" height="72" rx="16" fill="#0f172a"/>
+            {/* Grid lines — the "board" */}
+            <line x1="8"  y1="24" x2="64" y2="24" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            <line x1="8"  y1="36" x2="64" y2="36" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            <line x1="8"  y1="48" x2="64" y2="48" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            <line x1="24" y1="8"  x2="24" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            <line x1="36" y1="8"  x2="36" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            <line x1="48" y1="8"  x2="48" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
+            {/* Outer glow ring */}
+            <circle cx="36" cy="36" r="28" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.5"/>
+            {/* Airplane — pointing upper-right */}
+            <g transform="translate(36,36) rotate(-40)">
+              {/* Fuselage */}
+              <rect x="-3" y="-18" width="6" height="32" rx="3" fill="white"/>
+              {/* Wings */}
+              <polygon points="0,-4 -14,8 14,8" fill="#93c5fd"/>
+              {/* Tail */}
+              <polygon points="0,12 -6,18 6,18" fill="#93c5fd"/>
+            </g>
+            {/* Small dot "blip" on grid */}
+            <circle cx="24" cy="24" r="2.5" fill="#3b82f6"/>
+            <circle cx="48" cy="36" r="2.5" fill="#3b82f6" opacity="0.6"/>
+          </svg>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKYBOARD</div>
+            <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
+          </div>
+        </div>
         <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
         
         {!selectedCrewMember ? (
@@ -4465,7 +4495,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <b style={{fontSize: '18px'}}>BLUE TORCH</b>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="72" height="72" rx="14" fill="#1e3a8a"/>
+              <line x1="8"  y1="24" x2="64" y2="24" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="8"  y1="36" x2="64" y2="36" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="8"  y1="48" x2="64" y2="48" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="24" y1="8"  x2="24" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="36" y1="8"  x2="36" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <line x1="48" y1="8"  x2="48" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
+              <g transform="translate(36,36) rotate(-40)">
+                <rect x="-3" y="-18" width="6" height="32" rx="3" fill="white"/>
+                <polygon points="0,-4 -14,8 14,8" fill="#93c5fd"/>
+                <polygon points="0,12 -6,18 6,18" fill="#93c5fd"/>
+              </g>
+              <circle cx="24" cy="24" r="3" fill="#60a5fa"/>
+            </svg>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKYBOARD</div>
+              <div style={{ fontSize: '9px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
+            </div>
+          </div>
           <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
             {session.workstationName}
           </span>
