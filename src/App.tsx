@@ -301,29 +301,71 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="72" height="72" rx="16" fill="#0f172a"/>
-            {/* Grid lines — the "board" */}
-            <line x1="8"  y1="24" x2="64" y2="24" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            <line x1="8"  y1="36" x2="64" y2="36" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            <line x1="8"  y1="48" x2="64" y2="48" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            <line x1="24" y1="8"  x2="24" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            <line x1="36" y1="8"  x2="36" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            <line x1="48" y1="8"  x2="48" y2="64" stroke="#1d4ed8" strokeWidth="1" opacity="0.7"/>
-            {/* Outer glow ring */}
-            <circle cx="36" cy="36" r="28" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.5"/>
-            {/* Airplane — pointing upper-right */}
-            <g transform="translate(36,36) rotate(-40)">
-              {/* Fuselage */}
-              <rect x="-3" y="-18" width="6" height="32" rx="3" fill="white"/>
-              {/* Wings */}
-              <polygon points="0,-4 -14,8 14,8" fill="#93c5fd"/>
-              {/* Tail */}
-              <polygon points="0,12 -6,18 6,18" fill="#93c5fd"/>
+          {/* Animated radar + orbiting airplane logo */}
+          <svg width="88" height="88" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="lglow" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <radialGradient id="lradar" cx="36" cy="36" r="26" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#1e3a8a" stopOpacity="0.8"/>
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0"/>
+              </radialGradient>
+            </defs>
+            {/* Background */}
+            <rect width="72" height="72" rx="18" fill="#0f172a"/>
+            {/* Subtle radial glow from center */}
+            <circle cx="36" cy="36" r="36" fill="url(#lradar)"/>
+            {/* Grid lines */}
+            <line x1="8"  y1="24" x2="64" y2="24" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            <line x1="8"  y1="36" x2="64" y2="36" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            <line x1="8"  y1="48" x2="64" y2="48" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            <line x1="24" y1="8"  x2="24" y2="64" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            <line x1="36" y1="8"  x2="36" y2="64" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            <line x1="48" y1="8"  x2="48" y2="64" stroke="#1d4ed8" strokeWidth="0.7" opacity="0.3"/>
+            {/* Radar rings */}
+            <circle cx="36" cy="36" r="26" stroke="#1e40af" strokeWidth="1"   fill="none" opacity="0.7"/>
+            <circle cx="36" cy="36" r="17" stroke="#1e40af" strokeWidth="0.7" fill="none" opacity="0.45"/>
+            <circle cx="36" cy="36" r="9"  stroke="#1e40af" strokeWidth="0.5" fill="none" opacity="0.3"/>
+            {/* Center crosshair */}
+            <line x1="34" y1="36" x2="38" y2="36" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <line x1="36" y1="34" x2="36" y2="38" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+            <circle cx="36" cy="36" r="1.5" fill="#3b82f6"/>
+            {/* Radar sweep */}
+            <g>
+              <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="4s" repeatCount="indefinite"/>
+              <line x1="36" y1="36" x2="62" y2="36" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" opacity="0.9"/>
+              {/* Afterglow arc */}
+              <path d="M 62,36 A 26,26 0 0 0 36,10" stroke="#3b82f6" strokeWidth="6" opacity="0.13" fill="none" strokeLinecap="round"/>
             </g>
-            {/* Small dot "blip" on grid */}
-            <circle cx="24" cy="24" r="2.5" fill="#3b82f6"/>
-            <circle cx="48" cy="36" r="2.5" fill="#3b82f6" opacity="0.6"/>
+            {/* Radar blip — appears just after sweep passes a point */}
+            <circle cx="56" cy="18" r="2.5" fill="#60a5fa" filter="url(#lglow)">
+              <animate attributeName="opacity" values="0;0;1;0.9;0.4;0" keyTimes="0;0.17;0.23;0.45;0.52;1" dur="4s" begin="0.9s" repeatCount="indefinite"/>
+              <animate attributeName="r"       values="1;1;3;2.5;1.5;1" keyTimes="0;0.17;0.23;0.45;0.52;1" dur="4s" begin="0.9s" repeatCount="indefinite"/>
+            </circle>
+            {/* Second blip at different position */}
+            <circle cx="24" cy="55" r="2" fill="#34d399" filter="url(#lglow)">
+              <animate attributeName="opacity" values="0;0;1;0.8;0;0" keyTimes="0;0.55;0.6;0.75;0.8;1" dur="4s" begin="0.9s" repeatCount="indefinite"/>
+            </circle>
+            {/* Orbit path (invisible) */}
+            <path id="loginOrbitPath" d="M 62,36 A 26,26 0 1,1 61.99,35.98" fill="none"/>
+            {/* Airplane flying along the orbit */}
+            <g filter="url(#lglow)">
+              <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
+                <mpath href="#loginOrbitPath"/>
+              </animateMotion>
+              {/* Top-down plane pointing right (+X) — fuselage */}
+              <ellipse cx="0" cy="0" rx="8" ry="2.2" fill="white"/>
+              {/* Wings (swept back) */}
+              <polygon points="1.5,-0.8  -4,-10  -2.5,-0.8" fill="#93c5fd"/>
+              <polygon points="1.5, 0.8  -4, 10  -2.5, 0.8" fill="#93c5fd"/>
+              {/* Tail fins */}
+              <polygon points="-5.5,-0.8  -8.5,-4.5  -7,-0.8" fill="#bfdbfe"/>
+              <polygon points="-5.5, 0.8  -8.5, 4.5  -7, 0.8" fill="#bfdbfe"/>
+              {/* Engine glow */}
+              <circle cx="0" cy="0" r="1.5" fill="#dbeafe" opacity="0.6"/>
+            </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKYBOARD</div>
@@ -4616,20 +4658,50 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Animated header logo — radar sweep + banking plane */}
+            <svg width="32" height="32" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <filter id="hglow" x="-80%" y="-80%" width="260%" height="260%">
+                  <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+              {/* Background */}
               <rect width="72" height="72" rx="14" fill="#1e3a8a"/>
-              <line x1="8"  y1="24" x2="64" y2="24" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <line x1="8"  y1="36" x2="64" y2="36" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <line x1="8"  y1="48" x2="64" y2="48" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <line x1="24" y1="8"  x2="24" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <line x1="36" y1="8"  x2="36" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <line x1="48" y1="8"  x2="48" y2="64" stroke="#3b82f6" strokeWidth="1.5" opacity="0.7"/>
-              <g transform="translate(36,36) rotate(-40)">
-                <rect x="-3" y="-18" width="6" height="32" rx="3" fill="white"/>
-                <polygon points="0,-4 -14,8 14,8" fill="#93c5fd"/>
-                <polygon points="0,12 -6,18 6,18" fill="#93c5fd"/>
+              {/* Grid */}
+              <line x1="8"  y1="24" x2="64" y2="24" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              <line x1="8"  y1="36" x2="64" y2="36" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              <line x1="8"  y1="48" x2="64" y2="48" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              <line x1="24" y1="8"  x2="24" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              <line x1="36" y1="8"  x2="36" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              <line x1="48" y1="8"  x2="48" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
+              {/* Radar sweep (fast & subtle) */}
+              <g>
+                <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="3s" repeatCount="indefinite"/>
+                <line x1="36" y1="36" x2="59" y2="36" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" opacity="0.75"/>
+                <path d="M 59,36 A 23,23 0 0 0 36,13" stroke="#3b82f6" strokeWidth="4" opacity="0.12" fill="none"/>
               </g>
-              <circle cx="24" cy="24" r="3" fill="#60a5fa"/>
+              {/* Pulsing blip */}
+              <circle cx="55" cy="19" r="0" fill="#60a5fa" filter="url(#hglow)">
+                <animate attributeName="r"       values="0;0;3;2;0"   keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values="0;0;1;0.6;0" keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
+              </circle>
+              {/* Airplane — banking animation */}
+              <g transform="translate(36,36)">
+                <animateTransform attributeName="transform" additive="sum" type="rotate"
+                  values="-18;18;-18" dur="2.8s" repeatCount="indefinite"
+                  calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1"/>
+                {/* Fuselage (top-down, pointing up = -Y in SVG) */}
+                <ellipse cx="0" cy="0" rx="2.5" ry="11" fill="white"/>
+                {/* Wings */}
+                <polygon points="-0.5,-3  -13,4  0.5,-3" fill="#93c5fd"/>
+                <polygon points="0.5,-3   13,4 -0.5,-3" fill="#93c5fd"/>
+                {/* Tail */}
+                <polygon points="-0.5,8  -5,13  0.5,8" fill="#bfdbfe"/>
+                <polygon points="0.5,8    5,13 -0.5,8" fill="#bfdbfe"/>
+                {/* Cockpit glint */}
+                <circle cx="0" cy="-9" r="1.2" fill="#dbeafe" opacity="0.8"/>
+              </g>
             </svg>
             <div>
               <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKYBOARD</div>
