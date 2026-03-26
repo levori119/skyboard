@@ -3258,17 +3258,22 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
     return isNaN(d.getTime()) ? null : d.getTime();
   };
 
-  const CHART_H = 110;
+  const CHART_H = 220;
   const STRIP_H = 26;
-  const X_AXIS_H = 20;
-  const Y_AXIS_W = 56;
+  const X_AXIS_H = 22;
+  const Y_AXIS_W = 62;
 
   const candidates = strips.map(s => ({ ...s, _time: getTime(s), _alt: parseAlt(s.alt) }))
     .filter((s): s is typeof s & { _time: number; _alt: number } => s._time !== null && s._alt !== null);
 
-  const minAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._alt)) : 0;
-  const maxAlt = candidates.length > 0 ? Math.max(...candidates.map(s => s._alt)) : 1000;
-  const altRange = Math.max(maxAlt - minAlt, 500);
+  const rawMinAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._alt)) : 0;
+  const maxAlt    = candidates.length > 0 ? Math.max(...candidates.map(s => s._alt)) : 1000;
+  // Add 4-strip-height padding below the lowest strip so it doesn't sit at the very bottom
+  const rawRange   = Math.max(maxAlt - rawMinAlt, 500);
+  const altPerPx   = rawRange / CHART_H;
+  const bottomPad  = 4 * STRIP_H * altPerPx;
+  const minAlt     = rawMinAlt - bottomPad;
+  const altRange   = Math.max(maxAlt - minAlt, 500);
 
   const STRIP_W = (STRIP_DUR_MS / TOTAL_MS) * chartW;
   const timeToX = (ms: number) => ((ms - START_MS) / TOTAL_MS) * chartW;
@@ -3372,16 +3377,21 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
         </div>
 
         {/* Y-axis labels */}
-        <div style={{ position: 'absolute', left: chartW, top: 0, width: Y_AXIS_W, height: CHART_H, fontSize: '9px', color: textColor }}>
-          {altTicks.map(a => (
-            <div key={a} style={{ position: 'absolute', top: altToY(a) - 6, left: 4, lineHeight: '12px', whiteSpace: 'nowrap' }}>
-              {a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(a)}
-            </div>
-          ))}
+        <div style={{ position: 'absolute', left: chartW, top: 0, width: Y_AXIS_W, height: CHART_H, fontSize: '10px', color: textColor }}>
+          {altTicks.map(a => {
+            const y = altToY(a);
+            if (y < 0 || y > CHART_H) return null;
+            const label = a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
+            return (
+              <div key={a} style={{ position: 'absolute', top: y - 7, left: 5, lineHeight: '14px', whiteSpace: 'nowrap', fontWeight: 'bold', color: boldTextColor, fontSize: '10px' }}>
+                {label}
+              </div>
+            );
+          })}
         </div>
 
         {/* X-axis ticks */}
-        <div style={{ position: 'absolute', top: CHART_H + 2, left: 0, width: chartW, height: X_AXIS_H, fontSize: '9px', color: textColor }}>
+        <div style={{ position: 'absolute', top: CHART_H + 2, left: 0, width: chartW, height: X_AXIS_H, fontSize: '10px' }}>
           {ticks.map(t => {
             const x = timeToX(t);
             if (x < 0 || x > chartW) return null;
@@ -3390,7 +3400,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
             const mm = d.getUTCMinutes().toString().padStart(2, '0');
             const isHour = mm === '00';
             return (
-              <div key={t} style={{ position: 'absolute', left: x, transform: 'translateX(-50%)', top: 2, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal' }}>
+              <div key={t} style={{ position: 'absolute', left: x, transform: 'translateX(-50%)', top: 2, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal', fontSize: isHour ? '11px' : '10px' }}>
                 {hh}:{mm}
               </div>
             );
@@ -6379,7 +6389,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {showVerticalView && !tableMode && (
             <div style={{
               position: 'absolute', bottom: 0, left: 0, right: 0,
-              height: 'calc(100vh / 6)',
+              height: 'calc(100vh / 3)',
               background: lightMode ? 'rgba(248,250,252,0.97)' : 'rgba(10,15,26,0.97)',
               borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
               zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -6661,7 +6671,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Vertical View panel — table mode, below main content */}
       {showVerticalView && tableMode && (
         <div style={{
-          height: 'calc(100vh / 6)',
+          height: 'calc(100vh / 3)',
           flexShrink: 0,
           background: lightMode ? '#f8fafc' : '#0a0f1a',
           borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
