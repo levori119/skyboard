@@ -3256,14 +3256,36 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const TOTAL_MS = END_MS - START_MS;
   const STRIP_DUR_MS = 1.5 * 60 * 60 * 1000;
 
-  const parseAlt = (alt: string): number | null => {
-    if (!alt) return null;
-    const s = alt.trim().toUpperCase().replace(/,/g, '');
-    const fl = s.match(/^F[L]?(\d+)/);
+  // Parse single altitude value
+  const parseAltSingle = (s: string): number | null => {
+    if (!s) return null;
+    const u = s.trim().toUpperCase().replace(/,/g, '');
+    const fl = u.match(/^F[L]?(\d+)/);
     if (fl) return parseInt(fl[1]) * 100;
-    const num = s.match(/(\d+)/);
-    if (num) return parseInt(num[1]);
+    const num = u.match(/^(\d+)$/);
+    if (num) {
+      const n = parseInt(num[1]);
+      // 3-digit numbers like 330 are treated as FL (×100)
+      return (n >= 100 && n <= 999) ? n * 100 : n;
+    }
     return null;
+  };
+
+  // Parse possibly-ranged altitude: "330-400" → {lo:33000, hi:40000}, "FL200" → {lo:20000, hi:20000}
+  const parseAltRange = (alt: string): { lo: number; hi: number } | null => {
+    if (!alt) return null;
+    const u = alt.trim().toUpperCase().replace(/,/g, '');
+    const rangeMatch = u.match(/(?:FL?)?(\d+)\s*[-–]\s*(?:FL?)?(\d+)/);
+    if (rangeMatch) {
+      let lo = parseInt(rangeMatch[1]);
+      let hi = parseInt(rangeMatch[2]);
+      if (lo >= 100 && lo <= 999) lo *= 100;
+      if (hi >= 100 && hi <= 999) hi *= 100;
+      if (lo > hi) [lo, hi] = [hi, lo];
+      return { lo, hi };
+    }
+    const single = parseAltSingle(alt);
+    return single !== null ? { lo: single, hi: single } : null;
   };
 
   const getTime = (s: any): number | null => {
@@ -3280,30 +3302,45 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const X_AXIS_H = 22;
   const Y_AXIS_W = 62;
 
-  const candidates = strips.map(s => ({ ...s, _time: getTime(s), _alt: parseAlt(s.alt) }))
-    .filter((s): s is typeof s & { _time: number; _alt: number } => s._time !== null && s._alt !== null);
+  const candidates = strips.map(s => {
+    const altR = parseAltRange(s.alt);
+    const time = getTime(s);
+    return { ...s, _time: time, _altLo: altR?.lo ?? null, _altHi: altR?.hi ?? null };
+  }).filter((s): s is typeof s & { _time: number; _altLo: number; _altHi: number } =>
+    s._time !== null && s._altLo !== null && s._altHi !== null
+  );
 
-  const rawMinAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._alt)) : 0;
-  const maxAlt    = candidates.length > 0 ? Math.max(...candidates.map(s => s._alt)) : 1000;
-  // Add 4-strip-height padding below the lowest strip so it doesn't sit at the very bottom
-  const rawRange   = Math.max(maxAlt - rawMinAlt, 500);
-  const altPerPx   = rawRange / CHART_H;
-  const bottomPad  = 4 * STRIP_H * altPerPx;
-  const minAlt     = rawMinAlt - bottomPad;
-  const altRange   = Math.max(maxAlt - minAlt, 500);
+  const rawMinAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._altLo)) : 0;
+  const maxAlt    = candidates.length > 0 ? Math.max(...candidates.map(s => s._altHi)) : 50000;
+  const rawRange  = Math.max(maxAlt - rawMinAlt, 5000);
+  const altPerPx  = rawRange / CHART_H;
+  const bottomPad = 3 * STRIP_H * altPerPx;
+  const minAlt    = rawMinAlt - bottomPad;
+  const altRange  = Math.max(maxAlt - minAlt, 5000);
+
+  // Convert altitude to % from top (0% = top = maxAlt)
+  const altPct = (alt: number) => (1 - (alt - minAlt) / altRange) * 100;
 
   const STRIP_W = (STRIP_DUR_MS / TOTAL_MS) * chartW;
   const timeToX = (ms: number) => ((ms - START_MS) / TOTAL_MS) * chartW;
+  // altToY still needed for conflict detection (pixel-based)
   const altToY = (alt: number) => (1 - (alt - minAlt) / altRange) * CHART_H;
 
-  type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean };
+  // For conflict detection use midpoint altitude
+  type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean; _isRange: boolean };
   const placed: Placed[] = candidates.map(s => ({
-    ...s, _x: timeToX(s._time), _y: altToY(s._alt), _hasConflict: false,
+    ...s,
+    _x: timeToX(s._time),
+    _y: altToY((s._altLo + s._altHi) / 2),
+    _hasConflict: false,
+    _isRange: s._altLo !== s._altHi,
   }));
 
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
       const a = placed[i], b = placed[j];
+      // Skip conflict nudge for range strips — they represent a block
+      if (a._isRange || b._isRange) continue;
       const xOvlp = a._x < b._x + STRIP_W && b._x < a._x + STRIP_W;
       const yDiff = Math.abs(a._y - b._y);
       if (xOvlp && yDiff < STRIP_H) {
@@ -3321,10 +3358,12 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const tickStart = Math.ceil(START_MS / tickStep) * tickStep;
   for (let t = tickStart; t <= END_MS; t += tickStep) ticks.push(t);
 
-  const altStep = altRange <= 3000 ? 500 : altRange <= 15000 ? 2000 : 5000;
+  // altStep in feet; rawRange already declared above
+  const altStep = rawRange <= 5000 ? 1000 : rawRange <= 15000 ? 2000 : rawRange <= 40000 ? 5000 : 10000;
   const altTickStart = Math.ceil(minAlt / altStep) * altStep;
   const altTicks: number[] = [];
   for (let a = altTickStart; a <= maxAlt + altStep * 0.1; a += altStep) altTicks.push(a);
+  const altLabel = (a: number) => a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
 
   const bg = lightMode ? '#f1f5f9' : '#0f172a';
   const gridLine = lightMode ? '#e2e8f0' : '#1e293b';
@@ -3338,16 +3377,16 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden', direction: 'ltr', background: bg, boxSizing: 'border-box' }}>
 
       {/* ── Y-axis column (always visible, no horizontal scroll) ── */}
-      <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg, position: 'relative' }}>
-        {/* Labels stretch over CHART_H area; spacer below for X-axis row */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
+        {/* Labels fill chart height — overflow visible so labels at edges aren't clipped */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
           {altTicks.map(a => {
-            const pct = (1 - (a - minAlt) / altRange) * 100;
-            if (pct < 0 || pct > 100) return null;
-            const label = a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
+            const pct = altPct(a);
+            if (pct < -2 || pct > 102) return null;
+            const clampedPct = Math.min(Math.max(pct, 1), 98);
             return (
-              <div key={a} style={{ position: 'absolute', top: `${pct}%`, transform: 'translateY(-50%)', right: 5, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1 }}>
-                {label}
+              <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right' }}>
+                {altLabel(a)}
               </div>
             );
           })}
@@ -3365,13 +3404,25 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
 
             {/* Altitude grid lines */}
             {altTicks.map(a => {
-              const pct = (1 - (a - minAlt) / altRange) * 100;
+              const pct = altPct(a);
               if (pct < 0 || pct > 100) return null;
-              return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />;
+              return (
+                <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />
+              );
             })}
 
-            {/* "Now" vertical line */}
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(now.getTime() - START_MS) / TOTAL_MS * 100}%`, width: 2, background: '#ef4444', opacity: 0.7, zIndex: 1, pointerEvents: 'none' }} />
+            {/* "Now" vertical line — current time */}
+            {(() => {
+              const nowPct = (now.getTime() - START_MS) / TOTAL_MS * 100;
+              return (
+                <>
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${nowPct}%`, width: 2, background: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
+                  <div style={{ position: 'absolute', top: 2, left: `${nowPct}%`, transform: 'translateX(3px)', fontSize: '9px', color: '#ef4444', fontWeight: 'bold', zIndex: 6, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+                    {now.getUTCHours().toString().padStart(2,'0')}:{now.getUTCMinutes().toString().padStart(2,'0')}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Conflict zone highlights */}
             {(() => {
@@ -3393,34 +3444,54 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
 
             {/* Strips */}
             {placed.map(s => {
-              // _x is pixel-based; convert to % of chartW
               const xPct = s._x / chartW * 100;
               const wPct = STRIP_W / chartW * 100;
               if (xPct + wPct < 0 || xPct > 100) return null;
-              // _y is pixel from top (altToY result, adjusted for conflicts)
-              // convert to % of CHART_H so it renders correctly inside the flex chart area
-              const yPct = s._y / CHART_H * 100;
-              const halfPct = (STRIP_H / 2 / CHART_H) * 100;
-              const clampedYPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
               const isConflict = s._hasConflict;
+              const sq = s.sq || s.squadron || '';
+
+              // Y positioning & height
+              let topPct: number, heightVal: string;
+              if (s._isRange) {
+                // Altitude block: span from altHi (top) to altLo (bottom)
+                const tp = altPct(s._altHi);
+                const bp = altPct(s._altLo);
+                topPct = Math.max(tp, 0);
+                heightVal = `${Math.max(bp - tp, 4)}%`;
+              } else {
+                // Single alt — use conflict-adjusted _y
+                const yPct = s._y / CHART_H * 100;
+                const halfPct = (STRIP_H / 2 / CHART_H) * 100;
+                topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+                heightVal = `${STRIP_H}px`;
+              }
+
+              const borderColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
+              const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
               return (
-                <div key={s.id} title={`${s.callSign} | גובה: ${s.alt} | ${timeField === 'zmm' ? 'זמ"מ' : 'המראה'}: ${s.takeoff_time ? new Date(s.takeoff_time).toISOString().slice(11, 16) : '—'}`} style={{
-                  position: 'absolute',
-                  left: `${Math.max(xPct, 0)}%`,
-                  top: `${clampedYPct}%`,
-                  width: `${wPct}%`,
-                  height: STRIP_H,
-                  background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
-                  border: `2px solid ${s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569'))}`,
-                  borderRadius: 3,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden', padding: '1px 4px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
-                }}>
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', fontWeight: 'bold', color: s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : boldTextColor) }}>
-                    {s.callSign || '—'}
+                <div key={s.id}
+                  title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt} | ${timeField === 'zmm' ? 'זמ"מ' : 'המראה'}: ${s.takeoff_time ? new Date(s.takeoff_time).toISOString().slice(11,16) : '—'}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${Math.max(xPct, 0)}%`,
+                    top: `${topPct}%`,
+                    width: `${wPct}%`,
+                    height: heightVal,
+                    background: s._isRange
+                      ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
+                      : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
+                    border: `2px solid ${borderColor}`,
+                    borderRadius: 4,
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
+                    overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
+                  }}>
+                  {/* Line 1: callSign / sq */}
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.2, color: textMainColor }}>
+                    {s.callSign || '—'}{sq ? ` / ${sq}` : ''}
                   </div>
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '9px', color: textColor }}>
-                    {[s.sq || s.squadron, s.alt].filter(Boolean).join(' | ')}
+                  {/* Line 2: altitude */}
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', lineHeight: 1.2, color: textColor }}>
+                    {s.alt || ''}
                   </div>
                 </div>
               );
