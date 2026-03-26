@@ -6575,18 +6575,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </>
           ))}
 
-          {/* Vertical View overlay — map mode only */}
-          {showVerticalView && !tableMode && (
-            <div style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0,
-              height: 'calc(100vh / 3)',
-              background: lightMode ? 'rgba(248,250,252,0.97)' : 'rgba(10,15,26,0.97)',
-              borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
-              zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            }}>
-              <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
-            </div>
-          )}
         </div>
 
         {/* Aids Panel */}
@@ -6858,8 +6846,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         />
       </div>
 
-      {/* Vertical View panel — table mode, below main content */}
-      {showVerticalView && tableMode && (
+      {/* Vertical View panel — full width, both map and table mode */}
+      {showVerticalView && (
         <div style={{
           height: 'calc(100vh / 3)',
           flexShrink: 0,
