@@ -1386,7 +1386,7 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
         <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
         <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
       </div>
-      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>SQ: {transfer.squadron}</div>}
+      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
         <span 
           ref={altRef}
@@ -2467,7 +2467,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
         <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
         <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
       </div>
-      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>SQ: {transfer.squadron}</div>}
+      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
       <div style={{ display: 'flex', gap: '8px', fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
         <span>גובה: {transfer.alt}</span>
       </div>
@@ -5422,7 +5422,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               ? activeMode.columns
               : [
                   { key: 'callSign', label: 'או"ק', editable: 'none' },
-                  { key: 'squadron', label: 'SQ', editable: 'none' },
+                  { key: 'squadron', label: 'טייסת', editable: 'none' },
                   { key: 'weapons', label: 'חימושים', editable: 'none' },
                   { key: 'targets', label: "מטרות", editable: 'none' },
                   { key: 'shkadia', label: 'שקדיה', editable: 'none' },
@@ -5595,7 +5595,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         ) : (
                           <div onClick={() => setTableEditingCell(sqCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: currentSq ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>SQ</span>}</span>
+                            <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(sqCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
@@ -7854,7 +7854,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 const STRIP_FIELD_DEFS = [
   { key: 'callSign',          label: 'או"ק',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'airborne',          label: 'מאוויר',        editableOptions: ['none', 'toggle'] },
-  { key: 'sq',                label: 'SQ',            editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'sq',                label: 'טייסת',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'numberOfFormation', label: "מ' מערך",       editableOptions: ['none', 'keyboard'] },
   { key: 'task',              label: 'משימה',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'alt',               label: 'גובה',          editableOptions: ['none', 'keyboard', 'both'] },
@@ -9884,7 +9884,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   <div><strong style={{color:'white'}}>עמודות חובה:</strong> <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px'}}>callSign</code></div>
                   <div><strong style={{color:'white'}}>עמודות אופציונליות:</strong></div>
                   <div style={{paddingRight:'16px'}}>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>sq</code> — SQ (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>SQ</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>squadron</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>טייסת</code>)<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>sq</code> — טייסת (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>SQ</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>squadron</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>טייסת</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>NUMBEROFFORMATION</code> — מספר מערך (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>numberOfFormation</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>number_of_formation</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>alt</code> — גובה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
