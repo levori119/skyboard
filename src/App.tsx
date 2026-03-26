@@ -350,21 +350,21 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
             </circle>
             {/* Orbit path (invisible) */}
             <path id="loginOrbitPath" d="M 62,36 A 26,26 0 1,1 61.99,35.98" fill="none"/>
-            {/* Airplane flying along the orbit */}
+            {/* Fighter jet flying along the orbit */}
             <g filter="url(#lglow)">
               <animateMotion dur="7s" repeatCount="indefinite" rotate="auto">
                 <mpath href="#loginOrbitPath"/>
               </animateMotion>
-              {/* Top-down plane pointing right (+X) — fuselage */}
-              <ellipse cx="0" cy="0" rx="8" ry="2.2" fill="white"/>
-              {/* Wings (swept back) */}
-              <polygon points="1.5,-0.8  -4,-10  -2.5,-0.8" fill="#93c5fd"/>
-              <polygon points="1.5, 0.8  -4, 10  -2.5, 0.8" fill="#93c5fd"/>
-              {/* Tail fins */}
-              <polygon points="-5.5,-0.8  -8.5,-4.5  -7,-0.8" fill="#bfdbfe"/>
-              <polygon points="-5.5, 0.8  -8.5, 4.5  -7, 0.8" fill="#bfdbfe"/>
-              {/* Engine glow */}
-              <circle cx="0" cy="0" r="1.5" fill="#dbeafe" opacity="0.6"/>
+              {/* Fuselage — sharp pointed dart */}
+              <polygon points="10,0  5,1.3  -9,2  -9,-2  5,-1.3" fill="white"/>
+              {/* Delta wings — large swept triangles */}
+              <polygon points="3,1.3  -7,11  -9,2" fill="#93c5fd"/>
+              <polygon points="3,-1.3  -7,-11  -9,-2" fill="#93c5fd"/>
+              {/* Twin tail fins */}
+              <polygon points="-8,2  -11,5  -9.5,2" fill="#bfdbfe"/>
+              <polygon points="-8,-2  -11,-5  -9.5,-2" fill="#bfdbfe"/>
+              {/* Cockpit glint */}
+              <circle cx="6.5" cy="0" r="1.3" fill="#dbeafe" opacity="0.8"/>
             </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
@@ -4896,21 +4896,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <animate attributeName="r"       values="0;0;3;2;0"   keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0;0;1;0.6;0" keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
               </circle>
-              {/* Airplane — banking animation */}
+              {/* Fighter jet — banking animation */}
               <g transform="translate(36,36)">
                 <animateTransform attributeName="transform" additive="sum" type="rotate"
                   values="-18;18;-18" dur="2.8s" repeatCount="indefinite"
                   calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1"/>
-                {/* Fuselage (top-down, pointing up = -Y in SVG) */}
-                <ellipse cx="0" cy="0" rx="2.5" ry="11" fill="white"/>
-                {/* Wings */}
-                <polygon points="-0.5,-3  -13,4  0.5,-3" fill="#93c5fd"/>
-                <polygon points="0.5,-3   13,4 -0.5,-3" fill="#93c5fd"/>
-                {/* Tail */}
-                <polygon points="-0.5,8  -5,13  0.5,8" fill="#bfdbfe"/>
-                <polygon points="0.5,8    5,13 -0.5,8" fill="#bfdbfe"/>
+                {/* Fuselage (top-down, pointing up = -Y in SVG) — sharp dart */}
+                <polygon points="0,-12  1.4,-7  2,7  -2,7  -1.4,-7" fill="white"/>
+                {/* Delta wings — large swept triangles */}
+                <polygon points="-1.4,-5  -14,7  -2,7" fill="#93c5fd"/>
+                <polygon points="1.4,-5   14,7  2,7" fill="#93c5fd"/>
+                {/* Twin tail fins */}
+                <polygon points="-2,7  -5,12  -2,9.5" fill="#bfdbfe"/>
+                <polygon points="2,7   5,12  2,9.5" fill="#bfdbfe"/>
                 {/* Cockpit glint */}
-                <circle cx="0" cy="-9" r="1.2" fill="#dbeafe" opacity="0.8"/>
+                <circle cx="0" cy="-9.5" r="1.2" fill="#dbeafe" opacity="0.8"/>
               </g>
             </svg>
             <div>
