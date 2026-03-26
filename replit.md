@@ -128,3 +128,10 @@ Preferred communication style: Simple, everyday language.
 - Conflict visual: panel header turns dark red with a red border + "⚠️ קונפליקט גובה" badge; each conflicting outgoing card goes dark red; `DraggableIncomingTransferMini` receives `isConflict` prop and also turns dark red
 - Alt parsing: first integer found in alt string via regex (handles "176", "400-330", etc.)
 - Setting delta to 0 disables conflict detection entirely
+
+## Relevant Control Stations per Workstation (תאי שליטה רלוונטיים)
+- `relevant_control_stations JSONB` column on `workstation_presets` (nullable array of station name strings)
+- Admin preset form: "📡 תאי שליטה רלוונטיים לעמדה" section with toggle buttons per station (loaded from existing serials); "בחר הכל" / "נקה הכל" buttons; if empty → no filter (all stations shown)
+- `relevantControlStations` + `relevantSerials` derived in SectorDashboard; if preset has stations defined, serials are filtered to those only
+- Toolbar serial flash button: only checks strips in `myStrips`/`myTableStrips` (not all strips globally) and only for relevant stations — fixes flashing at transit workstations
+- SerialsPanelModal, Strip map card, table mode serial picker, and sidebar serial badges all use `relevantSerials` instead of full `serials`

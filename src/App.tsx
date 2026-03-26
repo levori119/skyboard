@@ -4208,6 +4208,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Determine the effective query filter for this workstation
   const myPresetConfig = workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
+  // If the preset defines relevant control stations, filter serials to those only
+  const relevantControlStations: string[] | null = (myPresetConfig?.relevant_control_stations && myPresetConfig.relevant_control_stations.length > 0)
+    ? myPresetConfig.relevant_control_stations
+    : null;
+  const relevantSerials = relevantControlStations
+    ? serials.filter((sr: any) => relevantControlStations.includes(sr.control_station))
+    : serials;
   // Personal filter takes priority over admin filter; if either is active, use query-based filtering
   // While the panel is open, apply the draft filter live for real-time preview
   const _rawFilter: QGroup | null = (showPersonalFilter && personalFilterDraft)
@@ -5302,9 +5309,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {/* כפתור ספרורים */}
           {(() => {
+            const myStripIds = new Set([...myStrips, ...myTableStrips].map(s => s.id));
             const hasSerialAlerts = stripSerialSelections.some(sel => {
               if (sel.dismissed) return false;
-              const latestForStation = serials.filter(sr => sr.control_station === sel.control_station).sort((a,b) => b.serial_number - a.serial_number)[0];
+              if (!myStripIds.has(sel.strip_id)) return false;
+              if (relevantControlStations && !relevantControlStations.includes(sel.control_station)) return false;
+              const latestForStation = relevantSerials.filter(sr => sr.control_station === sel.control_station).sort((a,b) => b.serial_number - a.serial_number)[0];
               return latestForStation && sel.serial_id && latestForStation.id !== sel.serial_id;
             });
             return (
@@ -5328,7 +5338,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Serials Panel Modal */}
       {showSerialsPanel && (
         <SerialsPanelModal
-          serials={serials}
+          serials={relevantSerials}
           onClose={() => setShowSerialsPanel(false)}
           lightMode={lightMode}
         />
@@ -6084,7 +6094,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 case 'serials': {
                   const serialCellKey = s.id + '__serials';
                   const isEditingSerials = tableEditingCell === serialCellKey;
-                  const allStations = Array.from(new Set(serials.map((sr: any) => sr.control_station))).sort() as string[];
+                  const allStations = Array.from(new Set(relevantSerials.map((sr: any) => sr.control_station))).sort() as string[];
                   const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id);
 
                   // Collapsed view: show badges
@@ -6107,9 +6117,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                           {allStations.length === 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>אין ספרורים</div>}
                           {allStations.map((station: string) => {
-                            const latestSerial = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const latestSerial = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const mySelection = mySelections.find((sel: any) => sel.control_station === station);
-                            const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
+                            const mySerial = mySelection?.serial_id ? relevantSerials.find((sr: any) => sr.id === mySelection.serial_id) : null;
                             const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
                             return (
                               <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: '11px' }}>
@@ -6148,8 +6158,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {hasBadges ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {activeBadges.map((sel: any) => {
-                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
-                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const isOutdated = latest && latest.id !== sel.serial_id;
                             return (
                               <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''}
@@ -6162,7 +6172,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
                       ) : (
                         <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic' }}>
-                          {serials.length > 0 ? '+ הוסף' : '—'}
+                          {relevantSerials.length > 0 ? '+ הוסף' : '—'}
                         </span>
                       )}
                     </td>
@@ -6651,7 +6661,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateNotes={handleUpdateStripNotes}
                 onUpdateDetails={handleUpdateStripDetails}
                 zoom={mapZoom}
-                serials={serials}
+                serials={relevantSerials}
                 serialSelections={stripSerialSelections}
                 onSerialSelect={handleSerialSelect}
                 onSerialDismiss={handleSerialDismiss}
@@ -7011,8 +7021,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       return (
                         <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
                           {mySelections.map((sel: any) => {
-                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
-                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const isOutdated = selSerial && latest && latest.id !== selSerial.id;
                             return (
                               <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
@@ -7092,8 +7102,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       return (
                         <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
                           {mySelections.map((sel: any) => {
-                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
-                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const isOutdated = selSerial && latest && latest.id !== selSerial.id;
                             return (
                               <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
@@ -9405,6 +9415,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   const [presets, setPresets] = useState<any[]>([]);
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [tableModes, setTableModes] = useState<any[]>([]);
+  const [adminSerials, setAdminSerials] = useState<any[]>([]);
   
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
@@ -9424,23 +9435,26 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
     partial_load: 3 as number,
     full_load: 5 as number,
     conflict_alt_delta: 500 as number,
+    relevant_control_stations: [] as string[],
     filter_query: null as QGroup | null,
   });
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
         fetch(`${API_URL}/crew-members`),
-        fetch(`${API_URL}/table-modes`)
+        fetch(`${API_URL}/table-modes`),
+        fetch(`${API_URL}/serials`)
       ]);
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
       if (crewRes.ok) setCrewMembers(await crewRes.json());
       if (tableModesRes.ok) setTableModes(await tableModesRes.json());
+      if (serialsRes.ok) setAdminSerials(await serialsRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -9560,11 +9574,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           partial_load: presetForm.partial_load,
           full_load: presetForm.full_load,
           conflict_alt_delta: presetForm.conflict_alt_delta,
+          relevant_control_stations: presetForm.relevant_control_stations.length > 0 ? presetForm.relevant_control_stations : null,
           filter_query: presetForm.filter_query || null,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, filter_query: null });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -9581,6 +9596,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       partial_load: preset.partial_load ?? 3,
       full_load: preset.full_load ?? 5,
       conflict_alt_delta: preset.conflict_alt_delta ?? 500,
+      relevant_control_stations: preset.relevant_control_stations || [],
       filter_query: preset.filter_query || null,
     });
   };
@@ -9783,6 +9799,48 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </div>
                 </div>
 
+                {/* Relevant Control Stations */}
+                <div style={{ marginTop: '14px' }}>
+                  <label style={{ display: 'block', marginBottom: '6px', color: '#38bdf8', fontSize: '13px' }}>📡 תאי שליטה רלוונטיים לעמדה:</label>
+                  {(() => {
+                    const allAdminStations = Array.from(new Set(adminSerials.map((s: any) => s.control_station))).sort() as string[];
+                    if (allAdminStations.length === 0) {
+                      return <p style={{ color: '#64748b', fontSize: '11px', margin: 0 }}>אין ספרורים במערכת — יש לייבא ספרורים בלשונית "ספרורים" תחילה.</p>;
+                    }
+                    return (
+                      <>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '6px' }}>
+                          {allAdminStations.map(st => {
+                            const isSelected = presetForm.relevant_control_stations.includes(st);
+                            return (
+                              <button
+                                key={st}
+                                type="button"
+                                onClick={() => setPresetForm(p => ({
+                                  ...p,
+                                  relevant_control_stations: isSelected
+                                    ? p.relevant_control_stations.filter(x => x !== st)
+                                    : [...p.relevant_control_stations, st]
+                                }))}
+                                style={{ padding: '4px 10px', borderRadius: '6px', border: `1px solid ${isSelected ? '#38bdf8' : '#334155'}`, background: isSelected ? '#0369a1' : '#1e293b', color: isSelected ? 'white' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isSelected ? 'bold' : 'normal' }}
+                              >
+                                {isSelected ? '✓ ' : ''}{st}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button type="button" onClick={() => setPresetForm(p => ({ ...p, relevant_control_stations: allAdminStations }))} style={{ fontSize: '11px', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>בחר הכל</button>
+                          <button type="button" onClick={() => setPresetForm(p => ({ ...p, relevant_control_stations: [] }))} style={{ fontSize: '11px', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}>נקה הכל</button>
+                        </div>
+                        <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                          אם לא נבחר אף תא שליטה — יוצגו כל תאי השליטה. אם נבחרו — רק הנבחרים יוצגו בעמדה.
+                        </p>
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -9830,7 +9888,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, filter_query: null }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
