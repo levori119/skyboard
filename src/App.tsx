@@ -8865,45 +8865,38 @@ const SerialsAdminTab = () => {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[];
 
-        // Normalize a key: remove whitespace, lowercase, remove special chars
-        const normalizeKey = (k: string) => k.trim().toLowerCase().replace(/[\s_\-\.]+/g, '');
+        // Strip all whitespace/punctuation and lowercase for flexible matching
+        const norm = (s: string) => s.trim().replace(/[\s\u00a0\u200b\u200f\u202a-\u202e\r\n\t_\-\.\/\\]+/g, '').toLowerCase();
 
-        // Flexible column map: normalized key → field name
-        const colMap: Record<string, string> = {
-          'תאשליטה': 'control_station',
-          'controlstation': 'control_station',
-          'תאשלד': 'control_station',
-          'מספרספרור': 'serial_number',
-          'serialnumber': 'serial_number',
-          'מספרסדרה': 'serial_number',
-          'מהותספרור': 'essence',
-          'מהות': 'essence',
-          'essence': 'essence',
-          'תוכן': 'essence',
-          'רלוונטיל': 'relevant_to',
-          'רלוונטי': 'relevant_to',
-          'relevantto': 'relevant_to',
-          'קהלמטרה': 'relevant_to',
-          'תאריךושעה': 'created_at',
-          'תאריך': 'created_at',
-          'createdat': 'created_at',
-          'שעהותאריך': 'created_at',
-          'זמן': 'created_at',
+        // Detect which DB field a column name belongs to (contains-based, ordered by specificity)
+        const detectField = (colName: string): string | null => {
+          const n = norm(colName);
+          // control_station
+          if (n.includes('תאשליטה') || n.includes('controlstation') || n === 'תא') return 'control_station';
+          // serial_number — check BEFORE מהות to avoid partial match
+          if (n.includes('מספרספרור') || n.includes('מס׳ספרור') || n.includes('מספרserialnumber') || n === 'מספר' || n === 'ספרור' || n.includes('serialnumber')) return 'serial_number';
+          // essence — מהות
+          if (n.includes('מהות') || n === 'essence') return 'essence';
+          // relevant_to — רלוונטי
+          if (n.includes('רלוונטי') || n.includes('relevantto') || n.includes('קהלמטרה')) return 'relevant_to';
+          // created_at — תאריך
+          if (n.includes('תאריך') || n.includes('שעה') || n.includes('זמן') || n.includes('createdat')) return 'created_at';
+          return null;
         };
 
         // Helper: convert Excel date value to ISO string
         const toDateStr = (v: any): string | null => {
-          if (!v) return null;
-          if (v instanceof Date) return v.toISOString();
+          if (!v && v !== 0) return null;
+          if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString();
           if (typeof v === 'string' && v.trim()) {
+            // Try standard parse
             const d = new Date(v);
             if (!isNaN(d.getTime())) return d.toISOString();
-            // Try DD/MM/YYYY HH:MM format
-            const m = v.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\s*(?:(\d{1,2}):(\d{2}))?/);
+            // Try DD/MM/YYYY[ HH:MM] format
+            const m = v.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})(?:\s+(\d{1,2}):(\d{2}))?/);
             if (m) {
               const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-              const dateStr = `${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${(m[4]||'00').padStart(2,'0')}:${(m[5]||'00').padStart(2,'0')}:00`;
-              const d2 = new Date(dateStr);
+              const d2 = new Date(`${year}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T${(m[4]||'00').padStart(2,'0')}:${(m[5]||'00').padStart(2,'0')}:00`);
               if (!isNaN(d2.getTime())) return d2.toISOString();
             }
           }
@@ -8915,23 +8908,20 @@ const SerialsAdminTab = () => {
           return String(v);
         };
 
+        const rawKeys = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+        const detectedCols = rawKeys.join(', ');
+        console.log('[Serials Import] columns:', rawKeys, '| normalized:', rawKeys.map(k => `${k}→${norm(k)}→${detectField(k)}`));
+
         const rows = rawRows.map(r => {
           const mapped: any = {};
           for (const [k, v] of Object.entries(r)) {
-            const norm = normalizeKey(k);
-            const field = colMap[norm];
+            const field = detectField(k);
             if (field) {
-              if (field === 'created_at') {
-                mapped[field] = toDateStr(v);
-              } else {
-                mapped[field] = v;
-              }
+              mapped[field] = field === 'created_at' ? toDateStr(v) : v;
             }
           }
           return mapped;
         });
-
-        const detectedCols = rawRows.length > 0 ? Object.keys(rawRows[0]).join(', ') : '';
         const res = await fetch(`${API_URL}/serials/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8939,10 +8929,12 @@ const SerialsAdminTab = () => {
         });
         if (res.ok) {
           const { imported } = await res.json();
-          setImportResult(`יובאו ${imported} ספרורים בהצלחה${detectedCols ? ` (עמודות: ${detectedCols})` : ''}`);
+          const mappedFields = rawKeys.map(k => `${k}→${detectField(k) ?? '?'}`).join(', ');
+          setImportResult(`יובאו ${imported} ספרורים בהצלחה\nמיפוי עמודות: ${mappedFields}`);
           loadSerials();
         } else {
-          setImportResult('שגיאה בייבוא');
+          const errText = await res.text();
+          setImportResult(`שגיאה בייבוא: ${errText}`);
         }
       } catch (err) {
         setImportResult(`שגיאה בקריאת הקובץ: ${err}`);
@@ -8986,7 +8978,7 @@ const SerialsAdminTab = () => {
           </button>
         </div>
         {importResult && (
-          <div style={{ marginTop: '10px', padding: '8px 12px', background: importResult.includes('שגיאה') ? '#dc2626' : '#10b981', borderRadius: '6px', fontSize: '13px' }}>
+          <div style={{ marginTop: '10px', padding: '8px 12px', background: importResult.includes('שגיאה') ? '#dc2626' : '#10b981', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
             {importResult}
           </div>
         )}
