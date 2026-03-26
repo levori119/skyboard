@@ -7455,22 +7455,13 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               onChange={e => setNewStrip({ ...newStrip, callSign: e.target.value })}
               style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
             />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="טייסת"
-                value={newStrip.squadron}
-                onChange={e => setNewStrip({ ...newStrip, squadron: e.target.value })}
-                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 2 }}
-              />
-              <input
-                type="text"
-                placeholder="מס׳"
-                value={newStrip.sq}
-                onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
-                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
-              />
-            </div>
+            <input
+              type="text"
+              placeholder="טייסת"
+              value={newStrip.sq}
+              onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
+              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
+            />
             <input
               type="text"
               placeholder="גובה"
