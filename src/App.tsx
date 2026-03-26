@@ -2542,6 +2542,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
+  const [serialRowMenu, setSerialRowMenu] = useState<{x: number; y: number; station: string; latestSerialId: number} | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
@@ -3014,7 +3015,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
                     const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
                     return (
-                      <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', fontSize: '8px' }}>
+                      <div
+                        key={station}
+                        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setSerialRowMenu({ x: e.clientX, y: e.clientY, station, latestSerialId: latestSerial.id }); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', fontSize: '8px', cursor: 'context-menu' }}
+                      >
                         <span style={{ color: '#64748b', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
                         <span style={{ color: isOutdated ? '#dc2626' : '#374151', fontWeight: isOutdated ? 'bold' : 'normal', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️ חדש: #${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
@@ -3047,6 +3052,27 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           onComplete={(val: string) => { onUpdate(s.id, val); setEdit(false); }} 
           anchorRect={anchorRect}
         />
+      )}
+      {serialRowMenu && (
+        <>
+          <div onClick={() => setSerialRowMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
+          <div style={{ position: 'fixed', left: serialRowMenu.x, top: serialRowMenu.y, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '160px', overflow: 'hidden', direction: 'rtl' }}>
+            <div style={{ padding: '4px 0' }}>
+              <button
+                onClick={() => { onSerialSelect && onSerialSelect(s.id, serialRowMenu.station, serialRowMenu.latestSerialId, false); setSerialRowMenu(null); }}
+                style={{ width: '100%', background: 'none', border: 'none', color: '#e2e8f0', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >✅ קבל ספרור</button>
+              <button
+                onClick={() => { onSerialDismiss && onSerialDismiss(s.id, serialRowMenu.station); setSerialRowMenu(null); }}
+                style={{ width: '100%', background: 'none', border: 'none', color: '#fca5a5', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >🚫 לא רלוונטי</button>
+            </div>
+          </div>
+        </>
       )}
       {contextMenu && (
         <ContextMenu 
