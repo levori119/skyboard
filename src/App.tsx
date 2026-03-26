@@ -9013,12 +9013,12 @@ const SerialsAdminTab = () => {
         const res = await fetch(`${API_URL}/serials/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows, replace: true }),
+          body: JSON.stringify({ rows }),
         });
         if (res.ok) {
-          const { imported } = await res.json();
+          const { inserted, updated, skipped } = await res.json();
           const mappedFields = rawKeys.map(k => `${k}→${detectField(k) ?? '?'}`).join(', ');
-          setImportResult(`יובאו ${imported} ספרורים בהצלחה\nמיפוי עמודות: ${mappedFields}`);
+          setImportResult(`חדשים: ${inserted} | עודכנו: ${updated} | דילוג (זהים): ${skipped}\nמיפוי עמודות: ${mappedFields}`);
           loadSerials();
         } else {
           const errText = await res.text();

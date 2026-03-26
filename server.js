@@ -2126,21 +2126,36 @@ app.get('/api/serials', async (req, res) => {
 
 app.post('/api/serials/import', async (req, res) => {
   try {
-    const { rows, replace } = req.body;
-    if (replace) {
-      await pool.query('DELETE FROM serials');
-    }
-    let imported = 0;
+    const { rows } = req.body;
+    let inserted = 0, updated = 0, skipped = 0;
     for (const row of rows) {
       const { control_station, serial_number, essence, relevant_to, created_at } = row;
-      if (!control_station || !serial_number) continue;
-      await pool.query(
-        'INSERT INTO serials (control_station, serial_number, essence, relevant_to, created_at) VALUES ($1,$2,$3,$4,$5)',
-        [control_station, serial_number, essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date()]
+      if (!control_station || serial_number == null || serial_number === '') continue;
+      const existing = await pool.query(
+        'SELECT id, essence FROM serials WHERE control_station = $1 AND serial_number = $2',
+        [control_station, serial_number]
       );
-      imported++;
+      if (existing.rows.length > 0) {
+        const existingEssence = existing.rows[0].essence || '';
+        const newEssence = essence || '';
+        if (existingEssence === newEssence) {
+          skipped++;
+        } else {
+          await pool.query(
+            'UPDATE serials SET essence = $1, relevant_to = $2, created_at = $3 WHERE id = $4',
+            [essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date(), existing.rows[0].id]
+          );
+          updated++;
+        }
+      } else {
+        await pool.query(
+          'INSERT INTO serials (control_station, serial_number, essence, relevant_to, created_at) VALUES ($1,$2,$3,$4,$5)',
+          [control_station, serial_number, essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date()]
+        );
+        inserted++;
+      }
     }
-    res.json({ imported });
+    res.json({ imported: inserted + updated, inserted, updated, skipped });
   } catch (err) { res.status(500).json({ error: 'Failed to import serials' }); }
 });
 
