@@ -5966,7 +5966,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       title="לחץ לעריכת ספרורים"
                     >
                       {hasBadges ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {activeBadges.map((sel: any) => {
                             const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
                             const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
