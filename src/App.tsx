@@ -3190,6 +3190,194 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
   );
 };
 
+// --- תצוגה ורטיקאלית ---
+const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [chartW, setChartW] = React.useState(800);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(entries => setChartW(Math.max(entries[0].contentRect.width - 56, 300)));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const now = new Date();
+  const START_MS = now.getTime() - 60 * 60 * 1000;
+  const END_MS = now.getTime() + 5 * 60 * 60 * 1000;
+  const TOTAL_MS = END_MS - START_MS;
+  const STRIP_DUR_MS = 1.5 * 60 * 60 * 1000;
+
+  const parseAlt = (alt: string): number | null => {
+    if (!alt) return null;
+    const s = alt.trim().toUpperCase().replace(/,/g, '');
+    const fl = s.match(/^F[L]?(\d+)/);
+    if (fl) return parseInt(fl[1]) * 100;
+    const num = s.match(/(\d+)/);
+    if (num) return parseInt(num[1]);
+    return null;
+  };
+
+  const getTime = (s: any): number | null => {
+    const raw = timeField === 'zmm'
+      ? (s.zmm_time || s.zmm || s.takeoff_time)
+      : s.takeoff_time;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  };
+
+  const CHART_H = 110;
+  const STRIP_H = 26;
+  const X_AXIS_H = 20;
+  const Y_AXIS_W = 56;
+
+  const candidates = strips.map(s => ({ ...s, _time: getTime(s), _alt: parseAlt(s.alt) }))
+    .filter((s): s is typeof s & { _time: number; _alt: number } => s._time !== null && s._alt !== null);
+
+  const minAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._alt)) : 0;
+  const maxAlt = candidates.length > 0 ? Math.max(...candidates.map(s => s._alt)) : 1000;
+  const altRange = Math.max(maxAlt - minAlt, 500);
+
+  const STRIP_W = (STRIP_DUR_MS / TOTAL_MS) * chartW;
+  const timeToX = (ms: number) => ((ms - START_MS) / TOTAL_MS) * chartW;
+  const altToY = (alt: number) => (1 - (alt - minAlt) / altRange) * CHART_H;
+
+  type Placed = typeof candidates[0] & { _x: number; _y: number; _hasConflict: boolean };
+  const placed: Placed[] = candidates.map(s => ({
+    ...s, _x: timeToX(s._time), _y: altToY(s._alt), _hasConflict: false,
+  }));
+
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const a = placed[i], b = placed[j];
+      const xOvlp = a._x < b._x + STRIP_W && b._x < a._x + STRIP_W;
+      const yDiff = Math.abs(a._y - b._y);
+      if (xOvlp && yDiff < STRIP_H) {
+        placed[i]._hasConflict = true;
+        placed[j]._hasConflict = true;
+        const shift = (STRIP_H - yDiff) / 2 + 2;
+        if (a._y <= b._y) { placed[i]._y -= shift; placed[j]._y += shift; }
+        else { placed[i]._y += shift; placed[j]._y -= shift; }
+      }
+    }
+  }
+
+  const ticks: number[] = [];
+  const tickStep = 30 * 60 * 1000;
+  const tickStart = Math.ceil(START_MS / tickStep) * tickStep;
+  for (let t = tickStart; t <= END_MS; t += tickStep) ticks.push(t);
+
+  const altStep = altRange <= 3000 ? 500 : altRange <= 15000 ? 2000 : 5000;
+  const altTickStart = Math.ceil(minAlt / altStep) * altStep;
+  const altTicks: number[] = [];
+  for (let a = altTickStart; a <= maxAlt + altStep * 0.1; a += altStep) altTicks.push(a);
+
+  const bg = lightMode ? '#f1f5f9' : '#0f172a';
+  const gridLine = lightMode ? '#e2e8f0' : '#1e293b';
+  const textColor = lightMode ? '#64748b' : '#94a3b8';
+  const boldTextColor = lightMode ? '#1e293b' : '#e2e8f0';
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflowX: 'auto', overflowY: 'hidden', direction: 'ltr', boxSizing: 'border-box', display: 'flex', alignItems: 'stretch' }}>
+      <div style={{ position: 'relative', minWidth: chartW + Y_AXIS_W, height: CHART_H + X_AXIS_H + 8, margin: '4px 0 0 0', flexShrink: 0 }}>
+
+        {/* Chart area */}
+        <div style={{ position: 'absolute', left: 0, top: 0, width: chartW, height: CHART_H, background: bg, borderBottom: `1px solid ${gridLine}`, borderRight: `1px solid ${gridLine}`, overflow: 'visible' }}>
+          {/* Altitude grid lines */}
+          {altTicks.map(a => (
+            <div key={a} style={{ position: 'absolute', top: altToY(a), left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />
+          ))}
+
+          {/* "Now" vertical line */}
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: timeToX(now.getTime()), width: 2, background: '#ef4444', opacity: 0.7, zIndex: 1 }} />
+
+          {/* Conflict zone red background between conflicting strips */}
+          {(() => {
+            const zones: { x1: number; x2: number }[] = [];
+            for (let i = 0; i < placed.length; i++) {
+              for (let j = i + 1; j < placed.length; j++) {
+                const a = placed[i], b = placed[j];
+                if (a._hasConflict && b._hasConflict) {
+                  const x1 = Math.max(a._x, b._x);
+                  const x2 = Math.min(a._x + STRIP_W, b._x + STRIP_W);
+                  if (x2 > x1) zones.push({ x1, x2 });
+                }
+              }
+            }
+            return zones.map((z, idx) => (
+              <div key={idx} style={{ position: 'absolute', top: 0, bottom: 0, left: Math.max(z.x1, 0), width: Math.min(z.x2, chartW) - Math.max(z.x1, 0), background: 'rgba(239,68,68,0.18)', zIndex: 0, pointerEvents: 'none' }} />
+            ));
+          })()}
+
+          {/* Strips */}
+          {placed.map(s => {
+            if (s._x + STRIP_W < 0 || s._x > chartW) return null;
+            const isConflict = s._hasConflict;
+            const clampedX = Math.max(s._x, 0);
+            const clampedY = Math.min(Math.max(s._y - STRIP_H / 2, 0), CHART_H - STRIP_H);
+            return (
+              <div key={s.id} title={`${s.callSign} | גובה: ${s.alt} | ${timeField === 'zmm' ? 'זמ"מ' : 'המראה'}: ${s.takeoff_time ? new Date(s.takeoff_time).toISOString().slice(11, 16) : '—'}`} style={{
+                position: 'absolute',
+                left: clampedX,
+                top: clampedY,
+                width: STRIP_W - 2,
+                height: STRIP_H,
+                background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
+                border: `2px solid ${s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569'))}`,
+                borderRadius: 3,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', padding: '1px 4px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
+              }}>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', fontWeight: 'bold', color: s.airborne ? '#3b82f6' : (isConflict ? '#ef4444' : boldTextColor) }}>
+                  {s.callSign || '—'}
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '9px', color: textColor }}>
+                  {[s.sq || s.squadron, s.alt].filter(Boolean).join(' | ')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Y-axis labels */}
+        <div style={{ position: 'absolute', left: chartW, top: 0, width: Y_AXIS_W, height: CHART_H, fontSize: '9px', color: textColor }}>
+          {altTicks.map(a => (
+            <div key={a} style={{ position: 'absolute', top: altToY(a) - 6, left: 4, lineHeight: '12px', whiteSpace: 'nowrap' }}>
+              {a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(a)}
+            </div>
+          ))}
+        </div>
+
+        {/* X-axis ticks */}
+        <div style={{ position: 'absolute', top: CHART_H + 2, left: 0, width: chartW, height: X_AXIS_H, fontSize: '9px', color: textColor }}>
+          {ticks.map(t => {
+            const x = timeToX(t);
+            if (x < 0 || x > chartW) return null;
+            const d = new Date(t);
+            const hh = d.getUTCHours().toString().padStart(2, '0');
+            const mm = d.getUTCMinutes().toString().padStart(2, '0');
+            const isHour = mm === '00';
+            return (
+              <div key={t} style={{ position: 'absolute', left: x, transform: 'translateX(-50%)', top: 2, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal' }}>
+                {hh}:{mm}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Empty state */}
+        {candidates.length === 0 && (
+          <div style={{ position: 'absolute', top: 0, left: 0, width: chartW, height: CHART_H, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
+            אין פממים עם זמן וגובה להצגה
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const [strips, setStrips] = useState<any[]>([]);
@@ -3381,6 +3569,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showNotepadOSK, setShowNotepadOSK] = useState(false);
   const notepadSavedImageRef = useRef<string | null>(null);
   const notepadCanvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Vertical View state
+  const [showVerticalView, setShowVerticalView] = useState(false);
+  const [verticalTimeField, setVerticalTimeField] = useState<'takeoff' | 'zmm'>('takeoff');
   const notepadDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const notepadDrawingRef = useRef(false);
   const notepadLastRef = useRef<{ x: number; y: number } | null>(null);
@@ -4382,6 +4574,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => setShowVerticalView(v => !v)}
+            title="תצוגה ורטיקאלית – גבהי פממים על ציר זמן"
+            style={{ background: showVerticalView ? '#6d28d9' : '#334155', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', color: 'white', fontWeight: showVerticalView ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+          >📊 תצוגה ורטיקאלית</button>
+          {showVerticalView && (
+            <select
+              value={verticalTimeField}
+              onChange={e => setVerticalTimeField(e.target.value as 'takeoff' | 'zmm')}
+              style={{ background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer' }}
+            >
+              <option value="takeoff">זמן המראה</option>
+              <option value="zmm">זמ"מ</option>
+            </select>
+          )}
 
           <button
             onClick={() => setLightMode(v => !v)}
@@ -6116,6 +6324,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               )}
             </>
           ))}
+
+          {/* Vertical View overlay — map mode only */}
+          {showVerticalView && !tableMode && (
+            <div style={{
+              position: 'absolute', bottom: 0, left: 0, right: 0,
+              height: 'calc(100vh / 6)',
+              background: lightMode ? 'rgba(248,250,252,0.97)' : 'rgba(10,15,26,0.97)',
+              borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+              zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}>
+              <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
+            </div>
+          )}
         </div>
 
         {/* Aids Panel */}
@@ -6386,6 +6607,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           setNotes={setStickyNotes}
         />
       </div>
+
+      {/* Vertical View panel — table mode, below main content */}
+      {showVerticalView && tableMode && (
+        <div style={{
+          height: 'calc(100vh / 6)',
+          flexShrink: 0,
+          background: lightMode ? '#f8fafc' : '#0a0f1a',
+          borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
+        </div>
+      )}
 
       {/* Strip Selection Modal */}
       {pendingMapTransfer && createPortal(
