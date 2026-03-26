@@ -3354,11 +3354,11 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
 
   const rawMinAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._altLo)) : 0;
   const maxAlt    = candidates.length > 0 ? Math.max(...candidates.map(s => s._altHi)) : 50000;
-  const rawRange  = Math.max(maxAlt - rawMinAlt, 5000);
+  const rawRange  = Math.max(maxAlt - rawMinAlt, 1);
   const altPerPx  = rawRange / CHART_H;
-  const bottomPad = 3 * STRIP_H * altPerPx;
+  const bottomPad = 2 * STRIP_H * altPerPx;
   const minAlt    = rawMinAlt - bottomPad;
-  const altRange  = Math.max(maxAlt - minAlt, 5000);
+  const altRange  = maxAlt - minAlt || 1;
 
   // Convert altitude to % from top (0% = top = maxAlt)
   const altPct = (alt: number) => (1 - (alt - minAlt) / altRange) * 100;
