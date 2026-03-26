@@ -2544,6 +2544,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
   const [serialRowMenu, setSerialRowMenu] = useState<{x: number; y: number; station: string; latestSerialId: number; specificSerialId?: number} | null>(null);
   const [expandedStationHistory, setExpandedStationHistory] = useState<string | null>(null);
+  const [serialViewPopup, setSerialViewPopup] = useState<{x: number; y: number; station: string} | null>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
@@ -2788,7 +2789,12 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   <span key={sel.control_station} style={{ fontSize: '8px', color: '#94a3b8', padding: '0 2px' }}>{sel.control_station}: לא רלוונטי</span>
                 );
                 return (
-                  <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', color: isOutdated ? 'white' : '#475569', background: isOutdated ? '#dc2626' : '#e2e8f0', borderRadius: '2px', padding: '0 3px', fontWeight: isOutdated ? 'bold' : 'normal' }}>
+                  <span
+                    key={sel.control_station}
+                    className={isOutdated ? 'serial-flash' : ''}
+                    onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setSerialRowMenu({ x: e.clientX, y: e.clientY, station: sel.control_station, latestSerialId: latestForStation?.id }); }}
+                    style={{ fontSize: '8px', color: isOutdated ? 'white' : '#475569', background: isOutdated ? '#dc2626' : '#e2e8f0', borderRadius: '2px', padding: '0 3px', fontWeight: isOutdated ? 'bold' : 'normal', cursor: 'context-menu' }}
+                  >
                     {sel.control_station}–{selSerial?.serial_number ?? '?'}
                   </span>
                 );
@@ -3090,7 +3096,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       {serialRowMenu && (
         <>
           <div onClick={() => setSerialRowMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
-          <div style={{ position: 'fixed', left: serialRowMenu.x, top: serialRowMenu.y, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '160px', overflow: 'hidden', direction: 'rtl' }}>
+          <div style={{ position: 'fixed', left: serialRowMenu.x, top: serialRowMenu.y, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '170px', overflow: 'hidden', direction: 'rtl' }}>
             <div style={{ padding: '4px 0' }}>
               <button
                 onClick={() => { onSerialSelect && onSerialSelect(s.id, serialRowMenu.station, serialRowMenu.specificSerialId ?? serialRowMenu.latestSerialId, false); setSerialRowMenu(null); }}
@@ -3103,11 +3109,81 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 style={{ width: '100%', background: 'none', border: 'none', color: '#fca5a5', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >🚫 לא רלוונטי</button>
+              >🚫 ספרור לא רלוונטי</button>
+              <div style={{ borderTop: '1px solid #334155', margin: '2px 0' }}/>
+              <button
+                onClick={() => { setSerialViewPopup({ x: serialRowMenu.x, y: serialRowMenu.y, station: serialRowMenu.station }); setSerialRowMenu(null); }}
+                style={{ width: '100%', background: 'none', border: 'none', color: '#93c5fd', padding: '8px 14px', cursor: 'pointer', textAlign: 'right', fontSize: '13px', display: 'block' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >📋 הצג ספרור</button>
             </div>
           </div>
         </>
       )}
+      {serialViewPopup && (() => {
+        const station = serialViewPopup.station;
+        const stationSerials = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number);
+        const latestSerial = stationSerials[0];
+        const last5 = stationSerials.slice(0, 5);
+        const mySelection = serialSelections.find((sel: any) => sel.strip_id === s.id && sel.control_station === station);
+        const fmt = (dt: string) => dt ? new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+        return (
+          <>
+            <div onClick={() => setSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
+            <div style={{ position: 'fixed', left: Math.min(serialViewPopup.x, window.innerWidth - 320), top: Math.min(serialViewPopup.y, window.innerHeight - 340), zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '300px', direction: 'rtl', overflow: 'hidden' }}>
+              {/* כותרת */}
+              <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
+                <button onClick={() => setSerialViewPopup(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
+              </div>
+              {/* ספרור חדש */}
+              {latestSerial && (
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0f2744' }}>
+                  <div style={{ color: '#60a5fa', fontSize: '11px', marginBottom: '4px', fontWeight: 'bold' }}>ספרור עדכני</div>
+                  <div style={{ color: 'white', fontSize: '15px', fontWeight: 'bold', marginBottom: '4px' }}>#{latestSerial.serial_number}</div>
+                  {latestSerial.essence && <div style={{ color: '#cbd5e1', fontSize: '12px', marginBottom: '2px' }}>מהות: {latestSerial.essence}</div>}
+                  {latestSerial.relevant_to && <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '2px' }}>רלוונטי ל: {latestSerial.relevant_to}</div>}
+                  <div style={{ color: '#64748b', fontSize: '10px' }}>נוצר: {fmt(latestSerial.created_at)}</div>
+                </div>
+              )}
+              {/* 5 ספרורים אחרונים */}
+              <div style={{ padding: '8px 12px 4px' }}>
+                <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>5 ספרורים אחרונים</div>
+                {last5.map((sr: any, idx: number) => {
+                  const isCurrent = mySelection?.serial_id === sr.id && !mySelection?.dismissed;
+                  const isDismissed = mySelection?.dismissed && mySelection?.serial_id === sr.id;
+                  const isLatest = idx === 0;
+                  let statusLabel = '';
+                  let statusColor = '#64748b';
+                  if (isCurrent) { statusLabel = 'הועבר ✓'; statusColor = '#22c55e'; }
+                  else if (isDismissed) { statusLabel = 'לא רלוונטי'; statusColor = '#f87171'; }
+                  else if (!isLatest) { statusLabel = 'ישן'; statusColor = '#475569'; }
+                  return (
+                    <div key={sr.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 6px', borderRadius: '4px', marginBottom: '2px', background: isCurrent ? '#14432a' : isDismissed ? '#2d1515' : 'transparent' }}>
+                      <span style={{ color: isLatest ? '#93c5fd' : '#e2e8f0', fontWeight: isLatest ? 'bold' : 'normal', fontSize: '12px', minWidth: '36px' }}>#{sr.serial_number}</span>
+                      <span style={{ color: '#64748b', fontSize: '10px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sr.essence || ''}</span>
+                      <span style={{ color: '#475569', fontSize: '9px', whiteSpace: 'nowrap' }}>{fmt(sr.created_at)}</span>
+                      {statusLabel && <span style={{ color: statusColor, fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{statusLabel}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* כפתורי פעולה */}
+              <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderTop: '1px solid #1e3a5f' }}>
+                <button
+                  onClick={() => { onSerialSelect && onSerialSelect(s.id, station, latestSerial?.id, false); setSerialViewPopup(null); }}
+                  style={{ flex: 1, background: '#1d4ed8', border: 'none', borderRadius: '4px', color: 'white', padding: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                >✅ קבל ספרור</button>
+                <button
+                  onClick={() => { onSerialDismiss && onSerialDismiss(s.id, station); setSerialViewPopup(null); }}
+                  style={{ flex: 1, background: '#7f1d1d', border: 'none', borderRadius: '4px', color: '#fca5a5', padding: '6px', cursor: 'pointer', fontSize: '11px' }}
+                >🚫 לא רלוונטי</button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
       {contextMenu && (
         <ContextMenu 
           x={contextMenu.x} 
