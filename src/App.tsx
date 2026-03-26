@@ -3913,7 +3913,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         fetch(`${API_URL}/strip-serial-selections`),
       ]);
       if (sRes.ok) setSerials(await sRes.json());
-      if (selRes.ok) setStripSerialSelections(await selRes.json());
+      if (selRes.ok) {
+        const selData = await selRes.json();
+        setStripSerialSelections(selData.map((sel: any) => ({ ...sel, strip_id: 's' + sel.strip_id })));
+      }
     } catch {}
   };
 
