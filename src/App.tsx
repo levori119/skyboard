@@ -5902,25 +5902,89 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   );
                 }
                 case 'serials': {
-                  const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
-                  if (mySelections.length === 0) {
-                    return <td key={col.key} style={{ padding: '8px 10px', verticalAlign: 'top', color: lightMode ? '#94a3b8' : '#475569', fontSize: '11px' }}>—</td>;
+                  const serialCellKey = s.id + '__serials';
+                  const isEditingSerials = tableEditingCell === serialCellKey;
+                  const allStations = Array.from(new Set(serials.map((sr: any) => sr.control_station))).sort() as string[];
+                  const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id);
+
+                  // Collapsed view: show badges
+                  const activeBadges = mySelections.filter((sel: any) => !sel.dismissed && sel.serial_id);
+                  const hasBadges = activeBadges.length > 0;
+                  const hasAlert = mySelections.some((sel: any) => {
+                    if (!sel.serial_id || sel.dismissed) return false;
+                    const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                    return latest && latest.id !== sel.serial_id;
+                  });
+
+                  if (isEditingSerials) {
+                    // Expanded picker
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: '180px' }}>
+                        <div style={{ background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '8px', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📡 ספרורים</span>
+                            <button onClick={() => setTableEditingCell(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
+                          </div>
+                          {allStations.length === 0 && <div style={{ fontSize: '11px', color: '#64748b' }}>אין ספרורים</div>}
+                          {allStations.map((station: string) => {
+                            const latestSerial = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const mySelection = mySelections.find((sel: any) => sel.control_station === station);
+                            const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
+                            const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
+                            return (
+                              <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: '11px' }}>
+                                <span style={{ color: lightMode ? '#475569' : '#94a3b8', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
+                                <span style={{ color: isOutdated ? '#dc2626' : (lightMode ? '#374151' : '#e2e8f0'), fontWeight: isOutdated ? 'bold' : 'normal', flex: 1 }}>
+                                  {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
+                                </span>
+                                <button
+                                  onClick={() => handleSerialSelect(s.id, station, latestSerial.id, false)}
+                                  style={{ background: isOutdated ? '#dc2626' : '#2563eb', color: 'white', border: 'none', borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
+                                >
+                                  {mySerial ? (isOutdated ? 'עדכן' : '✓') : `בחר #${latestSerial?.serial_number}`}
+                                </button>
+                                {mySelection && (
+                                  <button
+                                    onClick={() => handleSerialRemove(s.id, station)}
+                                    style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
+                                    title="הסר"
+                                  >✕</button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    );
                   }
+
+                  // Collapsed view
                   return (
-                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {mySelections.map((sel: any) => {
-                          const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
-                          const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
-                          const isOutdated = latest && latest.id !== sel.serial_id;
-                          return (
-                            <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''}
-                              style={{ fontSize: '10px', background: isOutdated ? '#dc2626' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isOutdated ? 'white' : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                              {sel.control_station}–{selSerial?.serial_number ?? '?'}
-                            </span>
-                          );
-                        })}
-                      </div>
+                    <td key={col.key}
+                      onClick={() => setTableEditingCell(serialCellKey)}
+                      style={{ padding: '6px 8px', verticalAlign: 'top', cursor: 'pointer' }}
+                      title="לחץ לעריכת ספרורים"
+                    >
+                      {hasBadges ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                          {activeBadges.map((sel: any) => {
+                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const isOutdated = latest && latest.id !== sel.serial_id;
+                            return (
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''}
+                                style={{ fontSize: '10px', background: isOutdated ? '#dc2626' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isOutdated ? 'white' : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                              </span>
+                            );
+                          })}
+                          {hasAlert && <span style={{ fontSize: '9px', color: '#dc2626' }}>⚠️</span>}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic' }}>
+                          {serials.length > 0 ? '+ הוסף' : '—'}
+                        </span>
+                      )}
                     </td>
                   );
                 }
