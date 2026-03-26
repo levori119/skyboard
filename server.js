@@ -384,6 +384,30 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS serials (
+      id SERIAL PRIMARY KEY,
+      control_station VARCHAR(100) NOT NULL,
+      serial_number INTEGER NOT NULL,
+      essence TEXT,
+      relevant_to VARCHAR(200),
+      created_at TIMESTAMPTZ NOT NULL,
+      imported_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_serial_selections (
+      id SERIAL PRIMARY KEY,
+      strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+      control_station VARCHAR(100) NOT NULL,
+      serial_id INTEGER REFERENCES serials(id) ON DELETE SET NULL,
+      dismissed BOOLEAN DEFAULT false,
+      assigned_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(strip_id, control_station)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -2090,6 +2114,76 @@ app.post('/api/aid-groups/:id/link', async (req, res) => {
     }
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to link aid group' }); }
+});
+
+// --- Serials API ---
+app.get('/api/serials', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM serials ORDER BY control_station, serial_number DESC');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch serials' }); }
+});
+
+app.post('/api/serials/import', async (req, res) => {
+  try {
+    const { rows, replace } = req.body;
+    if (replace) {
+      await pool.query('DELETE FROM serials');
+    }
+    let imported = 0;
+    for (const row of rows) {
+      const { control_station, serial_number, essence, relevant_to, created_at } = row;
+      if (!control_station || !serial_number) continue;
+      await pool.query(
+        'INSERT INTO serials (control_station, serial_number, essence, relevant_to, created_at) VALUES ($1,$2,$3,$4,$5)',
+        [control_station, serial_number, essence || null, relevant_to || null, created_at ? new Date(created_at) : new Date()]
+      );
+      imported++;
+    }
+    res.json({ imported });
+  } catch (err) { res.status(500).json({ error: 'Failed to import serials' }); }
+});
+
+app.delete('/api/serials/all', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM serials');
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete serials' }); }
+});
+
+// --- Strip Serial Selections API ---
+app.get('/api/strip-serial-selections', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT sss.*, s.serial_number, s.essence, s.control_station as serial_control_station
+      FROM strip_serial_selections sss
+      LEFT JOIN serials s ON sss.serial_id = s.id
+      ORDER BY sss.strip_id, sss.control_station
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch strip serial selections' }); }
+});
+
+app.post('/api/strip-serial-selections', async (req, res) => {
+  try {
+    const { strip_id, control_station, serial_id, dismissed } = req.body;
+    await pool.query(
+      `INSERT INTO strip_serial_selections (strip_id, control_station, serial_id, dismissed, assigned_at)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (strip_id, control_station) DO UPDATE SET serial_id=$3, dismissed=$4, assigned_at=NOW()`,
+      [strip_id, control_station, serial_id || null, dismissed || false]
+    );
+    const result = await pool.query('SELECT * FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to save strip serial selection' }); }
+});
+
+app.delete('/api/strip-serial-selections', async (req, res) => {
+  try {
+    const { strip_id, control_station } = req.body;
+    await pool.query('DELETE FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete strip serial selection' }); }
 });
 
 const PORT = process.env.PORT || 3001;

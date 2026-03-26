@@ -105,3 +105,17 @@ Preferred communication style: Simple, everyday language.
 - Admin tab "עזרים לעמדה" with `AidsManager` component: create/edit/delete groups and items per preset, duplicate (independent copy) or link (shared group) to other presets
 - Workstation view: aids panel displayed to the right of the strips sidebar; collapsible with 📌 pin; accordion items expandable with ▶/▼ triangle; only shows when the preset has an aid group
 - Sharing modes: "שכפל" creates independent copies per target preset; "קשר" links same group (shared — updates affect all linked presets)
+
+## Serials (ספרורים)
+- `serials` table: stores all imported serials (id, control_station, serial_number, essence, relevant_to, created_at, imported_at)
+- `strip_serial_selections` table: maps strips to selected serials per control station (strip_id, control_station, serial_id, dismissed, assigned_at); UNIQUE(strip_id, control_station)
+- Admin tab "ספרורים" with `SerialsAdminTab` component: Excel upload (parses in browser via XLSX), displays imported serials grouped by control station, delete all button
+- Excel column mapping: תא שליטה→control_station, מספר ספרור→serial_number, מהות ספרור→essence, רלוונטי ל→relevant_to, תאריך ושעה→created_at; replace=true on import
+- Strip card: shows selected serial badges per control station (format: "station–number"); flashes red (`.serial-flash`) if outdated (newer serial exists for that station); expanded details panel has serial picker showing all stations with latest serial + select/update/remove buttons
+- Map strip container: flashes with `.serial-strip-flash` CSS class if any selected serial is outdated
+- Right-click context menu on strip: "ספרור לא רלוונטי לפ"מ" (dismiss all selections); "פ"מ עודכן בספרור" (update all outdated to latest)
+- Sidebar strips (both map mode and table mode): compact serial badges with flashing for outdated ones
+- Workstation toolbar button: "📡 ספרורים" — shows count badge; flashes red if any selection is outdated
+- `SerialsPanelModal`: full-panel overlay showing all serials grouped by control station; filter by station (checkboxes); time filter (click header → show serials from last N hours); first serial per station highlighted in blue
+- API: GET/POST(import)/DELETE(all) `/api/serials`; GET/POST(upsert)/DELETE `/api/strip-serial-selections`
+- Serials polled every 30 seconds in SectorDashboard

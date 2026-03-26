@@ -263,3 +263,22 @@ body.light-mode .table-header-menu button:hover {
 .load-badge-full {
   animation: load-flash-full 0.75s ease-in-out infinite;
 }
+
+/* Serial flashing animation */
+@keyframes serial-flash-red {
+  0%, 100% { background: #dc2626; color: white; }
+  50% { background: #fca5a5; color: #7f1d1d; }
+}
+.serial-flash {
+  animation: serial-flash-red 0.8s ease-in-out infinite;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+@keyframes serial-strip-flash {
+  0%, 100% { box-shadow: 0 0 0 2px #dc2626, 0 0 12px #dc262660; }
+  50% { box-shadow: 0 0 0 2px #fca5a5, 0 0 4px #dc262620; }
+}
+.serial-strip-flash {
+  animation: serial-strip-flash 0.8s ease-in-out infinite;
+}

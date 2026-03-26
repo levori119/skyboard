@@ -1853,12 +1853,13 @@ const DraggableIncomingTransferMini = ({
 };
 
 // --- תפריט קליק ימני ---
-const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: { 
+const ContextMenu = ({ x, y, neighbors, onSelect, onClose, extraActions = [] }: { 
   x: number; 
   y: number; 
   neighbors: any[]; 
   onSelect: (sectorId: number) => void; 
   onClose: () => void;
+  extraActions?: { label: string; onClick: () => void }[];
 }) => {
   useEffect(() => {
     const handleClick = () => onClose();
@@ -1909,6 +1910,24 @@ const ContextMenu = ({ x, y, neighbors, onSelect, onClose }: {
             {n.label_he || n.name}
           </button>
         ))
+      )}
+      {extraActions.length > 0 && (
+        <>
+          <div style={{ padding: '6px 12px', background: '#f1f5f9', borderTop: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 'bold', color: '#475569' }}>
+            ספרורים:
+          </div>
+          {extraActions.map((action, i) => (
+            <button
+              key={i}
+              onClick={() => { action.onClick(); onClose(); }}
+              style={{ width: '100%', padding: '9px 12px', border: 'none', background: 'white', cursor: 'pointer', textAlign: 'right', fontSize: '12px', borderBottom: '1px solid #f1f5f9', color: '#dc2626' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+            >
+              {action.label}
+            </button>
+          ))}
+        </>
       )}
     </div>,
     document.body
@@ -2514,7 +2533,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1 }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2695,8 +2714,14 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   }, [isDragging, s.id, onMove, neighbors, onTransfer]);
 
   // רכיב הפ"מ הבסיסי
+  const hasSerialAlert = serialSelections.some((sel: any) => {
+    if (sel.strip_id !== s.id || sel.dismissed) return false;
+    const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+    return sel.serial_id && latest && latest.id !== sel.serial_id;
+  });
+
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
+    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${hasSerialAlert ? ' serial-strip-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
       <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
         <button
@@ -2747,6 +2772,28 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {s.alt ? `גובה: ${s.alt}` : '-'}
         </div>
+        {/* שורה 4: ספרורים */}
+        {(() => {
+          const mySelections = serialSelections.filter((sel: any) => sel.strip_id === s.id);
+          if (mySelections.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', marginTop: '2px' }}>
+              {mySelections.map((sel: any) => {
+                const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
+                const latestForStation = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                const isOutdated = !sel.dismissed && selSerial && latestForStation && latestForStation.id !== selSerial?.id;
+                if (sel.dismissed && !selSerial) return (
+                  <span key={sel.control_station} style={{ fontSize: '8px', color: '#94a3b8', padding: '0 2px' }}>{sel.control_station}: לא רלוונטי</span>
+                );
+                return (
+                  <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', color: isOutdated ? 'white' : '#475569', background: isOutdated ? '#dc2626' : '#e2e8f0', borderRadius: '2px', padding: '0 3px', fontWeight: isOutdated ? 'bold' : 'normal' }}>
+                    {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        })()}
         {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
           editingNotes ? (
@@ -2954,6 +3001,43 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
               </div>
             </div>
+
+            {/* ספרורים */}
+            {serials.length > 0 && (
+              <div style={{ marginTop: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+                <div style={{ fontWeight: 'bold', color: '#475569', marginBottom: '4px' }}>📡 ספרורים:</div>
+                {(() => {
+                  const allStations = Array.from(new Set(serials.map((sr: any) => sr.control_station))).sort() as string[];
+                  return allStations.map((station: string) => {
+                    const latestSerial = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                    const mySelection = serialSelections.find((sel: any) => sel.strip_id === s.id && sel.control_station === station);
+                    const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
+                    const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
+                    return (
+                      <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px', fontSize: '8px' }}>
+                        <span style={{ color: '#64748b', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
+                        <span style={{ color: isOutdated ? '#dc2626' : '#374151', fontWeight: isOutdated ? 'bold' : 'normal', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️ חדש: #${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
+                        </span>
+                        <button
+                          onClick={() => onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false)}
+                          style={{ background: isOutdated ? '#dc2626' : '#2563eb', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 4px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                        >
+                          {mySerial ? (isOutdated ? `עדכן #${latestSerial.serial_number}` : '✓') : `בחר #${latestSerial.serial_number}`}
+                        </button>
+                        {mySelection && (
+                          <button
+                            onClick={() => onSerialRemove && onSerialRemove(s.id, station)}
+                            style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', padding: '1px 3px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                            title="הסר"
+                          >✕</button>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2974,6 +3058,24 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}
+          extraActions={(() => {
+            const mySelections = serialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed);
+            const alertSelections = mySelections.filter((sel: any) => {
+              const latestForStation = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+              return sel.serial_id && latestForStation && latestForStation.id !== sel.serial_id;
+            });
+            const actions = [];
+            if (mySelections.length > 0) {
+              actions.push({ label: 'ספרור לא רלוונטי לפ"מ', onClick: () => mySelections.forEach((sel: any) => onSerialDismiss && onSerialDismiss(s.id, sel.control_station)) });
+            }
+            if (alertSelections.length > 0) {
+              actions.push({ label: 'פ"מ עודכן בספרור', onClick: () => alertSelections.forEach((sel: any) => {
+                const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                if (latest && onSerialSelect) onSerialSelect(s.id, sel.control_station, latest.id, false);
+              })});
+            }
+            return actions;
+          })()}
         />
       )}
     </div>
@@ -3798,6 +3900,57 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return () => clearInterval(interval);
     }
   }, [session.presetId]);
+
+  // Serials state
+  const [serials, setSerials] = useState<any[]>([]);
+  const [stripSerialSelections, setStripSerialSelections] = useState<any[]>([]);
+  const [showSerialsPanel, setShowSerialsPanel] = useState(false);
+
+  const loadSerials = async () => {
+    try {
+      const [sRes, selRes] = await Promise.all([
+        fetch(`${API_URL}/serials`),
+        fetch(`${API_URL}/strip-serial-selections`),
+      ]);
+      if (sRes.ok) setSerials(await sRes.json());
+      if (selRes.ok) setStripSerialSelections(await selRes.json());
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadSerials();
+    const interval = setInterval(loadSerials, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSerialSelect = async (stripId: number, controlStation: string, serialId: number | null, dismissed = false) => {
+    try {
+      await fetch(`${API_URL}/strip-serial-selections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: stripId, control_station: controlStation, serial_id: serialId, dismissed }),
+      });
+      setStripSerialSelections(prev => {
+        const filtered = prev.filter(x => !(x.strip_id === stripId && x.control_station === controlStation));
+        return [...filtered, { strip_id: stripId, control_station: controlStation, serial_id: serialId, dismissed }];
+      });
+    } catch {}
+  };
+
+  const handleSerialDismiss = async (stripId: number, controlStation: string) => {
+    await handleSerialSelect(stripId, controlStation, null, true);
+  };
+
+  const handleSerialRemove = async (stripId: number, controlStation: string) => {
+    try {
+      await fetch(`${API_URL}/strip-serial-selections`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: stripId, control_station: controlStation }),
+      });
+      setStripSerialSelections(prev => prev.filter(x => !(x.strip_id === stripId && x.control_station === controlStation)));
+    } catch {}
+  };
 
   // Aids panel data
   useEffect(() => {
@@ -4968,11 +5121,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </>
             )}
           </div>
+          {/* כפתור ספרורים */}
+          {(() => {
+            const hasSerialAlerts = stripSerialSelections.some(sel => {
+              if (sel.dismissed) return false;
+              const latestForStation = serials.filter(sr => sr.control_station === sel.control_station).sort((a,b) => b.serial_number - a.serial_number)[0];
+              return latestForStation && sel.serial_id && latestForStation.id !== sel.serial_id;
+            });
+            return (
+              <button
+                onClick={() => setShowSerialsPanel(v => !v)}
+                className={hasSerialAlerts ? 'serial-flash' : ''}
+                style={{ background: showSerialsPanel ? '#2563eb' : (hasSerialAlerts ? '#dc2626' : '#334155'), padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="ספרורים במוד עמדה"
+              >
+                📡 ספרורים
+                {serials.length > 0 && <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '8px', padding: '0 5px', fontSize: '10px' }}>{serials.length}</span>}
+              </button>
+            );
+          })()}
           <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
             יציאה
           </button>
         </div>
       </header>
+
+      {/* Serials Panel Modal */}
+      {showSerialsPanel && (
+        <SerialsPanelModal
+          serials={serials}
+          onClose={() => setShowSerialsPanel(false)}
+          lightMode={lightMode}
+        />
+      )}
 
       {/* Personal Filter Overlay */}
       {showPersonalFilter && (
@@ -6203,6 +6384,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateNotes={handleUpdateStripNotes}
                 onUpdateDetails={handleUpdateStripDetails}
                 zoom={mapZoom}
+                serials={serials}
+                serialSelections={stripSerialSelections}
+                onSerialSelect={handleSerialSelect}
+                onSerialDismiss={handleSerialDismiss}
+                onSerialRemove={handleSerialRemove}
               />
             ))}
             
@@ -6552,6 +6738,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </div>
                       {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
                     </div>
+                    {(() => {
+                      const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
+                      if (mySelections.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
+                          {mySelections.map((sel: any) => {
+                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const isOutdated = selSerial && latest && latest.id !== selSerial.id;
+                            return (
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
+                                {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );})}
@@ -6615,6 +6819,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </div>
                       {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
                     </div>
+                    {(() => {
+                      const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id && !sel.dismissed && sel.serial_id);
+                      if (mySelections.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
+                          {mySelections.map((sel: any) => {
+                            const selSerial = serials.find((sr: any) => sr.id === sel.serial_id);
+                            const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const isOutdated = selSerial && latest && latest.id !== selSerial.id;
+                            return (
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
+                                {sel.control_station}–{selSerial?.serial_number ?? '?'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );})}
@@ -8571,9 +8793,256 @@ const AidsManager = ({ presets }: { presets: any[] }) => {
   );
 };
 
+// --- ניהול ספרורים (Admin) ---
+const SerialsAdminTab = () => {
+  const [serials, setSerials] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+
+  const loadSerials = async () => {
+    try {
+      const res = await fetch(`${API_URL}/serials`);
+      if (res.ok) setSerials(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => { loadSerials(); }, []);
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const buffer = ev.target?.result as ArrayBuffer;
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, any>[];
+        const colMap: Record<string, string> = {
+          'תא שליטה': 'control_station', 'תא_שליטה': 'control_station', 'control_station': 'control_station',
+          'מספר ספרור': 'serial_number', 'מספר_ספרור': 'serial_number', 'serial_number': 'serial_number',
+          'מהות ספרור': 'essence', 'מהות_ספרור': 'essence', 'essence': 'essence', 'מהות': 'essence',
+          'רלוונטי ל': 'relevant_to', 'רלוונטי_ל': 'relevant_to', 'relevant_to': 'relevant_to',
+          'תאריך ושעה': 'created_at', 'תאריך': 'created_at', 'created_at': 'created_at',
+        };
+        const rows = rawRows.map(r => {
+          const mapped: any = {};
+          for (const [k, v] of Object.entries(r)) {
+            const norm = colMap[k.trim()] || colMap[k.trim().replace(/\s+/g, '_')];
+            if (norm) mapped[norm] = v;
+          }
+          return mapped;
+        });
+        const res = await fetch(`${API_URL}/serials/import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows, replace: true }),
+        });
+        if (res.ok) {
+          const { imported } = await res.json();
+          setImportResult(`יובאו ${imported} ספרורים בהצלחה`);
+          loadSerials();
+        } else {
+          setImportResult('שגיאה בייבוא');
+        }
+      } catch (err) {
+        setImportResult('שגיאה בקריאת הקובץ');
+      }
+      setImporting(false);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  const clearAll = async () => {
+    if (!confirm('למחוק את כל הספרורים?')) return;
+    setClearing(true);
+    await fetch(`${API_URL}/serials/all`, { method: 'DELETE' });
+    setSerials([]);
+    setClearing(false);
+    setImportResult('כל הספרורים נמחקו');
+  };
+
+  const grouped = serials.reduce((acc, s) => {
+    if (!acc[s.control_station]) acc[s.control_station] = [];
+    acc[s.control_station].push(s);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  return (
+    <div style={{ direction: 'rtl', color: 'white' }}>
+      <h2 style={{ margin: '0 0 20px', fontSize: '18px' }}>ניהול ספרורים</h2>
+      <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
+        <h3 style={{ margin: '0 0 12px', color: '#94a3b8', fontSize: '14px' }}>טעינת קובץ Excel</h3>
+        <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px' }}>
+          עמודות נדרשות: <strong style={{ color: '#94a3b8' }}>תא שליטה, מספר ספרור, מהות ספרור, רלוונטי ל, תאריך ושעה</strong>
+        </p>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ background: '#2563eb', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {importing ? '⏳ מייבא...' : '📂 בחר קובץ Excel'}
+            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFileImport} disabled={importing} />
+          </label>
+          <button onClick={clearAll} disabled={clearing} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+            🗑️ מחק הכל
+          </button>
+        </div>
+        {importResult && (
+          <div style={{ marginTop: '10px', padding: '8px 12px', background: importResult.includes('שגיאה') ? '#dc2626' : '#10b981', borderRadius: '6px', fontSize: '13px' }}>
+            {importResult}
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: '#0f172a', borderRadius: '8px', padding: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>ספרורים קיימים ({serials.length})</h3>
+        </div>
+        {Object.keys(grouped).length === 0 ? (
+          <p style={{ color: '#64748b', fontSize: '13px' }}>אין ספרורים במערכת</p>
+        ) : (
+          Object.entries(grouped).map(([station, stSerials]: [string, any[]]) => (
+            <div key={station} style={{ marginBottom: '16px' }}>
+              <div style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '13px', marginBottom: '6px', borderBottom: '1px solid #334155', paddingBottom: '4px' }}>
+                📡 {station} ({stSerials.length} ספרורים)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {stSerials.map((sr: any) => (
+                  <div key={sr.id} style={{ display: 'flex', gap: '10px', fontSize: '12px', color: '#cbd5e1', padding: '4px 8px', background: '#1e293b', borderRadius: '4px', alignItems: 'flex-start' }}>
+                    <span style={{ color: '#f59e0b', fontWeight: 'bold', minWidth: '40px' }}>#{sr.serial_number}</span>
+                    <span style={{ flex: 1 }}>{sr.essence || '—'}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', minWidth: '80px' }}>{sr.relevant_to || ''}</span>
+                    <span style={{ color: '#64748b', fontSize: '11px', minWidth: '130px' }}>{sr.created_at ? new Date(sr.created_at).toLocaleString('he-IL') : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- פאנל ספרורים במוד עמדה ---
+const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; onClose: () => void; lightMode: boolean }) => {
+  const bg = lightMode ? '#ffffff' : '#0f172a';
+  const bg2 = lightMode ? '#f1f5f9' : '#1e293b';
+  const textMain = lightMode ? '#1e293b' : '#e2e8f0';
+  const textSub = lightMode ? '#64748b' : '#94a3b8';
+  const border = lightMode ? '#e2e8f0' : '#334155';
+
+  const allStations = Array.from(new Set(serials.map(s => s.control_station))).sort();
+  const [selectedStations, setSelectedStations] = useState<Set<string>>(new Set(allStations));
+  const [hoursFilter, setHoursFilter] = useState<number | null>(null);
+  const [showTimeFilter, setShowTimeFilter] = useState(false);
+
+  const toggleStation = (st: string) => {
+    setSelectedStations(prev => {
+      const next = new Set(prev);
+      if (next.has(st)) next.delete(st); else next.add(st);
+      return next;
+    });
+  };
+
+  const now = new Date();
+  const filtered = serials.filter(s => {
+    if (!selectedStations.has(s.control_station)) return false;
+    if (hoursFilter !== null && s.created_at) {
+      const diff = (now.getTime() - new Date(s.created_at).getTime()) / 3600000;
+      if (diff > hoursFilter) return false;
+    }
+    return true;
+  });
+
+  const grouped = filtered.reduce((acc, s) => {
+    if (!acc[s.control_station]) acc[s.control_station] = [];
+    acc[s.control_station].push(s);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 5000, display: 'flex', alignItems: 'stretch', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}>
+      <div style={{ background: bg, width: '100%', maxWidth: '900px', display: 'flex', flexDirection: 'column', direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
+        {/* Header */}
+        <div
+          onClick={() => setShowTimeFilter(v => !v)}
+          style={{ background: lightMode ? '#1e293b' : '#0f172a', color: 'white', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', userSelect: 'none' }}
+        >
+          <span style={{ fontSize: '18px', fontWeight: 'bold', flex: 1 }}>📡 ספרורים במוד עמדה ({filtered.length})</span>
+          {hoursFilter !== null && (
+            <span style={{ background: '#f59e0b', color: 'black', borderRadius: '12px', padding: '2px 10px', fontSize: '12px' }}>
+              {hoursFilter} שעות אחרונות
+            </span>
+          )}
+          <span style={{ fontSize: '12px', color: '#94a3b8' }}>לחץ לסינון זמן ▾</span>
+          <button onClick={e => { e.stopPropagation(); onClose(); }} style={{ background: '#dc2626', border: 'none', color: 'white', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '13px', marginRight: '8px' }}>✕ סגור</button>
+        </div>
+
+        {/* Time filter dropdown */}
+        {showTimeFilter && (
+          <div style={{ background: lightMode ? '#e2e8f0' : '#1e293b', padding: '12px 20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', borderBottom: `1px solid ${border}` }}>
+            <span style={{ color: textMain, fontSize: '13px', fontWeight: 'bold' }}>הצג ספרורים שנוצרו ב:</span>
+            {[3, 6, 12, 24, 48].map(h => (
+              <button key={h} onClick={() => setHoursFilter(hoursFilter === h ? null : h)}
+                style={{ background: hoursFilter === h ? '#2563eb' : (lightMode ? '#cbd5e1' : '#334155'), color: hoursFilter === h ? 'white' : textMain, border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px' }}>
+                {h}ש׳
+              </button>
+            ))}
+            {hoursFilter !== null && (
+              <button onClick={() => setHoursFilter(null)} style={{ background: '#64748b', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ללא סינון</button>
+            )}
+          </div>
+        )}
+
+        {/* Station filter */}
+        <div style={{ padding: '10px 20px', background: bg2, borderBottom: `1px solid ${border}`, display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ color: textSub, fontSize: '12px' }}>תאי שליטה:</span>
+          <button onClick={() => setSelectedStations(new Set(allStations))} style={{ background: 'transparent', border: `1px solid ${border}`, color: textSub, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>הכל</button>
+          <button onClick={() => setSelectedStations(new Set())} style={{ background: 'transparent', border: `1px solid ${border}`, color: textSub, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
+          {allStations.map(st => (
+            <button key={st} onClick={() => toggleStation(st)}
+              style={{ background: selectedStations.has(st) ? '#2563eb' : (lightMode ? '#e2e8f0' : '#334155'), color: selectedStations.has(st) ? 'white' : textMain, border: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: selectedStations.has(st) ? 'bold' : 'normal' }}>
+              {st}
+            </button>
+          ))}
+        </div>
+
+        {/* Serials list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {Object.keys(grouped).length === 0 ? (
+            <div style={{ color: textSub, textAlign: 'center', marginTop: '40px', fontSize: '14px' }}>אין ספרורים להצגה</div>
+          ) : (
+            Object.entries(grouped).map(([station, stSerials]: [string, any[]]) => (
+              <div key={station} style={{ marginBottom: '20px' }}>
+                <div style={{ fontWeight: 'bold', color: '#38bdf8', fontSize: '15px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📡 {station}
+                  <span style={{ fontSize: '12px', color: textSub, fontWeight: 'normal' }}>({stSerials.length})</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {stSerials.map((sr: any, i: number) => (
+                    <div key={sr.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 120px 160px', gap: '8px', fontSize: '12px', color: textMain, padding: '6px 10px', background: i === 0 ? (lightMode ? '#dbeafe' : '#1e3a5f') : bg2, borderRadius: '4px', border: i === 0 ? '1px solid #3b82f6' : `1px solid ${border}`, alignItems: 'start' }}>
+                      <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '13px' }}>#{sr.serial_number}</span>
+                      <span>{sr.essence || '—'}</span>
+                      <span style={{ color: textSub }}>{sr.relevant_to || ''}</span>
+                      <span style={{ color: textSub, fontSize: '11px' }}>{sr.created_at ? new Date(sr.created_at).toLocaleString('he-IL') : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids'>('presets');
+  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials'>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
@@ -8806,6 +9275,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>
         <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>
         <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>
+        <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -9505,6 +9975,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
           {activeTab === 'aids' && <AidsManager presets={presets} />}
+          {activeTab === 'serials' && <SerialsAdminTab />}
 
         </div>
 
