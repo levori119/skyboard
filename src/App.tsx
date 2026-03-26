@@ -1079,6 +1079,7 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
   const [recognized, setRecognized] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
   const workerRef = useRef<any>(null);
+  const [textInput, setTextInput] = useState('');
 
   useEffect(() => {
     const initWorker = async () => {
@@ -1320,7 +1321,31 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       direction: 'rtl' 
     }}>
       <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
-        {loading ? "מזהה..." : "כתוב מספר:"}
+        עדכון גובה
+      </div>
+
+      {/* Text input option */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
+        <input
+          type="text"
+          value={textInput}
+          onChange={e => setTextInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && textInput.trim()) { onComplete(textInput.trim()); } }}
+          placeholder="הקלד גובה..."
+          autoFocus
+          style={{ flex: 1, padding: '8px 10px', fontSize: '16px', border: '2px solid #93c5fd', borderRadius: '6px', textAlign: 'center', direction: 'ltr', outline: 'none' }}
+        />
+        <button
+          onClick={() => { if (textInput.trim()) onComplete(textInput.trim()); }}
+          disabled={!textInput.trim()}
+          style={{ padding: '8px 14px', background: textInput.trim() ? '#10b981' : '#d1fae5', color: textInput.trim() ? 'white' : '#6ee7b7', border: 'none', borderRadius: '6px', cursor: textInput.trim() ? 'pointer' : 'default', fontSize: '14px', fontWeight: 'bold' }}
+        >אישור</button>
+      </div>
+
+      <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>— או כתוב בכתב יד —</div>
+
+      <div style={{fontSize: '12px', marginBottom: '6px', fontWeight: 'bold', color: '#64748b', textAlign: 'center'}}>
+        {loading ? "מזהה..." : ""}
       </div>
       
       <canvas 
@@ -1990,7 +2015,8 @@ const DraggableMapMarker = ({
   onAcceptToMap,
   notes,
   onUpdateNotes,
-  zoom = 1
+  zoom = 1,
+  conflictAltDelta = 0
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -2007,6 +2033,7 @@ const DraggableMapMarker = ({
   notes?: string;
   onUpdateNotes?: (sectorId: number, notes: string) => void;
   zoom?: number;
+  conflictAltDelta?: number;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -2110,6 +2137,29 @@ const DraggableMapMarker = ({
   
   const hasTransfers = markerOutgoing.length > 0 || markerIncoming.length > 0;
 
+  // Altitude conflict detection
+  const parseAlt = (alt: string | null | undefined): number | null => {
+    if (!alt) return null;
+    const m = alt.match(/\d+/);
+    return m ? parseInt(m[0]) : null;
+  };
+  const markerConflictIds = new Set<string>();
+  if (conflictAltDelta > 0) {
+    for (const out of markerOutgoing) {
+      const outAlt = parseAlt(out.alt);
+      if (outAlt == null) continue;
+      for (const inc of markerIncoming) {
+        const incAlt = parseAlt(inc.alt);
+        if (incAlt == null) continue;
+        if (Math.abs(outAlt - incAlt) <= conflictAltDelta) {
+          markerConflictIds.add(String(out.id));
+          markerConflictIds.add(String(inc.id));
+        }
+      }
+    }
+  }
+  const markerHasConflict = markerConflictIds.size > 0;
+
   return (
     <div
       className="marker-drop-zone"
@@ -2122,7 +2172,7 @@ const DraggableMapMarker = ({
         width: '200px',
         background: '#3b82f6',
         borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        boxShadow: markerHasConflict ? '0 0 0 2px #ef4444, 0 4px 12px rgba(0,0,0,0.4)' : '0 4px 12px rgba(0,0,0,0.3)',
         zIndex: 50,
         userSelect: 'none',
         direction: 'rtl',
@@ -2139,13 +2189,14 @@ const DraggableMapMarker = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '6px 8px',
-          background: '#2563eb',
+          background: markerHasConflict ? '#7f1d1d' : '#2563eb',
           cursor: isDragging ? 'grabbing' : 'grab'
         }}
       >
-        <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>
+        <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
           {marker.label}
           {marker.subLabel && <span style={{ fontSize: '10px', opacity: 0.8 }}> ({marker.subLabel})</span>}
+          {markerHasConflict && <span style={{ fontSize: '9px', background: '#ef4444', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>⚠️ קונפליקט גובה</span>}
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>
           <button
@@ -2201,20 +2252,22 @@ const DraggableMapMarker = ({
           <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             העברה: ({markerOutgoing.length})
           </div>
-          {markerOutgoing.map((t: any) => (
-            <div key={t.id} style={{ 
-              background: '#fef3c7', 
-              border: '1px solid #f59e0b',
+          {markerOutgoing.map((t: any) => {
+            const isConflict = markerConflictIds.has(String(t.id));
+            return (
+            <div key={t.id} className={isConflict ? 'alt-conflict-flash' : ''} style={{ 
+              background: isConflict ? '#7f1d1d' : '#fef3c7', 
+              border: `1px solid ${isConflict ? '#ef4444' : '#f59e0b'}`,
               borderRadius: '3px',
               padding: '4px',
               marginBottom: '4px',
               fontSize: '9px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: '#92400e' }}>{t.callsign}</span>
+                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#92400e' }}>{t.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
-              <div style={{ color: '#b45309', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <div style={{ color: isConflict ? '#fca5a5' : '#b45309', fontSize: '8px' }}>גובה: {t.alt}</div>
               <button
                 onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
                 style={{
@@ -2232,7 +2285,7 @@ const DraggableMapMarker = ({
                 בטל העברה
               </button>
             </div>
-          ))}
+          ); })}
         </div>
         
         {/* קבלה - Incoming */}
@@ -2240,20 +2293,22 @@ const DraggableMapMarker = ({
           <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             קבלה ({markerIncoming.length})
           </div>
-          {markerIncoming.map((t: any) => (
-            <div key={t.id} style={{ 
-              background: '#dcfce7', 
-              border: '1px solid #22c55e',
+          {markerIncoming.map((t: any) => {
+            const isConflict = markerConflictIds.has(String(t.id));
+            return (
+            <div key={t.id} className={isConflict ? 'alt-conflict-flash' : ''} style={{ 
+              background: isConflict ? '#7f1d1d' : '#dcfce7', 
+              border: `1px solid ${isConflict ? '#ef4444' : '#22c55e'}`,
               borderRadius: '3px',
               padding: '4px',
               marginBottom: '4px',
               fontSize: '9px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: '#166534' }}>{t.callsign}</span>
+                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>{t.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
-              <div style={{ color: '#15803d', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <div style={{ color: isConflict ? '#fca5a5' : '#15803d', fontSize: '8px' }}>גובה: {t.alt}</div>
               <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); onAcceptTransfer(t.id); }}
@@ -2287,7 +2342,7 @@ const DraggableMapMarker = ({
                 </button>
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       </div>
       
@@ -6696,6 +6751,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
                 onUpdateNotes={handleUpdateSectorNotes}
                 zoom={mapZoom}
+                conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
               />
             ))}
             

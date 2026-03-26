@@ -282,3 +282,11 @@ body.light-mode .table-header-menu button:hover {
 .serial-strip-flash {
   animation: serial-strip-flash 0.8s ease-in-out infinite;
 }
+
+@keyframes alt-conflict-flash {
+  0%, 100% { background: #7f1d1d; border-color: #ef4444; box-shadow: 0 0 8px #ef444480; }
+  50% { background: #b91c1c; border-color: #fca5a5; box-shadow: 0 0 2px #ef444440; }
+}
+.alt-conflict-flash {
+  animation: alt-conflict-flash 0.8s ease-in-out infinite;
+}
