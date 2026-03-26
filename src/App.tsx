@@ -3442,7 +3442,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const HEADER_H = groupBy !== 'none' ? 20 : 0;
   const TOOLBAR_H = 30;
 
-  const renderXAxis = (segWidth: number) => (
+  const renderXAxis = () => (
     <div style={{ height: X_AXIS_H, flexShrink: 0, position: 'relative', background: bg, borderTop: `1px solid ${gridLine}`, overflow: 'visible' }}>
       {ticks.map(t => {
         const pct = (t - START_MS) / TOTAL_MS * 100;
@@ -3460,7 +3460,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
     </div>
   );
 
-  const renderSegmentChart = (placed: Placed[], segWidth: number) => (
+  const renderSegmentChart = (placed: Placed[]) => (
     <>
       {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
       {/* Chart area */}
@@ -3489,8 +3489,8 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
             for (let j = i + 1; j < placed.length; j++) {
               const a = placed[i], b = placed[j];
               if (a._hasConflict && b._hasConflict) {
-                const x1 = Math.max(a._x, b._x) / segWidth * 100;
-                const x2 = Math.min(a._x + STRIP_W, b._x + STRIP_W) / segWidth * 100;
+                const x1 = (Math.max(a._time, b._time) - START_MS) / TOTAL_MS * 100;
+                const x2 = (Math.min(a._time, b._time) + STRIP_DUR_MS - START_MS) / TOTAL_MS * 100;
                 if (x2 > x1) zones.push({ x1, x2 });
               }
             }
@@ -3501,8 +3501,8 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
         })()}
 
         {placed.map(s => {
-          const xPct = s._x / segWidth * 100;
-          const wPct = STRIP_W / segWidth * 100;
+          const xPct = (s._time - START_MS) / TOTAL_MS * 100;
+          const wPct = STRIP_DUR_MS / TOTAL_MS * 100;
           if (xPct + wPct < 0 || xPct > 100) return null;
           const isConflict = s._hasConflict;
           const sq = s.sq || s.squadron || '';
@@ -3546,7 +3546,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
           </div>
         )}
       </div>
-      {renderXAxis(segWidth)}
+      {renderXAxis()}
     </>
   );
 
@@ -3591,7 +3591,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
                   {GROUP_FIELD_LABEL[groupBy]}: {seg.label}
                 </div>
               )}
-              {renderSegmentChart(seg.placed, segW)}
+              {renderSegmentChart(seg.placed)}
             </div>
           ))}
           {candidates.length === 0 && (
