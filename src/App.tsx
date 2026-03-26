@@ -3296,7 +3296,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const START_MS = now.getTime() - 60 * 60 * 1000;
   const END_MS = now.getTime() + 5 * 60 * 60 * 1000;
   const TOTAL_MS = END_MS - START_MS;
-  const STRIP_DUR_MS = 1.5 * 60 * 60 * 1000;
+  const STRIP_DUR_MS = 0.5 * 60 * 60 * 1000; // 30 minutes
 
   // Parse single altitude value
   const parseAltSingle = (s: string): number | null => {
@@ -3535,13 +3535,10 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
                     overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
                   }}>
-                  {/* Line 1: callSign / sq */}
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.2, color: textMainColor }}>
-                    {s.callSign || '—'}{sq ? ` / ${sq}` : ''}
-                  </div>
-                  {/* Line 2: altitude */}
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '10px', lineHeight: 1.2, color: textColor }}>
-                    {s.alt || ''}
+                  {/* Single line: callSign/sq BOLD + גובה */}
+                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: '11px', lineHeight: 1.3, display: 'flex', gap: '5px', alignItems: 'baseline' }}>
+                    <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                    {s.alt && <span style={{ fontSize: '10px', color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
                   </div>
                 </div>
               );
@@ -6846,8 +6843,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         />
       </div>
 
-      {/* Vertical View panel — full width, both map and table mode */}
-      {showVerticalView && (
+      {/* Vertical View panel — full width */}
+      {showVerticalView && (tableMode ? (
+        /* Table mode: flex item so table area shrinks up */
         <div style={{
           height: 'calc(100vh / 3)',
           flexShrink: 0,
@@ -6859,7 +6857,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         }}>
           <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
         </div>
-      )}
+      ) : (
+        /* Map mode: fixed overlay so map area stays full size and strips don't move */
+        <div style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 'calc(100vh / 3)',
+          zIndex: 200,
+          background: lightMode ? 'rgba(248,250,252,0.97)' : 'rgba(10,15,26,0.97)',
+          borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
+        </div>
+      ))}
 
       {/* Strip Selection Modal */}
       {pendingMapTransfer && createPortal(
