@@ -3357,8 +3357,10 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const rawRange  = Math.max(maxAlt - rawMinAlt, 1);
   const altPerPx  = rawRange / CHART_H;
   const bottomPad = 2 * STRIP_H * altPerPx;
+  const topPad    = 2 * STRIP_H * altPerPx;
   const minAlt    = rawMinAlt - bottomPad;
-  const altRange  = maxAlt - minAlt || 1;
+  const topAlt    = maxAlt + topPad;
+  const altRange  = topAlt - minAlt || 1;
 
   // Convert altitude to % from top (0% = top = maxAlt)
   const altPct = (alt: number) => (1 - (alt - minAlt) / altRange) * 100;
@@ -3412,7 +3414,7 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
   const altStep = rawRange <= 5000 ? 1000 : rawRange <= 15000 ? 2000 : rawRange <= 40000 ? 5000 : 10000;
   const altTickStart = Math.ceil(minAlt / altStep) * altStep;
   const altTicks: number[] = [];
-  for (let a = altTickStart; a <= maxAlt + altStep * 0.1; a += altStep) altTicks.push(a);
+  for (let a = altTickStart; a <= topAlt + altStep * 0.1; a += altStep) altTicks.push(a);
   const altLabel = (a: number) => a >= 10000 ? `FL${Math.round(a / 100)}` : a >= 1000 ? `${(a / 1000).toFixed(1)}k` : String(Math.round(a));
 
   const bg = lightMode ? '#f1f5f9' : '#0f172a';
