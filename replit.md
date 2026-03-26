@@ -121,11 +121,13 @@ Preferred communication style: Simple, everyday language.
 - Serials polled every 30 seconds in SectorDashboard
 
 ## Altitude Conflict Detection (זיהוי קונפליקט גובה)
-- `conflict_alt_delta INTEGER DEFAULT 500` column on `workstation_presets`
-- Admin preset form has a new field "⚠️ סף קונפליקט גובה (±רגל)" below full_load
-- When outgoing and incoming transfers at the same transfer point have an altitude difference ≤ delta, they are flagged as a conflict
-- `DraggableNeighborPanel` receives `conflictAltDelta` prop from SectorDashboard (reads `myPresetConfig.conflict_alt_delta`)
-- Conflict visual: panel header turns dark red with a red border + "⚠️ קונפליקט גובה" badge; each conflicting outgoing card goes dark red; `DraggableIncomingTransferMini` receives `isConflict` prop and also turns dark red
+- `conflict_alt_delta INTEGER DEFAULT 5` column on `sectors` table (stored in hundreds of feet; 5 = ±500 ft)
+- Admin sector form has field "⚠️ סף קונפליקט גובה (מאות רגליים)" — user enters e.g. 5 meaning ±500 ft
+- When outgoing and incoming transfers at the same transfer point have an altitude difference ≤ delta*100 ft, they are flagged as a conflict
+- `DraggableNeighborPanel` reads `neighbor.conflict_alt_delta` directly; multiplies by 100 for comparison
+- `DraggableMapMarker` receives `conflictAltDelta` in hundreds from parent (looks up sector by sectorId in allSectors); multiplies by 100 for comparison
+- Conflict visual: panel/marker header turns dark red + "⚠️ קונפליקט גובה" badge; conflicting strip cards flash with `.alt-conflict-flash` CSS animation; non-conflicting strips stay normal colored
+- On map markers: outgoing AND incoming conflicting cards both flash dark red; marker border turns red
 - Alt parsing: first integer found in alt string via regex (handles "176", "400-330", etc.)
 - Setting delta to 0 disables conflict detection entirely
 

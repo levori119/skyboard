@@ -1515,7 +1515,7 @@ const DraggableNeighborPanel = ({
     return m ? parseInt(m[0]) : null;
   };
 
-  const delta = conflictAltDelta ?? 0;
+  const delta = ((neighbor as any).conflict_alt_delta ?? conflictAltDelta ?? 0) * 100;
   const conflictingTransferIds = new Set<string>();
   if (delta > 0) {
     for (const out of sectorOutgoing) {
@@ -2144,14 +2144,15 @@ const DraggableMapMarker = ({
     return m ? parseInt(m[0]) : null;
   };
   const markerConflictIds = new Set<string>();
-  if (conflictAltDelta > 0) {
+  const markerDeltaFeet = conflictAltDelta * 100;
+  if (markerDeltaFeet > 0) {
     for (const out of markerOutgoing) {
       const outAlt = parseAlt(out.alt);
       if (outAlt == null) continue;
       for (const inc of markerIncoming) {
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
-        if (Math.abs(outAlt - incAlt) <= conflictAltDelta) {
+        if (Math.abs(outAlt - incAlt) <= markerDeltaFeet) {
           markerConflictIds.add(String(out.id));
           markerConflictIds.add(String(inc.id));
         }
@@ -5617,7 +5618,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onAcceptToMap={handleAcceptToMap}
                   dragStripId={tableMode ? tableDragRow : null}
                   onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
-                  conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                 />
               ))}
             </div>
@@ -6751,7 +6751,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
                 onUpdateNotes={handleUpdateSectorNotes}
                 zoom={mapZoom}
-                conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
+                conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 5}
               />
             ))}
             
@@ -9481,7 +9481,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
-  const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '' });
+  const [sectorForm, setSectorForm] = useState({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 5 });
   
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
@@ -9584,11 +9584,12 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
           name: sectorForm.name, 
           label_he: sectorForm.label_he || sectorForm.name,
           category: sectorForm.category,
-          notes: sectorForm.notes
+          notes: sectorForm.notes,
+          conflict_alt_delta: sectorForm.conflict_alt_delta
         })
       });
       setEditingSector(null);
-      setSectorForm({ name: '', label_he: '', category: '', notes: '' });
+      setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 5 });
       loadData();
     } catch (err) {
       console.error('Failed to save sector:', err);
@@ -9601,7 +9602,8 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       name: sector.name,
       label_he: sector.label_he || '',
       category: sector.category || '',
-      notes: sector.notes || ''
+      notes: sector.notes || '',
+      conflict_alt_delta: sector.conflict_alt_delta ?? 5
     });
   };
 
@@ -9840,21 +9842,9 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
                     סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
                   </p>
-                  <div style={{ marginTop: '12px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#f472b6', fontSize: '13px' }}>⚠️ סף קונפליקט גובה (±רגל) בנקודות העברה:</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="9999"
-                      step="100"
-                      value={presetForm.conflict_alt_delta}
-                      onChange={e => setPresetForm(p => ({ ...p, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ec4899', borderRadius: '6px', background: '#0f172a', color: '#f472b6', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
-                    />
-                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                      אם יוצא ונכנס באותה נקודת העברה נמצאים בפרש גובה קטן מ-±ערך זה — יסומן קונפליקט באדום. 0 = כבוי.
-                    </p>
-                  </div>
+                  <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    הגדרת סף קונפליקט גובה מוגדרת כעת בכל נקודת העברה בנפרד (בלשונית "נקודות העברה").
+                  </p>
                 </div>
 
                 {/* Relevant Control Stations */}
@@ -10040,6 +10030,21 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                     style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box', resize: 'vertical' }}
                   />
                 </div>
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px', color: '#f472b6', fontSize: '14px' }}>⚠️ סף קונפליקט גובה (מאות רגליים):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="99"
+                    step="1"
+                    value={sectorForm.conflict_alt_delta}
+                    onChange={(e) => setSectorForm(f => ({ ...f, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ec4899', borderRadius: '6px', background: '#1e293b', color: '#f472b6', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                  />
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    ערך במאות רגליים. לדוגמה: 5 = ±500 רגל. יוצא ונכנס באותה נקודה בפרש גובה קטן מהסף — מסומן קונפליקט. 0 = כבוי.
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                   <button
                     onClick={saveSector}
@@ -10049,7 +10054,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
                   </button>
                   {editingSector && (
                     <button
-                      onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '' }); }}
+                      onClick={() => { setEditingSector(null); setSectorForm({ name: '', label_he: '', category: '', notes: '', conflict_alt_delta: 5 }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול

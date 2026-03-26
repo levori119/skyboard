@@ -127,6 +127,7 @@ async function initDb() {
   // Sectors new columns
   await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
   await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await pool.query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS conflict_alt_delta INTEGER DEFAULT 5`);
   
   // Workstation presets table
   await pool.query(`
@@ -1661,10 +1662,10 @@ app.put('/api/workstation-personal-filters', async (req, res) => {
 // Sectors CRUD API
 app.post('/api/sectors', async (req, res) => {
   try {
-    const { name, label_he, category, notes } = req.body;
+    const { name, label_he, category, notes, conflict_alt_delta } = req.body;
     const result = await pool.query(
-      'INSERT INTO sectors (name, label_he, category, notes) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, label_he, category || null, notes || null]
+      'INSERT INTO sectors (name, label_he, category, notes, conflict_alt_delta) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 5]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1675,10 +1676,10 @@ app.post('/api/sectors', async (req, res) => {
 
 app.put('/api/sectors/:id', async (req, res) => {
   try {
-    const { name, label_he, category, notes } = req.body;
+    const { name, label_he, category, notes, conflict_alt_delta } = req.body;
     const result = await pool.query(
-      'UPDATE sectors SET name = $1, label_he = $2, category = $3, notes = $4 WHERE id = $5 RETURNING *',
-      [name, label_he, category || null, notes || null, req.params.id]
+      'UPDATE sectors SET name = $1, label_he = $2, category = $3, notes = $4, conflict_alt_delta = $5 WHERE id = $6 RETURNING *',
+      [name, label_he, category || null, notes || null, conflict_alt_delta ?? 5, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sector not found' });
