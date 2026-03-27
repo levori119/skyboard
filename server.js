@@ -412,6 +412,9 @@ async function initDb() {
       UNIQUE(strip_id, control_station)
     )
   `);
+  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by TEXT`);
+  await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by_workstation TEXT`);
 
   console.log('Database initialized');
 }
@@ -2186,14 +2189,14 @@ app.get('/api/strip-serial-selections', async (req, res) => {
 
 app.post('/api/strip-serial-selections', async (req, res) => {
   try {
-    const { strip_id: rawStripId, control_station, serial_id, dismissed } = req.body;
+    const { strip_id: rawStripId, control_station, serial_id, dismissed, acted_by, acted_by_workstation } = req.body;
     const strip_id = parseInt(String(rawStripId).replace(/^s/, ''), 10);
     if (isNaN(strip_id)) return res.status(400).json({ error: 'Invalid strip_id' });
     await pool.query(
-      `INSERT INTO strip_serial_selections (strip_id, control_station, serial_id, dismissed, assigned_at)
-       VALUES ($1,$2,$3,$4,NOW())
-       ON CONFLICT (strip_id, control_station) DO UPDATE SET serial_id=$3, dismissed=$4, assigned_at=NOW()`,
-      [strip_id, control_station, serial_id || null, dismissed || false]
+      `INSERT INTO strip_serial_selections (strip_id, control_station, serial_id, dismissed, assigned_at, acted_at, acted_by, acted_by_workstation)
+       VALUES ($1,$2,$3,$4,NOW(),NOW(),$5,$6)
+       ON CONFLICT (strip_id, control_station) DO UPDATE SET serial_id=$3, dismissed=$4, assigned_at=NOW(), acted_at=NOW(), acted_by=$5, acted_by_workstation=$6`,
+      [strip_id, control_station, serial_id || null, dismissed || false, acted_by || null, acted_by_workstation || null]
     );
     const result = await pool.query('SELECT * FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
     res.json(result.rows[0]);
