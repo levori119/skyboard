@@ -3140,6 +3140,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                           >
                             {mySerial ? (isOutdated ? `עדכן #${latestSerial.serial_number}` : '✓') : `בחר #${latestSerial.serial_number}`}
                           </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); setSerialViewPopup({ x: e.clientX, y: e.clientY, station }); }}
+                            style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', padding: '1px 4px', cursor: 'pointer', fontSize: '7px', flexShrink: 0 }}
+                            title="פתח לתצוגת ספרור"
+                          >📋</button>
                           {mySelection && (
                             <button
                               onClick={e => { e.stopPropagation(); onSerialRemove && onSerialRemove(s.id, station); }}
@@ -3220,58 +3225,93 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       )}
       {serialViewPopup && (() => {
         const station = serialViewPopup.station;
-        const stationSerials = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number);
-        const latestSerial = stationSerials[0];
-        const last5 = stationSerials.slice(0, 5);
+        const allStationSerials = [...serials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number);
+        const latestSerial = allStationSerials[0];
         const mySelection = serialSelections.find((sel: any) => sel.strip_id === s.id && sel.control_station === station);
+        const mySerial = mySelection?.serial_id ? serials.find((sr: any) => sr.id === mySelection.serial_id) : null;
+        const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
+        const recentSerials = allStationSerials.filter((sr: any) => {
+          const t = sr.created_at ? new Date(sr.created_at).getTime() : 0;
+          return t >= threeHoursAgo;
+        });
         const fmt = (dt: string) => dt ? new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+        const popLeft = Math.min(serialViewPopup.x, window.innerWidth - 330);
+        const popTop = Math.min(serialViewPopup.y, window.innerHeight - 440);
         return (
           <>
             <div onClick={() => setSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
-            <div style={{ position: 'fixed', left: Math.min(serialViewPopup.x, window.innerWidth - 320), top: Math.min(serialViewPopup.y, window.innerHeight - 340), zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '300px', direction: 'rtl', overflow: 'hidden' }}>
+            <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '320px', direction: 'rtl', overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
               {/* כותרת */}
-              <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
                 <button onClick={() => setSerialViewPopup(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}>✕</button>
               </div>
-              {/* ספרור חדש */}
-              {latestSerial && (
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0f2744' }}>
-                  <div style={{ color: '#60a5fa', fontSize: '11px', marginBottom: '4px', fontWeight: 'bold' }}>ספרור עדכני</div>
-                  <div style={{ color: 'white', fontSize: '15px', fontWeight: 'bold', marginBottom: '4px' }}>#{latestSerial.serial_number}</div>
-                  {latestSerial.essence && <div style={{ color: '#cbd5e1', fontSize: '12px', marginBottom: '2px' }}>מהות: {latestSerial.essence}</div>}
-                  {latestSerial.relevant_to && <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '2px' }}>רלוונטי ל: {latestSerial.relevant_to}</div>}
-                  <div style={{ color: '#64748b', fontSize: '10px' }}>נוצר: {fmt(latestSerial.created_at)}</div>
-                </div>
-              )}
-              {/* 5 ספרורים אחרונים */}
-              <div style={{ padding: '8px 12px 4px' }}>
-                <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>5 ספרורים אחרונים</div>
-                {last5.map((sr: any, idx: number) => {
-                  const isCurrent = mySelection?.serial_id === sr.id && !mySelection?.dismissed;
-                  const isDismissed = mySelection?.dismissed && mySelection?.serial_id === sr.id;
-                  const isLatest = idx === 0;
-                  let statusLabel = '';
-                  let statusColor = '#64748b';
-                  if (isCurrent) { statusLabel = 'הועבר ✓'; statusColor = '#22c55e'; }
-                  else if (isDismissed) { statusLabel = 'לא רלוונטי'; statusColor = '#f87171'; }
-                  else if (!isLatest) { statusLabel = 'ישן'; statusColor = '#475569'; }
-                  return (
-                    <div key={sr.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 6px', borderRadius: '4px', marginBottom: '2px', background: isCurrent ? '#14432a' : isDismissed ? '#2d1515' : 'transparent' }}>
-                      <span style={{ color: isLatest ? '#93c5fd' : '#e2e8f0', fontWeight: isLatest ? 'bold' : 'normal', fontSize: '12px', minWidth: '36px' }}>#{sr.serial_number}</span>
-                      <span style={{ color: '#64748b', fontSize: '10px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sr.essence || ''}</span>
-                      <span style={{ color: '#475569', fontSize: '9px', whiteSpace: 'nowrap' }}>{fmt(sr.created_at)}</span>
-                      {statusLabel && <span style={{ color: statusColor, fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{statusLabel}</span>}
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {/* הספרור הנוכחי של הפ"מ */}
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0c1a2e' }}>
+                  <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>ספרור נוכחי של הפ"מ</div>
+                  {mySerial && !mySelection?.dismissed ? (
+                    <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
+                      <div style={{ color: '#4ade80', fontSize: '16px', fontWeight: 'bold', marginBottom: '3px' }}>#{mySerial.serial_number}</div>
+                      {mySerial.essence && <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>מהות: {mySerial.essence}</div>}
+                      {mySerial.relevant_to && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>רלוונטי ל: {mySerial.relevant_to}</div>}
+                      <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.7 }}>נוצר: {fmt(mySerial.created_at)}</div>
+                      {latestSerial && latestSerial.id !== mySerial.id && (
+                        <div style={{ marginTop: '6px', padding: '4px 8px', background: '#dc2626', borderRadius: '4px', color: 'white', fontSize: '10px', fontWeight: 'bold' }}>
+                          ⚠️ קיים ספרור חדש יותר: #{latestSerial.serial_number}
+                          <button
+                            onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); setSerialViewPopup(null); }}
+                            style={{ marginRight: '8px', background: 'white', color: '#dc2626', border: 'none', borderRadius: '3px', padding: '1px 6px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}
+                          >עדכן</button>
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
+                  ) : mySelection?.dismissed ? (
+                    <div style={{ color: '#f87171', fontSize: '12px', padding: '4px 0' }}>🚫 סומן כ"לא רלוונטי"</div>
+                  ) : (
+                    <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>— לא משויך ספרור לפ"מ זה</div>
+                  )}
+                </div>
+                {/* ספרורים מ-3 שעות האחרונות */}
+                <div style={{ padding: '8px 12px 6px' }}>
+                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>ספרורים מ-3 השעות האחרונות</div>
+                  {recentSerials.length === 0 ? (
+                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>אין ספרורים מ-3 השעות האחרונות</div>
+                  ) : (
+                    recentSerials.map((sr: any) => {
+                      const isCurrent = mySelection?.serial_id === sr.id && !mySelection?.dismissed;
+                      const isLatest = latestSerial?.id === sr.id;
+                      return (
+                        <div key={sr.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', borderRadius: '5px', marginBottom: '3px', background: isCurrent ? '#14432a' : isLatest ? '#1e3a5f' : '#0f172a', border: `1px solid ${isCurrent ? '#166534' : isLatest ? '#1d4ed8' : '#1e293b'}` }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: isCurrent ? '#4ade80' : isLatest ? '#93c5fd' : '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>#{sr.serial_number}</span>
+                              {isLatest && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>חדש ביותר</span>}
+                              {isCurrent && <span style={{ background: '#166534', color: '#4ade80', fontSize: '8px', borderRadius: '3px', padding: '0 4px' }}>✓ נוכחי</span>}
+                            </div>
+                            {sr.essence && <div style={{ color: '#64748b', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sr.essence}</div>}
+                            <div style={{ color: '#475569', fontSize: '9px' }}>{fmt(sr.created_at)}</div>
+                          </div>
+                          {!isCurrent && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onSerialSelect && onSerialSelect(s.id, station, sr.id, false); setSerialViewPopup(null); }}
+                              style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', flexShrink: 0 }}
+                            >קבל</button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
               {/* כפתורי פעולה */}
-              <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderTop: '1px solid #1e3a5f' }}>
-                <button
-                  onClick={() => { onSerialSelect && onSerialSelect(s.id, station, latestSerial?.id, false); setSerialViewPopup(null); }}
-                  style={{ flex: 1, background: '#1d4ed8', border: 'none', borderRadius: '4px', color: 'white', padding: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                >✅ קבל ספרור</button>
+              <div style={{ display: 'flex', gap: '6px', padding: '8px 12px', borderTop: '1px solid #1e3a5f', flexShrink: 0 }}>
+                {latestSerial && mySerial?.id !== latestSerial.id && !mySelection?.dismissed && (
+                  <button
+                    onClick={() => { onSerialSelect && onSerialSelect(s.id, station, latestSerial.id, false); setSerialViewPopup(null); }}
+                    style={{ flex: 1, background: '#1d4ed8', border: 'none', borderRadius: '4px', color: 'white', padding: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                  >✅ קבל ספרור עדכני</button>
+                )}
                 <button
                   onClick={() => { onSerialDismiss && onSerialDismiss(s.id, station); setSerialViewPopup(null); }}
                   style={{ flex: 1, background: '#7f1d1d', border: 'none', borderRadius: '4px', color: '#fca5a5', padding: '6px', cursor: 'pointer', fontSize: '11px' }}
