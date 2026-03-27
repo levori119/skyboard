@@ -192,6 +192,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS first_name VARCHAR(50)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS personal_id VARCHAR(20)`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS is_team_lead BOOLEAN DEFAULT FALSE`);
   
   // Junction table for crew member approved workstations
   await pool.query(`
@@ -443,11 +444,11 @@ app.get('/api/crew-members', async (req, res) => {
 
 app.post('/api/crew-members', async (req, res) => {
   try {
-    const { first_name, last_name, personal_id, is_admin, approved_workstations } = req.body;
+    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;
     const name = `${first_name} ${last_name}`.trim();
     const result = await pool.query(
-      'INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, first_name, last_name, personal_id, is_admin || false]
+      'INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin, is_team_lead) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [name, first_name, last_name, personal_id, is_admin || false, is_team_lead || false]
     );
     const crewMemberId = result.rows[0].id;
     
@@ -470,11 +471,11 @@ app.post('/api/crew-members', async (req, res) => {
 
 app.put('/api/crew-members/:id', async (req, res) => {
   try {
-    const { first_name, last_name, personal_id, is_admin, approved_workstations } = req.body;
+    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;
     const name = `${first_name} ${last_name}`.trim();
     await pool.query(
-      'UPDATE crew_members SET name = $1, first_name = $2, last_name = $3, personal_id = $4, is_admin = $5 WHERE id = $6',
-      [name, first_name, last_name, personal_id, is_admin, req.params.id]
+      'UPDATE crew_members SET name = $1, first_name = $2, last_name = $3, personal_id = $4, is_admin = $5, is_team_lead = $6 WHERE id = $7',
+      [name, first_name, last_name, personal_id, is_admin, is_team_lead || false, req.params.id]
     );
     
     // Update approved workstations

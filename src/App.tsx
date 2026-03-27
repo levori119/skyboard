@@ -15,6 +15,7 @@ interface CrewMember {
   last_name?: string;
   personal_id?: string;
   is_admin: boolean;
+  is_team_lead?: boolean;
   approved_workstations?: number[];
 }
 
@@ -148,7 +149,7 @@ const clearSession = () => {
 };
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: (session: WorkstationSession) => void; onManagement?: () => void; onDistribution?: () => void }) => {
+const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember) => void; onDistribution?: () => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedSector, setSelectedSector] = useState<number | null>(null);
   const [workstationName, setWorkstationName] = useState('');
@@ -445,6 +446,7 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                           {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginRight: '8px' }}>({cm.personal_id})</span>}
                         </span>
                         {cm.is_admin && <span style={{ fontSize: '11px', background: '#eab308', color: '#1e293b', padding: '2px 8px', borderRadius: '12px' }}>מנהל</span>}
+                        {!cm.is_admin && cm.is_team_lead && <span style={{ fontSize: '11px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 8px', borderRadius: '12px' }}>ראש צוות</span>}
                       </button>
                     ))}
                   {crewMembers.filter(cm => {
@@ -540,12 +542,14 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                 </button>
               )}
               
-              {selectedCrewMember.is_admin && onManagement && (
+              {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && onManagement && (
                 <button
-                  onClick={onManagement}
+                  onClick={() => onManagement(selectedCrewMember)}
                   style={{
                     padding: '20px',
-                    background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)',
+                    background: selectedCrewMember.is_admin
+                      ? 'linear-gradient(135deg, #047857 0%, #10b981 100%)'
+                      : 'linear-gradient(135deg, #0e7490 0%, #06b6d4 100%)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '12px',
@@ -556,11 +560,13 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)'
+                    boxShadow: selectedCrewMember.is_admin
+                      ? '0 4px 15px rgba(16, 185, 129, 0.4)'
+                      : '0 4px 15px rgba(6, 182, 212, 0.4)'
                   }}
                 >
                   <span style={{ fontSize: '24px' }}>⚙️</span>
-                  ניהול מערכת
+                  {selectedCrewMember.is_admin ? 'ניהול מערכת' : 'ניהול עמדות'}
                 </button>
               )}
             </div>
@@ -5539,6 +5545,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <span>{cm.name}</span>
                   {session.crewMember?.id === cm.id && <span style={{ fontSize: '11px', color: '#3b82f6' }}>נוכחי</span>}
                   {cm.is_admin && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#eab308', color: '#1e293b', padding: '2px 6px', borderRadius: '10px' }}>מנהל</span>}
+                  {!cm.is_admin && cm.is_team_lead && session.crewMember?.id !== cm.id && <span style={{ fontSize: '10px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 6px', borderRadius: '10px' }}>ראש צוות</span>}
                 </button>
               ))}
             </div>
@@ -9513,8 +9520,14 @@ const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; on
 };
 
 // --- דף ניהול ---
-const ManagementPage = ({ onBack }: { onBack: () => void }) => {
-  const [activeTab, setActiveTab] = useState<'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials'>('presets');
+const ManagementPage = ({ onBack, crewMember }: { onBack: () => void; crewMember?: CrewMember | null }) => {
+  const isAdmin = crewMember?.is_admin ?? true;
+  const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids'];
+  const allTabs: TabKey[] = ['presets', 'sectors', 'maps', 'strips', 'crew', 'table_modes', 'work_groups', 'aids', 'serials'];
+  const availableTabs = isAdmin ? allTabs : teamLeadTabs;
+  const [activeTab, setActiveTab] = useState<TabKey>('presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
@@ -9525,7 +9538,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
-  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, approved_workstations: [] as number[] });
+  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[] });
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
@@ -9578,7 +9591,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
         body: JSON.stringify(crewMemberForm)
       });
       setEditingCrewMember(null);
-      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, approved_workstations: [] });
+      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save crew member:', err);
@@ -9592,6 +9605,7 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
       last_name: member.last_name || '', 
       personal_id: member.personal_id || '',
       is_admin: member.is_admin,
+      is_team_lead: member.is_team_lead || false,
       approved_workstations: member.approved_workstations || []
     });
   };
@@ -9742,23 +9756,27 @@ const ManagementPage = ({ onBack }: { onBack: () => void }) => {
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
       <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '22px' }}>ניהול מערכת</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1 style={{ margin: 0, fontSize: '22px' }}>{isTeamLead ? 'ניהול עמדות' : 'ניהול מערכת'}</h1>
+          {isTeamLead && <span style={{ background: '#06b6d4', color: '#0c4a6e', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>ראש צוות</span>}
+          {isAdmin && crewMember && <span style={{ background: '#eab308', color: '#1e293b', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>מנהל</span>}
+        </div>
         <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
           חזרה
         </button>
       </header>
 
       {/* Tabs */}
-      <div style={{ padding: '20px 30px 0', display: 'flex', gap: '4px' }}>
-        <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>
-        <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>נקודות העברה</button>
-        <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>
-        <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>
-        <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>
-        <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>
-        <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>
-        <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>
-        <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>
+      <div style={{ padding: '20px 30px 0', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {availableTabs.includes('presets') && <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>}
+        {availableTabs.includes('sectors') && <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>נקודות העברה</button>}
+        {availableTabs.includes('maps') && <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>}
+        {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>}
+        {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>}
+        {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>}
+        {availableTabs.includes('work_groups') && <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>}
+        {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>}
+        {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -10422,15 +10440,24 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       onChange={(e) => setCrewMemberForm(f => ({ ...f, personal_id: e.target.value }))}
                       style={{ padding: '10px 14px', borderRadius: '6px', border: 'none', background: '#334155', color: 'white', fontSize: '15px', width: '120px' }}
                     />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={crewMemberForm.is_admin}
-                        onChange={(e) => setCrewMemberForm(f => ({ ...f, is_admin: e.target.checked }))}
-                        style={{ width: '18px', height: '18px' }}
-                      />
-                      מנהל מערכת
-                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <span style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '2px' }}>תפקיד:</span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', cursor: 'pointer' }}>
+                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && !crewMemberForm.is_team_lead}
+                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: false }))} />
+                        משתמש רגיל
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4', cursor: 'pointer' }}>
+                        <input type="radio" name="crew-role" checked={!crewMemberForm.is_admin && crewMemberForm.is_team_lead}
+                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: false, is_team_lead: true }))} />
+                        ראש צוות
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#eab308', cursor: 'pointer' }}>
+                        <input type="radio" name="crew-role" checked={crewMemberForm.is_admin}
+                          onChange={() => setCrewMemberForm(f => ({ ...f, is_admin: true, is_team_lead: false }))} />
+                        מנהל מערכת
+                      </label>
+                    </div>
                   </div>
                   
                   {/* Approved Workstations Multi-Select */}
@@ -10488,6 +10515,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         {member.personal_id && <span style={{ fontSize: '12px', color: '#94a3b8' }}>מ.א: {member.personal_id}</span>}
                         {member.is_admin && (
                           <span style={{ fontSize: '12px', background: '#eab308', color: '#1e293b', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>מנהל</span>
+                        )}
+                        {!member.is_admin && member.is_team_lead && (
+                          <span style={{ fontSize: '12px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>ראש צוות</span>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
@@ -10613,6 +10643,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
   const [page, setPage] = useState<'login' | 'dashboard' | 'management' | 'distribution'>('login');
+  const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
 
   // Apply stored light/dark preference immediately on app load
@@ -10649,7 +10680,7 @@ export default function App() {
   };
 
   if (page === 'management') {
-    return <ManagementPage onBack={() => setPage('login')} />;
+    return <ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} />;
   }
 
   if (page === 'distribution') {
@@ -10657,7 +10688,7 @@ export default function App() {
   }
 
   if (!session || page === 'login') {
-    return <WorkstationLogin onLogin={handleLogin} onManagement={() => setPage('management')} onDistribution={() => setPage('distribution')} />;
+    return <WorkstationLogin onLogin={handleLogin} onManagement={(cm) => { setManagementCrewMember(cm); setPage('management'); }} onDistribution={() => setPage('distribution')} />;
   }
 
   return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} />;

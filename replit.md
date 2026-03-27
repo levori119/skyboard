@@ -29,7 +29,7 @@ Preferred communication style: Simple, everyday language.
 ## Key Features
 - **Flight Strip Management**: Drag-and-drop interface, multi-sector workstation support.
 - **OCR**: Tesseract.js for digit recognition, personalized per crew member.
-- **Crew Member System**: Personalized profiles, admin roles, hot-swapping.
+- **Crew Member System**: Three roles — regular, ראש צוות (team lead, limited management access), מנהל (admin, full access). Personalized profiles, hot-swapping.
 - **Session Management**: Client-side storage for workstation and crew context.
 - **Battle Zone Visualization**: Polygon overlays.
 - **UI/UX**: Light/dark mode, tablet optimization, dynamic table view with grouping and sorting.
