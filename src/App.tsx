@@ -5341,11 +5341,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const latestSerial = allStationSerials[0];
         const mySelection = stripSerialSelections.find((sel: any) => sel.strip_id === stripId && sel.control_station === station);
         const mySerial = mySelection?.serial_id ? relevantSerials.find((sr: any) => sr.id === mySelection.serial_id) : null;
-        const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
-        const recentSerials = allStationSerials.filter((sr: any) => {
-          const t = sr.created_at ? new Date(sr.created_at).getTime() : 0;
-          return t >= threeHoursAgo;
-        });
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const recentSerials = (() => {
+          const last24 = allStationSerials.filter((sr: any) => {
+            const t = sr.created_at ? new Date(sr.created_at).getTime() : 0;
+            return t >= dayAgo;
+          });
+          return last24.length > 0 ? last24 : allStationSerials.slice(0, 10);
+        })();
         const fmt = (dt: string) => dt ? new Date(dt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '—';
         const fmtFull = (dt: string) => dt ? new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
         const popLeft = Math.min(x, window.innerWidth - 330);
@@ -5397,11 +5400,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>— טרם בוצעה פעולה לפ"מ זה</div>
                   )}
                 </div>
-                {/* ספרורים מ-3 שעות האחרונות */}
+                {/* ספרורים אחרונים */}
                 <div style={{ padding: '8px 12px 6px' }}>
-                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>ספרורים מ-3 השעות האחרונות</div>
+                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>ספרורים אחרונים</div>
                   {recentSerials.length === 0 ? (
-                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>אין ספרורים מ-3 השעות האחרונות</div>
+                    <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>אין ספרורים</div>
                   ) : recentSerials.map((sr: any) => {
                     const isDismissedSerial = mySelection?.dismissed && mySelection?.serial_id === sr.id;
                     const isKnown = !mySelection?.dismissed && mySerial && sr.serial_number <= mySerial.serial_number;
