@@ -542,15 +542,6 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                 </button>
               )}
               
-              {selectedCrewMember.is_admin && onManagement && (
-                <button
-                  onClick={() => onManagement(selectedCrewMember, 'admin')}
-                  style={{ padding: '20px', background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
-                >
-                  <span style={{ fontSize: '24px' }}>🛡️</span>
-                  ניהול מערכת
-                </button>
-              )}
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && onManagement && (
                 <button
                   onClick={() => onManagement(selectedCrewMember, 'team_lead')}
@@ -558,6 +549,15 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                 >
                   <span style={{ fontSize: '24px' }}>⚙️</span>
                   ניהול עמדות
+                </button>
+              )}
+              {selectedCrewMember.is_admin && onManagement && (
+                <button
+                  onClick={() => onManagement(selectedCrewMember, 'admin')}
+                  style={{ padding: '20px', background: 'linear-gradient(135deg, #047857 0%, #10b981 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(16, 185, 129, 0.4)' }}
+                >
+                  <span style={{ fontSize: '24px' }}>🛡️</span>
+                  ניהול מערכת
                 </button>
               )}
             </div>
@@ -9517,9 +9517,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
   type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials';
   const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids'];
-  const allTabs: TabKey[] = ['presets', 'sectors', 'maps', 'strips', 'crew', 'table_modes', 'work_groups', 'aids', 'serials'];
-  const availableTabs = effectiveMode === 'admin' ? allTabs : teamLeadTabs;
-  const [activeTab, setActiveTab] = useState<TabKey>('presets');
+  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
+  const availableTabs = effectiveMode === 'admin' ? adminOnlyTabs : teamLeadTabs;
+  const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
