@@ -6253,7 +6253,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                                   <span className={isOutdated ? 'serial-flash' : ''}
                                     style={{ fontSize: '10px', background: isDismissed ? (lightMode ? '#f1f5f9' : '#1e293b') : isOutdated ? '#dc2626' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isDismissed ? (lightMode ? '#94a3b8' : '#475569') : isOutdated ? 'white' : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                    ספרור {latestNum}
+                                    {sel.control_station} – {isDismissed ? 'לא רלוונטי' : `ספרור ${latestNum}`}
                                   </span>
                                   <button
                                     onClick={e => { e.stopPropagation(); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
