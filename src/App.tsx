@@ -3806,115 +3806,187 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     </div>
   );
 
-  const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
-    const blocksToShow = segBlocks !== undefined ? segBlocks : relevantBlocks;
-    return (
-    <>
-      {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
-      {/* Chart area */}
-      <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', borderBottom: `1px solid ${gridLine}` }}>
-        {/* Block range background bands */}
-        {blocksToShow.map((b: any) => {
-          const bAltHi = b.alt_to * 100;
-          const bAltLo = b.alt_from * 100;
-          const topPct = altPct(bAltHi);
-          const botPct = altPct(bAltLo);
-          const h = Math.max(botPct - topPct, 1);
-          if (topPct > 102 || botPct < -2) return null;
-          return (
-            <div key={b.id} style={{
-              position: 'absolute', left: 0, right: 0,
-              top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
-              background: b.color ? b.color + '22' : 'rgba(99,102,241,0.1)',
-              borderTop: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
-              borderBottom: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
-              pointerEvents: 'none', zIndex: 0
-            }} />
-          );
-        })}
-        {altTicks.map(a => {
-          const pct = altPct(a);
-          if (pct < 0 || pct > 100) return null;
-          return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none', zIndex: 1 }} />;
-        })}
+  const renderChartContent = (placed: Placed[], blocksToShow: any[]) => (
+    <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden' }}>
+      {/* Block range background bands */}
+      {blocksToShow.map((b: any) => {
+        const bAltHi = b.alt_to * 100;
+        const bAltLo = b.alt_from * 100;
+        const topPct = altPct(bAltHi);
+        const botPct = altPct(bAltLo);
+        const h = Math.max(botPct - topPct, 1);
+        if (topPct > 102 || botPct < -2) return null;
+        return (
+          <div key={b.id} style={{
+            position: 'absolute', left: 0, right: 0,
+            top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+            background: b.color ? b.color + '22' : 'rgba(99,102,241,0.1)',
+            borderTop: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
+            borderBottom: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
+            pointerEvents: 'none', zIndex: 0
+          }} />
+        );
+      })}
+      {altTicks.map(a => {
+        const pct = altPct(a);
+        if (pct < 0 || pct > 100) return null;
+        return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none', zIndex: 1 }} />;
+      })}
 
-        {(() => {
-          const nowPct = (now.getTime() - START_MS) / TOTAL_MS * 100;
-          return (
-            <>
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${nowPct}%`, width: 2, background: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
-              <div style={{ position: 'absolute', top: 2, left: `${nowPct}%`, transform: 'translateX(3px)', fontSize: '9px', color: '#ef4444', fontWeight: 'bold', zIndex: 6, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-                {now.getHours().toString().padStart(2,'0')}:{now.getMinutes().toString().padStart(2,'0')}
-              </div>
-            </>
-          );
-        })()}
+      {(() => {
+        const nowPct = (now.getTime() - START_MS) / TOTAL_MS * 100;
+        return (
+          <>
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${nowPct}%`, width: 2, background: '#ef4444', zIndex: 5, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', top: 2, left: `${nowPct}%`, transform: 'translateX(3px)', fontSize: '9px', color: '#ef4444', fontWeight: 'bold', zIndex: 6, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+              {now.getHours().toString().padStart(2,'0')}:{now.getMinutes().toString().padStart(2,'0')}
+            </div>
+          </>
+        );
+      })()}
 
-        {(() => {
-          const zones: { x1: number; x2: number }[] = [];
-          for (let i = 0; i < placed.length; i++) {
-            for (let j = i + 1; j < placed.length; j++) {
-              const a = placed[i], b = placed[j];
-              if (a._hasConflict && b._hasConflict) {
-                const x1 = (Math.max(a._time, b._time) - START_MS) / TOTAL_MS * 100;
-                const x2 = (Math.min(a._time, b._time) + STRIP_DUR_MS - START_MS) / TOTAL_MS * 100;
-                if (x2 > x1) zones.push({ x1, x2 });
-              }
+      {(() => {
+        const zones: { x1: number; x2: number }[] = [];
+        for (let i = 0; i < placed.length; i++) {
+          for (let j = i + 1; j < placed.length; j++) {
+            const a = placed[i], b = placed[j];
+            if (a._hasConflict && b._hasConflict) {
+              const x1 = (Math.max(a._time, b._time) - START_MS) / TOTAL_MS * 100;
+              const x2 = (Math.min(a._time, b._time) + STRIP_DUR_MS - START_MS) / TOTAL_MS * 100;
+              if (x2 > x1) zones.push({ x1, x2 });
             }
           }
-          return zones.map((z, idx) => (
-            <div key={idx} style={{ position: 'absolute', top: 0, bottom: 0, left: `${z.x1}%`, width: `${z.x2 - z.x1}%`, background: 'rgba(239,68,68,0.18)', zIndex: 0, pointerEvents: 'none' }} />
-          ));
-        })()}
+        }
+        return zones.map((z, idx) => (
+          <div key={idx} style={{ position: 'absolute', top: 0, bottom: 0, left: `${z.x1}%`, width: `${z.x2 - z.x1}%`, background: 'rgba(239,68,68,0.18)', zIndex: 0, pointerEvents: 'none' }} />
+        ));
+      })()}
 
-        {placed.map(s => {
-          const xPct = (s._time - START_MS) / TOTAL_MS * 100;
-          const wPct = STRIP_DUR_MS / TOTAL_MS * 100;
-          if (xPct + wPct < 0 || xPct > 100) return null;
-          const isConflict = s._hasConflict;
-          const sq = s.sq || s.squadron || '';
-          let topPct: number, heightVal: string;
-          if (s._isRange) {
-            const tp = altPct(s._altHi);
-            const bp = altPct(s._altLo);
-            topPct = Math.max(tp, 0);
-            heightVal = `${Math.max(bp - tp, 4)}%`;
-          } else {
-            const yPct = s._y / CHART_H * 100;
-            const halfPct = (STRIP_H / 2 / CHART_H) * 100;
-            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
-            heightVal = `${STRIP_H}px`;
-          }
-          const borderColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
-          const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
+      {placed.map(s => {
+        const xPct = (s._time - START_MS) / TOTAL_MS * 100;
+        const wPct = STRIP_DUR_MS / TOTAL_MS * 100;
+        if (xPct + wPct < 0 || xPct > 100) return null;
+        const isConflict = s._hasConflict;
+        const sq = s.sq || s.squadron || '';
+        let topPct: number, heightVal: string;
+        if (s._isRange) {
+          const tp = altPct(s._altHi);
+          const bp = altPct(s._altLo);
+          topPct = Math.max(tp, 0);
+          heightVal = `${Math.max(bp - tp, 4)}%`;
+        } else {
+          const yPct = s._y / CHART_H * 100;
+          const halfPct = (STRIP_H / 2 / CHART_H) * 100;
+          topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+          heightVal = `${STRIP_H}px`;
+        }
+        const borderColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
+        const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
+        return (
+          <div key={s.id}
+            title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}`}
+            style={{
+              position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
+              width: `${wPct}%`, height: heightVal,
+              background: s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
+                : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
+              border: `2px solid ${borderColor}`, borderRadius: 4,
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
+              overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
+            }}>
+            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+              <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
+            </div>
+          </div>
+        );
+      })}
+
+      {placed.length === 0 && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
+          אין פממים
+        </div>
+      )}
+    </div>
+  );
+
+  const renderYAxisColumn = (blocksToShow: any[]) => (
+    <div style={{ width: Y_AXIS_W, flexShrink: 0, position: 'relative', overflow: 'hidden', borderRight: `1px solid ${gridLine}`, background: bg }}>
+      {blocksToShow.map((b: any) => {
+        const bAltHi = b.alt_to * 100;
+        const bAltLo = b.alt_from * 100;
+        const topPct = altPct(bAltHi);
+        const botPct = altPct(bAltLo);
+        const h = Math.max(botPct - topPct, 2);
+        if (topPct > 102 || botPct < -2) return null;
+        return (
+          <div key={b.id} title={b.mission || `${b.alt_from}–${b.alt_to}`} style={{
+            position: 'absolute', left: 0, right: 0,
+            top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+            background: b.color ? b.color + '55' : 'rgba(99,102,241,0.3)',
+            borderLeft: `3px solid ${b.color || '#6366f1'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+            paddingLeft: '4px', overflow: 'hidden', pointerEvents: 'none', boxSizing: 'border-box'
+          }}>
+            {h > 5 && <span style={{ fontSize: '8px', fontWeight: 'bold', color: b.color || '#6366f1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'left', lineHeight: 1 }}>
+              {b.mission || `${b.alt_from}–${b.alt_to}`}
+            </span>}
+          </div>
+        );
+      })}
+      {altTicks.map(a => {
+        const pct = altPct(a);
+        if (pct < -2 || pct > 102) return null;
+        const clampedPct = Math.min(Math.max(pct, 1), 98);
+        return (
+          <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
+            {altLabel(a)}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderXAxisWithPad = (yPad = false) => (
+    <div style={{ height: X_AXIS_H, flexShrink: 0, display: 'flex', flexDirection: 'row', background: bg, borderTop: `1px solid ${gridLine}` }}>
+      {yPad && <div style={{ width: Y_AXIS_W, flexShrink: 0, borderRight: `1px solid ${gridLine}` }} />}
+      <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
+        {ticks.map(t => {
+          const pct = (t - START_MS) / TOTAL_MS * 100;
+          if (pct < 0 || pct > 100) return null;
+          const d = new Date(t);
+          const hh = d.getHours().toString().padStart(2, '0');
+          const mm = d.getMinutes().toString().padStart(2, '0');
+          const isHour = mm === '00';
           return (
-            <div key={s.id}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}`}
-              style={{
-                position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
-                width: `${wPct}%`, height: heightVal,
-                background: s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-                  : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
-                border: `2px solid ${borderColor}`, borderRadius: 4,
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
-                overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
-              }}>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
-              </div>
+            <div key={t} style={{ position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)', top: 3, color: isHour ? boldTextColor : textColor, fontWeight: isHour ? 'bold' : 'normal', fontSize: isHour ? '11px' : '10px', whiteSpace: 'nowrap' }}>
+              {hh}:{mm}
             </div>
           );
         })}
-
-        {placed.length === 0 && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
-            אין פממים
-          </div>
-        )}
       </div>
-      {renderXAxis()}
-    </>
+    </div>
+  );
+
+  const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
+    const blocksToShow = segBlocks !== undefined ? segBlocks : relevantBlocks;
+    if (isBlockSpaceGroup) {
+      return (
+        <>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+            {renderYAxisColumn(blocksToShow)}
+            {renderChartContent(placed, blocksToShow)}
+          </div>
+          {renderXAxisWithPad(true)}
+        </>
+      );
+    }
+    return (
+      <>
+        {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
+        {renderChartContent(placed, blocksToShow)}
+        {renderXAxis()}
+      </>
     );
   };
 
@@ -3933,7 +4005,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
         {/* Y-axis column */}
-        <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
+        <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: isBlockSpaceGroup ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
           {HEADER_H > 0 && <div style={{ height: HEADER_H, borderBottom: `1px solid ${gridLine}`, background: bg }} />}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {/* Block range bands on Y-axis */}
@@ -3981,17 +4053,10 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               {/* Segment header label */}
               {HEADER_H > 0 && (
                 isBlockSpaceGroup ? (
-                  <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', gap: 8, direction: 'rtl', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {seg.label}
+                  <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', direction: 'rtl', overflow: 'hidden' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap' }}>
+                      מרחב בלוקים: {seg.label}
                     </span>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center', flexShrink: 1, minWidth: 0 }}>
-                      {(seg.segBlocks || []).map((b: any) => (
-                        <span key={b.id} style={{ fontSize: '9px', padding: '1px 5px', borderRadius: 3, background: b.color ? b.color + '33' : 'rgba(99,102,241,0.2)', border: `1px solid ${b.color || '#6366f1'}`, color: b.color || (lightMode ? '#4338ca' : '#a5b4fc'), whiteSpace: 'nowrap', fontWeight: 'bold' }}>
-                          {b.mission || `${b.alt_from}–${b.alt_to}`}
-                        </span>
-                      ))}
-                    </div>
                   </div>
                 ) : (
                   <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
