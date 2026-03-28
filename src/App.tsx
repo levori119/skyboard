@@ -5467,7 +5467,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return (
           <>
             <div onClick={() => setTableSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
-            <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '320px', direction: 'rtl', overflow: 'hidden', maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ position: 'fixed', left: popLeft, top: popTop, zIndex: 9999, background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', width: '280px', direction: 'rtl', overflow: 'hidden', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
               {/* כותרת */}
               <div style={{ background: '#1e3a5f', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <span style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '13px' }}>📡 ספרור — {station}</span>
@@ -5512,22 +5512,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   )}
                 </div>
                 {/* ספרורים אחרונים */}
-                <div style={{ padding: '8px 12px 4px' }}>
-                  <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>ספרורים אחרונים</div>
+                <div style={{ padding: '6px 10px 4px' }}>
                   {recentSerials.length === 0 ? (
                     <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>אין ספרורים</div>
                   ) : (() => {
-                    // find the threshold serial_number for "known until"
                     const knownUntilSerial = serialPopupKnownUntilId ? recentSerials.find((sr: any) => sr.id === serialPopupKnownUntilId) : null;
                     const knownUntilNum = knownUntilSerial ? knownUntilSerial.serial_number : null;
                     const hasActions = serialPopupKnownUntilId || serialPopupNotRelevantIds.length > 0;
                     return (
                       <>
+                        {/* כפתור אשר — למעלה */}
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                          <button
+                            disabled={!hasActions}
+                            onClick={async () => {
+                              if (serialPopupKnownUntilId) {
+                                await handleSerialSelect(stripId, station, serialPopupKnownUntilId, false);
+                              }
+                              for (const notRelId of serialPopupNotRelevantIds) {
+                                await handleSerialDismiss(stripId, station, notRelId);
+                              }
+                              setSerialPopupKnownUntilId(null);
+                              setSerialPopupNotRelevantIds([]);
+                              setTableSerialViewPopup(null);
+                            }}
+                            style={{ flex: 1, background: hasActions ? '#2563eb' : '#1e293b', color: hasActions ? 'white' : '#475569', border: `1px solid ${hasActions ? '#3b82f6' : '#334155'}`, borderRadius: '5px', padding: '6px 10px', cursor: hasActions ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
+                          >✓ אשר</button>
+                          <button
+                            onClick={() => setTableSerialViewPopup(null)}
+                            style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px' }}
+                          >ביטול</button>
+                        </div>
+
                         {recentSerials.map((sr: any) => {
                           const isDismissedSerial = mySelection?.dismissed && mySelection?.serial_id === sr.id;
                           const isAlreadyKnown = !mySelection?.dismissed && mySerial && sr.serial_number <= mySerial.serial_number;
                           const isLatest = latestSerial?.id === sr.id;
-                          // disabled if below knownUntil threshold
                           const disabledByKnownUntil = knownUntilNum !== null && sr.serial_number < knownUntilNum;
                           const isKnownUntilChecked = serialPopupKnownUntilId === sr.id;
                           const isNotRelevantChecked = serialPopupNotRelevantIds.includes(sr.id);
@@ -5542,81 +5562,38 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           else if (isLatest) { rowBg = '#1e3a5f'; rowBorder = '#1d4ed8'; }
                           else if (disabledByKnownUntil) { rowBg = '#0c1a10'; rowBorder = '#1e3a1f'; }
 
+                          const numColor = isDismissedSerial ? '#fca5a5' : isAlreadyKnown ? '#4ade80' : isKnownUntilChecked ? '#86efac' : isLatest ? '#93c5fd' : '#e2e8f0';
+
                           return (
-                            <div key={sr.id} style={{ padding: '8px 10px', borderRadius: '6px', marginBottom: '5px', background: rowBg, border: `1px solid ${rowBorder}`, opacity: disabledByKnownUntil ? 0.4 : 1 }}>
-                              {/* שורת מידע */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '17px', color: isDismissedSerial ? '#fca5a5' : isAlreadyKnown ? '#4ade80' : isKnownUntilChecked ? '#86efac' : isLatest ? '#93c5fd' : '#e2e8f0', letterSpacing: '0.5px' }}>
-                                  #{sr.serial_number}
-                                </span>
-                                {isLatest && !isDismissedSerial && !isAlreadyKnown && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '9px', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold' }}>חדש ביותר</span>}
-                                {isAlreadyKnown && mySerial?.id === sr.id && <span style={{ background: '#166534', color: '#4ade80', fontSize: '9px', borderRadius: '4px', padding: '1px 6px' }}>✓ נוכחי</span>}
-                                {isAlreadyKnown && mySerial?.id !== sr.id && <span style={{ color: '#4ade80', fontSize: '10px' }}>✓ מבנה מכיר</span>}
-                                {isDismissedSerial && <span style={{ color: '#fca5a5', fontSize: '10px', fontWeight: 'bold' }}>🚫 לא רלוונטי</span>}
-                                <span style={{ marginRight: 'auto', color: '#475569', fontSize: '10px' }}>{fmtFull(sr.created_at)}</span>
-                              </div>
-                              {sr.essence && <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>{sr.essence}</div>}
-                              {/* checkboxes — רק לספרורים שעדיין לא טופלו */}
-                              {!rowDisabled && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer', userSelect: 'none' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isKnownUntilChecked}
-                                      onChange={e => {
-                                        if (e.target.checked) {
-                                          setSerialPopupKnownUntilId(sr.id);
-                                          // remove from not-relevant if was there
-                                          setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== sr.id));
-                                        } else {
-                                          setSerialPopupKnownUntilId(null);
-                                        }
-                                      }}
-                                      style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#22c55e' }}
-                                    />
-                                    <span style={{ color: '#86efac', fontSize: '12px', fontWeight: '600' }}>✅ פ"מ מכיר עד ספרור זה</span>
-                                  </label>
-                                  <label style={{ display: 'flex', alignItems: 'center', gap: '7px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', userSelect: 'none', opacity: isKnownUntilChecked ? 0.4 : 1 }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={isNotRelevantChecked}
-                                      disabled={isKnownUntilChecked}
-                                      onChange={e => {
-                                        setSerialPopupNotRelevantIds(prev =>
-                                          e.target.checked ? [...prev, sr.id] : prev.filter(id => id !== sr.id)
-                                        );
-                                      }}
-                                      style={{ width: '16px', height: '16px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444' }}
-                                    />
-                                    <span style={{ color: '#fca5a5', fontSize: '12px', fontWeight: '600' }}>🚫 לא רלוונטי</span>
-                                  </label>
+                            <div key={sr.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 7px', borderRadius: '5px', marginBottom: '3px', background: rowBg, border: `1px solid ${rowBorder}`, opacity: disabledByKnownUntil ? 0.4 : 1 }}>
+                              {/* צ'קבוקסים — משמאל */}
+                              {!rowDisabled ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
+                                  <input type="checkbox" title="פ״מ מכיר עד ספרור זה" checked={isKnownUntilChecked}
+                                    onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(sr.id); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== sr.id)); } else { setSerialPopupKnownUntilId(null); } }}
+                                    style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#22c55e', margin: 0 }} />
+                                  <input type="checkbox" title="לא רלוונטי" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
+                                    onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, sr.id] : prev.filter(id => id !== sr.id)); }}
+                                    style={{ width: '14px', height: '14px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1 }} />
                                 </div>
+                              ) : (
+                                <div style={{ width: '14px', flexShrink: 0 }} />
                               )}
+                              {/* מידע — מספר + מהות + שעה בשורה אחת */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 'bold', fontSize: '15px', color: numColor, flexShrink: 0 }}>#{sr.serial_number}</span>
+                                  {isLatest && !isDismissedSerial && !isAlreadyKnown && <span style={{ background: '#1d4ed8', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חדש</span>}
+                                  {isAlreadyKnown && mySerial?.id === sr.id && <span style={{ background: '#166534', color: '#4ade80', fontSize: '8px', borderRadius: '3px', padding: '0 4px', flexShrink: 0 }}>✓</span>}
+                                  {isAlreadyKnown && mySerial?.id !== sr.id && <span style={{ color: '#4ade80', fontSize: '9px', flexShrink: 0 }}>✓</span>}
+                                  {isDismissedSerial && <span style={{ color: '#fca5a5', fontSize: '9px', flexShrink: 0 }}>🚫</span>}
+                                  {sr.essence && <span style={{ color: '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{sr.essence}</span>}
+                                  <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0, marginRight: 'auto' }}>{fmt(sr.created_at)}</span>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
-                        {/* כפתור אשר */}
-                        <div style={{ padding: '6px 0 8px', display: 'flex', gap: '8px' }}>
-                          <button
-                            disabled={!hasActions}
-                            onClick={async () => {
-                              if (serialPopupKnownUntilId) {
-                                await handleSerialSelect(stripId, station, serialPopupKnownUntilId, false);
-                              }
-                              for (const notRelId of serialPopupNotRelevantIds) {
-                                await handleSerialDismiss(stripId, station, notRelId);
-                              }
-                              setSerialPopupKnownUntilId(null);
-                              setSerialPopupNotRelevantIds([]);
-                              setTableSerialViewPopup(null);
-                            }}
-                            style={{ flex: 1, background: hasActions ? '#2563eb' : '#1e293b', color: hasActions ? 'white' : '#475569', border: `1px solid ${hasActions ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '8px 12px', cursor: hasActions ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold' }}
-                          >✓ אשר</button>
-                          <button
-                            onClick={() => setTableSerialViewPopup(null)}
-                            style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontSize: '13px' }}
-                          >ביטול</button>
-                        </div>
                       </>
                     );
                   })()}
