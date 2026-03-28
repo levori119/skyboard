@@ -10926,6 +10926,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           </div>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
+                            <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
                             <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
                           </div>
                         </div>

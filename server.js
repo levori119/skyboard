@@ -2314,6 +2314,28 @@ app.delete('/api/block-tables/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete block table' }); }
 });
 
+app.post('/api/block-tables/:id/duplicate', async (req, res) => {
+  try {
+    const srcId = req.params.id;
+    const src = await pool.query('SELECT * FROM block_tables WHERE id=$1', [srcId]);
+    if (src.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const orig = src.rows[0];
+    const newTable = await pool.query(
+      'INSERT INTO block_tables (name, block_space_id) VALUES ($1, $2) RETURNING *',
+      [orig.name + ' (עותק)', orig.block_space_id]
+    );
+    const newId = newTable.rows[0].id;
+    const blocks = await pool.query('SELECT * FROM blocks WHERE block_table_id=$1', [srcId]);
+    for (const blk of blocks.rows) {
+      await pool.query(
+        'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, blk.workstations, blk.platforms, blk.sort_order]
+      );
+    }
+    res.json(newTable.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to duplicate block table' }); }
+});
+
 // --- Blocks API ---
 app.get('/api/blocks', async (req, res) => {
   try {
