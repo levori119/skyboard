@@ -3594,7 +3594,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[] }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza'>('none');
@@ -3782,10 +3782,29 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
       {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
       {/* Chart area */}
       <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', borderBottom: `1px solid ${gridLine}` }}>
+        {/* Block range background bands */}
+        {relevantBlocks.map((b: any) => {
+          const bAltHi = b.alt_to * 100;
+          const bAltLo = b.alt_from * 100;
+          const topPct = altPct(bAltHi);
+          const botPct = altPct(bAltLo);
+          const h = Math.max(botPct - topPct, 1);
+          if (topPct > 102 || botPct < -2) return null;
+          return (
+            <div key={b.id} style={{
+              position: 'absolute', left: 0, right: 0,
+              top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+              background: b.color ? b.color + '22' : 'rgba(99,102,241,0.1)',
+              borderTop: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
+              borderBottom: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
+              pointerEvents: 'none', zIndex: 0
+            }} />
+          );
+        })}
         {altTicks.map(a => {
           const pct = altPct(a);
           if (pct < 0 || pct > 100) return null;
-          return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none' }} />;
+          return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none', zIndex: 1 }} />;
         })}
 
         {(() => {
@@ -3883,13 +3902,37 @@ const VerticalView = ({ strips, timeField, lightMode }: { strips: any[]; timeFie
         {/* Y-axis column */}
         <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
           {HEADER_H > 0 && <div style={{ height: HEADER_H, borderBottom: `1px solid ${gridLine}`, background: bg }} />}
-          <div style={{ flex: 1, position: 'relative', overflow: 'visible' }}>
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {/* Block range bands on Y-axis */}
+            {relevantBlocks.map((b: any) => {
+              // convert block altitude to chart units (blocks use "hundreds of feet" like alt field)
+              const bAltHi = b.alt_to * 100;
+              const bAltLo = b.alt_from * 100;
+              const topPct = altPct(bAltHi);
+              const botPct = altPct(bAltLo);
+              const h = Math.max(botPct - topPct, 2);
+              if (topPct > 102 || botPct < -2) return null;
+              return (
+                <div key={b.id} title={b.mission || `${b.alt_from}–${b.alt_to}`} style={{
+                  position: 'absolute', left: 0, right: 0,
+                  top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+                  background: b.color ? b.color + '55' : 'rgba(99,102,241,0.3)',
+                  borderRight: `3px solid ${b.color || '#6366f1'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                  paddingRight: '4px', overflow: 'hidden', pointerEvents: 'none', boxSizing: 'border-box'
+                }}>
+                  {h > 5 && <span style={{ fontSize: '8px', fontWeight: 'bold', color: b.color || '#6366f1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'right', direction: 'rtl', lineHeight: 1 }}>
+                    {b.mission || `${b.alt_from}–${b.alt_to}`}
+                  </span>}
+                </div>
+              );
+            })}
             {altTicks.map(a => {
               const pct = altPct(a);
               if (pct < -2 || pct > 102) return null;
               const clampedPct = Math.min(Math.max(pct, 1), 98);
               return (
-                <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right' }}>
+                <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
                   {altLabel(a)}
                 </div>
               );
@@ -6926,9 +6969,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onSerialSelect={handleSerialSelect}
                 onSerialDismiss={handleSerialDismiss}
                 onSerialRemove={handleSerialRemove}
-                allBlockSpaces={allBlockSpaces}
-                allBlockTables={allBlockTables}
-                allBlocks={allBlocks}
+                allBlockSpaces={dashboardBlockSpaces}
+                allBlockTables={dashboardBlockTables}
+                allBlocks={dashboardBlocks}
               />
             ))}
             
@@ -7718,7 +7761,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -7735,7 +7778,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} />
         </div>
       ))}
 
