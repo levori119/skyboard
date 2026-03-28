@@ -934,7 +934,9 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       shkadia: r.shkadia,
       erka: r.erka || '',
       koteret: r.koteret || '',
-      mivtza: r.mivtza || ''
+      mivtza: r.mivtza || '',
+      block_space_id: r.block_space_id || null,
+      block_deviation: r.block_deviation || false
     })));
   } catch (err) {
     console.error('Error fetching sector strips:', err);
@@ -1485,7 +1487,9 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       inTable: r.in_table || false,
       erka: r.erka || '',
       koteret: r.koteret || '',
-      mivtza: r.mivtza || ''
+      mivtza: r.mivtza || '',
+      block_space_id: r.block_space_id || null,
+      block_deviation: r.block_deviation || false
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
@@ -1518,7 +1522,9 @@ app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
       notes: r.notes,
       erka: r.erka || '',
       koteret: r.koteret || '',
-      mivtza: r.mivtza || ''
+      mivtza: r.mivtza || '',
+      block_space_id: r.block_space_id || null,
+      block_deviation: r.block_deviation || false
     })));
   } catch (err) {
     console.error('Error fetching waiting strips:', err);
