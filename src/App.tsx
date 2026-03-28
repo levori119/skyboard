@@ -4004,6 +4004,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
+  const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
@@ -4518,10 +4519,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
       
+      const mergeWithPending = (freshStrips: any[]) =>
+        freshStrips.map(s => {
+          const pending = pendingStripUpdatesRef.current.get(s.id);
+          return pending ? { ...s, ...pending } : s;
+        });
+
       if (hasPreset) {
         const stripsRes = results[4];
         const waitingRes = results[5];
-        if (stripsRes.ok) setStrips(await stripsRes.json());
+        if (stripsRes.ok) setStrips(mergeWithPending(await stripsRes.json()));
         if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
       } else {
         // Combine strips from all sector requests (fallback for ad-hoc sessions)
@@ -4536,7 +4543,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const uniqueStrips = allStripsData.filter((strip, index, self) => 
           index === self.findIndex(s => s.id === strip.id)
         );
-        setStrips(uniqueStrips);
+        setStrips(mergeWithPending(uniqueStrips));
       }
     } catch (err) {
       console.error('Failed to load data:', err);
@@ -6537,8 +6544,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             value={currentBsId}
                             onChange={async e => {
                               const val = e.target.value;
+                              pendingStripUpdatesRef.current.set(s.id, { ...pendingStripUpdatesRef.current.get(s.id), block_space_id: val || null });
                               setStrips(prev => prev.map(st => st.id === s.id ? { ...st, block_space_id: val || null } : st));
                               await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) });
+                              const p = pendingStripUpdatesRef.current.get(s.id);
+                              if (p) { delete p.block_space_id; if (Object.keys(p).length === 0) pendingStripUpdatesRef.current.delete(s.id); }
                             }}
                             style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
                           >
