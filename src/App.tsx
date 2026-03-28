@@ -3092,23 +3092,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
               </div>
             </div>
-            {allBlockSpaces.length > 0 && (
-              <div style={{ marginTop: '4px' }}>
-                <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>מרחב בלוקים</div>
-                <select
-                  value={localBlockSpaceId}
-                  onChange={async e => {
-                    const val = e.target.value;
-                    setLocalBlockSpaceId(val);
-                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
-                  }}
-                  style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
-                >
-                  <option value="">ללא מרחב בלוקים</option>
-                  {allBlockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
-                </select>
-              </div>
-            )}
 
           </div>
         )}
@@ -3917,11 +3900,11 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [] }: { s
                   position: 'absolute', left: 0, right: 0,
                   top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
                   background: b.color ? b.color + '55' : 'rgba(99,102,241,0.3)',
-                  borderRight: `3px solid ${b.color || '#6366f1'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                  paddingRight: '4px', overflow: 'hidden', pointerEvents: 'none', boxSizing: 'border-box'
+                  borderLeft: `3px solid ${b.color || '#6366f1'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+                  paddingLeft: '4px', overflow: 'hidden', pointerEvents: 'none', boxSizing: 'border-box'
                 }}>
-                  {h > 5 && <span style={{ fontSize: '8px', fontWeight: 'bold', color: b.color || '#6366f1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'right', direction: 'rtl', lineHeight: 1 }}>
+                  {h > 5 && <span style={{ fontSize: '8px', fontWeight: 'bold', color: b.color || '#6366f1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', textAlign: 'left', lineHeight: 1 }}>
                     {b.mission || `${b.alt_from}–${b.alt_to}`}
                   </span>}
                 </div>
@@ -8265,49 +8248,6 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   </div>
                   
                   <div style={{ padding: '15px' }}>
-                    {/* Block Table Sidebar */}
-                    {(() => {
-                      const presetBlockTableIds: number[] = preset.block_table_ids || [];
-                      const relevantBlockTables = allBlockTables.filter((bt: any) => presetBlockTableIds.includes(bt.id));
-                      if (relevantBlockTables.length === 0) return null;
-                      return (
-                        <div style={{ marginBottom: '12px', background: '#0f172a', borderRadius: '6px', padding: '8px 10px' }}>
-                          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>בלוקים חכמים</div>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {relevantBlockTables.map((bt: any) => {
-                              const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
-                              const space = allBlockSpaces.find((bs: any) => bs.id === bt.block_space_id);
-                              return (
-                                <div key={bt.id} style={{ flex: '0 0 auto', minWidth: '100px' }}>
-                                  <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{bt.name}{space ? ` (${space.name})` : ''}</div>
-                                  {tableBlocks.map((b: any) => {
-                                    const stripsInBlock = workstationStrips.filter((s: any) => {
-                                      const sAlt = parseFloat(s.alt);
-                                      return !isNaN(sAlt) && sAlt >= b.alt_from && sAlt <= b.alt_to && String(s.block_space_id) === String(bt.block_space_id);
-                                    });
-                                    return (
-                                      <div key={b.id} style={{
-                                        background: stripsInBlock.length > 0 ? b.color || '#3b82f6' : '#1e293b',
-                                        border: `1px solid ${b.color || '#3b82f6'}`,
-                                        borderRadius: '4px', padding: '3px 6px', marginBottom: '3px',
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px'
-                                      }}>
-                                        <span style={{ fontSize: '10px', color: stripsInBlock.length > 0 ? 'white' : '#64748b', fontWeight: stripsInBlock.length > 0 ? 'bold' : 'normal' }}>
-                                          {b.alt_from}–{b.alt_to}
-                                        </span>
-                                        {b.mission && <span style={{ fontSize: '9px', color: stripsInBlock.length > 0 ? '#e2e8f0' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60px' }}>{b.mission}</span>}
-                                        {stripsInBlock.length > 0 && <span style={{ fontSize: '9px', background: 'rgba(255,255,255,0.2)', borderRadius: '10px', padding: '0 4px', color: 'white', flexShrink: 0 }}>{stripsInBlock.length}</span>}
-                                      </div>
-                                    );
-                                  })}
-                                  {tableBlocks.length === 0 && <div style={{ fontSize: '9px', color: '#475569' }}>אין בלוקים</div>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })()}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {workstationStrips.map(strip => {
                         const isExpanded = expandedStripId === strip.id;
