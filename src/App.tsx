@@ -3092,7 +3092,23 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
               </div>
             </div>
-
+            {allBlockSpaces.length > 0 && (
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>מרחב בלוקים</div>
+                <select
+                  value={localBlockSpaceId}
+                  onChange={async e => {
+                    const val = e.target.value;
+                    setLocalBlockSpaceId(val);
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
+                  }}
+                  style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
+                >
+                  <option value="">ללא מרחב בלוקים</option>
+                  {allBlockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -7226,52 +7242,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 קיימים {closedCount} פ"מם
               </div>
             ) : null;
-          })()}
-          {sidebarPinned && (() => {
-            const currentPreset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null;
-            const presetBlockTableIds: number[] = currentPreset?.block_table_ids || [];
-            const sidebarBlockTables = dashboardBlockTables.filter((bt: any) => presetBlockTableIds.includes(bt.id));
-            if (sidebarBlockTables.length === 0) return null;
-            const sidebarStrips = tableMode
-              ? myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer')
-              : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap);
-            return (
-              <div style={{ marginBottom: '10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '8px' }}>
-                <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>בלוקים חכמים</div>
-                {sidebarBlockTables.map((bt: any) => {
-                  const tableBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
-                  return (
-                    <div key={bt.id} style={{ marginBottom: '6px' }}>
-                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#94a3b8', marginBottom: '3px' }}>{bt.name}</div>
-                      {tableBlocks.map((b: any) => {
-                        const stripsInBlock = sidebarStrips.filter((s: any) => {
-                          const sAlt = parseFloat(s.alt);
-                          return !isNaN(sAlt) && sAlt >= b.alt_from && sAlt <= b.alt_to && String(s.block_space_id) === String(bt.block_space_id);
-                        });
-                        return (
-                          <div key={b.id} style={{
-                            background: stripsInBlock.length > 0 ? b.color || '#3b82f6' : (lightMode ? '#e2e8f0' : '#1e293b'),
-                            border: `1px solid ${b.color || '#3b82f6'}`,
-                            borderRadius: '3px', padding: '2px 5px', marginBottom: '2px',
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px'
-                          }}>
-                            <span style={{ fontSize: '9px', fontWeight: 'bold', color: stripsInBlock.length > 0 ? 'white' : (lightMode ? '#94a3b8' : '#64748b') }}>
-                              {b.alt_from}–{b.alt_to}
-                            </span>
-                            {b.mission && <span style={{ fontSize: '8px', color: stripsInBlock.length > 0 ? '#e2e8f0' : (lightMode ? '#94a3b8' : '#475569'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55px' }}>{b.mission}</span>}
-                            {stripsInBlock.length > 0 && (
-                              <span style={{ fontSize: '8px', background: 'rgba(255,255,255,0.25)', borderRadius: '10px', padding: '0 4px', color: 'white', flexShrink: 0 }}>
-                                {stripsInBlock.map((s: any) => s.callSign || s.call_sign).join(', ')}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            );
           })()}
           {sidebarPinned && (tableMode ? (
             <>
