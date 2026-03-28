@@ -3602,6 +3602,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
+  const [showBlocks, setShowBlocks] = React.useState(true);
+  const [blockDisplayMode, setBlockDisplayMode] = React.useState<'altitudes' | 'legend'>('altitudes');
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -3783,10 +3785,16 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
   const isBlockSpaceGroup = groupBy === 'block_space_id';
+  // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
+  const usePerSegmentAxis = isBlockSpaceGroup && showBlocks && blockDisplayMode === 'altitudes';
+  // legend mode: block space grouping + blocks shown + legend mode
+  const useLegendMode = isBlockSpaceGroup && showBlocks && blockDisplayMode === 'legend';
   const SEG_DIVIDER = isBlockSpaceGroup
     ? (lightMode ? '8px solid #6366f1' : '8px solid #4f46e5')
     : (lightMode ? '4px solid #94a3b8' : '4px solid #475569');
-  const HEADER_H = groupBy !== 'none' ? (isBlockSpaceGroup ? 36 : 20) : 0;
+  const HEADER_H = groupBy !== 'none'
+    ? (isBlockSpaceGroup ? (useLegendMode ? 44 : 36) : 20)
+    : 0;
   const TOOLBAR_H = 30;
 
   const renderXAxis = () => (
@@ -3970,13 +3978,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 
   const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
-    const blocksToShow = segBlocks !== undefined ? segBlocks : relevantBlocks;
-    if (isBlockSpaceGroup) {
+    const blocksForChart = showBlocks ? (segBlocks !== undefined ? segBlocks : relevantBlocks) : [];
+    if (usePerSegmentAxis) {
       return (
         <>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-            {renderYAxisColumn(blocksToShow)}
-            {renderChartContent(placed, blocksToShow)}
+            {renderYAxisColumn(blocksForChart)}
+            {renderChartContent(placed, blocksForChart)}
           </div>
           {renderXAxisWithPad(true)}
         </>
@@ -3985,7 +3993,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     return (
       <>
         {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
-        {renderChartContent(placed, blocksToShow)}
+        {renderChartContent(placed, blocksForChart)}
         {renderXAxis()}
       </>
     );
@@ -4006,11 +4014,11 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
 
         {/* Y-axis column */}
-        <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: isBlockSpaceGroup ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
+        <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: usePerSegmentAxis ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
           {HEADER_H > 0 && <div style={{ height: HEADER_H, borderBottom: `1px solid ${gridLine}`, background: bg }} />}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {/* Block range bands on Y-axis */}
-            {relevantBlocks.map((b: any) => {
+            {showBlocks && relevantBlocks.map((b: any) => {
               // convert block altitude to chart units (blocks use "hundreds of feet" like alt field)
               const bAltHi = b.alt_to * 100;
               const bAltLo = b.alt_from * 100;
@@ -4054,11 +4062,30 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               {/* Segment header label */}
               {HEADER_H > 0 && (
                 isBlockSpaceGroup ? (
-                  <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', direction: 'rtl', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap' }}>
-                      מרחב בלוקים: {seg.label}
-                    </span>
-                  </div>
+                  useLegendMode ? (
+                    // Legend mode: title + color swatches
+                    <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '3px 10px', direction: 'rtl', overflow: 'hidden', gap: 3 }}>
+                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                        מרחב בלוקים: {seg.label}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center' }}>
+                        {(seg.segBlocks || []).map((b: any) => (
+                          <span key={b.id} title={`${b.alt_from}–${b.alt_to}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '9px', padding: '1px 5px', borderRadius: 3, background: b.color ? b.color + '33' : 'rgba(99,102,241,0.2)', border: `1px solid ${b.color || '#6366f1'}`, color: b.color || (lightMode ? '#4338ca' : '#a5b4fc'), whiteSpace: 'nowrap', fontWeight: 'bold', flexShrink: 0 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 2, background: b.color || '#6366f1', display: 'inline-block', flexShrink: 0 }} />
+                            {b.mission || `${b.alt_from}–${b.alt_to}`}
+                          </span>
+                        ))}
+                        {(seg.segBlocks || []).length === 0 && <span style={{ fontSize: '9px', color: textColor, fontStyle: 'italic' }}>ללא בלוקים</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    // Altitudes mode or no-blocks: simple centered title
+                    <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', direction: 'rtl', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap' }}>
+                        מרחב בלוקים: {seg.label}
+                      </span>
+                    </div>
+                  )
                 ) : (
                   <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
                     {GROUP_FIELD_LABEL[groupBy]}: {seg.label}
@@ -4076,23 +4103,38 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         </div>
       </div>
 
-      {/* ── Group-by toolbar ── */}
-      <div style={{ height: TOOLBAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderTop: `1px solid ${gridLine}`, direction: 'rtl' }}>
+      {/* ── Toolbar ── */}
+      <div style={{ height: TOOLBAR_H, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderTop: `1px solid ${gridLine}`, direction: 'rtl', overflow: 'hidden' }}>
         <span style={{ fontSize: '11px', color: textColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>חלוקה לפי:</span>
         {GROUP_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => setGroupBy(opt.value)}
-            style={{
-              padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: 'none', cursor: 'pointer',
-              background: groupBy === opt.value ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#334155'),
-              color: groupBy === opt.value ? '#fff' : (lightMode ? '#1e293b' : '#94a3b8'),
-              fontWeight: groupBy === opt.value ? 'bold' : 'normal',
-            }}
-          >
+          <button key={opt.value} onClick={() => setGroupBy(opt.value)}
+            style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: 'none', cursor: 'pointer', background: groupBy === opt.value ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#334155'), color: groupBy === opt.value ? '#fff' : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: groupBy === opt.value ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
             {opt.label}
           </button>
         ))}
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
+
+        {/* Toggle blocks */}
+        <button onClick={() => setShowBlocks(v => !v)}
+          style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: `1px solid ${showBlocks ? '#6366f1' : gridLine}`, cursor: 'pointer', background: showBlocks ? (lightMode ? '#ede9fe' : '#1e1b4b') : (lightMode ? '#cbd5e1' : '#334155'), color: showBlocks ? (lightMode ? '#4338ca' : '#a5b4fc') : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: 'bold', whiteSpace: 'nowrap', direction: 'rtl' }}>
+          {showBlocks ? '◼ הסתר בלוקים' : '◻ הצג בלוקים'}
+        </button>
+
+        {/* Block display mode — only when grouping by block space and blocks visible */}
+        {isBlockSpaceGroup && showBlocks && (
+          <>
+            <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>תצוגת בלוקים:</span>
+            {(['altitudes', 'legend'] as const).map(mode => (
+              <button key={mode} onClick={() => setBlockDisplayMode(mode)}
+                style={{ padding: '2px 10px', fontSize: '11px', borderRadius: 4, border: 'none', cursor: 'pointer', background: blockDisplayMode === mode ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#334155'), color: blockDisplayMode === mode ? '#fff' : (lightMode ? '#1e293b' : '#94a3b8'), fontWeight: blockDisplayMode === mode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                {mode === 'altitudes' ? 'גבהים' : 'מקרא'}
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
