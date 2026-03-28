@@ -4002,6 +4002,39 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 };
 
+// --- תא מרחב בלוקים בטבלה (local state למניעת איפוס על polling) ---
+const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: any; blockSpaces: any[]; lightMode: boolean }) => {
+  const savingRef = React.useRef(false);
+  const [localValue, setLocalValue] = React.useState(strip.block_space_id ? String(strip.block_space_id) : '');
+
+  React.useEffect(() => {
+    if (!savingRef.current) {
+      setLocalValue(strip.block_space_id ? String(strip.block_space_id) : '');
+    }
+  }, [strip.block_space_id]);
+
+  return (
+    <select
+      value={localValue}
+      onChange={async e => {
+        const val = e.target.value;
+        setLocalValue(val);
+        savingRef.current = true;
+        await fetch(`${API_URL}/strips/${strip.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ block_space_id: val || null })
+        });
+        setTimeout(() => { savingRef.current = false; }, 6000);
+      }}
+      style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
+    >
+      <option value="">ללא</option>
+      {blockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
+    </select>
+  );
+};
+
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
@@ -6540,23 +6573,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (col.editable === 'dropdown') {
                       return (
                         <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <select
-                            value={currentBsId}
-                            onChange={async e => {
-                              const val = e.target.value;
-                              pendingStripUpdatesRef.current.set(s.id, { ...pendingStripUpdatesRef.current.get(s.id), block_space_id: val || null });
-                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, block_space_id: val || null } : st));
-                              await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) });
-                              setTimeout(() => {
-                                const p = pendingStripUpdatesRef.current.get(s.id);
-                                if (p) { delete p.block_space_id; if (Object.keys(p).length === 0) pendingStripUpdatesRef.current.delete(s.id); }
-                              }, 5000);
-                            }}
-                            style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
-                          >
-                            <option value="">ללא</option>
-                            {dashboardBlockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
-                          </select>
+                          <BlockSpaceCellTable strip={s} blockSpaces={dashboardBlockSpaces} lightMode={lightMode} />
                         </td>
                       );
                     }

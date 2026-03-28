@@ -659,7 +659,9 @@ app.get('/api/strips/all', async (req, res) => {
       takeoff_time: r.takeoff_time || null,
       erka: r.erka || '',
       koteret: r.koteret || '',
-      mivtza: r.mivtza || ''
+      mivtza: r.mivtza || '',
+      block_space_id: r.block_space_id || null,
+      block_deviation: r.block_deviation || false
     })));
   } catch (err) {
     console.error('Error fetching all strips:', err);
