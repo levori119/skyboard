@@ -3598,7 +3598,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[] }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[] }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
@@ -3740,11 +3740,12 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       })
       .map(([bsId, list]) => {
         const bs = blockSpaces.find((x: any) => String(x.id) === bsId);
-        // Find blocks belonging to this block space via block_tables
+        // Find ALL blocks belonging to this block space via block_tables (not limited to preset)
         const bsTableIds = blockTables
           .filter((bt: any) => String(bt.block_space_id) === bsId)
           .map((bt: any) => bt.id);
-        const segBlocks = relevantBlocks.filter((b: any) => bsTableIds.includes(b.block_table_id));
+        const blocksPool = allBlocks.length > 0 ? allBlocks : relevantBlocks;
+        const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id));
         return { label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list), segBlocks };
       });
   } else {
@@ -7876,7 +7877,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -7893,7 +7894,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
         </div>
       ))}
 
