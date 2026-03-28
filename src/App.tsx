@@ -7431,7 +7431,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         {/* Aids Panel */}
         {(() => {
-          const currentPreset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null;
+          const currentPreset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null;
           const presetBtIds: number[] = currentPreset?.block_table_ids || [];
           const aidBlockTables = dashboardBlockTables.filter((bt: any) => presetBtIds.includes(bt.id));
           if (!aidGroup && aidBlockTables.length === 0) return null;
@@ -7752,7 +7752,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -7769,7 +7769,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
         </div>
       ))}
 
