@@ -3105,7 +3105,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     setLocalBlockSpaceId(val);
                     blockSpaceSavingRef.current = true;
                     try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
-                    blockSpaceSavingRef.current = false;
+                    setTimeout(() => { blockSpaceSavingRef.current = false; }, 5000);
                   }}
                   style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
                 >
@@ -6547,8 +6547,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               pendingStripUpdatesRef.current.set(s.id, { ...pendingStripUpdatesRef.current.get(s.id), block_space_id: val || null });
                               setStrips(prev => prev.map(st => st.id === s.id ? { ...st, block_space_id: val || null } : st));
                               await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) });
-                              const p = pendingStripUpdatesRef.current.get(s.id);
-                              if (p) { delete p.block_space_id; if (Object.keys(p).length === 0) pendingStripUpdatesRef.current.delete(s.id); }
+                              setTimeout(() => {
+                                const p = pendingStripUpdatesRef.current.get(s.id);
+                                if (p) { delete p.block_space_id; if (Object.keys(p).length === 0) pendingStripUpdatesRef.current.delete(s.id); }
+                              }, 5000);
                             }}
                             style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
                           >
