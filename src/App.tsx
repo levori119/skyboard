@@ -3598,7 +3598,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[] }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[] }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
@@ -3722,7 +3722,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
   const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע', block_space_id: 'מרחב בלוקים' };
 
-  let segments: { label: string; placed: Placed[] }[];
+  let segments: { label: string; placed: Placed[]; segBlocks?: any[] }[];
   if (groupBy === 'none') {
     segments = [{ label: '', placed: buildPlaced(candidates) }];
   } else if (groupBy === 'block_space_id') {
@@ -3733,10 +3733,19 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       valMap.get(bsId)!.push(s);
     });
     segments = Array.from(valMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0], 'he'))
+      .sort((a, b) => {
+        if (a[0] === '—') return 1;
+        if (b[0] === '—') return -1;
+        return a[0].localeCompare(b[0], 'he');
+      })
       .map(([bsId, list]) => {
         const bs = blockSpaces.find((x: any) => String(x.id) === bsId);
-        return { label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list) };
+        // Find blocks belonging to this block space via block_tables
+        const bsTableIds = blockTables
+          .filter((bt: any) => String(bt.block_space_id) === bsId)
+          .map((bt: any) => bt.id);
+        const segBlocks = relevantBlocks.filter((b: any) => bsTableIds.includes(b.block_table_id));
+        return { label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list), segBlocks };
       });
   } else {
     const field = groupBy as string;
@@ -3772,8 +3781,11 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const segW = Math.max(chartW / segCount, MIN_CHART_W);
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
-  const SEG_DIVIDER = lightMode ? '4px solid #94a3b8' : '4px solid #475569';
-  const HEADER_H = groupBy !== 'none' ? 20 : 0;
+  const isBlockSpaceGroup = groupBy === 'block_space_id';
+  const SEG_DIVIDER = isBlockSpaceGroup
+    ? (lightMode ? '8px solid #6366f1' : '8px solid #4f46e5')
+    : (lightMode ? '4px solid #94a3b8' : '4px solid #475569');
+  const HEADER_H = groupBy !== 'none' ? (isBlockSpaceGroup ? 36 : 20) : 0;
   const TOOLBAR_H = 30;
 
   const renderXAxis = () => (
@@ -3794,13 +3806,15 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     </div>
   );
 
-  const renderSegmentChart = (placed: Placed[]) => (
+  const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
+    const blocksToShow = segBlocks !== undefined ? segBlocks : relevantBlocks;
+    return (
     <>
       {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
       {/* Chart area */}
       <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', borderBottom: `1px solid ${gridLine}` }}>
         {/* Block range background bands */}
-        {relevantBlocks.map((b: any) => {
+        {blocksToShow.map((b: any) => {
           const bAltHi = b.alt_to * 100;
           const bAltLo = b.alt_from * 100;
           const topPct = altPct(bAltHi);
@@ -3901,7 +3915,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       </div>
       {renderXAxis()}
     </>
-  );
+    );
+  };
 
   const GROUP_OPTIONS: { value: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; label: string }[] = [
     { value: 'none', label: 'ללא חלוקה' },
@@ -3965,11 +3980,26 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
             <div key={idx} style={{ width: segW, minWidth: segW, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: idx < segments.length - 1 ? SEG_DIVIDER : 'none', boxSizing: 'border-box' }}>
               {/* Segment header label */}
               {HEADER_H > 0 && (
-                <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
-                  {GROUP_FIELD_LABEL[groupBy]}: {seg.label}
-                </div>
+                isBlockSpaceGroup ? (
+                  <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', gap: 8, direction: 'rtl', overflow: 'hidden' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {seg.label}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center', flexShrink: 1, minWidth: 0 }}>
+                      {(seg.segBlocks || []).map((b: any) => (
+                        <span key={b.id} style={{ fontSize: '9px', padding: '1px 5px', borderRadius: 3, background: b.color ? b.color + '33' : 'rgba(99,102,241,0.2)', border: `1px solid ${b.color || '#6366f1'}`, color: b.color || (lightMode ? '#4338ca' : '#a5b4fc'), whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                          {b.mission || `${b.alt_from}–${b.alt_to}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
+                    {GROUP_FIELD_LABEL[groupBy]}: {seg.label}
+                  </div>
+                )
               )}
-              {renderSegmentChart(seg.placed)}
+              {renderSegmentChart(seg.placed, seg.segBlocks)}
             </div>
           ))}
           {candidates.length === 0 && (
@@ -7781,7 +7811,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -7798,7 +7828,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} />
         </div>
       ))}
 
