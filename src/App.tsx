@@ -7425,44 +7425,86 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
 
         {/* Aids Panel */}
-        {aidGroup && (
-          <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
-            {/* Pin toggle */}
-            <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', flexShrink: 0 }}>
-              {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup.name}</span>}
-              <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
-                style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
+        {(() => {
+          const currentPreset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null;
+          const presetBtIds: number[] = currentPreset?.block_table_ids || [];
+          const aidBlockTables = dashboardBlockTables.filter((bt: any) => presetBtIds.includes(bt.id));
+          if (!aidGroup && aidBlockTables.length === 0) return null;
+          return (
+            <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
+              {/* Pin toggle */}
+              <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', flexShrink: 0 }}>
+                {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
+                <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
+                  style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
+              </div>
+              {/* Items accordion */}
+              {aidsPinned && (
+                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
+                  {/* Regular aid items */}
+                  {aidGroup && (aidGroup.items || []).map((item: any) => (
+                    <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                      <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                        <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                      </button>
+                      {aidExpandedIds.has(item.id) && (
+                        <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
+                          {item.type === 'text' && <div style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
+                          {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {/* Auto block tables */}
+                  {aidBlockTables.length > 0 && (
+                    <>
+                      {aidGroup && (aidGroup.items || []).length > 0 && (
+                        <div style={{ height: '1px', background: lightMode ? '#e2e8f0' : '#334155', margin: '4px 0' }} />
+                      )}
+                      {aidBlockTables.map((bt: any) => {
+                        const btKey = `bt-${bt.id}`;
+                        const isOpen = aidExpandedIds.has(btKey);
+                        const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
+                        return (
+                          <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                            <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e0e7ff' : '#1e1b4b', border: 'none', color: lightMode ? '#3730a3' : '#a5b4fc', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                              <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</span>
+                              <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
+                            </button>
+                            {isOpen && (
+                              <div style={{ background: lightMode ? '#f8fafc' : '#0f172a', padding: '6px' }}>
+                                {btBlocks.length === 0 && <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '4px 0' }}>אין בלוקים</div>}
+                                {btBlocks.map((b: any) => (
+                                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 4px', borderRadius: '4px', marginBottom: '2px', background: b.color ? b.color + '22' : 'transparent', border: `1px solid ${b.color || '#6366f1'}44` }}>
+                                    <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: b.color || '#6366f1', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
+                                    {b.mission && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.mission}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                  {!aidGroup && aidBlockTables.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                </div>
+              )}
+              {/* Collapsed label */}
+              {!aidsPinned && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
+                </div>
+              )}
             </div>
-            {/* Items accordion */}
-            {aidsPinned && (
-              <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
-                {(aidGroup.items || []).length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
-                {(aidGroup.items || []).map((item: any) => (
-                  <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                    <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                      <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
-                    </button>
-                    {aidExpandedIds.has(item.id) && (
-                      <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
-                        {item.type === 'text' && <div style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
-                        {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Collapsed label */}
-            {!aidsPinned && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Sidebar pointer-drag ghost */}
         {sidebarPointerGhost && (
