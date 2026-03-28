@@ -2660,10 +2660,13 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
   const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
   const [localBlockSpaceId, setLocalBlockSpaceId] = useState(s.block_space_id ? String(s.block_space_id) : '');
+  const blockSpaceSavingRef = React.useRef(false);
   const [blockDeviation, setBlockDeviation] = useState(s.block_deviation || false);
 
   useEffect(() => {
-    setLocalBlockSpaceId(s.block_space_id ? String(s.block_space_id) : '');
+    if (!blockSpaceSavingRef.current) {
+      setLocalBlockSpaceId(s.block_space_id ? String(s.block_space_id) : '');
+    }
   }, [s.block_space_id]);
 
   useEffect(() => {
@@ -3100,7 +3103,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   onChange={async e => {
                     const val = e.target.value;
                     setLocalBlockSpaceId(val);
+                    blockSpaceSavingRef.current = true;
                     try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
+                    blockSpaceSavingRef.current = false;
                   }}
                   style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
                 >
