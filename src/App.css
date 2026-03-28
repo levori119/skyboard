@@ -290,3 +290,19 @@ body.light-mode .table-header-menu button:hover {
 .alt-conflict-flash {
   animation: alt-conflict-flash 0.8s ease-in-out infinite;
 }
+
+@keyframes block-deviation-flash {
+  0%, 100% { background: #78350f; border-color: #f97316; box-shadow: 0 0 8px #f9731680; color: #fed7aa; }
+  50% { background: #92400e; border-color: #fdba74; box-shadow: 0 0 2px #f9731640; color: #fff; }
+}
+.block-deviation-flash {
+  animation: block-deviation-flash 1s ease-in-out infinite;
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+.block-deviation-tint {
+  background: #78350f40;
+  border-radius: 3px;
+  padding: 1px 3px;
+  color: #f97316;
+}

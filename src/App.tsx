@@ -2627,7 +2627,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [] }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2659,6 +2659,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [localErka, setLocalErka] = useState(s.erka || '');
   const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
   const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
+  const [blockDeviation, setBlockDeviation] = useState(s.block_deviation || false);
 
   useEffect(() => {
     setDetailsData({
@@ -2685,6 +2686,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   };
 
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
+
+  // Block deviation detection
+  const isBlockDeviation = React.useMemo(() => {
+    if (!s.block_space_id || !s.alt) return false;
+    const spaceBlocks = allBlocks.filter((b: any) => {
+      const table = allBlockTables && allBlockTables.find ? allBlockTables.find((t: any) => t.id === b.block_table_id) : null;
+      return table && String(table.block_space_id) === String(s.block_space_id);
+    });
+    if (spaceBlocks.length === 0) return false;
+    const altNum = parseFloat(s.alt);
+    if (isNaN(altNum)) return false;
+    return !spaceBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  }, [s.block_space_id, s.alt, allBlocks, allBlockTables]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -2860,8 +2874,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           </div>
         )}
         {/* שורה 3: גובה (גדול יותר) */}
-        <div ref={altRef} onClick={handleEditClick} style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div ref={altRef} onClick={handleEditClick}
+          className={isBlockDeviation && !blockDeviation ? 'block-deviation-flash' : blockDeviation ? 'block-deviation-tint' : ''}
+          style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {s.alt ? `גובה: ${s.alt}` : '-'}
+          {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
         </div>
         {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
@@ -3070,6 +3087,22 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 />
               </div>
             </div>
+            {allBlockSpaces.length > 0 && (
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '2px' }}>מרחב בלוקים</div>
+                <select
+                  value={s.block_space_id || ''}
+                  onChange={async e => {
+                    const val = e.target.value;
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
+                  }}
+                  style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
+                >
+                  <option value="">ללא מרחב בלוקים</option>
+                  {allBlockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
+                </select>
+              </div>
+            )}
 
           </div>
         )}
@@ -3232,6 +3265,20 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 const latest = [...serials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                 if (latest && onSerialSelect) onSerialSelect(s.id, sel.control_station, latest.id, false);
               })});
+            }
+            if (isBlockDeviation && !blockDeviation) {
+              actions.push({ label: '⚠️ סטייה ממרחב בלוקים — אישור', onClick: async () => {
+                setBlockDeviation(true);
+                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                setContextMenu(null);
+              }});
+            }
+            if (blockDeviation && !isBlockDeviation) {
+              actions.push({ label: 'נקה סטייה ממרחב בלוקים', onClick: async () => {
+                setBlockDeviation(false);
+                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                setContextMenu(null);
+              }});
             }
             return actions;
           })()}
@@ -3893,6 +3940,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
+  const [dashboardBlockSpaces, setDashboardBlockSpaces] = useState<any[]>([]);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -4275,6 +4323,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       case 'erka': return s.erka || '—';
       case 'koteret': return s.koteret || '—';
       case 'mivtza': return s.mivtza || '—';
+      case 'block_space': {
+        if (!s.block_space_id) return '—';
+        const bspace = dashboardBlockSpaces.find((bs: any) => String(bs.id) === String(s.block_space_id));
+        return bspace ? bspace.name : `#${s.block_space_id}`;
+      }
       case 'airborne': return s.airborne ? 'מאוויר' : 'קרקע';
       case 'systems': return (Array.isArray(s.systems) ? s.systems : []).map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—';
       case 'weapons': return (Array.isArray(s.weapons) ? s.weapons : []).map((w: any) => w.type).join(', ') || '—';
@@ -4355,6 +4408,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     try {
       const hasPreset = !!session.presetId;
       
+      // Load block spaces in parallel
+      fetch(`${API_URL}/block-spaces`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockSpaces(data)).catch(() => {});
+
       // Build all requests
       const requests: Promise<Response>[] = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
@@ -6350,6 +6406,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
                     task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע'
                   };
+                  if (colKey === 'block_space') {
+                    const currentBsId = s.block_space_id ? String(s.block_space_id) : '';
+                    const currentBsName = dashboardBlockSpaces.find((bs: any) => String(bs.id) === currentBsId)?.name || '—';
+                    if (col.editable === 'dropdown') {
+                      return (
+                        <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <select
+                            value={currentBsId}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              setStrips(prev => prev.map(st => st.id === s.id ? { ...st, block_space_id: val || null } : st));
+                              await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) });
+                            }}
+                            style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', padding: '3px 6px', fontSize: '12px', direction: 'rtl', width: '100%' }}
+                          >
+                            <option value="">ללא</option>
+                            {dashboardBlockSpaces.map((bs: any) => <option key={bs.id} value={String(bs.id)}>{bs.name}</option>)}
+                          </select>
+                        </td>
+                      );
+                    }
+                    return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{currentBsName}</td>;
+                  }
                   if (colKey in EDITABLE_TEXT_FIELDS) {
                     const cellKey = s.id + '__' + colKey;
                     const isEditing = tableEditingCell === cellKey;
@@ -6764,6 +6843,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onSerialSelect={handleSerialSelect}
                 onSerialDismiss={handleSerialDismiss}
                 onSerialRemove={handleSerialRemove}
+                allBlockSpaces={allBlockSpaces}
+                allBlockTables={allBlockTables}
+                allBlocks={allBlocks}
               />
             ))}
             
@@ -7604,7 +7686,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [strips, setStrips] = useState<any[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
-  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
+  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '', block_space_id: '' as string | number });
   const [newStripSerials, setNewStripSerials] = useState<Record<string, number | null>>({});
   const [allSerials, setAllSerials] = useState<any[]>([]);
   const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
@@ -7612,17 +7694,26 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const [savingStripId, setSavingStripId] = useState<string | null>(null);
   const [savedStripId, setSavedStripId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [allBlockSpaces, setAllBlockSpaces] = useState<any[]>([]);
+  const [allBlockTables, setAllBlockTables] = useState<any[]>([]);
+  const [allBlocks, setAllBlocks] = useState<any[]>([]);
 
   const loadData = async () => {
     try {
-      const [stripsRes, presetsRes, serialsRes] = await Promise.all([
+      const [stripsRes, presetsRes, serialsRes, blockSpacesRes, blockTablesRes, blocksRes] = await Promise.all([
         fetch(`${API_URL}/strips/all`),
         fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/serials`)
+        fetch(`${API_URL}/serials`),
+        fetch(`${API_URL}/block-spaces`),
+        fetch(`${API_URL}/block-tables`),
+        fetch(`${API_URL}/blocks`)
       ]);
       if (stripsRes.ok) setStrips(await stripsRes.json());
       if (presetsRes.ok) setPresets(await presetsRes.json());
       if (serialsRes.ok) setAllSerials(await serialsRes.json());
+      if (blockSpacesRes.ok) setAllBlockSpaces(await blockSpacesRes.json());
+      if (blockTablesRes.ok) setAllBlockTables(await blockTablesRes.json());
+      if (blocksRes.ok) setAllBlocks(await blocksRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -7670,7 +7761,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
           }
         }
       }
-      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '' });
+      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '', block_space_id: '' });
       setNewStripSerials({});
       loadData();
     } catch (err) {
@@ -7884,6 +7975,16 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                 style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
               />
             </div>
+            {allBlockSpaces.length > 0 && (
+              <div>
+                <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>מרחב בלוקים</label>
+                <select value={newStrip.block_space_id} onChange={e => setNewStrip({ ...newStrip, block_space_id: e.target.value })}
+                  style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', width: '100%', background: '#0f172a', color: 'white' }}>
+                  <option value="">ללא מרחב בלוקים</option>
+                  {allBlockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>זמן המראה</label>
               <input
@@ -8015,6 +8116,49 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                   </div>
                   
                   <div style={{ padding: '15px' }}>
+                    {/* Block Table Sidebar */}
+                    {(() => {
+                      const presetBlockTableIds: number[] = preset.block_table_ids || [];
+                      const relevantBlockTables = allBlockTables.filter((bt: any) => presetBlockTableIds.includes(bt.id));
+                      if (relevantBlockTables.length === 0) return null;
+                      return (
+                        <div style={{ marginBottom: '12px', background: '#0f172a', borderRadius: '6px', padding: '8px 10px' }}>
+                          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', fontWeight: 'bold' }}>בלוקים חכמים</div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {relevantBlockTables.map((bt: any) => {
+                              const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
+                              const space = allBlockSpaces.find((bs: any) => bs.id === bt.block_space_id);
+                              return (
+                                <div key={bt.id} style={{ flex: '0 0 auto', minWidth: '100px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>{bt.name}{space ? ` (${space.name})` : ''}</div>
+                                  {tableBlocks.map((b: any) => {
+                                    const stripsInBlock = workstationStrips.filter((s: any) => {
+                                      const sAlt = parseFloat(s.alt);
+                                      return !isNaN(sAlt) && sAlt >= b.alt_from && sAlt <= b.alt_to && String(s.block_space_id) === String(bt.block_space_id);
+                                    });
+                                    return (
+                                      <div key={b.id} style={{
+                                        background: stripsInBlock.length > 0 ? b.color || '#3b82f6' : '#1e293b',
+                                        border: `1px solid ${b.color || '#3b82f6'}`,
+                                        borderRadius: '4px', padding: '3px 6px', marginBottom: '3px',
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px'
+                                      }}>
+                                        <span style={{ fontSize: '10px', color: stripsInBlock.length > 0 ? 'white' : '#64748b', fontWeight: stripsInBlock.length > 0 ? 'bold' : 'normal' }}>
+                                          {b.alt_from}–{b.alt_to}
+                                        </span>
+                                        {b.mission && <span style={{ fontSize: '9px', color: stripsInBlock.length > 0 ? '#e2e8f0' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60px' }}>{b.mission}</span>}
+                                        {stripsInBlock.length > 0 && <span style={{ fontSize: '9px', background: 'rgba(255,255,255,0.2)', borderRadius: '10px', padding: '0 4px', color: 'white', flexShrink: 0 }}>{stripsInBlock.length}</span>}
+                                      </div>
+                                    );
+                                  })}
+                                  {tableBlocks.length === 0 && <div style={{ fontSize: '9px', color: '#475569' }}>אין בלוקים</div>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {workstationStrips.map(strip => {
                         const isExpanded = expandedStripId === strip.id;
@@ -8043,6 +8187,10 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                                 {strip.alt && <span style={{ color: '#94a3b8', fontSize: '11px' }}>↑{strip.alt}</span>}
                                 {strip.erka && <span style={{ color: '#f59e0b', fontSize: '11px', background: '#292524', padding: '1px 5px', borderRadius: '3px' }}>ערכה: {strip.erka}</span>}
                                 {strip.mivtza && <span style={{ color: '#34d399', fontSize: '11px', background: '#022c22', padding: '1px 5px', borderRadius: '3px' }}>מבצע: {strip.mivtza}</span>}
+                                {strip.block_space_id && (() => {
+                                  const bs = allBlockSpaces.find((b: any) => String(b.id) === String(strip.block_space_id));
+                                  return bs ? <span style={{ color: '#fb923c', fontSize: '11px', background: '#431407', padding: '1px 5px', borderRadius: '3px' }}>🔲 {bs.name}</span> : null;
+                                })()}
                                 {/* Airborne toggle */}
                                 <button
                                   onClick={() => updateStripInline(strip.id, { airborne: !strip.airborne })}
@@ -8244,6 +8392,7 @@ const STRIP_FIELD_DEFS = [
   { key: 'erka',              label: 'ערכה',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'koteret',           label: 'כותרת',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'mivtza',            label: 'מבצע',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'block_space',       label: 'מרחב בלוקים',  editableOptions: ['none', 'dropdown'] },
   { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
@@ -9512,10 +9661,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
-  const availableTabs = effectiveMode === 'admin' ? adminOnlyTabs : teamLeadTabs;
+  const availableTabs = effectiveMode === 'admin' ? adminOnlyTabs : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
@@ -9524,7 +9673,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [crewMembers, setCrewMembers] = useState<CrewMember[]>([]);
   const [tableModes, setTableModes] = useState<any[]>([]);
   const [adminSerials, setAdminSerials] = useState<any[]>([]);
-  
+  const [blockSpaces, setBlockSpaces] = useState<any[]>([]);
+  const [blockTables, setBlockTables] = useState<any[]>([]);
+  const [editingBlockTable, setEditingBlockTable] = useState<any | null>(null);
+  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number });
+  const [blockSpaceForm, setBlockSpaceForm] = useState({ name: '' });
+  const [editingBlockSpace, setEditingBlockSpace] = useState<any | null>(null);
+  const [editingBlock, setEditingBlock] = useState<any | null>(null);
+  const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[] });
+  const [blockTableForBlock, setBlockTableForBlock] = useState<number | null>(null);
+
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
   const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[] });
@@ -9545,17 +9703,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     conflict_alt_delta: 500 as number,
     relevant_control_stations: [] as string[],
     filter_query: null as QGroup | null,
+    block_table_ids: [] as number[],
   });
 
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
         fetch(`${API_URL}/crew-members`),
         fetch(`${API_URL}/table-modes`),
-        fetch(`${API_URL}/serials`)
+        fetch(`${API_URL}/serials`),
+        fetch(`${API_URL}/block-spaces`),
+        fetch(`${API_URL}/block-tables`)
       ]);
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
@@ -9563,6 +9724,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       if (crewRes.ok) setCrewMembers(await crewRes.json());
       if (tableModesRes.ok) setTableModes(await tableModesRes.json());
       if (serialsRes.ok) setAdminSerials(await serialsRes.json());
+      if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
+      if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -9687,10 +9850,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           conflict_alt_delta: presetForm.conflict_alt_delta,
           relevant_control_stations: presetForm.relevant_control_stations.length > 0 ? presetForm.relevant_control_stations : null,
           filter_query: presetForm.filter_query || null,
+          block_table_ids: presetForm.block_table_ids,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -9709,6 +9873,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       conflict_alt_delta: preset.conflict_alt_delta ?? 500,
       relevant_control_stations: preset.relevant_control_stations || [],
       filter_query: preset.filter_query || null,
+      block_table_ids: Array.isArray(preset.block_table_ids) ? preset.block_table_ids : [],
     });
   };
 
@@ -9766,6 +9931,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('work_groups') && <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>}
         {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>}
         {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
+        {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -9943,6 +10109,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     );
                   })()}
                 </div>
+
+                {blockTables.length > 0 && (
+                  <div style={{ marginTop: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {blockTables.map((bt: any) => {
+                        const space = blockSpaces.find((bs: any) => bs.id === bt.block_space_id);
+                        const isSelected = presetForm.block_table_ids.includes(bt.id);
+                        return (
+                          <button key={bt.id} type="button"
+                            onClick={() => setPresetForm(p => ({ ...p, block_table_ids: isSelected ? p.block_table_ids.filter(id => id !== bt.id) : [...p.block_table_ids, bt.id] }))}
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${isSelected ? '#8b5cf6' : '#334155'}`, background: isSelected ? '#5b21b6' : '#1e293b', color: isSelected ? 'white' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isSelected ? 'bold' : 'normal' }}>
+                            {isSelected ? '✓ ' : ''}{bt.name}{space ? ` (${space.name})` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
@@ -10538,6 +10723,211 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
           {activeTab === 'aids' && <AidsManager presets={presets} />}
           {activeTab === 'serials' && <SerialsAdminTab />}
+
+          {/* Blocks Tab */}
+          {activeTab === 'blocks' && (
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+              {/* Left: Block Spaces */}
+              <div style={{ width: '240px', flexShrink: 0 }}>
+                <h2 style={{ margin: '0 0 14px 0', fontSize: '17px', color: '#e2e8f0' }}>מרחבי בלוקים</h2>
+                <div style={{ background: '#0f172a', borderRadius: '8px', padding: '14px', marginBottom: '14px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>{editingBlockSpace ? 'עריכת מרחב' : 'מרחב חדש'}</div>
+                  <input value={blockSpaceForm.name} onChange={e => setBlockSpaceForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="שם המרחב (למשל: צפון)" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                    <button onClick={async () => {
+                      if (!blockSpaceForm.name.trim()) return;
+                      if (editingBlockSpace) {
+                        await fetch(`${API_URL}/block-spaces/${editingBlockSpace.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name }) });
+                      } else {
+                        await fetch(`${API_URL}/block-spaces`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockSpaceForm.name }) });
+                      }
+                      setBlockSpaceForm({ name: '' }); setEditingBlockSpace(null); loadData();
+                    }} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', padding: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                      {editingBlockSpace ? 'שמור' : '+ הוסף'}
+                    </button>
+                    {editingBlockSpace && <button onClick={() => { setEditingBlockSpace(null); setBlockSpaceForm({ name: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '5px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {blockSpaces.map((bs: any) => (
+                    <div key={bs.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{bs.name}</span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button onClick={() => { setEditingBlockSpace(bs); setBlockSpaceForm({ name: bs.name }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>✏️</button>
+                        <button onClick={async () => { if (!confirm('למחוק מרחב בלוקים זה?')) return; await fetch(`${API_URL}/block-spaces/${bs.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>🗑️</button>
+                      </div>
+                    </div>
+                  ))}
+                  {blockSpaces.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px' }}>אין מרחבי בלוקים</div>}
+                </div>
+              </div>
+
+              {/* Right: Block Tables */}
+              <div style={{ flex: 1 }}>
+                <h2 style={{ margin: '0 0 14px 0', fontSize: '17px', color: '#e2e8f0' }}>טבלאות בלוקים</h2>
+                {/* New/Edit Table Form */}
+                <div style={{ background: '#0f172a', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>{editingBlockTable ? 'עריכת טבלה' : 'טבלה חדשה'}</div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <input value={blockTableForm.name} onChange={e => setBlockTableForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="שם הטבלה" style={{ flex: 1, minWidth: '140px', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }} />
+                    <select value={blockTableForm.block_space_id} onChange={e => setBlockTableForm(f => ({ ...f, block_space_id: e.target.value }))}
+                      style={{ padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }}>
+                      <option value="">בחר מרחב</option>
+                      {blockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
+                    </select>
+                    <button onClick={async () => {
+                      if (!blockTableForm.name.trim()) return;
+                      if (editingBlockTable) {
+                        await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null }) });
+                      } else {
+                        await fetch(`${API_URL}/block-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null }) });
+                      }
+                      setBlockTableForm({ name: '', block_space_id: '' }); setEditingBlockTable(null); loadData();
+                    }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                      {editingBlockTable ? 'שמור' : '+ הוסף'}
+                    </button>
+                    {editingBlockTable && <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
+                  </div>
+                </div>
+
+                {/* Block Tables List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {blockTables.map((bt: any) => {
+                    const space = blockSpaces.find((bs: any) => bs.id === bt.block_space_id);
+                    const btBlocks: any[] = [...(bt.blocks || [])].sort((a: any, b: any) => b.alt_from - a.alt_from);
+                    return (
+                      <div key={bt.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div>
+                            <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>{bt.name}</span>
+                            {space && <span style={{ color: '#64748b', fontSize: '11px', marginRight: '8px' }}>מרחב: {space.name}</span>}
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
+                            <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
+                          </div>
+                        </div>
+                        {/* Blocks in this table */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {btBlocks.map((blk: any) => {
+                            const isEditing = editingBlock?.id === blk.id;
+                            return (
+                              <div key={blk.id} style={{ background: '#0c1a2e', border: `2px solid ${blk.color || '#3b82f6'}`, borderRadius: '5px', padding: '8px 10px' }}>
+                                {isEditing ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
+                                        <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
+                                        <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                        <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
+                                        <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
+                                        <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייך לבלוק זה</label>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                        {presets.map((p: any) => (
+                                          <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
+                                            <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter((wid: any) => wid !== p.id) }))} />
+                                            {p.name}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות</label>
+                                      <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <button onClick={async () => {
+                                        await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms }) });
+                                        setEditingBlock(null); loadData();
+                                      }} style={{ background: '#166534', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>שמור</button>
+                                      <button onClick={() => setEditingBlock(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: blk.color || '#3b82f6', flexShrink: 0 }} />
+                                    <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>{blk.alt_from}–{blk.alt_to}</span>
+                                    <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1 }}>{blk.mission || '—'}</span>
+                                    {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} עמדות)</span>}
+                                    <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [] }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
+                                    <button onClick={async () => { await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>🗑️</button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {/* Add Block Form */}
+                          {blockTableForBlock === bt.id ? (
+                            <div style={{ background: '#0c1a2e', border: '1px dashed #334155', borderRadius: '5px', padding: '10px' }}>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
+                                  <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
+                                  <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                  <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
+                                  <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
+                                  <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                </div>
+                              </div>
+                              <div style={{ marginBottom: '6px' }}>
+                                <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייכות לבלוק</label>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                  {presets.map((p: any) => (
+                                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
+                                      <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter(id => id !== p.id) })) } />
+                                      {p.name}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                              <div style={{ marginBottom: '8px' }}>
+                                <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות (מופרד בפסיק)</label>
+                                <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button onClick={async () => {
+                                  if (!blockForm.alt_from || !blockForm.alt_to) return;
+                                  await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms }) });
+                                  setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); setBlockTableForBlock(null); loadData();
+                                }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף בלוק</button>
+                                <button onClick={() => { setBlockTableForBlock(null); setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button onClick={() => { setBlockTableForBlock(bt.id); setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); setEditingBlock(null); }} style={{ background: 'transparent', color: '#1d4ed8', border: '1px dashed #1d4ed8', borderRadius: '5px', padding: '6px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>+ הוסף בלוק לטבלה</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {blockTables.length === 0 && <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>אין טבלאות בלוקים — הוסף טבלה חדשה</div>}
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
 

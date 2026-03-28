@@ -42,6 +42,7 @@ Preferred communication style: Simple, everyday language.
 - **Serials Management**: Import and display serials, associate with strips, detect outdated serials. Serials are displayed in table mode and a dedicated panel, with actions for selection and dismissal.
 - **Altitude Conflict Detection**: Flags potential conflicts based on altitude differences between incoming/outgoing transfers at a transfer point, visualized with red highlights and badges. Threshold configurable per sector.
 - **Relevant Control Stations**: Workstation presets can define relevant control stations, filtering displayed serials accordingly.
+- **Smart Blocks (בלוקים חכמים)**: Altitude range management system. Block spaces group block tables, which contain blocks with altitude ranges (alt_from/alt_to), mission labels, colors, and workstation associations. Strips can be assigned to a block space. Block deviation detection: strips whose altitude falls outside their assigned block range flash orange; acknowledging deviation via right-click turns the flash to a static orange tint. Block tables are visualized per workstation in the distribution view. Block space is also a column in the table view (with dropdown editing). DB tables: `block_spaces`, `block_tables`, `blocks`; strip columns: `block_space_id`, `block_deviation`.
 
 # External Dependencies
 

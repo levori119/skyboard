@@ -417,6 +417,40 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by TEXT`);
   await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by_workstation TEXT`);
 
+  // --- Block Spaces & Block Tables ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS block_spaces (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL UNIQUE
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS block_tables (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE CASCADE
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS blocks (
+      id SERIAL PRIMARY KEY,
+      block_table_id INTEGER REFERENCES block_tables(id) ON DELETE CASCADE,
+      alt_from INTEGER NOT NULL,
+      alt_to INTEGER NOT NULL,
+      mission VARCHAR(100),
+      color VARCHAR(20) DEFAULT '#3b82f6',
+      workstations JSONB DEFAULT '[]',
+      platforms JSONB DEFAULT '[]',
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS block_table_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_deviation BOOLEAN DEFAULT FALSE`);
+
   console.log('Database initialized');
 }
 
@@ -666,10 +700,10 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
 
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation, erka, koteret, mivtza } = req.body;
+    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation, erka, koteret, mivtza, block_space_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation, erka, koteret, mivtza) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id',
-      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null, numberOfFormation || null, erka || null, koteret || null, mivtza || null]
+      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation, erka, koteret, mivtza, block_space_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id',
+      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null, numberOfFormation || null, erka || null, koteret || null, mivtza || null, block_space_id ? parseInt(block_space_id) : null]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
@@ -705,6 +739,8 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.erka !== undefined) { updates.push(`erka = $${paramIndex++}`); values.push(req.body.erka || null); }
     if (req.body.koteret !== undefined) { updates.push(`koteret = $${paramIndex++}`); values.push(req.body.koteret || null); }
     if (req.body.mivtza !== undefined) { updates.push(`mivtza = $${paramIndex++}`); values.push(req.body.mivtza || null); }
+    if (req.body.block_space_id !== undefined) { updates.push(`block_space_id = $${paramIndex++}`); values.push(req.body.block_space_id ? parseInt(req.body.block_space_id) : null); }
+    if (req.body.block_deviation !== undefined) { updates.push(`block_deviation = $${paramIndex++}`); values.push(!!req.body.block_deviation); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -1599,10 +1635,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9 WHERE id = $10 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10 WHERE id = $11 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -2212,6 +2248,127 @@ app.delete('/api/strip-serial-selections', async (req, res) => {
     await pool.query('DELETE FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete strip serial selection' }); }
+});
+
+// --- Block Spaces API ---
+app.get('/api/block-spaces', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM block_spaces ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch block spaces' }); }
+});
+
+app.post('/api/block-spaces', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO block_spaces (name) VALUES ($1) RETURNING *', [name]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create block space' }); }
+});
+
+app.put('/api/block-spaces/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('UPDATE block_spaces SET name=$1 WHERE id=$2 RETURNING *', [name, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update block space' }); }
+});
+
+app.delete('/api/block-spaces/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM block_spaces WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete block space' }); }
+});
+
+// --- Block Tables API ---
+app.get('/api/block-tables', async (req, res) => {
+  try {
+    const tables = await pool.query('SELECT bt.*, bs.name as space_name FROM block_tables bt LEFT JOIN block_spaces bs ON bt.block_space_id = bs.id ORDER BY bt.name');
+    const blocks = await pool.query('SELECT * FROM blocks ORDER BY alt_from DESC');
+    const rows = tables.rows.map(t => ({ ...t, blocks: blocks.rows.filter(b => b.block_table_id === t.id) }));
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch block tables' }); }
+});
+
+app.post('/api/block-tables', async (req, res) => {
+  try {
+    const { name, block_space_id } = req.body;
+    const result = await pool.query('INSERT INTO block_tables (name, block_space_id) VALUES ($1,$2) RETURNING *', [name, block_space_id || null]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create block table' }); }
+});
+
+app.put('/api/block-tables/:id', async (req, res) => {
+  try {
+    const { name, block_space_id } = req.body;
+    const result = await pool.query('UPDATE block_tables SET name=$1, block_space_id=$2 WHERE id=$3 RETURNING *', [name, block_space_id || null, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update block table' }); }
+});
+
+app.delete('/api/block-tables/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM block_tables WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete block table' }); }
+});
+
+// --- Blocks API ---
+app.get('/api/blocks', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM blocks ORDER BY block_table_id, sort_order, alt_from');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching blocks:', err);
+    res.status(500).json({ error: 'Failed to fetch blocks' });
+  }
+});
+
+app.post('/api/blocks', async (req, res) => {
+  try {
+    const { block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order } = req.body;
+    const result = await pool.query(
+      'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [block_table_id, alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create block' }); }
+});
+
+app.put('/api/blocks/:id', async (req, res) => {
+  try {
+    const { alt_from, alt_to, mission, color, workstations, platforms, sort_order } = req.body;
+    const result = await pool.query(
+      'UPDATE blocks SET alt_from=$1, alt_to=$2, mission=$3, color=$4, workstations=$5, platforms=$6, sort_order=$7 WHERE id=$8 RETURNING *',
+      [alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update block' }); }
+});
+
+app.delete('/api/blocks/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM blocks WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete block' }); }
+});
+
+// --- Strip block_space / block_deviation ---
+app.patch('/api/strips/:id/block-space', async (req, res) => {
+  try {
+    const { block_space_id } = req.body;
+    const result = await pool.query('UPDATE strips SET block_space_id=$1 WHERE id=$2 RETURNING *', [block_space_id || null, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update strip block space' }); }
+});
+
+app.patch('/api/strips/:id/block-deviation', async (req, res) => {
+  try {
+    const { block_deviation } = req.body;
+    const result = await pool.query('UPDATE strips SET block_deviation=$1 WHERE id=$2 RETURNING *', [!!block_deviation, req.params.id]);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update block deviation' }); }
 });
 
 const PORT = process.env.PORT || 3001;
