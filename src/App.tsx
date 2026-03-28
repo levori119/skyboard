@@ -3593,10 +3593,10 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[] }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[] }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
-  const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza'>('none');
+  const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -3715,11 +3715,24 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [] }: { s
     return p;
   };
 
-  const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע' };
+  const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע', block_space_id: 'מרחב בלוקים' };
 
   let segments: { label: string; placed: Placed[] }[];
   if (groupBy === 'none') {
     segments = [{ label: '', placed: buildPlaced(candidates) }];
+  } else if (groupBy === 'block_space_id') {
+    const valMap = new Map<string, typeof candidates>();
+    candidates.forEach(s => {
+      const bsId = s.block_space_id ? String(s.block_space_id) : '—';
+      if (!valMap.has(bsId)) valMap.set(bsId, []);
+      valMap.get(bsId)!.push(s);
+    });
+    segments = Array.from(valMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], 'he'))
+      .map(([bsId, list]) => {
+        const bs = blockSpaces.find((x: any) => String(x.id) === bsId);
+        return { label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list) };
+      });
   } else {
     const field = groupBy as string;
     const valMap = new Map<string, typeof candidates>();
@@ -3885,11 +3898,12 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [] }: { s
     </>
   );
 
-  const GROUP_OPTIONS: { value: 'none' | 'erka' | 'koteret' | 'mivtza'; label: string }[] = [
+  const GROUP_OPTIONS: { value: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; label: string }[] = [
     { value: 'none', label: 'ללא חלוקה' },
     { value: 'erka', label: 'ערכה' },
     { value: 'koteret', label: 'כותרת' },
     { value: 'mivtza', label: 'אזור ביצוע' },
+    { value: 'block_space_id', label: 'מרחב בלוקים' },
   ];
 
   return (
@@ -7691,7 +7705,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -7708,7 +7722,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => p.id === session.presetId) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} />
         </div>
       ))}
 
