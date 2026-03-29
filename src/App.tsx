@@ -3812,10 +3812,12 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const segW = Math.max(chartW / Math.max(segCount, 1), MIN_CHART_W);
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
+  // כאשר מחלקים לפי מרחב בלוקים ויש יותר מקבוצה אחת — מסתירים בלוקים אוטומטית
+  const effectiveShowBlocks = showBlocks && (groupBy !== 'block_space_id' || segCount <= 1);
   // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
-  const usePerSegmentAxis = isBlockSpaceGroup && showBlocks && blockDisplayMode === 'altitudes';
+  const usePerSegmentAxis = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'altitudes';
   // legend mode: block space grouping + blocks shown + legend mode
-  const useLegendMode = isBlockSpaceGroup && showBlocks && blockDisplayMode === 'legend';
+  const useLegendMode = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'legend';
   const SEG_DIVIDER = isBlockSpaceGroup
     ? (lightMode ? '8px solid #6366f1' : '8px solid #4f46e5')
     : (lightMode ? '4px solid #94a3b8' : '4px solid #475569');
@@ -4005,7 +4007,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 
   const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
-    const blocksForChart = showBlocks ? (segBlocks !== undefined ? segBlocks : relevantBlocks) : [];
+    const blocksForChart = effectiveShowBlocks ? (segBlocks !== undefined ? segBlocks : relevantBlocks) : [];
     if (usePerSegmentAxis) {
       return (
         <>
@@ -4044,7 +4046,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           {HEADER_H > 0 && <div style={{ height: HEADER_H, borderBottom: `1px solid ${gridLine}`, background: bg }} />}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {/* Block range bands on Y-axis — hide in legend mode (legend shown in header instead) */}
-            {showBlocks && !useLegendMode && relevantBlocks.map((b: any) => {
+            {effectiveShowBlocks && !useLegendMode && relevantBlocks.map((b: any) => {
               // convert block altitude to chart units (blocks use "hundreds of feet" like alt field)
               const bAltHi = b.alt_to * 100;
               const bAltLo = b.alt_from * 100;
@@ -4172,7 +4174,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         </button>
 
         {/* Block display mode — only when grouping by block space and blocks visible */}
-        {isBlockSpaceGroup && showBlocks && (
+        {isBlockSpaceGroup && effectiveShowBlocks && (
           <>
             <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
             <span style={{ fontSize: '11px', color: textColor, whiteSpace: 'nowrap' }}>תצוגת בלוקים:</span>
