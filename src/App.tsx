@@ -3812,8 +3812,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const segW = Math.max(chartW / Math.max(segCount, 1), MIN_CHART_W);
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
-  // כאשר מחלקים לפי מרחב בלוקים ויש יותר מקבוצה אחת — מסתירים בלוקים אוטומטית
-  const effectiveShowBlocks = showBlocks && (groupBy !== 'block_space_id' || segCount <= 1);
+  // כאשר יש יותר ממרחב בלוקים אחד — מציגים בלוקים רק בחלוקה לפי מרחב בלוקים
+  const effectiveShowBlocks = showBlocks && (blockSpaces.length <= 1 || groupBy === 'block_space_id');
   // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
   const usePerSegmentAxis = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'altitudes';
   // legend mode: block space grouping + blocks shown + legend mode
