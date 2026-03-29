@@ -4019,7 +4019,6 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     }
     return (
       <>
-        {HEADER_H > 0 && <div style={{ height: HEADER_H }} />}
         {renderChartContent(placed, blocksForChart)}
         {renderXAxis()}
       </>
@@ -4244,9 +4243,11 @@ const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { btId: n
       if (dragOp.type === 'new') {
         setDragOp({ ...dragOp, currentFL: fl });
       } else if (dragOp.type === 'resize-top') {
-        setDragOp({ ...dragOp, currentFL: Math.min(fl, dragOp.origFrom - resolution) });
+        // alt_to (top) must stay above alt_from + resolution
+        setDragOp({ ...dragOp, currentFL: Math.max(fl, dragOp.origFrom + resolution) });
       } else if (dragOp.type === 'resize-bottom') {
-        setDragOp({ ...dragOp, currentFL: Math.max(fl, dragOp.origTo + resolution) });
+        // alt_from (bottom) must stay below alt_to - resolution
+        setDragOp({ ...dragOp, currentFL: Math.min(fl, dragOp.origTo - resolution) });
       } else if (dragOp.type === 'move') {
         const delta = fl - dragOp.startFL;
         setDragOp({ ...dragOp, currentFL: fl });
