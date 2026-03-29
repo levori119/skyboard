@@ -2695,30 +2695,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
 
-  // Block deviation detection:
-  // Strip is at a workstation and its altitude falls into a block that is NOT assigned to that workstation.
-  const isBlockDeviation = React.useMemo(() => {
-    if (!s.block_space_id || !s.alt || !s.workstation_preset_id) return false;
-    const altNum = parseFloat(s.alt);
-    if (isNaN(altNum)) return false;
-
-    // All blocks belonging to the strip's assigned block space
-    const spaceBlocks = allBlocks.filter((b: any) => {
-      const table = allBlockTables.find((t: any) => t.id === b.block_table_id);
-      return table && String(table.block_space_id) === String(s.block_space_id);
-    });
-    if (spaceBlocks.length === 0) return false;
-
-    // Find the block the strip's altitude falls into
-    const matchingBlock = spaceBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
-    // If no block contains this altitude — no deviation
-    if (!matchingBlock) return false;
-
-    // Deviation: the matching block is NOT assigned to this workstation
-    const presetId = Number(s.workstation_preset_id);
-    const blockWorkstations = Array.isArray(matchingBlock.workstations) ? matchingBlock.workstations.map(Number) : [];
-    return !blockWorkstations.includes(presetId);
-  }, [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables]);
+  // Block deviation detection (uses shared helper)
+  const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables),
+    [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -3927,6 +3906,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         if (xPct + wPct < 0 || xPct > 100) return null;
         const isConflict = s._hasConflict;
         const sq = s.sq || s.squadron || '';
+        const isDeviation = computeBlockDeviation(s, allBlocks, blockTables);
+        const isDeviationAcknowledged = !!s.block_deviation;
         let topPct: number, heightVal: string;
         if (s._isRange) {
           const tp = altPct(s._altHi);
@@ -3939,23 +3920,27 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
           heightVal = `${STRIP_H}px`;
         }
-        const borderColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
+        const borderColor = (isDeviation || isDeviationAcknowledged) ? '#f97316'
+          : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
         const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
+        const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
+          : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
         return (
           <div key={s.id}
-            title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}`}
+            className={isDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
+            title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
             style={{
               position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
               width: `${wPct}%`, height: heightVal,
-              background: s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-                : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)'),
+              background: isDeviation && !isDeviationAcknowledged ? undefined
+                : isDeviationAcknowledged ? 'rgba(234, 88, 12, 0.2)' : normalBg,
               border: `2px solid ${borderColor}`, borderRadius: 4,
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
               overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
             }}>
             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
               <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}</span>}
+              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (isDeviation || isDeviationAcknowledged) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(isDeviation || isDeviationAcknowledged) ? ' ⚠️' : ''}</span>}
             </div>
           </div>
         );
@@ -4210,6 +4195,23 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       </div>
     </div>
   );
+};
+
+// --- Block deviation helper (shared across views) ---
+const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[]): boolean => {
+  if (!s.block_space_id || !s.alt || !s.workstation_preset_id) return false;
+  const altNum = parseFloat(s.alt);
+  if (isNaN(altNum)) return false;
+  const spaceBlocks = allBlocks.filter((b: any) => {
+    const table = blockTables.find((t: any) => t.id === b.block_table_id);
+    return table && String(table.block_space_id) === String(s.block_space_id);
+  });
+  if (spaceBlocks.length === 0) return false;
+  const matchingBlock = spaceBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  if (!matchingBlock) return false;
+  const presetId = Number(s.workstation_preset_id);
+  const blockWs = Array.isArray(matchingBlock.workstations) ? matchingBlock.workstations.map(Number) : [];
+  return !blockWs.includes(presetId);
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
@@ -7241,13 +7243,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
                     const isPendingTransfer = s.status === 'pending_transfer';
+                    const isRowDeviation = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables);
+                    const isRowDeviationAck = !!s.block_deviation;
                     const rowBg = isDragOver ? '#1d4ed8'
+                      : (isRowDeviation && !isRowDeviationAck) ? undefined
+                      : isRowDeviationAck ? 'rgba(234, 88, 12, 0.15)'
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (lightMode ? '#ffffff' : '#1e293b') : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
                       <tr
                         key={s.id}
                         data-strip-id={s.id}
+                        className={isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
