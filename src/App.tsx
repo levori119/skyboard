@@ -2695,35 +2695,30 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
 
-  // Block deviation detection — checks against workstation's relevant blocks
+  // Block deviation detection:
+  // Strip is at a workstation and its altitude falls into a block that is NOT assigned to that workstation.
   const isBlockDeviation = React.useMemo(() => {
-    if (!s.alt) return false;
+    if (!s.block_space_id || !s.alt || !s.workstation_preset_id) return false;
     const altNum = parseFloat(s.alt);
     if (isNaN(altNum)) return false;
 
-    // Build the set of relevant blocks for this strip's workstation
-    let relevantBlocks: any[] = [];
-    if (s.workstation_preset_id && allWorkstationPresets.length > 0) {
-      const preset = allWorkstationPresets.find((p: any) => Number(p.id) === Number(s.workstation_preset_id));
-      if (preset) {
-        const btIds: number[] = preset.block_table_ids || [];
-        const pid = Number(preset.id);
-        relevantBlocks = allBlocks.filter((b: any) =>
-          btIds.includes(b.block_table_id) ||
-          (Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
-        );
-      }
-    }
-    // Fallback: check strip's own block_space_id
-    if (relevantBlocks.length === 0 && s.block_space_id) {
-      relevantBlocks = allBlocks.filter((b: any) => {
-        const table = allBlockTables.find((t: any) => t.id === b.block_table_id);
-        return table && String(table.block_space_id) === String(s.block_space_id);
-      });
-    }
-    if (relevantBlocks.length === 0) return false;
-    return !relevantBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
-  }, [s.workstation_preset_id, s.block_space_id, s.alt, allBlocks, allBlockTables, allWorkstationPresets]);
+    // All blocks belonging to the strip's assigned block space
+    const spaceBlocks = allBlocks.filter((b: any) => {
+      const table = allBlockTables.find((t: any) => t.id === b.block_table_id);
+      return table && String(table.block_space_id) === String(s.block_space_id);
+    });
+    if (spaceBlocks.length === 0) return false;
+
+    // Find the block the strip's altitude falls into
+    const matchingBlock = spaceBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+    // If no block contains this altitude — no deviation
+    if (!matchingBlock) return false;
+
+    // Deviation: the matching block is NOT assigned to this workstation
+    const presetId = Number(s.workstation_preset_id);
+    const blockWorkstations = Array.isArray(matchingBlock.workstations) ? matchingBlock.workstations.map(Number) : [];
+    return !blockWorkstations.includes(presetId);
+  }, [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
