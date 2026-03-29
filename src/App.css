@@ -292,9 +292,18 @@ body.light-mode .table-header-menu button:hover {
 }
 
 @keyframes block-deviation-flash {
-  0%, 100% { background-color: rgba(234, 88, 12, 0.25); }
-  50% { background-color: rgba(234, 88, 12, 0.6); }
+  0%, 100% { background-color: rgba(234, 88, 12, 0.3); }
+  50% { background-color: rgba(234, 88, 12, 0.75); }
 }
-.block-deviation-flash {
+@keyframes block-deviation-flash-solid {
+  0%, 100% { background-color: #4a1c07; }
+  50% { background-color: #7c2d0d; }
+}
+/* For div/span elements (map and vertical views) */
+div.block-deviation-flash {
   animation: block-deviation-flash 0.9s ease-in-out infinite;
+}
+/* For table rows — animate the cells themselves so nothing bleeds through */
+tr.block-deviation-flash > td {
+  animation: block-deviation-flash-solid 0.9s ease-in-out infinite;
 }
