@@ -2699,6 +2699,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId),
     [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables, activeBlockTableId]);
 
+  // Sync local blockDeviation state when prop changes (e.g. after polling)
+  useEffect(() => {
+    setBlockDeviation(s.block_deviation || false);
+  }, [s.block_deviation]);
+
+  // Auto-clear acknowledged deviation when altitude is fixed (no more deviation)
+  useEffect(() => {
+    if (!isBlockDeviation && blockDeviation) {
+      setBlockDeviation(false);
+      fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }).catch(() => {});
+    }
+  }, [isBlockDeviation]);
+
   // Sync tempNotes when notes prop changes
   useEffect(() => {
     setTempNotes(s.notes || '');
