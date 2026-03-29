@@ -7300,7 +7300,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
-                      : isRowDeviationAckEff ? 'rgba(234, 88, 12, 0.15)'
+                      : isRowDeviationAckEff ? (lightMode ? '#fff0e0' : '#3d1508')
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (lightMode ? '#ffffff' : '#1e293b') : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
