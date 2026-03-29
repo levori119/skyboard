@@ -8229,7 +8229,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: b.color || '#6366f1', flexShrink: 0 }} />
                                       <span style={{ fontSize: '11px', fontWeight: isMine ? '800' : 'normal', color: lightMode ? '#1e293b' : '#e2e8f0', flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
                                       {!isMine && otherNames.length > 0 && (
-                                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', flexShrink: 0, fontStyle: 'italic' }}>({otherNames.join(', ')})</span>
+                                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', flexShrink: 0, fontStyle: 'italic', marginLeft: 'auto' }}>({otherNames.join(', ')})</span>
                                       )}
                                       {b.mission && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.mission}</span>}
                                     </div>
