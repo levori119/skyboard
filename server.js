@@ -2340,15 +2340,15 @@ app.post('/api/block-tables/:id/duplicate', async (req, res) => {
     if (src.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const orig = src.rows[0];
     const newTable = await pool.query(
-      'INSERT INTO block_tables (name, block_space_id) VALUES ($1, $2) RETURNING *',
-      [orig.name + ' (עותק)', orig.block_space_id]
+      'INSERT INTO block_tables (name, block_space_id, note, category, updated_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING *',
+      [orig.name + ' (עותק)', orig.block_space_id, orig.note, orig.category]
     );
     const newId = newTable.rows[0].id;
-    const blocks = await pool.query('SELECT * FROM blocks WHERE block_table_id=$1', [srcId]);
+    const blocks = await pool.query('SELECT * FROM blocks WHERE block_table_id=$1 ORDER BY sort_order', [srcId]);
     for (const blk of blocks.rows) {
       await pool.query(
-        'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
-        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, blk.workstations, blk.platforms, blk.sort_order]
+        'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
+        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, blk.workstations, blk.platforms, blk.sort_order, blk.note]
       );
     }
     res.json(newTable.rows[0]);

@@ -11892,7 +11892,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                               const space = blockSpaces.find((bs: any) => bs.id === bt.block_space_id);
                               const btBlocks: any[] = [...(bt.blocks || [])].sort((a: any, b: any) => b.alt_from - a.alt_from);
                               return (
-                                <div key={bt.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px' }}>
+                                <div key={bt.id} id={`block-table-${bt.id}`} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px' }}>
                                   {/* Table header */}
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -11905,7 +11905,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                                     </div>
                                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                       <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
-                                      <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
+                                      <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { const res = await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); const newBt = await res.json(); await loadData(); setTimeout(() => { const el = document.getElementById(`block-table-${newBt.id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '2px solid #4ade80'; el.style.outlineOffset = '2px'; setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2000); } }, 300); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
                                       <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
                                     </div>
                                   </div>
