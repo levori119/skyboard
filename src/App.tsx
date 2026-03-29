@@ -4685,6 +4685,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableSerialViewPopup, setTableSerialViewPopup] = useState<{ x: number; y: number; station: string; stripId: string } | null>(null);
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
   const [serialPopupNotRelevantIds, setSerialPopupNotRelevantIds] = useState<string[]>([]);
+  const [serialPopupWasDismissedId, setSerialPopupWasDismissedId] = useState<string | null>(null);
   const [tableDragRow, setTableDragRow] = useState<string | null>(null);
   const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
@@ -6143,7 +6144,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   ) : (() => {
                     const knownUntilSerial = serialPopupKnownUntilId ? recentSerials.find((sr: any) => sr.id === serialPopupKnownUntilId) : null;
                     const knownUntilNum = knownUntilSerial ? knownUntilSerial.serial_number : null;
-                    const hasActions = serialPopupKnownUntilId || serialPopupNotRelevantIds.length > 0;
+                    const hasActions = serialPopupKnownUntilId || serialPopupNotRelevantIds.length > 0 || (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId));
                     return (
                       <>
                         {/* כפתור אשר — למעלה */}
@@ -6157,8 +6158,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               for (const notRelId of serialPopupNotRelevantIds) {
                                 await handleSerialDismiss(stripId, station, notRelId);
                               }
+                              // Undo dismiss: was dismissed but user removed it without a replacement action
+                              if (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId) && !serialPopupKnownUntilId) {
+                                await handleSerialSelect(stripId, station, null, false);
+                              }
                               setSerialPopupKnownUntilId(null);
                               setSerialPopupNotRelevantIds([]);
+                              setSerialPopupWasDismissedId(null);
                               setTableSerialViewPopup(null);
                             }}
                             style={{ flex: 1, background: hasActions ? '#2563eb' : '#1e293b', color: hasActions ? 'white' : '#475569', border: `1px solid ${hasActions ? '#3b82f6' : '#334155'}`, borderRadius: '5px', padding: '6px 10px', cursor: hasActions ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
@@ -6170,8 +6176,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
 
                         {recentSerials.map((sr: any) => {
-                          const isDismissedSerial = mySelection?.dismissed && mySelection?.serial_id === sr.id;
-                          const isAlreadyKnown = !mySelection?.dismissed && mySerial && sr.serial_number <= mySerial.serial_number;
+                          const isDismissedSerial = mySelection?.dismissed && mySelection?.serial_id === sr.id && serialPopupNotRelevantIds.includes(sr.id);
+                          const isAlreadyKnown = !mySelection?.dismissed && mySerial && sr.serial_number <= mySerial.serial_number && sr.id !== serialPopupKnownUntilId;
                           const isLatest = latestSerial?.id === sr.id;
                           const disabledByKnownUntil = knownUntilNum !== null && sr.serial_number < knownUntilNum;
                           const isKnownUntilChecked = serialPopupKnownUntilId === sr.id;
@@ -7021,7 +7027,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
                                 </span>
                                 <button
-                                  onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
+                                  onClick={e => { e.stopPropagation(); const ex = stripSerialSelections.find((se: any) => se.strip_id === s.id && se.control_station === station); if (ex?.dismissed && ex?.serial_id) { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([ex.serial_id]); setSerialPopupWasDismissedId(ex.serial_id); } else if (ex?.serial_id) { setSerialPopupKnownUntilId(ex.serial_id); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } else { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
                                   style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
                                   title="פתח לתצוגת ספרור"
                                 >📋</button>
@@ -7056,7 +7062,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     {sel.control_station} – ספרור #{displayNum}
                                   </span>
                                   <button
-                                    onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
+                                    onClick={e => { e.stopPropagation(); if (sel.dismissed && sel.serial_id) { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([sel.serial_id]); setSerialPopupWasDismissedId(sel.serial_id); } else if (sel.serial_id) { setSerialPopupKnownUntilId(sel.serial_id); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } else { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
                                     style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
                                     title="פתח לתצוגת ספרור"
                                   >📋</button>
