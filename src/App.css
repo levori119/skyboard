@@ -292,8 +292,8 @@ body.light-mode .table-header-menu button:hover {
 }
 
 @keyframes block-deviation-flash {
-  0%, 100% { background-color: rgba(234, 88, 12, 0.25); box-shadow: 0 0 10px #f9731660; }
-  50% { background-color: rgba(234, 88, 12, 0.55); box-shadow: 0 0 3px #f9731630; }
+  0%, 100% { background-color: rgba(234, 88, 12, 0.25); }
+  50% { background-color: rgba(234, 88, 12, 0.6); }
 }
 .block-deviation-flash {
   animation: block-deviation-flash 0.9s ease-in-out infinite;

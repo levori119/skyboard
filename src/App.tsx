@@ -3845,7 +3845,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 
   const renderChartContent = (placed: Placed[], blocksToShow: any[]) => (
-    <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden' }}>
+    <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint' }}>
       {/* Block range background bands */}
       {blocksToShow.map((b: any) => {
         const bAltHi = b.alt_to * 100;
@@ -4202,15 +4202,22 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
 // --- Block deviation helper (shared across views) ---
 const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[]): boolean => {
-  if (!s.block_space_id || !s.alt || !s.workstation_preset_id) return false;
+  if (!s.alt || !s.workstation_preset_id) return false;
   const altNum = parseFloat(s.alt);
   if (isNaN(altNum)) return false;
-  const spaceBlocks = allBlocks.filter((b: any) => {
-    const table = blockTables.find((t: any) => t.id === b.block_table_id);
-    return table && String(table.block_space_id) === String(s.block_space_id);
-  });
-  if (spaceBlocks.length === 0) return false;
-  const matchingBlock = spaceBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  // If strip has a block_space_id, only check blocks within that space
+  // Otherwise check all available blocks
+  let candidateBlocks: any[];
+  if (s.block_space_id) {
+    candidateBlocks = allBlocks.filter((b: any) => {
+      const table = blockTables.find((t: any) => t.id === b.block_table_id);
+      return table && String(table.block_space_id) === String(s.block_space_id);
+    });
+  } else {
+    candidateBlocks = allBlocks;
+  }
+  if (candidateBlocks.length === 0) return false;
+  const matchingBlock = candidateBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
   if (!matchingBlock) return false;
   const presetId = Number(s.workstation_preset_id);
   const blockWs = Array.isArray(matchingBlock.workstations) ? matchingBlock.workstations.map(Number) : [];
@@ -4672,6 +4679,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Mute toggles for alerts (session-local)
   const [muteLoadAlerts, setMuteLoadAlerts] = useState(false);
   const [muteBlockAlerts, setMuteBlockAlerts] = useState(false);
+  // Altitude update mini-form (triggered from deviation context menus)
+  const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
+  const [altUpdateValue, setAltUpdateValue] = useState('');
   // Strip being dragged from sidebar into the table (HTML5 drag fallback)
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
@@ -6431,7 +6441,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               tableSidebarDragId.current = null;
             }
           } : undefined}
-          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); }}
+          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); }}
         >
           {/* Table Mode */}
           {tableMode && (() => {
@@ -7438,6 +7448,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 if (!ctxDev && !ctxAck) return null;
                 return (<>
                   <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+                  <button
+                    onClick={() => {
+                      setAltUpdateValue(ctxStrip?.alt || '');
+                      setAltUpdateForm({ stripId: tableRowCtxMenu.stripId, currentAlt: ctxStrip?.alt || '', x: tableRowCtxMenu.x, y: tableRowCtxMenu.y });
+                      setTableRowCtxMenu(null);
+                    }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >✏️ עדכון גובה</button>
                   {ctxDev && !ctxAck && (
                     <button
                       onClick={async () => {
@@ -7488,6 +7506,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 style={{ position: 'fixed', top: verticalCtxMenu.y, left: verticalCtxMenu.x, background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '180px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}
               >
+                <button
+                  onClick={() => {
+                    setAltUpdateValue(ctxS?.alt || '');
+                    setAltUpdateForm({ stripId: verticalCtxMenu.stripId, currentAlt: ctxS?.alt || '', x: verticalCtxMenu.x, y: verticalCtxMenu.y });
+                    setVerticalCtxMenu(null);
+                  }}
+                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                >✏️ עדכון גובה</button>
                 {ctxDev && !ctxAck && (
                   <button
                     onClick={async () => {
@@ -7509,6 +7535,52 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             );
           })()}
+
+          {/* Altitude update mini-form */}
+          {altUpdateForm && (
+            <div
+              style={{ position: 'fixed', top: altUpdateForm.y, left: altUpdateForm.x, background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>✏️ עדכון גובה</div>
+              {altUpdateForm.currentAlt && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>גובה נוכחי: {altUpdateForm.currentAlt}</div>}
+              <input
+                autoFocus
+                type="text"
+                value={altUpdateValue}
+                onChange={e => setAltUpdateValue(e.target.value)}
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    const val = altUpdateValue.trim();
+                    if (val) {
+                      try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
+                    }
+                    setAltUpdateForm(null);
+                  } else if (e.key === 'Escape') {
+                    setAltUpdateForm(null);
+                  }
+                }}
+                placeholder="הזן גובה חדש"
+                style={{ width: '100%', background: '#0f172a', color: 'white', border: '1px solid #3b82f6', borderRadius: '4px', padding: '6px 8px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+              />
+              <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                <button
+                  onClick={async () => {
+                    const val = altUpdateValue.trim();
+                    if (val) {
+                      try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
+                    }
+                    setAltUpdateForm(null);
+                  }}
+                  style={{ flex: 1, background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                >שמור</button>
+                <button
+                  onClick={() => setAltUpdateForm(null)}
+                  style={{ flex: 1, background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '6px', cursor: 'pointer', fontSize: '13px' }}
+                >ביטול</button>
+              </div>
+            </div>
+          )}
 
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
