@@ -2853,7 +2853,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               const now = new Date();
               const d = new Date(s.takeoff_time);
               if (isNaN(d.getTime())) return null;
-              const past = d < now;
+              const past = d < now && !s.airborne;
               const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
               const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
               const hh = d.getUTCHours().toString().padStart(2, '0');
