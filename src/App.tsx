@@ -3594,7 +3594,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [] }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[] }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
@@ -3920,27 +3920,30 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
           heightVal = `${STRIP_H}px`;
         }
-        const borderColor = (isDeviation || isDeviationAcknowledged) ? '#f97316'
+        const effectiveDeviation = isDeviation && !muteBlockAlerts;
+        const effectiveDeviationAck = isDeviationAcknowledged && !muteBlockAlerts;
+        const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
           : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
         const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
         const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
           : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
         return (
           <div key={s.id}
-            className={isDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
+            className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
             title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
+            onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
             style={{
               position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
               width: `${wPct}%`, height: heightVal,
-              background: isDeviation && !isDeviationAcknowledged ? undefined
-                : isDeviationAcknowledged ? 'rgba(234, 88, 12, 0.2)' : normalBg,
+              background: effectiveDeviation && !isDeviationAcknowledged ? undefined
+                : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
               border: `2px solid ${borderColor}`, borderRadius: 4,
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
               overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
             }}>
             <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
               <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (isDeviation || isDeviationAcknowledged) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(isDeviation || isDeviationAcknowledged) ? ' ⚠️' : ''}</span>}
+              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
             </div>
           </div>
         );
@@ -4664,6 +4667,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableOnBoard, setTableOnBoard] = useState<Set<string>>(new Set());
   // Right-click context menu for a table row
   const [tableRowCtxMenu, setTableRowCtxMenu] = useState<{ stripId: string; x: number; y: number } | null>(null);
+  // Right-click context menu for a strip in the vertical view
+  const [verticalCtxMenu, setVerticalCtxMenu] = useState<{ stripId: string; x: number; y: number } | null>(null);
+  // Mute toggles for alerts (session-local)
+  const [muteLoadAlerts, setMuteLoadAlerts] = useState(false);
+  const [muteBlockAlerts, setMuteBlockAlerts] = useState(false);
   // Strip being dragged from sidebar into the table (HTML5 drag fallback)
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
@@ -5765,7 +5773,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           )}
           {/* Load mode badge */}
-          {loadLevel !== 'none' && (
+          {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
               style={{
@@ -5790,6 +5798,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '4px', padding: '1px 6px', fontSize: '12px' }}>{loadCount}</span>
             </div>
           )}
+          {/* Mute alert toggles */}
+          {(loadLevel !== 'none' || muteLoadAlerts) && (
+            <button
+              onClick={() => setMuteLoadAlerts(v => !v)}
+              title={muteLoadAlerts ? 'הפעל התראות עומס' : 'השתק התראות עומס'}
+              style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '3px 9px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              {muteLoadAlerts ? '🔔' : '🔕'} עומס
+            </button>
+          )}
+          <button
+            onClick={() => setMuteBlockAlerts(v => !v)}
+            title={muteBlockAlerts ? 'הפעל התראות חריגה מבלוק' : 'השתק התראות חריגה מבלוק'}
+            style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '3px 9px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            {muteBlockAlerts ? '🔔' : '🔕'} בלוקים
+          </button>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* כפתור מפה + תפריט בחירת מפה */}
@@ -6406,7 +6431,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               tableSidebarDragId.current = null;
             }
           } : undefined}
-          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); }}
+          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); }}
         >
           {/* Table Mode */}
           {tableMode && (() => {
@@ -7243,11 +7268,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
                     const isPendingTransfer = s.status === 'pending_transfer';
-                    const isRowDeviation = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables);
+                    const isRowDeviationRaw = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables);
                     const isRowDeviationAck = !!s.block_deviation;
+                    const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
+                    const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
-                      : isRowDeviationAck ? 'rgba(234, 88, 12, 0.15)'
+                      : isRowDeviationAckEff ? 'rgba(234, 88, 12, 0.15)'
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (lightMode ? '#ffffff' : '#1e293b') : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
@@ -7404,6 +7431,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   >📝 הערות</button>
                 ) : null;
               })()}
+              {(() => {
+                const ctxStrip = myTableStrips.find((s: any) => s.id === tableRowCtxMenu.stripId);
+                const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables) : false;
+                const ctxAck = ctxStrip ? !!ctxStrip.block_deviation : false;
+                if (!ctxDev && !ctxAck) return null;
+                return (<>
+                  <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+                  {ctxDev && !ctxAck && (
+                    <button
+                      onClick={async () => {
+                        try { await fetch(`${API_URL}/strips/${tableRowCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                        setTableRowCtxMenu(null);
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >⚠️ אשר חריגה מבלוק</button>
+                  )}
+                  {ctxAck && (
+                    <button
+                      onClick={async () => {
+                        try { await fetch(`${API_URL}/strips/${tableRowCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                        setTableRowCtxMenu(null);
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >✅ בטל אישור חריגה מבלוק</button>
+                  )}
+                </>);
+              })()}
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
@@ -7422,6 +7476,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >🗑 מחק</button>
             </div>
           )}
+
+          {/* Vertical view strip context menu */}
+          {verticalCtxMenu && (() => {
+            const ctxS = myTableStrips.find((s: any) => s.id === verticalCtxMenu.stripId);
+            const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables) : false;
+            const ctxAck = ctxS ? !!ctxS.block_deviation : false;
+            if (!ctxDev && !ctxAck) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
+            return (
+              <div
+                style={{ position: 'fixed', top: verticalCtxMenu.y, left: verticalCtxMenu.x, background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '180px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {ctxDev && !ctxAck && (
+                  <button
+                    onClick={async () => {
+                      try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                      setVerticalCtxMenu(null);
+                    }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >⚠️ אשר חריגה מבלוק</button>
+                )}
+                {ctxAck && (
+                  <button
+                    onClick={async () => {
+                      try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                      setVerticalCtxMenu(null);
+                    }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >✅ בטל אישור חריגה מבלוק</button>
+                )}
+              </div>
+            );
+          })()}
 
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
@@ -8276,7 +8363,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -8293,7 +8380,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} />
         </div>
       ))}
 
