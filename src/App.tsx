@@ -2627,7 +2627,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [] }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2696,8 +2696,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
 
   // Block deviation detection (uses shared helper)
-  const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables),
-    [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables]);
+  const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId),
+    [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables, activeBlockTableId]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -3594,7 +3594,7 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
@@ -3906,7 +3906,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         if (xPct + wPct < 0 || xPct > 100) return null;
         const isConflict = s._hasConflict;
         const sq = s.sq || s.squadron || '';
-        const isDeviation = computeBlockDeviation(s, allBlocks, blockTables);
+        const isDeviation = computeBlockDeviation(s, allBlocks, blockTables, activeBlockTableId);
         const isDeviationAcknowledged = !!s.block_deviation;
         let topPct: number, heightVal: string;
         if (s._isRange) {
@@ -4201,18 +4201,20 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 };
 
 // --- Block deviation helper (shared across views) ---
-const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[]): boolean => {
+const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[], activeBlockTableId?: number | null): boolean => {
   if (!s.alt || !s.workstation_preset_id) return false;
   const altNum = parseFloat(s.alt);
   if (isNaN(altNum)) return false;
-  // If strip has a block_space_id, only check blocks within that space
-  // Otherwise check all available blocks
   let candidateBlocks: any[];
   if (s.block_space_id) {
+    // Strip is assigned to a block space → all block tables are relevant (ignore activeBlockTableId)
     candidateBlocks = allBlocks.filter((b: any) => {
       const table = blockTables.find((t: any) => t.id === b.block_table_id);
       return table && String(table.block_space_id) === String(s.block_space_id);
     });
+  } else if (activeBlockTableId) {
+    // Active block table set → only check that table's blocks
+    candidateBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
   } else {
     candidateBlocks = allBlocks;
   }
@@ -4679,6 +4681,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Mute toggles for alerts (session-local)
   const [muteLoadAlerts, setMuteLoadAlerts] = useState(false);
   const [muteBlockAlerts, setMuteBlockAlerts] = useState(false);
+  // Active block table: when multiple block tables exist for the preset, allows focusing on one
+  const [activeBlockTableId, setActiveBlockTableId] = useState<number | null>(null);
+  // Derived: block tables associated with the current preset (for the active block table selector)
+  const presetBlockTables = React.useMemo(() => {
+    const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
+    const btIds: number[] = Array.isArray(preset?.block_table_ids) ? preset.block_table_ids.map(Number) : [];
+    return dashboardBlockTables.filter((bt: any) => btIds.includes(Number(bt.id)));
+  }, [session.presetId, workstationPresets, dashboardBlockTables]);
+  // Reset active block table when the preset changes or its tables change
+  useEffect(() => {
+    setActiveBlockTableId(null);
+  }, [session.presetId]);
   // Altitude update mini-form (triggered from deviation context menus)
   const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
   const [altUpdateValue, setAltUpdateValue] = useState('');
@@ -5825,6 +5839,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           >
             {muteBlockAlerts ? '🔔' : '🔕'} בלוקים
           </button>
+          {/* Active block table selector — shown only when the preset has 2+ block tables */}
+          {presetBlockTables.length >= 2 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '2px 6px' }}>
+              <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>טבלת בלוקים:</span>
+              <select
+                value={activeBlockTableId ?? ''}
+                onChange={e => setActiveBlockTableId(e.target.value ? Number(e.target.value) : null)}
+                style={{ background: '#0f172a', color: '#e2e8f0', border: 'none', borderRadius: '3px', fontSize: '11px', padding: '1px 4px', cursor: 'pointer', maxWidth: '120px' }}
+                title="בחר טבלת בלוקים נוכחית — אינה משפיעה על פ\"ממים עם מרחב בלוקים"
+              >
+                <option value="">כל הטבלאות</option>
+                {presetBlockTables.map((bt: any) => (
+                  <option key={bt.id} value={bt.id}>{bt.name || `טבלה ${bt.id}`}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* כפתור מפה + תפריט בחירת מפה */}
@@ -7278,7 +7309,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
                     const isPendingTransfer = s.status === 'pending_transfer';
-                    const isRowDeviationRaw = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables);
+                    const isRowDeviationRaw = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, activeBlockTableId);
                     const isRowDeviationAck = !!s.block_deviation;
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
@@ -7443,7 +7474,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })()}
               {(() => {
                 const ctxStrip = myTableStrips.find((s: any) => s.id === tableRowCtxMenu.stripId);
-                const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables) : false;
+                const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false;
                 const ctxAck = ctxStrip ? !!ctxStrip.block_deviation : false;
                 if (!ctxDev && !ctxAck) return null;
                 return (<>
@@ -7498,7 +7529,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Vertical view strip context menu */}
           {verticalCtxMenu && (() => {
             const ctxS = myTableStrips.find((s: any) => s.id === verticalCtxMenu.stripId);
-            const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables) : false;
+            const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false;
             const ctxAck = ctxS ? !!ctxS.block_deviation : false;
             if (!ctxDev && !ctxAck) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
@@ -7646,6 +7677,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 allBlockTables={dashboardBlockTables}
                 allBlocks={dashboardBlocks}
                 allWorkstationPresets={workstationPresets}
+                activeBlockTableId={activeBlockTableId}
               />
             ))}
             
@@ -8435,7 +8467,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -8452,7 +8484,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} />
         </div>
       ))}
 
