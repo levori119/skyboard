@@ -6428,7 +6428,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s' }}
+          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
