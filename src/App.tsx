@@ -3813,7 +3813,10 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
   // כאשר יש יותר ממרחב בלוקים אחד ברלוונטיים — מציגים בלוקים רק בחלוקה לפי מרחב בלוקים
-  const relevantBlockSpaceIds = Array.from(new Set(relevantBlocks.map((b: any) => b.block_space_id).filter(Boolean)));
+  const relevantBlockSpaceIds = Array.from(new Set(relevantBlocks.map((b: any) => {
+    const bt = blockTables.find((t: any) => t.id === b.block_table_id);
+    return bt ? bt.block_space_id : undefined;
+  }).filter(Boolean)));
   const effectiveShowBlocks = showBlocks && relevantBlocks.length > 0 && (relevantBlockSpaceIds.length <= 1 || groupBy === 'block_space_id');
   // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
   const usePerSegmentAxis = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'altitudes';
