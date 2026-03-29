@@ -6167,15 +6167,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                           return (
                             <div key={sr.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 7px', borderRadius: '5px', marginBottom: '3px', background: rowBg, border: `1px solid ${rowBorder}`, opacity: disabledByKnownUntil ? 0.4 : 1 }}>
-                              {/* צ'קבוקסים — משמאל */}
+                              {/* פעולות — בצד שמאל */}
                               {!rowDisabled ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, minWidth: '70px' }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', direction: 'rtl' }}>
+                                    <input type="checkbox" checked={isKnownUntilChecked}
+                                      onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(sr.id); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== sr.id)); } else { setSerialPopupKnownUntilId(null); } }}
+                                      style={{ width: '13px', height: '13px', cursor: 'pointer', accentColor: '#22c55e', margin: 0, flexShrink: 0 }} />
+                                    <span style={{ fontSize: '9px', color: '#86efac', whiteSpace: 'nowrap' }}>הועבר לפ"מ</span>
+                                  </label>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', direction: 'rtl' }}>
+                                    <input type="checkbox" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
+                                      onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, sr.id] : prev.filter(id => id !== sr.id)); }}
+                                      style={{ width: '13px', height: '13px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1, flexShrink: 0 }} />
+                                    <span style={{ fontSize: '9px', color: isKnownUntilChecked ? '#475569' : '#fca5a5', whiteSpace: 'nowrap' }}>לא רלוונטי</span>
+                                  </label>
+                                </div>
+                              ) : isDismissedSerial ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
-                                  <input type="checkbox" title="פ״מ מכיר עד ספרור זה" checked={isKnownUntilChecked}
-                                    onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(sr.id); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== sr.id)); } else { setSerialPopupKnownUntilId(null); } }}
-                                    style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#22c55e', margin: 0 }} />
-                                  <input type="checkbox" title="לא רלוונטי" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
-                                    onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, sr.id] : prev.filter(id => id !== sr.id)); }}
-                                    style={{ width: '14px', height: '14px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1 }} />
+                                  <button onClick={async () => { await handleSerialSelect(stripId, station, sr.id, false); setTableSerialViewPopup(null); }}
+                                    style={{ fontSize: '9px', padding: '2px 6px', background: '#166534', color: '#4ade80', border: 'none', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                                    ✓ הועבר לפ"מ
+                                  </button>
+                                  <button onClick={async () => { await handleSerialSelect(stripId, station, null, false); setTableSerialViewPopup(null); }}
+                                    style={{ fontSize: '9px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                    בטל סימון
+                                  </button>
                                 </div>
                               ) : (
                                 <div style={{ width: '14px', flexShrink: 0 }} />
@@ -7001,16 +7018,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {mySelections.map((sel: any) => {
                             const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
-                            const latestNum = latest?.serial_number ?? sel.serial_id ?? '?';
                             const isDismissed = sel.dismissed;
-                            const selSerial = !isDismissed && sel.serial_id ? relevantSerials.find((sr: any) => sr.id === sel.serial_id) : null;
+                            const selSerial = sel.serial_id ? relevantSerials.find((sr: any) => sr.id === sel.serial_id) : null;
                             const isOutdated = !isDismissed && selSerial && latest && latest.id !== sel.serial_id;
+                            const displayNum = selSerial?.serial_number ?? latest?.serial_number ?? '?';
+                            const isDismissedLatest = isDismissed && (!selSerial || !latest || selSerial.serial_number >= latest.serial_number);
+                            const isDismissedOlder = isDismissed && selSerial && latest && selSerial.serial_number < latest.serial_number;
                             return (
                               <div key={sel.control_station}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                                   <span className={isOutdated ? 'serial-flash' : ''}
-                                    style={{ fontSize: '10px', background: isDismissed ? (lightMode ? '#f1f5f9' : '#1e293b') : isOutdated ? '#dc2626' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isDismissed ? (lightMode ? '#94a3b8' : '#475569') : isOutdated ? 'white' : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                                    {sel.control_station} – {isDismissed ? 'לא רלוונטי' : `ספרור ${latestNum}`}
+                                    style={{ fontSize: '10px', background: isDismissed ? (lightMode ? '#f1f5f9' : '#1e293b') : isOutdated ? '#1e3a5f' : (lightMode ? '#dbeafe' : '#1e3a5f'), color: isDismissed ? (lightMode ? '#94a3b8' : '#64748b') : (lightMode ? '#1e40af' : '#93c5fd'), borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap', textDecoration: isDismissed ? 'line-through' : 'none' }}>
+                                    {sel.control_station} – ספרור #{displayNum}
                                   </span>
                                   <button
                                     onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
@@ -7018,8 +7037,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     title="פתח לתצוגת ספרור"
                                   >📋</button>
                                 </div>
-                                {isDismissed && (
-                                  <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', marginTop: '1px' }}>קיימים ספרורים לא רלוונטים</div>
+                                {isOutdated && (
+                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>קיימים ספרורים יותר עדכניים לא רלוונטים</div>
+                                )}
+                                {isDismissedLatest && (
+                                  <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#78350f', marginTop: '1px' }}>🚫 ספרור לא רלוונטי — לא הועבר לפ"מ</div>
+                                )}
+                                {isDismissedOlder && (
+                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>🚫 קיימים ספרורים יותר עדכניים לא רלוונטים</div>
                                 )}
                               </div>
                             );
