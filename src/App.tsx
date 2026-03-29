@@ -4681,8 +4681,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Mute toggles for alerts (session-local)
   const [muteLoadAlerts, setMuteLoadAlerts] = useState(false);
   const [muteBlockAlerts, setMuteBlockAlerts] = useState(false);
-  // Active block table: when multiple block tables exist for the preset, allows focusing on one
+  // Active block table: right-click a block table in the sidebar to set as current
   const [activeBlockTableId, setActiveBlockTableId] = useState<number | null>(null);
+  // Right-click context menu on a block table header in the sidebar
+  const [btCtxMenu, setBtCtxMenu] = useState<{ btId: number; x: number; y: number } | null>(null);
   // Derived: block tables associated with the current preset (for the active block table selector)
   const presetBlockTables = React.useMemo(() => {
     const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
@@ -5839,23 +5841,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           >
             {muteBlockAlerts ? '🔔' : '🔕'} בלוקים
           </button>
-          {/* Active block table selector — shown only when the preset has 2+ block tables */}
-          {presetBlockTables.length >= 2 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', padding: '2px 6px' }}>
-              <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>טבלת בלוקים:</span>
-              <select
-                value={activeBlockTableId ?? ''}
-                onChange={e => setActiveBlockTableId(e.target.value ? Number(e.target.value) : null)}
-                style={{ background: '#0f172a', color: '#e2e8f0', border: 'none', borderRadius: '3px', fontSize: '11px', padding: '1px 4px', cursor: 'pointer', maxWidth: '120px' }}
-                title={'בחר טבלת בלוקים נוכחית — אינה משפיעה על פ"ממים עם מרחב בלוקים'}
-              >
-                <option value="">כל הטבלאות</option>
-                {presetBlockTables.map((bt: any) => (
-                  <option key={bt.id} value={bt.id}>{bt.name || `טבלה ${bt.id}`}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {/* כפתור מפה + תפריט בחירת מפה */}
@@ -6472,7 +6457,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               tableSidebarDragId.current = null;
             }
           } : undefined}
-          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); }}
+          onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
         >
           {/* Table Mode */}
           {tableMode && (() => {
@@ -7613,6 +7598,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           )}
 
+          {/* Block table right-click context menu */}
+          {btCtxMenu && (
+            <div
+              style={{ position: 'fixed', top: btCtxMenu.y, left: btCtxMenu.x, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {activeBlockTableId === btCtxMenu.btId ? (
+                <button
+                  onClick={() => { setActiveBlockTableId(null); setBtCtxMenu(null); }}
+                  style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f97316', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span>★</span><span>בטל בלוקים נוכחיים</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setActiveBlockTableId(btCtxMenu.btId); setBtCtxMenu(null); }}
+                  style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span>☆</span><span>הגדר כבלוקים נוכחיים</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
@@ -8188,12 +8201,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
                         const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
+                        const isActiveBt = activeBlockTableId === bt.id;
                         return (
-                          <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                            <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
-                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e0e7ff' : '#1e1b4b', border: 'none', color: lightMode ? '#3730a3' : '#a5b4fc', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                          <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${isActiveBt ? '#f97316' : (lightMode ? '#c7d2fe' : '#3730a3')}`, borderRadius: '6px', overflow: 'hidden' }}>
+                            <button
+                              onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
+                              onContextMenu={e => { e.preventDefault(); setBtCtxMenu({ btId: bt.id, x: e.clientX, y: e.clientY }); }}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: isActiveBt ? (lightMode ? '#fff7ed' : '#431407') : (lightMode ? '#e0e7ff' : '#1e1b4b'), border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
                               <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
                               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</span>
+                              {isActiveBt && <span style={{ fontSize: '9px', flexShrink: 0, color: '#f97316' }}>★</span>}
                               <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
                             </button>
                             {isOpen && (
