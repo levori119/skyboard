@@ -4195,6 +4195,30 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 };
 
+// --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
+const BLOCK_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f43f5e','#a855f7','#fb923c','#4ade80'];
+const hexToHue = (hex: string): number => {
+  const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  if (d === 0) return 0;
+  let h = 0;
+  if (max === r) h = ((g-b)/d) % 6;
+  else if (max === g) h = (b-r)/d + 2;
+  else h = (r-g)/d + 4;
+  return ((h*60)+360)%360;
+};
+const pickDistinctBlockColor = (existingBlocks: any[]): string => {
+  if (!existingBlocks.length) return BLOCK_PALETTE[0];
+  const usedHues = existingBlocks.map((b: any) => hexToHue(b.color || '#3b82f6'));
+  let best = BLOCK_PALETTE[0], bestDist = -1;
+  for (const c of BLOCK_PALETTE) {
+    const h = hexToHue(c);
+    const d = Math.min(...usedHues.map(uh => Math.min(Math.abs(h-uh), 360-Math.abs(h-uh))));
+    if (d > bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+};
+
 // --- כלי ציור בלוקים ויזואלי (יצירה + עריכה ויזואלית) ---
 type PainterDragOp =
   | { type: 'new'; startFL: number; currentFL: number }
@@ -4291,7 +4315,10 @@ const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { btId: n
       const lo = Math.min(dragOp.startFL, dragOp.currentFL);
       const hi = Math.max(dragOp.startFL, dragOp.currentFL);
       setDragOp(null);
-      if (hi - lo >= resolution) setPending({ alt_from: lo, alt_to: hi });
+      if (hi - lo >= resolution) {
+        setPendingColor(pickDistinctBlockColor(existingBlocks));
+        setPending({ alt_from: lo, alt_to: hi });
+      }
       return;
     }
     // Save edit for existing block
