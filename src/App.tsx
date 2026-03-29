@@ -2834,7 +2834,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} className="bt-strip" style={style} onContextMenu={handleContextMenu}>
+    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
       <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
         <button
@@ -2883,8 +2883,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         )}
         {/* שורה 3: גובה (גדול יותר) */}
         <div ref={altRef} onClick={handleEditClick}
-          className={isBlockDeviation && !blockDeviation ? 'block-deviation-flash' : blockDeviation ? 'block-deviation-tint' : ''}
-          style={{ fontSize: '11px', fontWeight: 'bold', color: '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {s.alt ? `גובה: ${s.alt}` : '-'}
           {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
         </div>
@@ -3277,7 +3276,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               })});
             }
             if (isBlockDeviation && !blockDeviation) {
-              actions.push({ label: '⚠️ סטייה ממרחב בלוקים — אישור', onClick: async () => {
+              actions.push({ label: '⚠️ אשר חריגה מבלוק', onClick: async () => {
                 setBlockDeviation(true);
                 try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
                 setContextMenu(null);
@@ -3298,9 +3297,15 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   );
 
   const baseStyle: React.CSSProperties = {
-    width: 130, 
-    background: s.airborne ? '#dbeafe' : 'white', 
-    border: s.airborne ? '2px solid #3b82f6' : '2px solid black',
+    width: 130,
+    background: (isBlockDeviation && !blockDeviation)
+      ? undefined
+      : blockDeviation
+        ? 'rgba(234, 88, 12, 0.15)'
+        : s.airborne ? '#dbeafe' : 'white',
+    border: (isBlockDeviation || blockDeviation)
+      ? '2px solid #f97316'
+      : s.airborne ? '2px solid #3b82f6' : '2px solid black',
     display: 'flex', flexDirection: 'row-reverse',
     marginBottom: '6px', touchAction: 'none'
   };
