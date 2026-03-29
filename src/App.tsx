@@ -3604,6 +3604,9 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
   const [showBlocks, setShowBlocks] = React.useState(true);
   const [blockDisplayMode, setBlockDisplayMode] = React.useState<'altitudes' | 'legend'>('altitudes');
+  const [blockSpaceOrder, setBlockSpaceOrder] = React.useState<string[]>([]);
+  const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
+  const [dragOverSegKey, setDragOverSegKey] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -3724,9 +3727,9 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
   const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע', block_space_id: 'מרחב בלוקים' };
 
-  let segments: { label: string; placed: Placed[]; segBlocks?: any[] }[];
+  let segments: { key: string; label: string; placed: Placed[]; segBlocks?: any[] }[];
   if (groupBy === 'none') {
-    segments = [{ label: '', placed: buildPlaced(candidates) }];
+    segments = [{ key: '__none__', label: '', placed: buildPlaced(candidates) }];
   } else if (groupBy === 'block_space_id') {
     const valMap = new Map<string, typeof candidates>();
     candidates.forEach(s => {
@@ -3748,7 +3751,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           .map((bt: any) => bt.id);
         const blocksPool = allBlocks.length > 0 ? allBlocks : relevantBlocks;
         const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id));
-        return { label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list), segBlocks };
+        return { key: bsId, label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list), segBlocks };
       });
   } else {
     const field = groupBy as string;
@@ -3760,8 +3763,30 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     });
     segments = Array.from(valMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0], 'he'))
-      .map(([label, list]) => ({ label, placed: buildPlaced(list) }));
+      .map(([label, list]) => ({ key: label, label, placed: buildPlaced(list) }));
   }
+
+  // Sync & apply block-space drag order
+  const segKeysStr = segments.map(s => s.key).join(',');
+  React.useEffect(() => {
+    if (!isBlockSpaceGroup) return;
+    const ids = segments.map(s => s.key);
+    setBlockSpaceOrder(prev => {
+      const existing = prev.filter(id => ids.includes(id));
+      const newIds = ids.filter(id => !prev.includes(id));
+      return [...existing, ...newIds];
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segKeysStr, isBlockSpaceGroup]);
+
+  const orderedSegments = (isBlockSpaceGroup && blockSpaceOrder.length > 0)
+    ? [...segments].sort((a, b) => {
+        const ai = blockSpaceOrder.indexOf(a.key);
+        const bi = blockSpaceOrder.indexOf(b.key);
+        if (ai === -1) return 1; if (bi === -1) return -1;
+        return ai - bi;
+      })
+    : segments;
 
   const ticks: number[] = [];
   const tickStep = 30 * 60 * 1000;
@@ -3793,7 +3818,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     ? (lightMode ? '8px solid #6366f1' : '8px solid #4f46e5')
     : (lightMode ? '4px solid #94a3b8' : '4px solid #475569');
   const HEADER_H = groupBy !== 'none'
-    ? (isBlockSpaceGroup ? (useLegendMode ? 44 : 36) : 20)
+    ? (isBlockSpaceGroup ? 36 : 20)
     : 0;
   const TOOLBAR_H = 30;
 
@@ -4017,8 +4042,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         <div style={{ width: Y_AXIS_W, flexShrink: 0, height: '100%', display: usePerSegmentAxis ? 'none' : 'flex', flexDirection: 'column', borderRight: `1px solid ${gridLine}`, background: bg }}>
           {HEADER_H > 0 && <div style={{ height: HEADER_H, borderBottom: `1px solid ${gridLine}`, background: bg }} />}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            {/* Block range bands on Y-axis */}
-            {showBlocks && relevantBlocks.map((b: any) => {
+            {/* Block range bands on Y-axis — hide in legend mode (legend shown in header instead) */}
+            {showBlocks && !useLegendMode && relevantBlocks.map((b: any) => {
               // convert block altitude to chart units (blocks use "hundreds of feet" like alt field)
               const bAltHi = b.alt_to * 100;
               const bAltLo = b.alt_from * 100;
@@ -4057,35 +4082,57 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
         {/* Scrollable segments area */}
         <div ref={containerRef} style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', display: 'flex', flexDirection: 'row', height: '100%' }}>
-          {segments.map((seg, idx) => (
-            <div key={idx} style={{ width: segW, minWidth: segW, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: idx < segments.length - 1 ? SEG_DIVIDER : 'none', boxSizing: 'border-box' }}>
+          {orderedSegments.map((seg, idx) => {
+            const isDragOver = dragOverSegKey === seg.key && dragSegKey !== seg.key;
+            return (
+            <div key={seg.key}
+              style={{ width: segW, minWidth: segW, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', borderRight: idx < orderedSegments.length - 1 ? SEG_DIVIDER : 'none', boxSizing: 'border-box', outline: isDragOver ? `2px solid #818cf8` : 'none', transition: 'outline 0.1s' }}
+              onDragOver={isBlockSpaceGroup ? e => { e.preventDefault(); setDragOverSegKey(seg.key); } : undefined}
+              onDrop={isBlockSpaceGroup ? e => {
+                e.preventDefault();
+                if (!dragSegKey || dragSegKey === seg.key) { setDragSegKey(null); setDragOverSegKey(null); return; }
+                setBlockSpaceOrder(prev => {
+                  const from = prev.indexOf(dragSegKey);
+                  const to = prev.indexOf(seg.key);
+                  if (from === -1 || to === -1) return prev;
+                  const next = [...prev];
+                  next.splice(from, 1);
+                  next.splice(to, 0, dragSegKey);
+                  return next;
+                });
+                setDragSegKey(null); setDragOverSegKey(null);
+              } : undefined}
+            >
               {/* Segment header label */}
               {HEADER_H > 0 && (
                 isBlockSpaceGroup ? (
-                  useLegendMode ? (
-                    // Legend mode: title + color swatches
-                    <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '3px 10px', direction: 'rtl', overflow: 'hidden', gap: 3 }}>
-                      <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap', lineHeight: 1 }}>
-                        מרחב בלוקים: {seg.label}
-                      </span>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center' }}>
+                  // Block space header: drag handle + title + (legend swatches on left if legend mode)
+                  <div
+                    draggable
+                    onDragStart={() => setDragSegKey(seg.key)}
+                    onDragEnd={() => { setDragSegKey(null); setDragOverSegKey(null); }}
+                    style={{ height: HEADER_H, flexShrink: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 8px', direction: 'rtl', overflow: 'hidden', gap: 6, cursor: 'grab', userSelect: 'none' }}>
+                    {/* Drag handle */}
+                    <span style={{ fontSize: '13px', color: lightMode ? '#818cf8' : '#6366f1', flexShrink: 0, opacity: 0.7 }}>⠿</span>
+                    {/* Title */}
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {seg.label}
+                    </span>
+                    {/* Spacer */}
+                    <div style={{ flex: 1 }} />
+                    {/* Legend swatches — left side (only in legend mode) */}
+                    {useLegendMode && (
+                      <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', overflow: 'hidden', alignItems: 'center', direction: 'ltr' }}>
                         {(seg.segBlocks || []).map((b: any) => (
-                          <span key={b.id} title={`${b.alt_from}–${b.alt_to}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '9px', padding: '1px 5px', borderRadius: 3, background: b.color ? b.color + '33' : 'rgba(99,102,241,0.2)', border: `1px solid ${b.color || '#6366f1'}`, color: b.color || (lightMode ? '#4338ca' : '#a5b4fc'), whiteSpace: 'nowrap', fontWeight: 'bold', flexShrink: 0 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 2, background: b.color || '#6366f1', display: 'inline-block', flexShrink: 0 }} />
+                          <span key={b.id} title={`FL${b.alt_from}–FL${b.alt_to}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '9px', padding: '1px 4px', borderRadius: 3, background: b.color ? b.color + '33' : 'rgba(99,102,241,0.2)', border: `1px solid ${b.color || '#6366f1'}`, color: b.color || (lightMode ? '#4338ca' : '#a5b4fc'), whiteSpace: 'nowrap', fontWeight: 'bold', flexShrink: 0 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 2, background: b.color || '#6366f1', display: 'inline-block', flexShrink: 0 }} />
                             {b.mission || `${b.alt_from}–${b.alt_to}`}
                           </span>
                         ))}
                         {(seg.segBlocks || []).length === 0 && <span style={{ fontSize: '9px', color: textColor, fontStyle: 'italic' }}>ללא בלוקים</span>}
                       </div>
-                    </div>
-                  ) : (
-                    // Altitudes mode or no-blocks: simple centered title
-                    <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#ede9fe' : '#1e1b4b', borderBottom: `2px solid ${lightMode ? '#6366f1' : '#4f46e5'}`, padding: '0 10px', direction: 'rtl', overflow: 'hidden' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#4338ca' : '#a5b4fc', whiteSpace: 'nowrap' }}>
-                        מרחב בלוקים: {seg.label}
-                      </span>
-                    </div>
-                  )
+                    )}
+                  </div>
                 ) : (
                   <div style={{ height: HEADER_H, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${gridLine}`, fontSize: '11px', fontWeight: 'bold', color: boldTextColor, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 6px' }}>
                     {GROUP_FIELD_LABEL[groupBy]}: {seg.label}
@@ -4094,7 +4141,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               )}
               {renderSegmentChart(seg.placed, seg.segBlocks)}
             </div>
-          ))}
+            );
+          })}
           {candidates.length === 0 && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '13px', direction: 'rtl' }}>
               אין פממים עם זמן וגובה להצגה
@@ -4136,6 +4184,125 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+// --- כלי ציור בלוקים ויזואלי ---
+const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { btId: number; existingBlocks: any[]; apiUrl: string; onSaved: () => void }) => {
+  const RULER_H = 340;
+  const FL_MIN = 100;
+  const FL_MAX = 420;
+  const FL_RANGE = FL_MAX - FL_MIN;
+  const rulerRef = React.useRef<HTMLDivElement>(null);
+
+  const [resolution, setResolution] = React.useState(10);
+  const [dragState, setDragState] = React.useState<{ startFL: number; currentFL: number } | null>(null);
+  const [pending, setPending] = React.useState<{ alt_from: number; alt_to: number } | null>(null);
+  const [pendingMission, setPendingMission] = React.useState('');
+  const [pendingColor, setPendingColor] = React.useState('#3b82f6');
+
+  const flToY = (fl: number) => ((FL_MAX - fl) / FL_RANGE) * RULER_H;
+  const yToFL = (y: number) => FL_MAX - (y / RULER_H) * FL_RANGE;
+  const snapFL = (fl: number) => Math.round(fl / resolution) * resolution;
+
+  const getMouseFL = (e: React.MouseEvent) => {
+    const rect = rulerRef.current!.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    return Math.max(FL_MIN, Math.min(FL_MAX, snapFL(yToFL(Math.max(0, Math.min(RULER_H, y))))));
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (pending) return;
+    const fl = getMouseFL(e);
+    setDragState({ startFL: fl, currentFL: fl });
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!dragState) return;
+    setDragState(prev => prev ? { ...prev, currentFL: getMouseFL(e) } : null);
+  };
+  const handleMouseUp = () => {
+    if (!dragState) return;
+    const lo = Math.min(dragState.startFL, dragState.currentFL);
+    const hi = Math.max(dragState.startFL, dragState.currentFL);
+    setDragState(null);
+    if (hi - lo < resolution) return;
+    setPending({ alt_from: lo, alt_to: hi });
+  };
+
+  const previewFrom = dragState ? Math.min(dragState.startFL, dragState.currentFL) : null;
+  const previewTo   = dragState ? Math.max(dragState.startFL, dragState.currentFL) : null;
+
+  const gridTicks: number[] = [];
+  for (let fl = FL_MIN; fl <= FL_MAX; fl += resolution) gridTicks.push(fl);
+
+  const resOptions = [5, 10, 20];
+
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', direction: 'ltr' }}>
+      {/* Ruler column */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        {/* Resolution controls */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+          <button onClick={() => setResolution(r => resOptions[Math.max(0, resOptions.indexOf(r) - 1)])}
+            disabled={resolution === resOptions[0]}
+            style={{ width: 22, height: 22, borderRadius: 3, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+          <span style={{ fontSize: '9px', color: '#64748b', minWidth: 36, textAlign: 'center' }}>{resolution * 100}ft</span>
+          <button onClick={() => setResolution(r => resOptions[Math.min(resOptions.length - 1, resOptions.indexOf(r) + 1)])}
+            disabled={resolution === resOptions[resOptions.length - 1]}
+            style={{ width: 22, height: 22, borderRadius: 3, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+        </div>
+        {/* Ruler */}
+        <div ref={rulerRef}
+          style={{ position: 'relative', width: 70, height: RULER_H, background: '#0c1a2e', border: '1px solid #334155', borderRadius: 4, overflow: 'hidden', cursor: pending ? 'default' : 'crosshair', userSelect: 'none', flexShrink: 0 }}
+          onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+          {/* Grid lines + labels */}
+          {gridTicks.map(fl => (
+            <div key={fl} style={{ position: 'absolute', left: 0, right: 0, top: flToY(fl), pointerEvents: 'none' }}>
+              <div style={{ height: 1, background: fl % 20 === 0 ? '#475569' : '#1e3a5f', width: '100%' }} />
+              {fl % 20 === 0 && <span style={{ position: 'absolute', left: 2, top: 1, fontSize: '8px', color: '#64748b', whiteSpace: 'nowrap' }}>FL{fl}</span>}
+            </div>
+          ))}
+          {/* Existing blocks */}
+          {existingBlocks.map((b: any) => {
+            const top = flToY(b.alt_to);
+            const h = Math.max(flToY(b.alt_from) - top, 2);
+            return (
+              <div key={b.id} style={{ position: 'absolute', left: 0, right: 0, top, height: h, background: (b.color || '#3b82f6') + '66', borderTop: `2px solid ${b.color || '#3b82f6'}`, pointerEvents: 'none', overflow: 'hidden' }}>
+                {h > 12 && <span style={{ fontSize: '7px', color: b.color || '#93c5fd', paddingLeft: 2 }}>{b.mission || `${b.alt_from}–${b.alt_to}`}</span>}
+              </div>
+            );
+          })}
+          {/* Drag preview */}
+          {previewFrom !== null && previewTo !== null && previewTo > previewFrom && (
+            <div style={{ position: 'absolute', left: 0, right: 0, top: flToY(previewTo), height: Math.max(flToY(previewFrom) - flToY(previewTo), 2), background: pendingColor + '55', border: `1px dashed ${pendingColor}`, pointerEvents: 'none' }} />
+          )}
+        </div>
+        <span style={{ fontSize: '8px', color: '#475569', textAlign: 'center' }}>גרור למטה</span>
+      </div>
+
+      {/* Pending block form */}
+      {pending && (
+        <div style={{ background: '#0c1a2e', border: '1px solid #334155', borderRadius: 6, padding: 10, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 130, direction: 'rtl' }}>
+          <span style={{ color: '#a5b4fc', fontSize: '11px', fontWeight: 'bold' }}>FL{pending.alt_from} – FL{pending.alt_to}</span>
+          <input placeholder="שם משימה" value={pendingMission} onChange={e => setPendingMission(e.target.value)}
+            style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: 4, color: 'white', fontSize: '11px', width: '100%', boxSizing: 'border-box' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ fontSize: '10px', color: '#64748b' }}>צבע</label>
+            <input type="color" value={pendingColor} onChange={e => setPendingColor(e.target.value)}
+              style={{ width: 32, height: 24, padding: 1, background: 'none', border: '1px solid #334155', borderRadius: 3, cursor: 'pointer' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={async () => {
+              await fetch(`${apiUrl}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: btId, alt_from: pending.alt_from, alt_to: pending.alt_to, mission: pendingMission, color: pendingColor, workstations: [], platforms: [] }) });
+              setPending(null); setPendingMission(''); setPendingColor('#3b82f6'); onSaved();
+            }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: 4, padding: '4px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+            <button onClick={() => { setPending(null); setPendingMission(''); setPendingColor('#3b82f6'); }}
+              style={{ background: '#475569', color: 'white', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -11097,8 +11264,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
                           </div>
                         </div>
-                        {/* Blocks in this table */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {/* Blocks in this table — side by side with visual painter */}
+                        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                        {/* Visual painter (left/start) */}
+                        <BlockVisualPainter btId={bt.id} existingBlocks={btBlocks} apiUrl={API_URL} onSaved={loadData} />
+                        {/* Blocks list (right/end) */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {btBlocks.map((blk: any) => {
                             const isEditing = editingBlock?.id === blk.id;
                             return (
@@ -11208,7 +11379,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           ) : (
                             <button onClick={() => { setBlockTableForBlock(bt.id); setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); setEditingBlock(null); }} style={{ background: 'transparent', color: '#1d4ed8', border: '1px dashed #1d4ed8', borderRadius: '5px', padding: '6px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>+ הוסף בלוק לטבלה</button>
                           )}
-                        </div>
+                        </div>{/* end blocks list column */}
+                        </div>{/* end side-by-side wrapper */}
                       </div>
                     );
                   })}
