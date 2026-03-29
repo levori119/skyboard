@@ -8507,6 +8507,31 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
   const unassignedStrips = strips.filter(s => !s.workstation_preset_id || s.workstation_preset_id === null);
 
   const [randomizing, setRandomizing] = useState(false);
+  const [randomizingTimes, setRandomizingTimes] = useState(false);
+
+  const randomizeTakeoffTimes = async () => {
+    if (strips.length === 0) return;
+    setRandomizingTimes(true);
+    try {
+      const now = Date.now();
+      await Promise.all(
+        strips.map(strip => {
+          const randomMs = Math.floor(Math.random() * 60 * 60 * 1000);
+          const takeoffTime = new Date(now + randomMs).toISOString();
+          return fetch(`${API_URL}/strips/${strip.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ takeoff_time: takeoffTime })
+          });
+        })
+      );
+      await loadData();
+    } catch (err) {
+      console.error('Failed to randomize takeoff times:', err);
+    } finally {
+      setRandomizingTimes(false);
+    }
+  };
 
   const randomDistribute = async () => {
     if (unassignedStrips.length === 0 || presets.length === 0) return;
@@ -8562,6 +8587,28 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
               }}
             >
               🎲 {randomizing ? 'מחלק...' : `חלוקה רנדומלית (${unassignedStrips.length})`}
+            </button>
+          )}
+          {strips.length > 0 && (
+            <button
+              onClick={randomizeTakeoffTimes}
+              disabled={randomizingTimes}
+              style={{
+                padding: '8px 18px',
+                background: randomizingTimes ? '#475569' : '#0891b2',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: randomizingTimes ? 'default' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.2s'
+              }}
+            >
+              🕐 {randomizingTimes ? 'מגריל...' : 'הגרלת זמני המראה'}
             </button>
           )}
         </div>
