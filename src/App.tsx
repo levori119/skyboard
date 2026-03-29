@@ -5847,7 +5847,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 value={activeBlockTableId ?? ''}
                 onChange={e => setActiveBlockTableId(e.target.value ? Number(e.target.value) : null)}
                 style={{ background: '#0f172a', color: '#e2e8f0', border: 'none', borderRadius: '3px', fontSize: '11px', padding: '1px 4px', cursor: 'pointer', maxWidth: '120px' }}
-                title="בחר טבלת בלוקים נוכחית — אינה משפיעה על פ\"ממים עם מרחב בלוקים"
+                title={'בחר טבלת בלוקים נוכחית — אינה משפיעה על פ"ממים עם מרחב בלוקים'}
               >
                 <option value="">כל הטבלאות</option>
                 {presetBlockTables.map((bt: any) => (
