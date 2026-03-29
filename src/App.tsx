@@ -5270,6 +5270,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
   }, [tableMode, selectedTableModeId]);
 
+  // Auto-clear acknowledged block deviations when altitude is fixed (works in all views)
+  useEffect(() => {
+    if (dashboardBlocks.length === 0 && dashboardBlockTables.length === 0) return;
+    const toClear = strips.filter(s => s.block_deviation && !computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, activeBlockTableId));
+    if (toClear.length === 0) return;
+    setStrips(prev => prev.map(s => toClear.find(tc => tc.id === s.id) ? { ...s, block_deviation: false } : s));
+    toClear.forEach(s => {
+      fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }).catch(() => {});
+    });
+  }, [strips, dashboardBlocks, dashboardBlockTables, activeBlockTableId]);
+
   // Measure frozen column offsets after table mode changes
   useEffect(() => {
     const measure = () => {
@@ -7401,6 +7412,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
                           style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
                             if (tableSortBySector || tableSortKey) return;
                             e.preventDefault();
