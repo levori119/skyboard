@@ -7954,7 +7954,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               }).map(s => {
                 const now = new Date();
                 const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
-                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
+                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now && !s.airborne;
                 let tkLabel = '';
                 if (tkDt && !isNaN(tkDt.getTime())) {
                   const hh = tkDt.getUTCHours().toString().padStart(2,'0');
@@ -8035,7 +8035,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               }).map(s => {
                 const now = new Date();
                 const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
-                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now;
+                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now && !s.airborne;
                 let tkLabel = '';
                 if (tkDt && !isNaN(tkDt.getTime())) {
                   const hh = tkDt.getUTCHours().toString().padStart(2,'0');
@@ -8985,8 +8985,8 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                 return timeStr;
               };
 
-              const isTakeoffPast = (t: string | null): boolean => {
-                if (!t) return false;
+              const isTakeoffPast = (t: string | null, airborne?: boolean): boolean => {
+                if (!t || airborne) return false;
                 const d = new Date(t);
                 return !isNaN(d.getTime()) && d < now;
               };
@@ -9014,7 +9014,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
                         const isExpanded = expandedStripId === strip.id;
                         const det = stripDetails[strip.id];
                         const hasDetails = (strip.weapons?.length > 0) || (strip.targets?.length > 0) || (strip.systems?.length > 0) || strip.shkadia;
-                        const past = isTakeoffPast(strip.takeoff_time);
+                        const past = isTakeoffPast(strip.takeoff_time, strip.airborne);
                         const takeoffDisplay = formatTakeoffTime(strip.takeoff_time);
                         return (
                         <div key={strip.id} style={{ background: '#0f172a', borderRadius: '6px', overflow: 'hidden', border: isExpanded ? '1px solid #3b82f6' : '1px solid transparent' }}>
