@@ -307,3 +307,10 @@ div.block-deviation-flash {
 tr.block-deviation-flash > td {
   animation: block-deviation-flash-solid 0.9s ease-in-out infinite;
 }
+@keyframes mine-block-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.mine-block-flash {
+  animation: mine-block-blink 1.4s ease-in-out infinite;
+}

@@ -8225,7 +8225,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     .map((pid: number) => workstationPresets.find((p: any) => Number(p.id) === pid)?.name)
                                     .filter(Boolean);
                                   return (
-                                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 4px', borderRadius: '4px', marginBottom: '2px', background: b.color ? b.color + '22' : 'transparent', border: `1px solid ${b.color || '#6366f1'}44` }}>
+                                    <div key={b.id} className={isMine ? 'mine-block-flash' : undefined} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 4px', borderRadius: '4px', marginBottom: '2px', background: b.color ? b.color + '22' : 'transparent', border: `1px solid ${b.color || '#6366f1'}44` }}>
                                       <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: b.color || '#6366f1', flexShrink: 0 }} />
                                       <span style={{ fontSize: '11px', fontWeight: isMine ? '800' : 'normal', color: lightMode ? '#1e293b' : '#e2e8f0', flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
                                       {!isMine && otherNames.length > 0 && (
