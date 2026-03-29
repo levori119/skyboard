@@ -3812,8 +3812,9 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const segW = Math.max(chartW / Math.max(segCount, 1), MIN_CHART_W);
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
   const stripFontSize = stripPxW >= 130 ? 11 : stripPxW >= 90 ? 10 : 9;
-  // כאשר יש יותר ממרחב בלוקים אחד — מציגים בלוקים רק בחלוקה לפי מרחב בלוקים
-  const effectiveShowBlocks = showBlocks && (blockSpaces.length <= 1 || groupBy === 'block_space_id');
+  // כאשר יש יותר ממרחב בלוקים אחד ברלוונטיים — מציגים בלוקים רק בחלוקה לפי מרחב בלוקים
+  const relevantBlockSpaceIds = Array.from(new Set(relevantBlocks.map((b: any) => b.block_space_id).filter(Boolean)));
+  const effectiveShowBlocks = showBlocks && relevantBlocks.length > 0 && (relevantBlockSpaceIds.length <= 1 || groupBy === 'block_space_id');
   // per-segment Y-axis only when grouping by block space + blocks shown + altitudes mode
   const usePerSegmentAxis = isBlockSpaceGroup && effectiveShowBlocks && blockDisplayMode === 'altitudes';
   // legend mode: block space grouping + blocks shown + legend mode
@@ -7897,7 +7898,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {(() => {
           const currentPreset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null;
           const presetBtIds: number[] = currentPreset?.block_table_ids || [];
-          const aidBlockTables = dashboardBlockTables.filter((bt: any) => presetBtIds.includes(bt.id));
+          const currentPid = currentPreset ? Number(currentPreset.id) : null;
+          const aidBlockTables = dashboardBlockTables.filter((bt: any) =>
+            presetBtIds.includes(bt.id) ||
+            (currentPid !== null && dashboardBlocks.some((b: any) => b.block_table_id === bt.id && Array.isArray(b.workstations) && b.workstations.map(Number).includes(currentPid)))
+          );
           if (!aidGroup && aidBlockTables.length === 0) return null;
           return (
             <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
@@ -8216,7 +8221,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -8233,7 +8238,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id)); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; return dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} />
         </div>
       ))}
 
