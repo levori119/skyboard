@@ -7598,33 +7598,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           )}
 
-          {/* Block table right-click context menu */}
-          {btCtxMenu && (
-            <div
-              style={{ position: 'fixed', top: btCtxMenu.y, left: btCtxMenu.x, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
-              onClick={e => e.stopPropagation()}
-            >
-              {activeBlockTableId === btCtxMenu.btId ? (
-                <button
-                  onClick={() => { setActiveBlockTableId(null); setBtCtxMenu(null); }}
-                  style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f97316', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span>★</span><span>בטל בלוקים נוכחיים</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => { setActiveBlockTableId(btCtxMenu.btId); setBtCtxMenu(null); }}
-                  style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <span>☆</span><span>הגדר כבלוקים נוכחיים</span>
-                </button>
-              )}
-            </div>
-          )}
 
           {!tableMode && <>
           {/* Map Zoom Toolbar */}
@@ -7933,6 +7906,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           </>}
         </div>
+
+        {/* Block table right-click context menu — rendered outside contain:paint so position:fixed uses the viewport */}
+        {btCtxMenu && (
+          <div
+            style={{ position: 'fixed', top: btCtxMenu.y, left: btCtxMenu.x, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {activeBlockTableId === btCtxMenu.btId ? (
+              <button
+                onClick={() => { setActiveBlockTableId(null); setBtCtxMenu(null); }}
+                style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f97316', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span>★</span><span>בטל בלוקים נוכחיים</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => { setActiveBlockTableId(btCtxMenu.btId); setBtCtxMenu(null); }}
+                style={{ width: '100%', textAlign: 'right', padding: '10px 14px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span>☆</span><span>הגדר כבלוקים נוכחיים</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Sidebar - Right Side - Shows active strips */}
         <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
