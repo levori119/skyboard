@@ -450,6 +450,11 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS block_table_ids JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_deviation BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS note TEXT`);
+  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
+  await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+  await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS note TEXT`);
+  await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
   console.log('Database initialized');
 }
@@ -2301,16 +2306,22 @@ app.get('/api/block-tables', async (req, res) => {
 
 app.post('/api/block-tables', async (req, res) => {
   try {
-    const { name, block_space_id } = req.body;
-    const result = await pool.query('INSERT INTO block_tables (name, block_space_id) VALUES ($1,$2) RETURNING *', [name, block_space_id || null]);
+    const { name, block_space_id, note, category } = req.body;
+    const result = await pool.query(
+      'INSERT INTO block_tables (name, block_space_id, note, category, updated_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *',
+      [name, block_space_id || null, note || null, category || null]
+    );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block table' }); }
 });
 
 app.put('/api/block-tables/:id', async (req, res) => {
   try {
-    const { name, block_space_id } = req.body;
-    const result = await pool.query('UPDATE block_tables SET name=$1, block_space_id=$2 WHERE id=$3 RETURNING *', [name, block_space_id || null, req.params.id]);
+    const { name, block_space_id, note, category } = req.body;
+    const result = await pool.query(
+      'UPDATE block_tables SET name=$1, block_space_id=$2, note=$3, category=$4, updated_at=NOW() WHERE id=$5 RETURNING *',
+      [name, block_space_id || null, note || null, category || null, req.params.id]
+    );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block table' }); }
 });
@@ -2357,10 +2368,10 @@ app.get('/api/blocks', async (req, res) => {
 
 app.post('/api/blocks', async (req, res) => {
   try {
-    const { block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order } = req.body;
+    const { block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note } = req.body;
     const result = await pool.query(
-      'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [block_table_id, alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0]
+      'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW()) RETURNING *',
+      [block_table_id, alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create block' }); }
@@ -2368,10 +2379,10 @@ app.post('/api/blocks', async (req, res) => {
 
 app.put('/api/blocks/:id', async (req, res) => {
   try {
-    const { alt_from, alt_to, mission, color, workstations, platforms, sort_order } = req.body;
+    const { alt_from, alt_to, mission, color, workstations, platforms, sort_order, note } = req.body;
     const result = await pool.query(
-      'UPDATE blocks SET alt_from=$1, alt_to=$2, mission=$3, color=$4, workstations=$5, platforms=$6, sort_order=$7 WHERE id=$8 RETURNING *',
-      [alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, req.params.id]
+      'UPDATE blocks SET alt_from=$1, alt_to=$2, mission=$3, color=$4, workstations=$5, platforms=$6, sort_order=$7, note=$8, updated_at=NOW() WHERE id=$9 RETURNING *',
+      [alt_from, alt_to, mission || null, color || '#3b82f6', JSON.stringify(workstations || []), JSON.stringify(platforms || []), sort_order || 0, note || null, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block' }); }

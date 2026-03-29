@@ -10239,11 +10239,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [blockSpaces, setBlockSpaces] = useState<any[]>([]);
   const [blockTables, setBlockTables] = useState<any[]>([]);
   const [editingBlockTable, setEditingBlockTable] = useState<any | null>(null);
-  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number });
+  const [blockTableForm, setBlockTableForm] = useState({ name: '', block_space_id: '' as string | number, note: '', category: '' });
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [blockSpaceForm, setBlockSpaceForm] = useState({ name: '' });
   const [editingBlockSpace, setEditingBlockSpace] = useState<any | null>(null);
   const [editingBlock, setEditingBlock] = useState<any | null>(null);
-  const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[] });
+  const [blockForm, setBlockForm] = useState({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' });
   const [blockTableForBlock, setBlockTableForBlock] = useState<number | null>(null);
 
   // Crew member editing
@@ -11288,7 +11289,39 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           {activeTab === 'serials' && <SerialsAdminTab />}
 
           {/* Blocks Tab */}
-          {activeTab === 'blocks' && (
+          {activeTab === 'blocks' && (() => {
+            // Helper: pick color maximally different (by hue) from existing block colors
+            const BLOCK_PALETTE = ['#ef4444','#f97316','#eab308','#22c55e','#14b8a6','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f43f5e','#a855f7','#fb923c','#4ade80'];
+            const hexToHue = (hex: string): number => {
+              const r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
+              const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+              if (d === 0) return 0;
+              let h = max===r ? (g-b)/d%6 : max===g ? (b-r)/d+2 : (r-g)/d+4;
+              return ((h*60)+360)%360;
+            };
+            const pickDistinctColor = (existingBlocks: any[]): string => {
+              if (!existingBlocks.length) return BLOCK_PALETTE[0];
+              const usedHues = existingBlocks.map(b => hexToHue(b.color || '#3b82f6'));
+              let best = BLOCK_PALETTE[0], bestDist = -1;
+              for (const c of BLOCK_PALETTE) {
+                const h = hexToHue(c);
+                const d = Math.min(...usedHues.map(uh => Math.min(Math.abs(h-uh), 360-Math.abs(h-uh))));
+                if (d > bestDist) { bestDist = d; best = c; }
+              }
+              return best;
+            };
+            const fmtDate = (ts: string|null|undefined) => {
+              if (!ts) return null;
+              const d = new Date(ts);
+              return `${d.toLocaleDateString('he-IL')} ${d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}`;
+            };
+            // Group block tables by category
+            const btCategories: string[] = [];
+            blockTables.forEach((bt: any) => { const c = bt.category || ''; if (!btCategories.includes(c)) btCategories.push(c); });
+            btCategories.sort((a,b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'he'));
+
+            const emptyBlockForm = { alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [] as number[], platforms: [] as string[], note: '' };
+            return (
             <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
               {/* Left: Block Spaces */}
               <div style={{ width: '240px', flexShrink: 0 }}>
@@ -11327,169 +11360,214 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               </div>
 
               {/* Right: Block Tables */}
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <h2 style={{ margin: '0 0 14px 0', fontSize: '17px', color: '#e2e8f0' }}>טבלאות בלוקים</h2>
                 {/* New/Edit Table Form */}
                 <div style={{ background: '#0f172a', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
                   <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>{editingBlockTable ? 'עריכת טבלה' : 'טבלה חדשה'}</div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
                     <input value={blockTableForm.name} onChange={e => setBlockTableForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="שם הטבלה" style={{ flex: 1, minWidth: '140px', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }} />
+                    <input value={blockTableForm.category} onChange={e => setBlockTableForm(f => ({ ...f, category: e.target.value }))}
+                      placeholder="קטגוריה (אופציונלי)" style={{ flex: 1, minWidth: '120px', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }} />
                     <select value={blockTableForm.block_space_id} onChange={e => setBlockTableForm(f => ({ ...f, block_space_id: e.target.value }))}
                       style={{ padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }}>
                       <option value="">בחר מרחב</option>
                       {blockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
                     </select>
+                  </div>
+                  <textarea value={blockTableForm.note} onChange={e => setBlockTableForm(f => ({ ...f, note: e.target.value }))}
+                    placeholder="הערה לטבלה (אופציונלי)" rows={2}
+                    style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box', marginBottom: '8px' }} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={async () => {
                       if (!blockTableForm.name.trim()) return;
+                      const payload = { name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null, note: blockTableForm.note || null, category: blockTableForm.category || null };
                       if (editingBlockTable) {
-                        await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null }) });
+                        await fetch(`${API_URL}/block-tables/${editingBlockTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                       } else {
-                        await fetch(`${API_URL}/block-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: blockTableForm.name, block_space_id: blockTableForm.block_space_id || null }) });
+                        await fetch(`${API_URL}/block-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                       }
-                      setBlockTableForm({ name: '', block_space_id: '' }); setEditingBlockTable(null); loadData();
+                      setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); setEditingBlockTable(null); loadData();
                     }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 16px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                       {editingBlockTable ? 'שמור' : '+ הוסף'}
                     </button>
-                    {editingBlockTable && <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
+                    {editingBlockTable && <button onClick={() => { setEditingBlockTable(null); setBlockTableForm({ name: '', block_space_id: '', note: '', category: '' }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
                   </div>
                 </div>
 
-                {/* Block Tables List */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {blockTables.map((bt: any) => {
-                    const space = blockSpaces.find((bs: any) => bs.id === bt.block_space_id);
-                    const btBlocks: any[] = [...(bt.blocks || [])].sort((a: any, b: any) => b.alt_from - a.alt_from);
+                {/* Block Tables grouped by category */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {btCategories.map(cat => {
+                    const tablesInCat = blockTables.filter((bt: any) => (bt.category || '') === cat);
+                    const catLabel = cat || 'ללא קטגוריה';
+                    const isCollapsed = collapsedCategories.has(cat);
                     return (
-                      <div key={bt.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <div>
-                            <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>{bt.name}</span>
-                            {space && <span style={{ color: '#64748b', fontSize: '11px', marginRight: '8px' }}>מרחב: {space.name}</span>}
-                          </div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
-                            <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
-                            <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
-                          </div>
+                      <div key={cat || '__none__'}>
+                        {/* Category header */}
+                        <div onClick={() => setCollapsedCategories(prev => { const s = new Set(prev); s.has(cat) ? s.delete(cat) : s.add(cat); return s; })}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#0a1628', borderRadius: '6px', cursor: 'pointer', marginBottom: isCollapsed ? 0 : '8px', userSelect: 'none' }}>
+                          <span style={{ color: '#64748b', fontSize: '13px' }}>{isCollapsed ? '▶' : '▼'}</span>
+                          <span style={{ color: cat ? '#a5b4fc' : '#475569', fontWeight: 'bold', fontSize: '13px' }}>{catLabel}</span>
+                          <span style={{ color: '#475569', fontSize: '11px' }}>({tablesInCat.length})</span>
                         </div>
-                        {/* Blocks in this table — side by side with visual painter */}
-                        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                        {/* Visual painter (left/start) */}
-                        <BlockVisualPainter btId={bt.id} existingBlocks={btBlocks} apiUrl={API_URL} onSaved={loadData} />
-                        {/* Blocks list (right/end) */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {btBlocks.map((blk: any) => {
-                            const isEditing = editingBlock?.id === blk.id;
-                            return (
-                              <div key={blk.id} style={{ background: '#0c1a2e', border: `2px solid ${blk.color || '#3b82f6'}`, borderRadius: '5px', padding: '8px 10px' }}>
-                                {isEditing ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
-                                        <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                        {!isCollapsed && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '12px' }}>
+                            {tablesInCat.map((bt: any) => {
+                              const space = blockSpaces.find((bs: any) => bs.id === bt.block_space_id);
+                              const btBlocks: any[] = [...(bt.blocks || [])].sort((a: any, b: any) => b.alt_from - a.alt_from);
+                              return (
+                                <div key={bt.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '14px' }}>
+                                  {/* Table header */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                        <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>{bt.name}</span>
+                                        {space && <span style={{ color: '#64748b', fontSize: '11px' }}>מרחב: {space.name}</span>}
+                                        {bt.updated_at && <span style={{ color: '#334155', fontSize: '10px' }}>עודכן: {fmtDate(bt.updated_at)}</span>}
                                       </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
-                                        <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                                        <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
-                                        <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
-                                        <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
-                                      </div>
+                                      {bt.note && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px', fontStyle: 'italic' }}>{bt.note}</div>}
                                     </div>
-                                    <div>
-                                      <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייך לבלוק זה</label>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                        {presets.map((p: any) => (
-                                          <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
-                                            <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter((wid: any) => wid !== p.id) }))} />
-                                            {p.name}
-                                          </label>
-                                        ))}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות</label>
-                                      <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                      <button onClick={async () => {
-                                        await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms }) });
-                                        setEditingBlock(null); loadData();
-                                      }} style={{ background: '#166534', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>שמור</button>
-                                      <button onClick={() => setEditingBlock(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                      <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
+                                      <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
+                                      <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
                                     </div>
                                   </div>
-                                ) : (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: blk.color || '#3b82f6', flexShrink: 0 }} />
-                                    <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>{blk.alt_from}–{blk.alt_to}</span>
-                                    <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1 }}>{blk.mission || '—'}</span>
-                                    {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} עמדות)</span>}
-                                    <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [] }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
-                                    <button title="שכפל בלוק" onClick={async () => { await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: blk.alt_from, alt_to: blk.alt_to, mission: blk.mission, color: blk.color, workstations: blk.workstations, platforms: blk.platforms }) }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
-                                    <button onClick={async () => { await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>🗑️</button>
+                                  {/* Blocks side by side with visual painter */}
+                                  <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                                    <BlockVisualPainter btId={bt.id} existingBlocks={btBlocks} apiUrl={API_URL} onSaved={loadData} />
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0 }}>
+                                      {btBlocks.map((blk: any) => {
+                                        const isEditing = editingBlock?.id === blk.id;
+                                        return (
+                                          <div key={blk.id} style={{ background: '#0c1a2e', border: `2px solid ${blk.color || '#3b82f6'}`, borderRadius: '5px', padding: '8px 10px' }}>
+                                            {isEditing ? (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
+                                                    <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
+                                                    <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                                    <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
+                                                    <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                                  </div>
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
+                                                    <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>הערה</label>
+                                                  <textarea value={blockForm.note} onChange={e => setBlockForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                                                    style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box' }} />
+                                                </div>
+                                                <div>
+                                                  <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייך לבלוק זה</label>
+                                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                    {presets.map((p: any) => (
+                                                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
+                                                        <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter((wid: any) => wid !== p.id) }))} />
+                                                        {p.name}
+                                                      </label>
+                                                    ))}
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות</label>
+                                                  <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                  <button onClick={async () => {
+                                                    await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note }) });
+                                                    setEditingBlock(null); loadData();
+                                                  }} style={{ background: '#166534', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>שמור</button>
+                                                  <button onClick={() => setEditingBlock(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                  <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: blk.color || '#3b82f6', flexShrink: 0 }} />
+                                                  <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '12px' }}>{blk.alt_from}–{blk.alt_to}</span>
+                                                  <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1 }}>{blk.mission || '—'}</span>
+                                                  {blk.workstations?.length > 0 && <span style={{ color: '#64748b', fontSize: '10px' }}>({blk.workstations.length} עמדות)</span>}
+                                                  {blk.updated_at && <span style={{ color: '#334155', fontSize: '9px', whiteSpace: 'nowrap' }}>{fmtDate(blk.updated_at)}</span>}
+                                                  <button onClick={() => { setEditingBlock(blk); setBlockForm({ alt_from: String(blk.alt_from), alt_to: String(blk.alt_to), mission: blk.mission || '', color: blk.color || '#3b82f6', workstations: Array.isArray(blk.workstations) ? blk.workstations : [], platforms: Array.isArray(blk.platforms) ? blk.platforms : [], note: blk.note || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>
+                                                  <button title="שכפל בלוק" onClick={async () => { await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: blk.alt_from, alt_to: blk.alt_to, mission: blk.mission, color: blk.color, workstations: blk.workstations, platforms: blk.platforms, note: blk.note }) }); loadData(); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>⧉</button>
+                                                  <button onClick={async () => { await fetch(`${API_URL}/blocks/${blk.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '3px', padding: '3px 7px', cursor: 'pointer', fontSize: '10px' }}>🗑️</button>
+                                                </div>
+                                                {blk.note && <div style={{ color: '#64748b', fontSize: '10px', paddingRight: '20px', fontStyle: 'italic' }}>{blk.note}</div>}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                      {/* Add Block Form */}
+                                      {blockTableForBlock === bt.id ? (
+                                        <div style={{ background: '#0c1a2e', border: '1px dashed #334155', borderRadius: '5px', padding: '10px' }}>
+                                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                              <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
+                                              <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                              <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
+                                              <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+                                              <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
+                                              <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                              <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
+                                              <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                            </div>
+                                          </div>
+                                          <div style={{ marginBottom: '6px' }}>
+                                            <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>הערה</label>
+                                            <textarea value={blockForm.note} onChange={e => setBlockForm(f => ({ ...f, note: e.target.value }))} rows={2}
+                                              style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box' }} />
+                                          </div>
+                                          <div style={{ marginBottom: '6px' }}>
+                                            <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייכות לבלוק</label>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                              {presets.map((p: any) => (
+                                                <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
+                                                  <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter(id => id !== p.id) })) } />
+                                                  {p.name}
+                                                </label>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <div style={{ marginBottom: '8px' }}>
+                                            <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות (מופרד בפסיק)</label>
+                                            <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
+                                          </div>
+                                          <div style={{ display: 'flex', gap: '6px' }}>
+                                            <button onClick={async () => {
+                                              if (!blockForm.alt_from || !blockForm.alt_to) return;
+                                              await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms, note: blockForm.note }) });
+                                              setBlockForm({ ...emptyBlockForm }); setBlockTableForBlock(null); loadData();
+                                            }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף בלוק</button>
+                                            <button onClick={() => { setBlockTableForBlock(null); setBlockForm({ ...emptyBlockForm }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => { setBlockTableForBlock(bt.id); setBlockForm({ ...emptyBlockForm, color: pickDistinctColor(btBlocks) }); setEditingBlock(null); }} style={{ background: 'transparent', color: '#1d4ed8', border: '1px dashed #1d4ed8', borderRadius: '5px', padding: '6px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>+ הוסף בלוק לטבלה</button>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {/* Add Block Form */}
-                          {blockTableForBlock === bt.id ? (
-                            <div style={{ background: '#0c1a2e', border: '1px dashed #334155', borderRadius: '5px', padding: '10px' }}>
-                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                  <label style={{ color: '#64748b', fontSize: '10px' }}>גובה מ-</label>
-                                  <input type="number" value={blockForm.alt_from} onChange={e => setBlockForm(f => ({ ...f, alt_from: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                  <label style={{ color: '#64748b', fontSize: '10px' }}>גובה עד-</label>
-                                  <input type="number" value={blockForm.alt_to} onChange={e => setBlockForm(f => ({ ...f, alt_to: e.target.value }))} style={{ width: '70px', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                                  <label style={{ color: '#64748b', fontSize: '10px' }}>משימה</label>
-                                  <input value={blockForm.mission} onChange={e => setBlockForm(f => ({ ...f, mission: e.target.value }))} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                  <label style={{ color: '#64748b', fontSize: '10px' }}>צבע</label>
-                                  <input type="color" value={blockForm.color} onChange={e => setBlockForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '28px', padding: '2px', background: 'none', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
-                                </div>
-                              </div>
-                              <div style={{ marginBottom: '6px' }}>
-                                <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>עמדות שייכות לבלוק</label>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                  {presets.map((p: any) => (
-                                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', padding: '3px 7px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#cbd5e1' }}>
-                                      <input type="checkbox" checked={blockForm.workstations.includes(p.id)} onChange={e => setBlockForm(f => ({ ...f, workstations: e.target.checked ? [...f.workstations, p.id] : f.workstations.filter(id => id !== p.id) })) } />
-                                      {p.name}
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                              <div style={{ marginBottom: '8px' }}>
-                                <label style={{ color: '#64748b', fontSize: '10px', display: 'block', marginBottom: '4px' }}>פלטפורמות (מופרד בפסיק)</label>
-                                <input value={(blockForm.platforms as string[]).join(',')} onChange={e => setBlockForm(f => ({ ...f, platforms: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} placeholder="למשל: F-16, F-35" style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }} />
-                              </div>
-                              <div style={{ display: 'flex', gap: '6px' }}>
-                                <button onClick={async () => {
-                                  if (!blockForm.alt_from || !blockForm.alt_to) return;
-                                  await fetch(`${API_URL}/blocks`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_table_id: bt.id, alt_from: Number(blockForm.alt_from), alt_to: Number(blockForm.alt_to), mission: blockForm.mission, color: blockForm.color, workstations: blockForm.workstations, platforms: blockForm.platforms }) });
-                                  setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); setBlockTableForBlock(null); loadData();
-                                }} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף בלוק</button>
-                                <button onClick={() => { setBlockTableForBlock(null); setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); }} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button onClick={() => { setBlockTableForBlock(bt.id); setBlockForm({ alt_from: '', alt_to: '', mission: '', color: '#3b82f6', workstations: [], platforms: [] }); setEditingBlock(null); }} style={{ background: 'transparent', color: '#1d4ed8', border: '1px dashed #1d4ed8', borderRadius: '5px', padding: '6px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>+ הוסף בלוק לטבלה</button>
-                          )}
-                        </div>{/* end blocks list column */}
-                        </div>{/* end side-by-side wrapper */}
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -11497,7 +11575,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
         </div>
 
