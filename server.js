@@ -466,6 +466,35 @@ async function initDb() {
   await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS note TEXT`);
   await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
+  // --- BDH ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bdh_documents (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      category VARCHAR(200) NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES crew_members(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES crew_members(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bdh_items (
+      id SERIAL PRIMARY KEY,
+      bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      content TEXT NOT NULL DEFAULT ''
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workstation_bdh (
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
+      PRIMARY KEY (preset_id, bdh_id)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -2456,6 +2485,134 @@ app.patch('/api/strips/:id/block-deviation', async (req, res) => {
     const result = await pool.query('UPDATE strips SET block_deviation=$1 WHERE id=$2 RETURNING *', [!!block_deviation, req.params.id]);
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update block deviation' }); }
+});
+
+// --- BDH API ---
+app.get('/api/bdh', async (req, res) => {
+  try {
+    const docs = await pool.query(`
+      SELECT bd.*, 
+        cc.name as creator_name, cu.name as updater_name
+      FROM bdh_documents bd
+      LEFT JOIN crew_members cc ON bd.created_by = cc.id
+      LEFT JOIN crew_members cu ON bd.updated_by = cu.id
+      ORDER BY bd.category, bd.name
+    `);
+    const items = await pool.query('SELECT * FROM bdh_items ORDER BY bdh_id, order_index, id');
+    const result = docs.rows.map(doc => ({
+      ...doc,
+      items: items.rows.filter(i => i.bdh_id === doc.id)
+    }));
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch BDH' }); }
+});
+
+app.post('/api/bdh', async (req, res) => {
+  try {
+    const { name, category, title, created_by, items } = req.body;
+    const doc = await pool.query(
+      'INSERT INTO bdh_documents (name, category, title, created_by, updated_by, updated_at) VALUES ($1,$2,$3,$4,$4,NOW()) RETURNING *',
+      [name, category || '', title || '', created_by || null]
+    );
+    const docId = doc.rows[0].id;
+    if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content) VALUES ($1,$2,$3)', [docId, i, items[i].content || '']);
+      }
+    }
+    const fullItems = await pool.query('SELECT * FROM bdh_items WHERE bdh_id=$1 ORDER BY order_index, id', [docId]);
+    res.json({ ...doc.rows[0], items: fullItems.rows });
+  } catch (err) { res.status(500).json({ error: 'Failed to create BDH' }); }
+});
+
+app.put('/api/bdh/:id', async (req, res) => {
+  try {
+    const { name, category, title, updated_by } = req.body;
+    const doc = await pool.query(
+      'UPDATE bdh_documents SET name=$1, category=$2, title=$3, updated_by=$4, updated_at=NOW() WHERE id=$5 RETURNING *',
+      [name, category || '', title || '', updated_by || null, req.params.id]
+    );
+    res.json(doc.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update BDH' }); }
+});
+
+app.delete('/api/bdh/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM bdh_documents WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete BDH' }); }
+});
+
+app.post('/api/bdh/:id/items', async (req, res) => {
+  try {
+    const { content, order_index } = req.body;
+    const maxOrder = await pool.query('SELECT COALESCE(MAX(order_index),0) as m FROM bdh_items WHERE bdh_id=$1', [req.params.id]);
+    const idx = order_index ?? (maxOrder.rows[0].m + 1);
+    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content) VALUES ($1,$2,$3) RETURNING *', [req.params.id, idx, content || '']);
+    res.json(item.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to add BDH item' }); }
+});
+
+app.put('/api/bdh-items/:id', async (req, res) => {
+  try {
+    const { content, order_index } = req.body;
+    const fields = [], vals = [];
+    let i = 1;
+    if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(content); }
+    if (order_index !== undefined) { fields.push(`order_index=$${i++}`); vals.push(order_index); }
+    if (!fields.length) return res.json({});
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE bdh_items SET ${fields.join(',')} WHERE id=$${i} RETURNING *`, vals);
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update BDH item' }); }
+});
+
+app.delete('/api/bdh-items/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM bdh_items WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete BDH item' }); }
+});
+
+app.put('/api/bdh/:id/items/reorder', async (req, res) => {
+  try {
+    const { orderedIds } = req.body;
+    for (let i = 0; i < orderedIds.length; i++) {
+      await pool.query('UPDATE bdh_items SET order_index=$1 WHERE id=$2 AND bdh_id=$3', [i, orderedIds[i], req.params.id]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to reorder BDH items' }); }
+});
+
+app.get('/api/presets/:id/bdh', async (req, res) => {
+  try {
+    const links = await pool.query('SELECT bdh_id FROM workstation_bdh WHERE preset_id=$1', [req.params.id]);
+    const bdhIds = links.rows.map(r => r.bdh_id);
+    res.json(bdhIds);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch preset BDH' }); }
+});
+
+app.put('/api/presets/:id/bdh', async (req, res) => {
+  try {
+    const { bdh_ids } = req.body;
+    await pool.query('DELETE FROM workstation_bdh WHERE preset_id=$1', [req.params.id]);
+    for (const bdhId of (bdh_ids || [])) {
+      await pool.query('INSERT INTO workstation_bdh (preset_id, bdh_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.params.id, bdhId]);
+    }
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to update preset BDH' }); }
+});
+
+app.get('/api/bdh-preset-assignments', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT preset_id, bdh_id FROM workstation_bdh');
+    const map: Record<number, number[]> = {};
+    for (const row of result.rows) {
+      if (!map[row.preset_id]) map[row.preset_id] = [];
+      map[row.preset_id].push(row.bdh_id);
+    }
+    res.json(map);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch BDH assignments' }); }
 });
 
 const PORT = process.env.PORT || 3001;

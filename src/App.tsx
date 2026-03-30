@@ -4589,6 +4589,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [dashboardBlockSpaces, setDashboardBlockSpaces] = useState<any[]>([]);
   const [dashboardBlockTables, setDashboardBlockTables] = useState<any[]>([]);
   const [dashboardBlocks, setDashboardBlocks] = useState<any[]>([]);
+  const [dashboardBdh, setDashboardBdh] = useState<any[]>([]);
+  const [workstationBdhIds, setWorkstationBdhIds] = useState<number[]>([]);
+  const [bdhViewerDoc, setBdhViewerDoc] = useState<any | null>(null);
+  const [bdhChecked, setBdhChecked] = useState<Record<number, boolean>>({});
+  const [bdhSearchQuery, setBdhSearchQuery] = useState('');
+  const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -4887,6 +4893,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         .then(r => r.ok ? r.json() : null)
         .then(data => setAidGroup(data))
         .catch(() => {});
+      fetch(`${API_URL}/presets/${session.presetId}/bdh`)
+        .then(r => r.ok ? r.json() : [])
+        .then(data => setWorkstationBdhIds(data))
+        .catch(() => {});
     }
   }, [session.presetId]);
 
@@ -5139,6 +5149,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/block-spaces`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockSpaces(data)).catch(() => {});
       fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
       fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
+      fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
 
       // Build all requests
       const requests: Promise<Response>[] = [
@@ -6204,6 +6215,57 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         </div>
       </header>
+
+      {/* BDH Viewer Modal */}
+      {bdhViewerDoc && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setBdhViewerDoc(null); }}>
+          <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1d4ed8'}`, borderRadius: '12px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)', width: '90%', maxWidth: '700px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ background: lightMode ? '#1e293b' : '#0c1a2e', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+              <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', flex: 1 }}>📋 {bdhViewerDoc.name}</span>
+              {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '10px', padding: '2px 10px', fontSize: '11px' }}>{bdhViewerDoc.category}</span>}
+              <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}>✕</button>
+            </div>
+            {/* Title */}
+            {bdhViewerDoc.title && (
+              <div style={{ padding: '10px 20px 6px', background: lightMode ? '#f8fafc' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0 }}>
+                <div style={{ color: lightMode ? '#1e40af' : '#60a5fa', fontSize: '15px', fontWeight: 'bold' }}>{bdhViewerDoc.title}</div>
+              </div>
+            )}
+            {/* Items */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px' }}>
+              {(bdhViewerDoc.items || []).map((item: any, idx: number) => {
+                const isChecked = !!bdhChecked[item.id ?? idx];
+                return (
+                  <div key={item.id ?? idx}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '6px', marginBottom: '6px', background: isChecked ? (lightMode ? '#f1f5f9' : '#1e293b') : (lightMode ? '#f8fafc' : '#131f35'), border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, transition: 'all 0.15s', opacity: isChecked ? 0.45 : 1 }}>
+                    <input type="checkbox" checked={isChecked}
+                      onChange={() => setBdhChecked(prev => ({ ...prev, [item.id ?? idx]: !isChecked }))}
+                      style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
+                    />
+                    <div style={{ flex: 1, color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '14px', lineHeight: '1.6', direction: 'rtl' }}
+                      dangerouslySetInnerHTML={{ __html: item.content || `<span style="color:#475569;font-style:italic">סעיף ${idx + 1}</span>` }}
+                    />
+                  </div>
+                );
+              })}
+              {(bdhViewerDoc.items || []).length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '20px 0', fontSize: '13px' }}>אין סעיפים</div>}
+            </div>
+            {/* Footer */}
+            <div style={{ padding: '10px 20px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0f172a' }}>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>
+                {(bdhViewerDoc.items || []).filter((_: any, i: number) => bdhChecked[bdhViewerDoc.items[i]?.id ?? i]).length} / {(bdhViewerDoc.items || []).length} סומנו
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { const all: Record<number, boolean> = {}; (bdhViewerDoc.items || []).forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>✓ סמן הכל</button>
+                <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
+                <button onClick={() => setBdhViewerDoc(null)} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 14px', cursor: 'pointer', fontSize: '12px' }}>סגור</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Serials Panel Modal */}
       {showSerialsPanel && (
@@ -8429,7 +8491,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             presetBtIds.includes(bt.id) ||
             (currentPid !== null && dashboardBlocks.some((b: any) => b.block_table_id === bt.id && Array.isArray(b.workstations) && b.workstations.map(Number).includes(currentPid)))
           );
-          if (!aidGroup && aidBlockTables.length === 0) return null;
+          const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
+          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0) return null;
           return (
             <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
               {/* Pin toggle */}
@@ -8511,7 +8574,54 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       })}
                     </>
                   )}
-                  {!aidGroup && aidBlockTables.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                  {/* BDH Section */}
+                  {workstationBdhDocs.length > 0 && (
+                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0) ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
+                      <div
+                        onClick={() => setBdhPanelOpen(v => !v)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: '4px' }}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📋 בד"ח</span>
+                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{bdhPanelOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {bdhPanelOpen && (
+                        <div>
+                          <input
+                            value={bdhSearchQuery}
+                            onChange={e => setBdhSearchQuery(e.target.value)}
+                            placeholder={'חיפוש בד"ח...'}
+                            style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
+                          />
+                          {(() => {
+                            const filtered = workstationBdhDocs.filter((doc: any) =>
+                              !bdhSearchQuery || doc.name.includes(bdhSearchQuery) || doc.category.includes(bdhSearchQuery)
+                            );
+                            const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
+                            return cats.map(cat => (
+                              <div key={cat} style={{ marginBottom: '6px' }}>
+                                {cats.length > 1 && <div style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px', fontWeight: 'bold', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cat}</div>}
+                                {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
+                                  <div
+                                    key={doc.id}
+                                    onDoubleClick={() => { setBdhViewerDoc(doc); setBdhChecked({}); }}
+                                    title="דאבל קליק לפתיחה"
+                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', cursor: 'pointer', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl' }}
+                                  >
+                                    📋 {doc.name}
+                                    <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים — דאבל קליק לפתיחה</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ));
+                          })()}
+                          {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
+                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>לא נמצאו תוצאות</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
                 </div>
               )}
               {/* Collapsed label */}
@@ -10841,8 +10951,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? adminOnlyTabs : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -10887,9 +10997,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     block_table_ids: [] as number[],
   });
 
+  // BDH state
+  const [bdhDocs, setBdhDocs] = useState<any[]>([]);
+  const [bdhForm, setBdhForm] = useState({ name: '', category: '', title: '' });
+  const [editingBdh, setEditingBdh] = useState<any | null>(null);
+  const [bdhItemsEdit, setBdhItemsEdit] = useState<{ id?: number; content: string; _key: number }[]>([]);
+  const [bdhPresetAssignments, setBdhPresetAssignments] = useState<Record<number, number[]>>({});
+  const [bdhAssignPresetId, setBdhAssignPresetId] = useState<number | null>(null);
+  const [bdhSearchAdmin, setBdhSearchAdmin] = useState('');
+  let _bdhKey = 0;
+  const nextBdhKey = () => ++_bdhKey;
+
   const loadData = async () => {
     try {
-      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes] = await Promise.all([
+      const [sectorsRes, mapsRes, presetsRes, crewRes, tableModesRes, serialsRes, blockSpacesRes, blockTablesRes, bdhRes] = await Promise.all([
         fetch(`${API_URL}/sectors`),
         fetch(`${API_URL}/maps`),
         fetch(`${API_URL}/workstation-presets`),
@@ -10897,7 +11018,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         fetch(`${API_URL}/table-modes`),
         fetch(`${API_URL}/serials`),
         fetch(`${API_URL}/block-spaces`),
-        fetch(`${API_URL}/block-tables`)
+        fetch(`${API_URL}/block-tables`),
+        fetch(`${API_URL}/bdh`)
       ]);
       if (sectorsRes.ok) setSectors(await sectorsRes.json());
       if (mapsRes.ok) setMaps(await mapsRes.json());
@@ -10907,6 +11029,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       if (serialsRes.ok) setAdminSerials(await serialsRes.json());
       if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
       if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
+      if (bdhRes.ok) setBdhDocs(await bdhRes.json());
+      const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
+      if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
       console.error('Failed to load:', err);
     }
@@ -11113,6 +11238,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>}
         {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
         {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
+        {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -12209,6 +12335,164 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             );
           })()}
           {/* Block edit modal — rendered outside the IIFE so it appears above everything */}
+          {/* BDH Management Tab */}
+          {activeTab === 'bdh' && (() => {
+            const filteredBdh = bdhDocs.filter(doc =>
+              !bdhSearchAdmin || doc.name.toLowerCase().includes(bdhSearchAdmin) || doc.category.toLowerCase().includes(bdhSearchAdmin)
+            );
+            const categories = Array.from(new Set(bdhDocs.map((d: any) => d.category || 'כללי'))).sort() as string[];
+
+            const openCreate = () => {
+              setBdhForm({ name: '', category: '', title: '' });
+              setBdhItemsEdit([{ content: '', _key: Date.now() }]);
+              setEditingBdh({ _new: true });
+            };
+
+            const openEditBdh = (doc: any) => {
+              setBdhForm({ name: doc.name, category: doc.category || '', title: doc.title || '' });
+              setBdhItemsEdit((doc.items || []).map((item: any, idx: number) => ({ id: item.id, content: item.content, _key: item.id + idx })));
+              setEditingBdh(doc);
+            };
+
+            const saveBdh = async () => {
+              if (!bdhForm.name.trim()) return;
+              if (editingBdh._new) {
+                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content })) }) });
+                const newDoc = await res.json();
+                setBdhDocs(prev => [...prev, { ...newDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
+              } else {
+                await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, updated_by: crewMember?.id ?? null }) });
+                const existingIds = new Set((editingBdh.items || []).map((i: any) => i.id));
+                const editIds = new Set(bdhItemsEdit.filter(i => i.id).map(i => i.id));
+                for (const ei of (editingBdh.items || [])) { if (!editIds.has(ei.id)) await fetch(`${API_URL}/bdh-items/${ei.id}`, { method: 'DELETE' }); }
+                for (let idx = 0; idx < bdhItemsEdit.length; idx++) {
+                  const item = bdhItemsEdit[idx];
+                  if (item.id && existingIds.has(item.id)) await fetch(`${API_URL}/bdh-items/${item.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, order_index: idx }) });
+                  else await fetch(`${API_URL}/bdh/${editingBdh.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, order_index: idx }) });
+                }
+              }
+              await loadData();
+              setEditingBdh(null);
+            };
+
+            const inputStyle = { width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' as const, boxSizing: 'border-box' as const };
+            const labelStyle = { display: 'block' as const, color: '#94a3b8', fontSize: '11px', marginBottom: '4px' };
+
+            return (
+              <div style={{ display: 'flex', gap: '20px', direction: 'rtl' }}>
+                {/* List */}
+                <div style={{ width: '240px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                    <input value={bdhSearchAdmin} onChange={e => setBdhSearchAdmin(e.target.value)} placeholder='חיפוש...' style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                    <button onClick={openCreate} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>+ חדש</button>
+                  </div>
+                  {categories.map(cat => (
+                    <div key={cat} style={{ marginBottom: '10px' }}>
+                      <div style={{ color: '#64748b', fontSize: '10px', fontWeight: 'bold', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', paddingRight: '2px' }}>{cat || 'כללי'}</div>
+                      {filteredBdh.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
+                        <div key={doc.id} onClick={() => openEditBdh(doc)}
+                          style={{ padding: '7px 10px', background: editingBdh?.id === doc.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingBdh?.id === doc.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
+                          <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>{doc.name}</div>
+                          <div style={{ color: '#64748b', fontSize: '10px' }}>{(doc.items || []).length} סעיפים</div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {bdhDocs.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>אין בד"ח עדיין</div>}
+                </div>
+
+                {/* Editor */}
+                {editingBdh ? (
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                      <div style={{ flex: 1, minWidth: '140px' }}>
+                        <label style={labelStyle}>שם הבד"ח *</label>
+                        <input value={bdhForm.name} onChange={e => setBdhForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: '120px' }}>
+                        <label style={labelStyle}>קטגוריה</label>
+                        <input value={bdhForm.category} onChange={e => setBdhForm(f => ({ ...f, category: e.target.value }))} placeholder='לדוגמה: תרגילים, נהלים...' style={inputStyle} />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: '14px' }}>
+                      <label style={labelStyle}>כותרת (מוצגת בראש הבד"ח)</label>
+                      <input value={bdhForm.title} onChange={e => setBdhForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
+                    </div>
+
+                    {/* Items */}
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={labelStyle}>סעיפים</label>
+                        <button onClick={() => setBdhItemsEdit(prev => [...prev, { content: '', _key: Date.now() + Math.random() }])}
+                          style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>+ הוסף סעיף</button>
+                      </div>
+                      {bdhItemsEdit.map((item, idx) => (
+                        <div key={item._key} style={{ marginBottom: '6px', border: '1px solid #334155', borderRadius: '5px', overflow: 'hidden' }}>
+                          <div style={{ background: '#0f172a', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '2px', borderBottom: '1px solid #1e293b' }}>
+                            <span style={{ color: '#475569', fontSize: '10px', fontWeight: 'bold' }}>#{idx + 1}</span>
+                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('bold'); }} title="מודגש" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', padding: '1px 4px' }}>B</button>
+                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('italic'); }} title="נטוי" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontStyle: 'italic', fontSize: '12px', padding: '1px 4px' }}>I</button>
+                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('underline'); }} title="קו תחתון" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline', fontSize: '12px', padding: '1px 4px' }}>U</button>
+                            <div style={{ flex: 1 }} />
+                            {idx > 0 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '11px' }}>↑</button>}
+                            {idx < bdhItemsEdit.length - 1 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '11px' }}>↓</button>}
+                            <button onClick={() => setBdhItemsEdit(prev => prev.filter((_, i) => i !== idx))} style={{ background: '#450a0a', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', borderRadius: '3px' }}>✕</button>
+                          </div>
+                          <div
+                            contentEditable suppressContentEditableWarning
+                            onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
+                            dangerouslySetInnerHTML={{ __html: item.content }}
+                            style={{ padding: '7px 10px', color: 'white', fontSize: '13px', minHeight: '34px', outline: 'none', direction: 'rtl', lineHeight: '1.6', background: '#131f35' }}
+                          />
+                        </div>
+                      ))}
+                      {bdhItemsEdit.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '10px 0' }}>לחץ "+ הוסף סעיף" להוספת תוכן</div>}
+                    </div>
+
+                    {/* Preset assignment */}
+                    <div style={{ marginBottom: '14px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px', fontWeight: 'bold' }}>שיוך לעמדות</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {presets.map((p: any) => {
+                          const curIds = (bdhPresetAssignments[p.id] || []).map(Number);
+                          const isLinked = editingBdh && !editingBdh._new && curIds.includes(Number(editingBdh.id));
+                          return (
+                            <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: editingBdh._new ? 'not-allowed' : 'pointer', color: '#cbd5e1', fontSize: '11px', background: isLinked ? '#14432a' : '#1e293b', border: `1px solid ${isLinked ? '#166534' : '#334155'}`, borderRadius: '4px', padding: '3px 8px' }}>
+                              <input type="checkbox" checked={!!isLinked} disabled={!!editingBdh._new}
+                                onChange={async e => {
+                                  if (editingBdh._new) return;
+                                  const newIds = e.target.checked ? [...curIds, Number(editingBdh.id)] : curIds.filter((id: number) => id !== Number(editingBdh.id));
+                                  await fetch(`${API_URL}/presets/${p.id}/bdh`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bdh_ids: newIds }) });
+                                  setBdhPresetAssignments(prev => ({ ...prev, [p.id]: newIds }));
+                                }}
+                              />
+                              {p.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {editingBdh._new && <div style={{ color: '#475569', fontSize: '10px', marginTop: '6px' }}>שמור קודם — לאחר מכן ניתן לשייך לעמדות</div>}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? '✅ צור בד"ח' : '💾 שמור שינויים'}</button>
+                      {!editingBdh._new && <button onClick={async () => { if (!confirm('למחוק בד"ח זה?')) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
+                      <button onClick={() => setEditingBdh(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                    </div>
+                    {!editingBdh._new && editingBdh.updated_at && (
+                      <div style={{ marginTop: '8px', color: '#475569', fontSize: '10px' }}>
+                        עדכון: {new Date(editingBdh.updated_at).toLocaleString('he-IL')}{editingBdh.updater_name ? ` ← ${editingBdh.updater_name}` : ''}
+                        {editingBdh.creator_name && ` | נוצר: ${editingBdh.creator_name}`}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>בחר בד"ח לעריכה או לחץ "+ חדש"</div>
+                )}
+              </div>
+            );
+          })()}
+
           {activeTab === 'blocks' && editingBlock && (
             <SettingsModal title={`עריכת בלוק: ${editingBlock.alt_from}–${editingBlock.alt_to} ${editingBlock.mission ? '(' + editingBlock.mission + ')' : ''}`} onClose={() => setEditingBlock(null)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
