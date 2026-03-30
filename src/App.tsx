@@ -6132,24 +6132,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {/* כפתור ספרורים */}
           {(() => {
-            const myStripIds = new Set(myTableStrips.map(s => s.id));
-            // Alert only when a newer serial exists that was neither selected (הועבר לפ"מ) nor dismissed (לא רלוונטי)
-            const hasSerialAlerts = stripSerialSelections.some(sel => {
-              if (sel.dismissed) return false;
-              if (!myStripIds.has(sel.strip_id)) return false;
-              if (relevantControlStations && !relevantControlStations.includes(sel.control_station)) return false;
-              const selSerial = sel.serial_id ? relevantSerials.find(sr => sr.id === sel.serial_id) : null;
-              if (!selSerial) return false;
-              // Serials dismissed for this specific strip
+            // Alert if any strip+station has an unhandled serial (not selected and not dismissed)
+            const stationsForAlert = (relevantControlStations && relevantControlStations.length > 0)
+              ? relevantControlStations
+              : Array.from(new Set(relevantSerials.map(sr => sr.control_station)));
+            const hasSerialAlerts = myTableStrips.some(strip => {
               const dismissedForStrip = new Set(
-                (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(sel.strip_id)).map(d => d.serial_id)
+                (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(strip.id)).map(d => d.serial_id)
               );
-              // Alert only if there's a newer serial that was not selected and not dismissed
-              return relevantSerials.some(sr =>
-                sr.control_station === sel.control_station &&
-                sr.serial_number > selSerial.serial_number &&
-                !dismissedForStrip.has(sr.id)
-              );
+              return stationsForAlert.some(station => {
+                const stationSerials = relevantSerials.filter(sr => sr.control_station === station);
+                if (stationSerials.length === 0) return false;
+                const latestSerial = stationSerials.reduce((a: any, b: any) => a.serial_number > b.serial_number ? a : b);
+                if (dismissedForStrip.has(latestSerial.id)) return false;
+                // If the latest serial is already selected → no alert for this station
+                const selection = stripSerialSelections.find((sel: any) =>
+                  sel.strip_id === strip.id && sel.control_station === station && !sel.dismissed && sel.serial_id === latestSerial.id
+                );
+                return !selection;
+              });
             });
             return (
               <button
@@ -7209,21 +7210,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }
 
                   // Collapsed view
+                  // Compute stations with no selection but with unhandled serials (flash red)
+                  const handledStations = new Set(mySelections.map((sel: any) => sel.control_station));
+                  const stripDismissedIds = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id)).map(d => d.serial_id));
+                  const allConfiguredStations = (relevantControlStations && relevantControlStations.length > 0)
+                    ? relevantControlStations
+                    : Array.from(new Set(relevantSerials.map((sr: any) => sr.control_station)));
+                  const unhandledStations = (allConfiguredStations as string[]).filter(station => {
+                    if (handledStations.has(station)) return false;
+                    const latestForUh = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                    if (!latestForUh) return false;
+                    return !stripDismissedIds.has(latestForUh.id);
+                  });
+                  const hasAnyContent = mySelections.length > 0 || unhandledStations.length > 0;
                   return (
                     <td key={col.key}
                       style={{ padding: '6px 8px', verticalAlign: 'top' }}
                     >
-                      {mySelections.length > 0 ? (
+                      {hasAnyContent ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {/* Existing selections */}
                           {mySelections.map((sel: any) => {
-                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const selSerial = sel.serial_id ? relevantSerials.find((sr: any) => sr.id === sel.serial_id) : null;
+                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const displayNum = selSerial?.serial_number ?? latest?.serial_number ?? '?';
-                            // Check dismissed serials for this strip+station
                             const stationSrIds = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === sel.control_station).map((sr: any) => sr.id));
                             const stationDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id));
                             const dismissedSrIds = new Set(stationDismissals.map(d => d.serial_id));
-                            // isOutdated = newer non-dismissed serial exists
                             const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedSrIds.has(sr.id)));
                             const hasNewerDismissals = stationDismissals.some(d => {
                               const dSerial = relevantSerials.find((sr: any) => sr.id === d.serial_id);
@@ -7248,6 +7261,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {!isOutdated && hasNewerDismissals && (
                                   <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>🚫 קיימים ספרורים עדכניים לא רלוונטים</div>
                                 )}
+                              </div>
+                            );
+                          })}
+                          {/* Unhandled stations — flash red as "missing" */}
+                          {unhandledStations.map((station: string) => {
+                            const latestForSt = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
+                            const stationSrIds = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === station).map((sr: any) => sr.id));
+                            const initDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id)).map(d => String(d.serial_id));
+                            return (
+                              <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <span
+                                  className="serial-flash"
+                                  onClick={e => { e.stopPropagation(); setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
+                                  style={{ fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '4px', padding: '2px 5px', fontWeight: 'bold', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                                  title="לחץ לפתיחת ספרור"
+                                >
+                                  {station} – ⚠️{latestForSt ? ` #${latestForSt.serial_number}` : ''} חסר
+                                </span>
                               </div>
                             );
                           })}
