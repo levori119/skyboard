@@ -4913,6 +4913,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
+  // Block spaces relevant to this workstation — only those that have block tables assigned to this preset
+  const presetBlockSpaces = React.useMemo(() => {
+    const presetBtIds: Set<number> = new Set(
+      Array.isArray(myPresetConfig?.block_table_ids) ? myPresetConfig.block_table_ids.map(Number) : []
+    );
+    if (presetBtIds.size === 0) return dashboardBlockSpaces;
+    const spaceIds = new Set(
+      dashboardBlockTables
+        .filter((bt: any) => presetBtIds.has(Number(bt.id)))
+        .map((bt: any) => Number(bt.block_space_id))
+    );
+    return dashboardBlockSpaces.filter((bs: any) => spaceIds.has(Number(bs.id)));
+  }, [myPresetConfig, dashboardBlockTables, dashboardBlockSpaces]);
   // If the preset defines relevant control stations, filter serials to those only
   const relevantControlStations: string[] | null = (myPresetConfig?.relevant_control_stations && myPresetConfig.relevant_control_stations.length > 0)
     ? myPresetConfig.relevant_control_stations
@@ -7245,7 +7258,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (col.editable === 'dropdown') {
                       return (
                         <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <BlockSpaceCellTable strip={s} blockSpaces={dashboardBlockSpaces} lightMode={lightMode} />
+                          <BlockSpaceCellTable strip={s} blockSpaces={presetBlockSpaces} lightMode={lightMode} />
                         </td>
                       );
                     }
