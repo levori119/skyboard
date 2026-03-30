@@ -3743,13 +3743,25 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   // No-time mode: assign a column index to each strip so overlapping-altitude strips are side-by-side
   type NoTimePlaced = typeof candidates[0] & { _col: number; _numCols: number; _hasConflict: boolean; _isRange: boolean };
   const buildNoTimePlaced = (list: typeof candidates): NoTimePlaced[] => {
+    const ALT_MARGIN = 500;
+    // Detect altitude conflicts: any two strips whose altitude ranges overlap within ALT_MARGIN
+    const conflictSet = new Set<string>();
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i], b = list[j];
+        const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
+        if (altGap <= ALT_MARGIN) {
+          conflictSet.add(String(a.id));
+          conflictSet.add(String(b.id));
+        }
+      }
+    }
     // Sort by altitude descending (highest first)
     const sorted = [...list].sort((a, b) => b._altLo - a._altLo);
-    // columns: array of sorted altitude-occupied intervals
+    // columns: array of altitude-occupied intervals
     const colIntervals: { lo: number; hi: number }[][] = [];
     const colMap = new Map<string, number>();
     for (const s of sorted) {
-      const ALT_MARGIN = 500; // two strips closer than this share a column conflict
       let placed = false;
       for (let c = 0; c < colIntervals.length; c++) {
         const hasOverlap = colIntervals[c].some(iv =>
@@ -3757,22 +3769,22 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         );
         if (!hasOverlap) {
           colIntervals[c].push({ lo: s._altLo, hi: s._altHi });
-          colMap.set(s.id, c);
+          colMap.set(String(s.id), c);
           placed = true;
           break;
         }
       }
       if (!placed) {
         colIntervals.push([{ lo: s._altLo, hi: s._altHi }]);
-        colMap.set(s.id, colIntervals.length - 1);
+        colMap.set(String(s.id), colIntervals.length - 1);
       }
     }
     const numCols = Math.max(colIntervals.length, 1);
     return list.map(s => ({
       ...s,
-      _col: colMap.get(s.id) ?? 0,
+      _col: colMap.get(String(s.id)) ?? 0,
       _numCols: numCols,
-      _hasConflict: false,
+      _hasConflict: conflictSet.has(String(s.id)),
       _isRange: s._altLo !== s._altHi,
     }));
   };
@@ -4041,15 +4053,15 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
             : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
+              className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (isConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
-                background: effectiveDeviation && !isDeviationAcknowledged ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
+                background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (isConflict ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
                 overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
@@ -4079,26 +4091,27 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
             topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
             heightVal = `${STRIP_H}px`;
           }
+          const ntConflict = !!s._hasConflict;
           const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
-            : s.airborne ? '#3b82f6' : (lightMode ? '#94a3b8' : '#475569');
-          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
+            : s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
+          const textMainColor = s.airborne ? '#3b82f6' : ntConflict ? '#ef4444' : boldTextColor;
           const normalBg = s._isRange
             ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-            : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
+            : ntConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
+              className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (ntConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
                 width: `${colW - 0.5}%`, height: heightVal,
-                background: effectiveDeviation && !isDeviationAcknowledged ? undefined
-                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
+                background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (ntConflict ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
                 display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
-                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : 2,
+                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : ntConflict ? 3 : 2,
                 boxSizing: 'border-box', cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
                 opacity: isDragging ? 0.6 : 1,
               }}>
