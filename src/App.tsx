@@ -7127,7 +7127,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 case 'serials': {
                   const serialCellKey = s.id + '__serials';
                   const isEditingSerials = tableEditingCell === serialCellKey;
-                  const allStations = Array.from(new Set(relevantSerials.map((sr: any) => sr.control_station))).sort() as string[];
+                  // Show all configured relevant control stations, not just those with serials
+                  const allStations = (relevantControlStations && relevantControlStations.length > 0)
+                    ? [...relevantControlStations].sort()
+                    : Array.from(new Set(relevantSerials.map((sr: any) => sr.control_station))).sort() as string[];
                   const mySelections = stripSerialSelections.filter((sel: any) => sel.strip_id === s.id);
 
                   if (isEditingSerials) {
