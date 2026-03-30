@@ -2697,7 +2697,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // Block deviation detection (uses shared helper)
   const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId),
-    [s.block_space_id, s.alt, s.workstation_preset_id, allBlocks, allBlockTables, activeBlockTableId]);
+    [s.alt, s.workstation_preset_id, allBlocks, activeBlockTableId]);
 
   // Sync local blockDeviation state when prop changes (e.g. after polling)
   useEffect(() => {
@@ -4236,35 +4236,36 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 };
 
 // --- Block deviation helper (shared across views) ---
-const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[], activeBlockTableId?: number | null): boolean => {
+/**
+ * computeBlockDeviation — determines whether a strip is outside its workstation's
+ * assigned altitude block in the CURRENTLY ACTIVE block table.
+ *
+ * Rules (per user spec):
+ *  - No activeBlockTableId  →  never alert (no block context selected)
+ *  - WS has no blocks in the active table  →  never alert (not our responsibility)
+ *  - WS has blocks in the active table  →  alert when strip altitude is NOT in any of them
+ */
+const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], activeBlockTableId?: number | null): boolean => {
+  // No active block table → no alerts at all
+  if (!activeBlockTableId) return false;
   if (!s.alt || !s.workstation_preset_id) return false;
-  const altNum = parseFloat(s.alt);
+  const altNum = parseFloat(String(s.alt));
   if (isNaN(altNum)) return false;
-  let candidateBlocks: any[];
-  if (s.block_space_id) {
-    candidateBlocks = allBlocks.filter((b: any) => {
-      const table = blockTables.find((t: any) => t.id === b.block_table_id);
-      return table && String(table.block_space_id) === String(s.block_space_id);
-    });
-  } else if (activeBlockTableId) {
-    candidateBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
-  } else {
-    return false; // No block context → cannot determine deviation
-  }
-  if (candidateBlocks.length === 0) return false;
+
   const presetId = Number(s.workstation_preset_id);
 
-  // Blocks that specifically belong to this workstation (ws explicitly includes me)
-  const mySpecificBlocks = candidateBlocks.filter((b: any) => {
+  // Blocks in the active table that belong specifically to this workstation
+  const myBlocks = allBlocks.filter((b: any) => {
+    if (b.block_table_id !== activeBlockTableId) return false;
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
     return ws.length > 0 && ws.includes(presetId);
   });
 
-  // If my WS has no specific blocks in this context → not our responsibility, no deviation
-  if (mySpecificBlocks.length === 0) return false;
+  // WS has no designated blocks in this table → not our responsibility
+  if (myBlocks.length === 0) return false;
 
-  // My WS has specific blocks → strip must be in one of them (strict mode)
-  return !mySpecificBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  // Alert if the strip's altitude is NOT inside any of my blocks
+  return !myBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
@@ -5285,16 +5286,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth; });
   }, [tableMode, selectedTableModeId]);
 
-  // Auto-clear acknowledged block deviations when altitude is fixed (works in all views)
+  // Auto-clear acknowledged block deviations whenever the computed deviation is no longer true.
+  // Triggers: strip altitude changed, block altitude changed, active block table changed (incl. null = cleared).
   useEffect(() => {
-    if (dashboardBlocks.length === 0 && dashboardBlockTables.length === 0) return;
     const toClear = strips.filter(s => s.block_deviation && !computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, activeBlockTableId));
     if (toClear.length === 0) return;
-    setStrips(prev => prev.map(s => toClear.find(tc => tc.id === s.id) ? { ...s, block_deviation: false } : s));
-    toClear.forEach(s => {
+    setStrips(prev => prev.map(s => toClear.find((tc: any) => tc.id === s.id) ? { ...s, block_deviation: false } : s));
+    toClear.forEach((s: any) => {
       fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }).catch(() => {});
     });
-  }, [strips, dashboardBlocks, dashboardBlockTables, activeBlockTableId]);
+  }, [strips, dashboardBlocks, activeBlockTableId]);
 
   // Measure frozen column offsets after table mode changes
   useEffect(() => {
