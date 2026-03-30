@@ -4737,7 +4737,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
-  const [aidExpandedIds, setAidExpandedIds] = useState<Set<number|string>>(new Set());
+  const [aidExpandedIds, setAidExpandedIds] = useState<Set<string>>(new Set());
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
   // Pointer-events drag from sidebar to table
@@ -4790,7 +4790,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, []);
 
-  const handleSerialSelect = async (stripId: number, controlStation: string, serialId: number | null, dismissed = false) => {
+  const handleSerialSelect = async (stripId: string | number, controlStation: string, serialId: number | null, dismissed = false) => {
     const actedBy = session.crewMember ? (session.crewMember.name || null) : null;
     const actedByWorkstation = session.workstationName || null;
     try {
@@ -4806,7 +4806,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch {}
   };
 
-  const handleSerialDismiss = async (stripId: number, controlStation: string, latestSerialId?: number) => {
+  const handleSerialDismiss = async (stripId: string | number, controlStation: string, latestSerialId?: number) => {
     await handleSerialSelect(stripId, controlStation, latestSerialId ?? null, true);
   };
 
@@ -6153,14 +6153,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             disabled={!hasActions}
                             onClick={async () => {
                               if (serialPopupKnownUntilId) {
-                                await handleSerialSelect(Number(stripId), station, Number(serialPopupKnownUntilId), false);
+                                await handleSerialSelect(stripId, station, Number(serialPopupKnownUntilId), false);
                               }
                               for (const notRelId of serialPopupNotRelevantIds) {
-                                await handleSerialDismiss(Number(stripId), station, Number(notRelId));
+                                await handleSerialDismiss(stripId, station, Number(notRelId));
                               }
                               // Undo dismiss: was dismissed but user removed it without a replacement action
                               if (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId) && !serialPopupKnownUntilId) {
-                                await handleSerialSelect(Number(stripId), station, null, false);
+                                await handleSerialSelect(stripId, station, null, false);
                               }
                               setSerialPopupKnownUntilId(null);
                               setSerialPopupNotRelevantIds([]);
@@ -6215,11 +6215,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                               ) : isDismissedSerial ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
-                                  <button onClick={async () => { await handleSerialSelect(Number(stripId), station, Number(sr.id), false); setTableSerialViewPopup(null); }}
+                                  <button onClick={async () => { await handleSerialSelect(stripId, station, Number(sr.id), false); setTableSerialViewPopup(null); }}
                                     style={{ fontSize: '9px', padding: '2px 6px', background: '#166534', color: '#4ade80', border: 'none', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
                                     ✓ הועבר לפ"מ
                                   </button>
-                                  <button onClick={async () => { await handleSerialSelect(Number(stripId), station, null, false); setTableSerialViewPopup(null); }}
+                                  <button onClick={async () => { await handleSerialSelect(stripId, station, null, false); setTableSerialViewPopup(null); }}
                                     style={{ fontSize: '9px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                     בטל סימון
                                   </button>
@@ -8241,13 +8241,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Regular aid items */}
                   {aidGroup && (aidGroup.items || []).map((item: any) => (
                     <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                      <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(item.id) ? s.delete(item.id) : s.add(item.id); return s; })}
+                      <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
-                        <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(item.id) ? '▼' : '▶'}</span>
+                        <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
                       </button>
-                      {aidExpandedIds.has(item.id) && (
+                      {aidExpandedIds.has(`item-${item.id}`) && (
                         <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
                           {item.type === 'text' && <div style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
                           {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
