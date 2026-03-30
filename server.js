@@ -2655,7 +2655,7 @@ app.post('/api/bdh', async (req, res) => {
     const docId = doc.rows[0].id;
     if (items && items.length > 0) {
       for (let i = 0; i < items.length; i++) {
-        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content) VALUES ($1,$2,$3)', [docId, i, items[i].content || '']);
+        await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4)', [docId, i, items[i].content || '', !!items[i].is_header]);
       }
     }
     const fullItems = await pool.query('SELECT * FROM bdh_items WHERE bdh_id=$1 ORDER BY order_index, id', [docId]);
@@ -2683,21 +2683,22 @@ app.delete('/api/bdh/:id', async (req, res) => {
 
 app.post('/api/bdh/:id/items', async (req, res) => {
   try {
-    const { content, order_index } = req.body;
+    const { content, order_index, is_header } = req.body;
     const maxOrder = await pool.query('SELECT COALESCE(MAX(order_index),0) as m FROM bdh_items WHERE bdh_id=$1', [req.params.id]);
     const idx = order_index ?? (maxOrder.rows[0].m + 1);
-    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content) VALUES ($1,$2,$3) RETURNING *', [req.params.id, idx, content || '']);
+    const item = await pool.query('INSERT INTO bdh_items (bdh_id, order_index, content, is_header) VALUES ($1,$2,$3,$4) RETURNING *', [req.params.id, idx, content || '', !!is_header]);
     res.json(item.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to add BDH item' }); }
 });
 
 app.put('/api/bdh-items/:id', async (req, res) => {
   try {
-    const { content, order_index } = req.body;
+    const { content, order_index, is_header } = req.body;
     const fields = [], vals = [];
     let i = 1;
     if (content !== undefined) { fields.push(`content=$${i++}`); vals.push(content); }
     if (order_index !== undefined) { fields.push(`order_index=$${i++}`); vals.push(order_index); }
+    if (is_header !== undefined) { fields.push(`is_header=$${i++}`); vals.push(!!is_header); }
     if (!fields.length) return res.json({});
     vals.push(req.params.id);
     const result = await pool.query(`UPDATE bdh_items SET ${fields.join(',')} WHERE id=$${i} RETURNING *`, vals);

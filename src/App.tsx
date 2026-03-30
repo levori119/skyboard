@@ -4758,6 +4758,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workstationBdhIds, setWorkstationBdhIds] = useState<number[]>([]);
   const [bdhViewerDoc, setBdhViewerDoc] = useState<any | null>(null);
   const [bdhChecked, setBdhChecked] = useState<Record<number, boolean>>({});
+  const [bdhCollapsed, setBdhCollapsed] = useState<Record<string, boolean>>({});
+  const [bdhViewerPos, setBdhViewerPos] = useState<{ x: number; y: number }>({ x: 40, y: 80 });
+  const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
   const neighbors = allSectors.slice(1);
@@ -6399,56 +6402,102 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
       </header>
 
-      {/* BDH Viewer Modal */}
-      {bdhViewerDoc && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setBdhViewerDoc(null); }}>
-          <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1d4ed8'}`, borderRadius: '12px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)', width: '90%', maxWidth: '700px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ background: lightMode ? '#1e293b' : '#0c1a2e', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-              <span style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', flex: 1 }}>📋 {bdhViewerDoc.name}</span>
-              {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '10px', padding: '2px 10px', fontSize: '11px' }}>{bdhViewerDoc.category}</span>}
-              <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}>✕</button>
+      {/* BDH Viewer — floating draggable on-top panel */}
+      {bdhViewerDoc && (() => {
+        const allItems: any[] = bdhViewerDoc.items || [];
+        const regularItems = allItems.filter((it: any) => !it.is_header);
+        const checkedCount = regularItems.filter((it: any, i: number) => bdhChecked[it.id ?? i]).length;
+        // Build groups: [{header: item|null, items: item[]}]
+        const groups: { header: any | null; items: any[] }[] = [];
+        let currentGroup: { header: any | null; items: any[] } = { header: null, items: [] };
+        for (const item of allItems) {
+          if (item.is_header) {
+            if (currentGroup.header !== null || currentGroup.items.length > 0) groups.push(currentGroup);
+            currentGroup = { header: item, items: [] };
+          } else {
+            currentGroup.items.push(item);
+          }
+        }
+        groups.push(currentGroup);
+        return (
+          <div
+            style={{ position: 'fixed', left: bdhViewerPos.x, top: bdhViewerPos.y, zIndex: 9500, width: '420px', maxHeight: '70vh', background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid ${lightMode ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', pointerEvents: 'auto' }}
+          >
+            {/* Drag handle / header */}
+            <div
+              style={{ background: lightMode ? '#1e293b' : '#0c1a2e', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, cursor: 'grab', userSelect: 'none' }}
+              onMouseDown={e => {
+                if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+                e.preventDefault();
+                bdhViewerDragRef.current = { startX: e.clientX, startY: e.clientY, origX: bdhViewerPos.x, origY: bdhViewerPos.y };
+                const onMove = (ev: MouseEvent) => {
+                  if (!bdhViewerDragRef.current) return;
+                  const { startX, startY, origX, origY } = bdhViewerDragRef.current;
+                  setBdhViewerPos({ x: Math.max(0, origX + ev.clientX - startX), y: Math.max(0, origY + ev.clientY - startY) });
+                };
+                const onUp = () => { bdhViewerDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              }}
+            >
+              <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {bdhViewerDoc.name}</span>
+              {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '8px', padding: '1px 7px', fontSize: '10px', flexShrink: 0 }}>{bdhViewerDoc.category}</span>}
+              <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
-            {/* Title */}
+            {/* Doc title */}
             {bdhViewerDoc.title && (
-              <div style={{ padding: '10px 20px 6px', background: lightMode ? '#f8fafc' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0 }}>
-                <div style={{ color: lightMode ? '#1e40af' : '#60a5fa', fontSize: '15px', fontWeight: 'bold' }}>{bdhViewerDoc.title}</div>
+              <div style={{ padding: '5px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0 }}>
+                <span style={{ color: lightMode ? '#1e40af' : '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>{bdhViewerDoc.title}</span>
               </div>
             )}
             {/* Items */}
-            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px' }}>
-              {(bdhViewerDoc.items || []).map((item: any, idx: number) => {
-                const isChecked = !!bdhChecked[item.id ?? idx];
+            <div style={{ overflowY: 'auto', flex: 1, padding: '6px 8px' }}>
+              {groups.map((group, gi) => {
+                const hKey = group.header ? String(group.header.id ?? `h${gi}`) : '__top__';
+                const isCollapsed = !!bdhCollapsed[hKey];
                 return (
-                  <div key={item.id ?? idx}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '6px', marginBottom: '6px', background: isChecked ? (lightMode ? '#f1f5f9' : '#1e293b') : (lightMode ? '#f8fafc' : '#131f35'), border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, transition: 'all 0.15s', opacity: isChecked ? 0.45 : 1 }}>
-                    <input type="checkbox" checked={isChecked}
-                      onChange={() => setBdhChecked(prev => ({ ...prev, [item.id ?? idx]: !isChecked }))}
-                      style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
-                    />
-                    <div style={{ flex: 1, color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '14px', lineHeight: '1.6', direction: 'rtl' }}
-                      dangerouslySetInnerHTML={{ __html: item.content || `<span style="color:#475569;font-style:italic">סעיף ${idx + 1}</span>` }}
-                    />
+                  <div key={hKey} style={{ marginBottom: '4px' }}>
+                    {group.header && (
+                      <div
+                        onClick={() => setBdhCollapsed(prev => ({ ...prev, [hKey]: !isCollapsed }))}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e3a5f', borderRadius: '5px', cursor: 'pointer', marginBottom: '3px', userSelect: 'none' }}
+                      >
+                        <span style={{ fontSize: '10px', color: '#94a3b8', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', display: 'inline-block', transition: 'transform 0.15s' }}>▼</span>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#93c5fd', flex: 1 }}
+                          dangerouslySetInnerHTML={{ __html: group.header.content || 'כותרת' }} />
+                      </div>
+                    )}
+                    {!isCollapsed && group.items.map((item: any, idx: number) => {
+                      const isChecked = !!bdhChecked[item.id ?? `${gi}-${idx}`];
+                      return (
+                        <div key={item.id ?? `${gi}-${idx}`}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', padding: '5px 8px', borderRadius: '4px', marginBottom: '3px', background: isChecked ? (lightMode ? '#f1f5f9' : '#1e293b') : (lightMode ? '#f8fafc' : '#131f35'), border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, opacity: isChecked ? 0.45 : 1, transition: 'opacity 0.15s' }}>
+                          <input type="checkbox" checked={isChecked}
+                            onChange={() => setBdhChecked(prev => ({ ...prev, [item.id ?? `${gi}-${idx}`]: !isChecked }))}
+                            style={{ marginTop: '2px', width: '13px', height: '13px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
+                          />
+                          <div style={{ flex: 1, color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', lineHeight: '1.5', direction: 'rtl' }}
+                            dangerouslySetInnerHTML={{ __html: item.content || '' }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
-              {(bdhViewerDoc.items || []).length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '20px 0', fontSize: '13px' }}>אין סעיפים</div>}
+              {allItems.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '16px 0', fontSize: '12px' }}>אין סעיפים</div>}
             </div>
             {/* Footer */}
-            <div style={{ padding: '10px 20px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0f172a' }}>
-              <span style={{ color: '#64748b', fontSize: '11px' }}>
-                {(bdhViewerDoc.items || []).filter((_: any, i: number) => bdhChecked[bdhViewerDoc.items[i]?.id ?? i]).length} / {(bdhViewerDoc.items || []).length} סומנו
-              </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => { const all: Record<number, boolean> = {}; (bdhViewerDoc.items || []).forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>✓ סמן הכל</button>
-                <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
-                <button onClick={() => setBdhViewerDoc(null)} style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', padding: '5px 14px', cursor: 'pointer', fontSize: '12px' }}>סגור</button>
+            <div style={{ padding: '6px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
+              <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
+              <div style={{ display: 'flex', gap: '5px' }}>
+                <button onClick={() => { const all: Record<string, boolean> = {}; regularItems.forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
+                <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Serials Panel Modal */}
       {showSerialsPanel && (
@@ -12808,14 +12857,14 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
             const openEditBdh = (doc: any) => {
               setBdhForm({ name: doc.name, category: doc.category || '', title: doc.title || '' });
-              setBdhItemsEdit((doc.items || []).map((item: any, idx: number) => ({ id: item.id, content: item.content, _key: item.id + idx })));
+              setBdhItemsEdit((doc.items || []).map((item: any, idx: number) => ({ id: item.id, content: item.content, is_header: !!item.is_header, _key: item.id + idx })));
               setEditingBdh(doc);
             };
 
             const saveBdh = async () => {
               if (!bdhForm.name.trim()) return;
               if (editingBdh._new) {
-                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content })) }) });
+                const res = await fetch(`${API_URL}/bdh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bdhForm.name, category: bdhForm.category, title: bdhForm.title, created_by: crewMember?.id ?? null, items: bdhItemsEdit.map(i => ({ content: i.content, is_header: !!i.is_header })) }) });
                 const newDoc = await res.json();
                 setBdhDocs(prev => [...prev, { ...newDoc, items: bdhItemsEdit.map((it, idx) => ({ ...it, id: idx })) }]);
               } else {
@@ -12825,8 +12874,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 for (const ei of (editingBdh.items || [])) { if (!editIds.has(ei.id)) await fetch(`${API_URL}/bdh-items/${ei.id}`, { method: 'DELETE' }); }
                 for (let idx = 0; idx < bdhItemsEdit.length; idx++) {
                   const item = bdhItemsEdit[idx];
-                  if (item.id && existingIds.has(item.id)) await fetch(`${API_URL}/bdh-items/${item.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, order_index: idx }) });
-                  else await fetch(`${API_URL}/bdh/${editingBdh.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, order_index: idx }) });
+                  if (item.id && existingIds.has(item.id)) await fetch(`${API_URL}/bdh-items/${item.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, is_header: !!item.is_header, order_index: idx }) });
+                  else await fetch(`${API_URL}/bdh/${editingBdh.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: item.content, is_header: !!item.is_header, order_index: idx }) });
                 }
               }
               await loadData();
@@ -12877,34 +12926,52 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       <input value={bdhForm.title} onChange={e => setBdhForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
                     </div>
 
-                    {/* Items */}
+                    {/* Items — compact table */}
                     <div style={{ marginBottom: '14px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <label style={labelStyle}>סעיפים</label>
-                        <button onClick={() => setBdhItemsEdit(prev => [...prev, { content: '', _key: Date.now() + Math.random() }])}
-                          style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>+ הוסף סעיף</button>
-                      </div>
-                      {bdhItemsEdit.map((item, idx) => (
-                        <div key={item._key} style={{ marginBottom: '6px', border: '1px solid #334155', borderRadius: '5px', overflow: 'hidden' }}>
-                          <div style={{ background: '#0f172a', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '2px', borderBottom: '1px solid #1e293b' }}>
-                            <span style={{ color: '#475569', fontSize: '10px', fontWeight: 'bold' }}>#{idx + 1}</span>
-                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('bold'); }} title="מודגש" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px', padding: '1px 4px' }}>B</button>
-                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('italic'); }} title="נטוי" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontStyle: 'italic', fontSize: '12px', padding: '1px 4px' }}>I</button>
-                            <button onMouseDown={e => { e.preventDefault(); document.execCommand('underline'); }} title="קו תחתון" style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', textDecoration: 'underline', fontSize: '12px', padding: '1px 4px' }}>U</button>
-                            <div style={{ flex: 1 }} />
-                            {idx > 0 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '11px' }}>↑</button>}
-                            {idx < bdhItemsEdit.length - 1 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '11px' }}>↓</button>}
-                            <button onClick={() => setBdhItemsEdit(prev => prev.filter((_, i) => i !== idx))} style={{ background: '#450a0a', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', borderRadius: '3px' }}>✕</button>
-                          </div>
-                          <div
-                            contentEditable suppressContentEditableWarning
-                            onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
-                            dangerouslySetInnerHTML={{ __html: item.content }}
-                            style={{ padding: '7px 10px', color: 'white', fontSize: '13px', minHeight: '34px', outline: 'none', direction: 'rtl', lineHeight: '1.6', background: '#131f35' }}
-                          />
+                        <label style={labelStyle}>סעיפים וכותרות</label>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={() => setBdhItemsEdit(prev => [...prev, { content: '', is_header: true, _key: Date.now() + Math.random() }])}
+                            style={{ background: '#1e3a5f', color: '#93c5fd', border: '1px solid #334155', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>+ כותרת</button>
+                          <button onClick={() => setBdhItemsEdit(prev => [...prev, { content: '', is_header: false, _key: Date.now() + Math.random() }])}
+                            style={{ background: '#14432a', color: '#86efac', border: '1px solid #166534', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>+ סעיף</button>
                         </div>
-                      ))}
-                      {bdhItemsEdit.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '10px 0' }}>לחץ "+ הוסף סעיף" להוספת תוכן</div>}
+                      </div>
+                      {/* Table header */}
+                      {bdhItemsEdit.length > 0 && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '22px 1fr 52px 44px', gap: '0', background: '#0c1626', borderRadius: '4px 4px 0 0', borderBottom: '1px solid #334155', padding: '2px 4px' }}>
+                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>#</span>
+                          <span style={{ color: '#475569', fontSize: '9px' }}>תוכן</span>
+                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>עיצוב</span>
+                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>פעולות</span>
+                        </div>
+                      )}
+                      <div style={{ border: bdhItemsEdit.length > 0 ? '1px solid #334155' : 'none', borderTop: 'none', borderRadius: '0 0 4px 4px', overflow: 'hidden' }}>
+                        {bdhItemsEdit.map((item, idx) => (
+                          <div key={item._key} style={{ display: 'grid', gridTemplateColumns: '22px 1fr 52px 44px', gap: '0', alignItems: 'center', background: item.is_header ? '#1e3a5f' : (idx % 2 === 0 ? '#0f172a' : '#0c1626'), borderBottom: idx < bdhItemsEdit.length - 1 ? '1px solid #1e293b' : 'none', minHeight: '28px' }}>
+                            <span style={{ color: item.is_header ? '#93c5fd' : '#475569', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', padding: '2px 0', flexShrink: 0 }}>{item.is_header ? 'H' : idx + 1}</span>
+                            <div
+                              contentEditable suppressContentEditableWarning
+                              onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
+                              dangerouslySetInnerHTML={{ __html: item.content }}
+                              style={{ padding: '4px 6px', color: item.is_header ? '#93c5fd' : 'white', fontSize: item.is_header ? '12px' : '12px', fontWeight: item.is_header ? 'bold' : 'normal', minHeight: '24px', outline: 'none', direction: 'rtl', lineHeight: '1.5', background: 'transparent', width: '100%', boxSizing: 'border-box' as const }}
+                            />
+                            <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', padding: '0 2px' }}>
+                              {!item.is_header && <>
+                                <button onMouseDown={e => { e.preventDefault(); document.execCommand('bold'); }} title="B" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 'bold', fontSize: '10px', padding: '1px 3px' }}>B</button>
+                                <button onMouseDown={e => { e.preventDefault(); document.execCommand('italic'); }} title="I" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontStyle: 'italic', fontSize: '10px', padding: '1px 3px' }}>I</button>
+                                <button onMouseDown={e => { e.preventDefault(); document.execCommand('underline'); }} title="U" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', textDecoration: 'underline', fontSize: '10px', padding: '1px 3px' }}>U</button>
+                              </>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', padding: '0 2px' }}>
+                              {idx > 0 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>↑</button>}
+                              {idx < bdhItemsEdit.length - 1 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>↓</button>}
+                              <button onClick={() => setBdhItemsEdit(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '1px 3px' }}>✕</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {bdhItemsEdit.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '10px 0' }}>לחץ "+ כותרת" או "+ סעיף" להוספת תוכן</div>}
                     </div>
 
                     {/* Preset assignment */}
