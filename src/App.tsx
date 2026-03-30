@@ -3865,15 +3865,17 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         const bAltLo = b.alt_from * 100;
         const topPct = altPct(bAltHi);
         const botPct = altPct(bAltLo);
-        const h = Math.max(botPct - topPct, 1);
         if (topPct > 102 || botPct < -2) return null;
+        const displayTop = Math.max(topPct, 0);
+        const displayBot = Math.min(botPct, 102);
+        const h = Math.max(displayBot - displayTop, 1);
         return (
           <div key={b.id} style={{
             position: 'absolute', left: 0, right: 0,
-            top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+            top: `${displayTop}%`, height: `${h}%`,
             background: b.color ? b.color + '22' : 'rgba(99,102,241,0.1)',
-            borderTop: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
-            borderBottom: `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}`,
+            borderTop: topPct >= 0 ? `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}` : undefined,
+            borderBottom: botPct <= 102 ? `1px solid ${b.color ? b.color + '88' : 'rgba(99,102,241,0.4)'}` : undefined,
             pointerEvents: 'none', zIndex: 0
           }} />
         );
@@ -3977,12 +3979,14 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         const bAltLo = b.alt_from * 100;
         const topPct = altPct(bAltHi);
         const botPct = altPct(bAltLo);
-        const h = Math.max(botPct - topPct, 2);
         if (topPct > 102 || botPct < -2) return null;
+        const displayTop = Math.max(topPct, 0);
+        const displayBot = Math.min(botPct, 102);
+        const h = Math.max(displayBot - displayTop, 2);
         return (
           <div key={b.id} title={b.mission || `${b.alt_from}–${b.alt_to}`} style={{
             position: 'absolute', left: 0, right: 0,
-            top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+            top: `${displayTop}%`, height: `${h}%`,
             background: b.color ? b.color + '55' : 'rgba(99,102,241,0.3)',
             borderLeft: `3px solid ${b.color || '#6366f1'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
@@ -4069,17 +4073,18 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {/* Block range bands on Y-axis — hide in legend mode (legend shown in header instead) */}
             {effectiveShowBlocks && !useLegendMode && relevantBlocks.map((b: any) => {
-              // convert block altitude to chart units (blocks use "hundreds of feet" like alt field)
               const bAltHi = b.alt_to * 100;
               const bAltLo = b.alt_from * 100;
               const topPct = altPct(bAltHi);
               const botPct = altPct(bAltLo);
-              const h = Math.max(botPct - topPct, 2);
               if (topPct > 102 || botPct < -2) return null;
+              const displayTop = Math.max(topPct, 0);
+              const displayBot = Math.min(botPct, 102);
+              const h = Math.max(displayBot - displayTop, 2);
               return (
                 <div key={b.id} title={b.mission || `${b.alt_from}–${b.alt_to}`} style={{
                   position: 'absolute', left: 0, right: 0,
-                  top: `${Math.max(topPct, 0)}%`, height: `${h}%`,
+                  top: `${displayTop}%`, height: `${h}%`,
                   background: b.color ? b.color + '55' : 'rgba(99,102,241,0.3)',
                   borderLeft: `3px solid ${b.color || '#6366f1'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
@@ -8271,7 +8276,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
-                        const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => a.alt_from - b.alt_from);
+                        const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => b.alt_from - a.alt_from);
                         const isActiveBt = activeBlockTableId === bt.id;
                         return (
                           <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${isActiveBt ? '#f97316' : (lightMode ? '#c7d2fe' : '#3730a3')}`, borderRadius: '6px', overflow: 'hidden' }}>
