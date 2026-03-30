@@ -417,6 +417,16 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by TEXT`);
   await pool.query(`ALTER TABLE strip_serial_selections ADD COLUMN IF NOT EXISTS acted_by_workstation TEXT`);
 
+  // Per-serial dismissals (tracks which specific serials were marked "not relevant" per strip)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_serial_dismissals (
+      strip_id INTEGER NOT NULL,
+      serial_id INTEGER NOT NULL REFERENCES serials(id) ON DELETE CASCADE,
+      dismissed_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (strip_id, serial_id)
+    )
+  `);
+
   // --- Block Spaces & Block Tables ---
   await pool.query(`
     CREATE TABLE IF NOT EXISTS block_spaces (
@@ -2261,6 +2271,42 @@ app.delete('/api/strip-serial-selections', async (req, res) => {
     await pool.query('DELETE FROM strip_serial_selections WHERE strip_id=$1 AND control_station=$2', [strip_id, control_station]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete strip serial selection' }); }
+});
+
+// --- Strip Serial Dismissals API (per-serial "not relevant" per strip) ---
+app.get('/api/strip-serial-dismissals', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ssd.strip_id, ssd.serial_id, ssd.dismissed_at, s.serial_number, s.control_station
+      FROM strip_serial_dismissals ssd
+      LEFT JOIN serials s ON ssd.serial_id = s.id
+      ORDER BY ssd.dismissed_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch strip serial dismissals' }); }
+});
+
+app.post('/api/strip-serial-dismissals', async (req, res) => {
+  try {
+    const { strip_id: rawStripId, serial_id } = req.body;
+    const strip_id = parseInt(String(rawStripId).replace(/^s/, ''), 10);
+    if (isNaN(strip_id) || !serial_id) return res.status(400).json({ error: 'Invalid params' });
+    await pool.query(
+      'INSERT INTO strip_serial_dismissals (strip_id, serial_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [strip_id, serial_id]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to save dismissal' }); }
+});
+
+app.delete('/api/strip-serial-dismissals', async (req, res) => {
+  try {
+    const { strip_id: rawStripId, serial_id } = req.body;
+    const strip_id = parseInt(String(rawStripId).replace(/^s/, ''), 10);
+    if (isNaN(strip_id) || !serial_id) return res.status(400).json({ error: 'Invalid params' });
+    await pool.query('DELETE FROM strip_serial_dismissals WHERE strip_id=$1 AND serial_id=$2', [strip_id, serial_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to remove dismissal' }); }
 });
 
 // --- Block Spaces API ---

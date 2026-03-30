@@ -4701,6 +4701,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [serialPopupKnownUntilId, setSerialPopupKnownUntilId] = useState<string | null>(null);
   const [serialPopupNotRelevantIds, setSerialPopupNotRelevantIds] = useState<string[]>([]);
   const [serialPopupWasDismissedId, setSerialPopupWasDismissedId] = useState<string | null>(null);
+  // Tracks the dismissals that were already in DB when the popup was opened (to diff on save)
+  const [serialPopupInitialNotRelevantIds, setSerialPopupInitialNotRelevantIds] = useState<string[]>([]);
   const [tableDragRow, setTableDragRow] = useState<string | null>(null);
   const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
@@ -4782,19 +4784,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Serials state
   const [serials, setSerials] = useState<any[]>([]);
   const [stripSerialSelections, setStripSerialSelections] = useState<any[]>([]);
+  const [stripSerialDismissals, setStripSerialDismissals] = useState<any[]>([]);
   const [showSerialsPanel, setShowSerialsPanel] = useState(false);
   const [livePresetConfig, setLivePresetConfig] = useState<any | null>(null);
 
   const loadSerials = async () => {
     try {
-      const [sRes, selRes] = await Promise.all([
+      const [sRes, selRes, disRes] = await Promise.all([
         fetch(`${API_URL}/serials`),
         fetch(`${API_URL}/strip-serial-selections`),
+        fetch(`${API_URL}/strip-serial-dismissals`),
       ]);
       if (sRes.ok) setSerials(await sRes.json());
       if (selRes.ok) {
         const selData = await selRes.json();
         setStripSerialSelections(selData.map((sel: any) => ({ ...sel, strip_id: 's' + sel.strip_id })));
+      }
+      if (disRes.ok) {
+        const disData = await disRes.json();
+        setStripSerialDismissals(disData.map((d: any) => ({ ...d, strip_id: 's' + d.strip_id })));
       }
     } catch {}
   };
@@ -4833,6 +4841,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ strip_id: stripId, control_station: controlStation }),
       });
       setStripSerialSelections(prev => prev.filter(x => !(x.strip_id === stripId && x.control_station === controlStation)));
+    } catch {}
+  };
+
+  // Save a specific serial as "not relevant" for this strip (persists in strip_serial_dismissals)
+  const handleSerialDismissSpecific = async (stripId: string | number, serialId: number) => {
+    try {
+      await fetch(`${API_URL}/strip-serial-dismissals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: stripId, serial_id: serialId }),
+      });
+      const sidStr = String(stripId);
+      setStripSerialDismissals(prev => {
+        const exists = prev.find(d => String(d.strip_id) === sidStr && d.serial_id === serialId);
+        if (exists) return prev;
+        return [...prev, { strip_id: sidStr, serial_id: serialId, dismissed_at: new Date().toISOString() }];
+      });
+    } catch {}
+  };
+
+  // Remove a specific "not relevant" dismissal for this strip
+  const handleSerialUndismissSpecific = async (stripId: string | number, serialId: number) => {
+    try {
+      await fetch(`${API_URL}/strip-serial-dismissals`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: stripId, serial_id: serialId }),
+      });
+      const sidStr = String(stripId);
+      setStripSerialDismissals(prev => prev.filter(d => !(String(d.strip_id) === sidStr && d.serial_id === serialId)));
     } catch {}
   };
 
@@ -6229,9 +6267,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {recentSerials.length === 0 ? (
                     <div style={{ color: '#475569', fontSize: '11px', padding: '6px 0', textAlign: 'center' }}>אין ספרורים</div>
                   ) : (() => {
-                    const knownUntilSerial = serialPopupKnownUntilId ? recentSerials.find((sr: any) => sr.id === serialPopupKnownUntilId) : null;
+                    const knownUntilSerial = serialPopupKnownUntilId ? recentSerials.find((sr: any) => String(sr.id) === String(serialPopupKnownUntilId)) : null;
                     const knownUntilNum = knownUntilSerial ? knownUntilSerial.serial_number : null;
-                    const hasActions = serialPopupKnownUntilId || serialPopupNotRelevantIds.length > 0 || (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId));
+                    // Detect any change vs initial state
+                    const notRelChanged = serialPopupNotRelevantIds.some(id => !serialPopupInitialNotRelevantIds.includes(id)) ||
+                      serialPopupInitialNotRelevantIds.some(id => !serialPopupNotRelevantIds.includes(id));
+                    const hasActions = !!(serialPopupKnownUntilId || notRelChanged);
                     return (
                       <>
                         {/* כפתור אשר — למעלה */}
@@ -6239,18 +6280,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <button
                             disabled={!hasActions}
                             onClick={async () => {
+                              // Save selected serial (הועבר לפ"מ)
                               if (serialPopupKnownUntilId) {
                                 await handleSerialSelect(stripId, station, Number(serialPopupKnownUntilId), false);
                               }
+                              // Save newly-dismissed serials (in current but not in initial)
                               for (const notRelId of serialPopupNotRelevantIds) {
-                                await handleSerialDismiss(stripId, station, Number(notRelId));
+                                if (!serialPopupInitialNotRelevantIds.includes(notRelId)) {
+                                  await handleSerialDismissSpecific(stripId, Number(notRelId));
+                                }
                               }
-                              // Undo dismiss: was dismissed but user removed it without a replacement action
-                              if (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId) && !serialPopupKnownUntilId) {
-                                await handleSerialSelect(stripId, station, null, false);
+                              // Remove un-dismissed serials (in initial but removed by user)
+                              for (const initId of serialPopupInitialNotRelevantIds) {
+                                if (!serialPopupNotRelevantIds.includes(initId)) {
+                                  await handleSerialUndismissSpecific(stripId, Number(initId));
+                                }
                               }
                               setSerialPopupKnownUntilId(null);
                               setSerialPopupNotRelevantIds([]);
+                              setSerialPopupInitialNotRelevantIds([]);
                               setSerialPopupWasDismissedId(null);
                               setTableSerialViewPopup(null);
                             }}
@@ -6263,20 +6311,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
 
                         {recentSerials.map((sr: any) => {
-                          const isDismissedSerial = mySelection?.dismissed && mySelection?.serial_id === sr.id && serialPopupNotRelevantIds.includes(sr.id);
-                          const isAlreadyKnown = !mySelection?.dismissed && mySerial && sr.serial_number <= mySerial.serial_number && sr.id !== serialPopupKnownUntilId;
+                          // isDismissedSerial = currently marked as "not relevant" in this popup session
+                          const isAlreadyKnown = mySerial && sr.serial_number <= mySerial.serial_number && String(sr.id) !== serialPopupKnownUntilId;
                           const isLatest = latestSerial?.id === sr.id;
                           const disabledByKnownUntil = knownUntilNum !== null && sr.serial_number < knownUntilNum;
-                          const isKnownUntilChecked = serialPopupKnownUntilId === sr.id;
-                          const isNotRelevantChecked = serialPopupNotRelevantIds.includes(sr.id);
-                          const rowDisabled = disabledByKnownUntil || isDismissedSerial || isAlreadyKnown;
+                          const isKnownUntilChecked = serialPopupKnownUntilId === String(sr.id);
+                          const isNotRelevantChecked = serialPopupNotRelevantIds.includes(String(sr.id));
+                          const isDismissedSerial = isNotRelevantChecked;
+                          // Row is disabled for interaction if below the selected threshold or already confirmed
+                          const rowDisabled = disabledByKnownUntil || isAlreadyKnown;
 
                           let rowBg = '#0f172a';
                           let rowBorder = '#1e293b';
                           if (isDismissedSerial) { rowBg = '#3b0000'; rowBorder = '#7f1d1d'; }
                           else if (isAlreadyKnown) { rowBg = '#14432a'; rowBorder = '#166534'; }
                           else if (isKnownUntilChecked) { rowBg = '#1a3a2a'; rowBorder = '#22c55e'; }
-                          else if (isNotRelevantChecked) { rowBg = '#2a1010'; rowBorder = '#ef4444'; }
                           else if (isLatest) { rowBg = '#1e3a5f'; rowBorder = '#1d4ed8'; }
                           else if (disabledByKnownUntil) { rowBg = '#0c1a10'; rowBorder = '#1e3a1f'; }
 
@@ -6289,27 +6338,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, minWidth: '70px' }}>
                                   <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', direction: 'rtl' }}>
                                     <input type="checkbox" checked={isKnownUntilChecked}
-                                      onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(sr.id); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== sr.id)); } else { setSerialPopupKnownUntilId(null); } }}
+                                      onChange={e => { if (e.target.checked) { setSerialPopupKnownUntilId(String(sr.id)); setSerialPopupNotRelevantIds(prev => prev.filter(id => id !== String(sr.id))); } else { setSerialPopupKnownUntilId(null); } }}
                                       style={{ width: '13px', height: '13px', cursor: 'pointer', accentColor: '#22c55e', margin: 0, flexShrink: 0 }} />
                                     <span style={{ fontSize: '9px', color: '#86efac', whiteSpace: 'nowrap' }}>הועבר לפ"מ</span>
                                   </label>
                                   <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', direction: 'rtl' }}>
                                     <input type="checkbox" checked={isNotRelevantChecked} disabled={isKnownUntilChecked}
-                                      onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, sr.id] : prev.filter(id => id !== sr.id)); }}
+                                      onChange={e => { setSerialPopupNotRelevantIds(prev => e.target.checked ? [...prev, String(sr.id)] : prev.filter(id => id !== String(sr.id))); }}
                                       style={{ width: '13px', height: '13px', cursor: isKnownUntilChecked ? 'not-allowed' : 'pointer', accentColor: '#ef4444', margin: 0, opacity: isKnownUntilChecked ? 0.4 : 1, flexShrink: 0 }} />
                                     <span style={{ fontSize: '9px', color: isKnownUntilChecked ? '#475569' : '#fca5a5', whiteSpace: 'nowrap' }}>לא רלוונטי</span>
                                   </label>
-                                </div>
-                              ) : isDismissedSerial ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
-                                  <button onClick={async () => { await handleSerialSelect(stripId, station, Number(sr.id), false); setTableSerialViewPopup(null); }}
-                                    style={{ fontSize: '9px', padding: '2px 6px', background: '#166534', color: '#4ade80', border: 'none', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
-                                    ✓ הועבר לפ"מ
-                                  </button>
-                                  <button onClick={async () => { await handleSerialSelect(stripId, station, null, false); setTableSerialViewPopup(null); }}
-                                    style={{ fontSize: '9px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                    בטל סימון
-                                  </button>
                                 </div>
                               ) : (
                                 <div style={{ width: '14px', flexShrink: 0 }} />
@@ -7106,15 +7144,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             const latestSerial = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const mySelection = mySelections.find((sel: any) => sel.control_station === station);
                             const mySerial = mySelection?.serial_id ? relevantSerials.find((sr: any) => sr.id === mySelection.serial_id) : null;
-                            const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id && !mySelection?.dismissed;
+                            const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id;
+                            // Check for dismissed serials newer than selected (new model)
+                            const stationSrIds2 = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === station).map((sr: any) => sr.id));
+                            const stationDismissals2 = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds2.has(d.serial_id));
+                            const hasDismissalWarning = stationDismissals2.some(d => {
+                              const dSerial = relevantSerials.find((sr: any) => sr.id === d.serial_id);
+                              return dSerial && (!mySerial || dSerial.serial_number > mySerial.serial_number);
+                            });
                             return (
                               <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: '11px' }}>
                                 <span style={{ color: lightMode ? '#475569' : '#94a3b8', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
-                                <span style={{ color: isOutdated ? '#dc2626' : (lightMode ? '#374151' : '#e2e8f0'), fontWeight: isOutdated ? 'bold' : 'normal', flex: 1 }}>
-                                  {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : ''}` : (mySelection?.dismissed ? 'לא רלוונטי' : '—')}
+                                <span style={{ color: isOutdated ? '#dc2626' : hasDismissalWarning ? '#f97316' : (lightMode ? '#374151' : '#e2e8f0'), fontWeight: (isOutdated || hasDismissalWarning) ? 'bold' : 'normal', flex: 1 }}>
+                                  {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : hasDismissalWarning ? ' 🚫' : ''}` : (hasDismissalWarning ? '🚫 לא רלוונטי' : '—')}
                                 </span>
                                 <button
-                                  onClick={e => { e.stopPropagation(); const ex = stripSerialSelections.find((se: any) => se.strip_id === s.id && se.control_station === station); if (ex?.dismissed && ex?.serial_id) { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([ex.serial_id]); setSerialPopupWasDismissedId(ex.serial_id); } else if (ex?.serial_id) { setSerialPopupKnownUntilId(ex.serial_id); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } else { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
+                                  onClick={e => { e.stopPropagation(); const ex = stripSerialSelections.find((se: any) => se.strip_id === s.id && se.control_station === station); const knownUntilId = (!ex?.dismissed && ex?.serial_id) ? String(ex.serial_id) : null; const stationSrIds = new Set((relevantSerials as any[]).filter(sr => sr.control_station === station).map(sr => sr.id)); const initDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id)).map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station, stripId: s.id }); }}
                                   style={{ background: '#0f172a', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
                                   title="פתח לתצוגת ספרור"
                                 >📋</button>
@@ -7135,12 +7180,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {mySelections.map((sel: any) => {
                             const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
-                            const isDismissed = sel.dismissed;
                             const selSerial = sel.serial_id ? relevantSerials.find((sr: any) => sr.id === sel.serial_id) : null;
-                            const isOutdated = !isDismissed && selSerial && latest && latest.id !== sel.serial_id;
+                            const isOutdated = selSerial && latest && latest.id !== sel.serial_id;
                             const displayNum = selSerial?.serial_number ?? latest?.serial_number ?? '?';
-                            const isDismissedLatest = isDismissed && (!selSerial || !latest || selSerial.serial_number >= latest.serial_number);
-                            const isDismissedOlder = isDismissed && selSerial && latest && selSerial.serial_number < latest.serial_number;
+                            // Check if any dismissed serials for this strip+station are newer than selected
+                            const stationSrIds = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === sel.control_station).map((sr: any) => sr.id));
+                            const stationDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id));
+                            const hasNewerDismissals = stationDismissals.some(d => {
+                              const dSerial = relevantSerials.find((sr: any) => sr.id === d.serial_id);
+                              return dSerial && (!selSerial || dSerial.serial_number > selSerial.serial_number);
+                            });
                             return (
                               <div key={sel.control_station}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -7149,7 +7198,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     {sel.control_station} – ספרור #{displayNum}
                                   </span>
                                   <button
-                                    onClick={e => { e.stopPropagation(); if (sel.dismissed && sel.serial_id) { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([sel.serial_id]); setSerialPopupWasDismissedId(sel.serial_id); } else if (sel.serial_id) { setSerialPopupKnownUntilId(sel.serial_id); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } else { setSerialPopupKnownUntilId(null); setSerialPopupNotRelevantIds([]); setSerialPopupWasDismissedId(null); } setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
+                                    onClick={e => { e.stopPropagation(); const knownUntilId = (!sel.dismissed && sel.serial_id) ? String(sel.serial_id) : null; const initDismissals = stationDismissals.map(d => String(d.serial_id)); setSerialPopupKnownUntilId(knownUntilId); setSerialPopupNotRelevantIds(initDismissals); setSerialPopupInitialNotRelevantIds(initDismissals); setSerialPopupWasDismissedId(null); setTableSerialViewPopup({ x: e.clientX, y: e.clientY, station: sel.control_station, stripId: s.id }); }}
                                     style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, flexShrink: 0 }}
                                     title="פתח לתצוגת ספרור"
                                   >📋</button>
@@ -7157,11 +7206,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {isOutdated && (
                                   <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>קיימים ספרורים יותר עדכניים לא רלוונטים</div>
                                 )}
-                                {isDismissedLatest && (
-                                  <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#78350f', marginTop: '1px' }}>🚫 ספרור לא רלוונטי — לא הועבר לפ"מ</div>
-                                )}
-                                {isDismissedOlder && (
-                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>🚫 קיימים ספרורים יותר עדכניים לא רלוונטים</div>
+                                {!isOutdated && hasNewerDismissals && (
+                                  <div style={{ fontSize: '9px', color: '#f97316', marginTop: '1px' }}>🚫 קיימים ספרורים עדכניים לא רלוונטים</div>
                                 )}
                               </div>
                             );
