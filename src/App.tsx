@@ -6133,12 +6133,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* כפתור ספרורים */}
           {(() => {
             const myStripIds = new Set(myTableStrips.map(s => s.id));
+            // Alert only when a newer serial exists that was neither selected (הועבר לפ"מ) nor dismissed (לא רלוונטי)
             const hasSerialAlerts = stripSerialSelections.some(sel => {
               if (sel.dismissed) return false;
               if (!myStripIds.has(sel.strip_id)) return false;
               if (relevantControlStations && !relevantControlStations.includes(sel.control_station)) return false;
-              const latestForStation = relevantSerials.filter(sr => sr.control_station === sel.control_station).sort((a,b) => b.serial_number - a.serial_number)[0];
-              return latestForStation && sel.serial_id && latestForStation.id !== sel.serial_id;
+              const selSerial = sel.serial_id ? relevantSerials.find(sr => sr.id === sel.serial_id) : null;
+              if (!selSerial) return false;
+              // Serials dismissed for this specific strip
+              const dismissedForStrip = new Set(
+                (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(sel.strip_id)).map(d => d.serial_id)
+              );
+              // Alert only if there's a newer serial that was not selected and not dismissed
+              return relevantSerials.some(sr =>
+                sr.control_station === sel.control_station &&
+                sr.serial_number > selSerial.serial_number &&
+                !dismissedForStrip.has(sr.id)
+              );
             });
             return (
               <button
