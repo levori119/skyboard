@@ -8353,6 +8353,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const isOpen = aidExpandedIds.has(btKey);
                         const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => b.alt_from - a.alt_from);
                         const isActiveBt = activeBlockTableId === bt.id;
+                        const btSpaceName = dashboardBlockSpaces.find((bs: any) => Number(bs.id) === Number(bt.block_space_id))?.name;
                         return (
                           <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${isActiveBt ? '#f97316' : (lightMode ? '#c7d2fe' : '#3730a3')}`, borderRadius: '6px', overflow: 'hidden' }}>
                             <button
@@ -8360,7 +8361,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               onContextMenu={e => { e.preventDefault(); setBtCtxMenu({ btId: bt.id, x: e.clientX, y: e.clientY }); }}
                               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: isActiveBt ? (lightMode ? '#fff7ed' : '#431407') : (lightMode ? '#e0e7ff' : '#1e1b4b'), border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
                               <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
-                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</span>
+                              <div style={{ flex: 1, overflow: 'hidden', textAlign: 'right', minWidth: 0 }}>
+                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</div>
+                                {btSpaceName && <div style={{ fontSize: '9px', fontWeight: 'normal', color: isActiveBt ? '#fb923c' : (lightMode ? '#6366f1' : '#818cf8'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btSpaceName}</div>}
+                              </div>
                               {isActiveBt && <span style={{ fontSize: '9px', flexShrink: 0, color: '#f97316' }}>★</span>}
                               <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
                             </button>
