@@ -335,6 +335,32 @@ async function initDb() {
     )
   `);
 
+  // Work group admin + notes
+  await pool.query(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS admin_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS work_group_notes (
+      id SERIAL PRIMARY KEY,
+      work_group_id INTEGER NOT NULL REFERENCES work_groups(id) ON DELETE CASCADE,
+      title VARCHAR(200) DEFAULT '',
+      content TEXT DEFAULT '',
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_by_name VARCHAR(100) DEFAULT ''
+    )
+  `);
+
+  // Preset links
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS preset_links (
+      id SERIAL PRIMARY KEY,
+      preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      url TEXT NOT NULL DEFAULT '',
+      name VARCHAR(200) NOT NULL DEFAULT '',
+      category VARCHAR(100) DEFAULT '',
+      note TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+
   // Sticky Notes
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sticky_notes (
@@ -1872,6 +1898,66 @@ app.get('/api/work-groups', async (req, res) => {
   }
 });
 
+app.get('/api/work-group-notes/for-preset/:presetId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT wgn.*, wg.name as group_name, wg.admin_preset_id
+      FROM work_group_notes wgn
+      JOIN work_groups wg ON wg.id = wgn.work_group_id
+      JOIN work_group_members wgm ON wgm.work_group_id = wg.id
+      WHERE wgm.preset_id = $1
+      ORDER BY wg.name, wgn.id
+    `, [req.params.presetId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+app.get('/api/work-groups/:id/notes', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM work_group_notes WHERE work_group_id=$1 ORDER BY id`, [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notes' });
+  }
+});
+
+app.post('/api/work-groups/:id/notes', async (req, res) => {
+  try {
+    const { title, content, updated_by_name } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO work_group_notes (work_group_id, title, content, updated_by_name, updated_at) VALUES ($1,$2,$3,$4,NOW()) RETURNING *`,
+      [req.params.id, title || '', content || '', updated_by_name || '']
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create note' });
+  }
+});
+
+app.put('/api/work-group-notes/:id', async (req, res) => {
+  try {
+    const { title, content, updated_by_name } = req.body;
+    await pool.query(
+      `UPDATE work_group_notes SET title=$1, content=$2, updated_by_name=$3, updated_at=NOW() WHERE id=$4`,
+      [title || '', content || '', updated_by_name || '', req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update note' });
+  }
+});
+
+app.delete('/api/work-group-notes/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM work_group_notes WHERE id=$1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
 app.post('/api/work-groups', async (req, res) => {
   try {
     const { name } = req.body;
@@ -1884,8 +1970,14 @@ app.post('/api/work-groups', async (req, res) => {
 
 app.put('/api/work-groups/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    await pool.query(`UPDATE work_groups SET name=$1 WHERE id=$2`, [name, req.params.id]);
+    const { name, admin_preset_id } = req.body;
+    if (name !== undefined && admin_preset_id !== undefined) {
+      await pool.query(`UPDATE work_groups SET name=$1, admin_preset_id=$2 WHERE id=$3`, [name, admin_preset_id || null, req.params.id]);
+    } else if (name !== undefined) {
+      await pool.query(`UPDATE work_groups SET name=$1 WHERE id=$2`, [name, req.params.id]);
+    } else if (admin_preset_id !== undefined) {
+      await pool.query(`UPDATE work_groups SET admin_preset_id=$1 WHERE id=$2`, [admin_preset_id || null, req.params.id]);
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update work group' });
@@ -1937,6 +2029,51 @@ app.get('/api/workstations/:presetId/work-group-peers', async (req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch peers' });
+  }
+});
+
+// --- Preset Links API ---
+app.get('/api/preset-links/:presetId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT * FROM preset_links WHERE preset_id=$1 ORDER BY sort_order, id`, [req.params.presetId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch links' });
+  }
+});
+
+app.post('/api/preset-links/:presetId', async (req, res) => {
+  try {
+    const { url, name, category, note, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO preset_links (preset_id, url, name, category, note, sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.presetId, url || '', name || '', category || '', note || '', sort_order || 0]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create link' });
+  }
+});
+
+app.put('/api/preset-links/:id', async (req, res) => {
+  try {
+    const { url, name, category, note, sort_order } = req.body;
+    await pool.query(
+      `UPDATE preset_links SET url=$1, name=$2, category=$3, note=$4, sort_order=$5 WHERE id=$6`,
+      [url || '', name || '', category || '', note || '', sort_order || 0, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update link' });
+  }
+});
+
+app.delete('/api/preset-links/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM preset_links WHERE id=$1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete link' });
   }
 });
 

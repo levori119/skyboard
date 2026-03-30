@@ -5035,17 +5035,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   // Aids panel data
+  const [workGroupNotes, setWorkGroupNotes] = useState<any[]>([]);
+  const [presetLinks, setPresetLinks] = useState<any[]>([]);
+  const [editingWgNote, setEditingWgNote] = useState<any | null>(null);
+  const [wgNoteForm, setWgNoteForm] = useState({ title: '', content: '' });
+  const [showAddWgNote, setShowAddWgNote] = useState<number | null>(null);
+  const [newWgNote, setNewWgNote] = useState({ title: '', content: '' });
+
+  const loadAidsData = () => {
+    if (!session.presetId) return;
+    fetch(`${API_URL}/presets/${session.presetId}/aid-group`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setAidGroup(data))
+      .catch(() => {});
+    fetch(`${API_URL}/presets/${session.presetId}/bdh`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setWorkstationBdhIds(data))
+      .catch(() => {});
+    fetch(`${API_URL}/work-group-notes/for-preset/${session.presetId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setWorkGroupNotes(data))
+      .catch(() => {});
+    fetch(`${API_URL}/preset-links/${session.presetId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPresetLinks(data))
+      .catch(() => {});
+  };
+
   useEffect(() => {
-    if (session.presetId) {
-      fetch(`${API_URL}/presets/${session.presetId}/aid-group`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => setAidGroup(data))
-        .catch(() => {});
-      fetch(`${API_URL}/presets/${session.presetId}/bdh`)
-        .then(r => r.ok ? r.json() : [])
-        .then(data => setWorkstationBdhIds(data))
-        .catch(() => {});
-    }
+    loadAidsData();
   }, [session.presetId]);
 
   // Single floating notepad
@@ -8640,7 +8658,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             (currentPid !== null && dashboardBlocks.some((b: any) => b.block_table_id === bt.id && Array.isArray(b.workstations) && b.workstations.map(Number).includes(currentPid)))
           );
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0) return null;
+          const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
+          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0) return null;
           return (
             <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
               {/* Pin toggle */}
@@ -8769,7 +8788,129 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       )}
                     </div>
                   )}
-                  {!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                  {/* מדניות Section */}
+                  {workGroupNotes.length > 0 && (() => {
+                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workstationBdhDocs.length > 0;
+                    const groups = Array.from(new Set(workGroupNotes.map((n: any) => n.work_group_id)));
+                    return (
+                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#2dd4bf' }}>📌 מדניות</span>
+                        </div>
+                        {groups.map(gid => {
+                          const gNotes = workGroupNotes.filter((n: any) => n.work_group_id === gid);
+                          const groupName = gNotes[0]?.group_name || '';
+                          const isAdmin = gNotes[0]?.admin_preset_id === session.presetId;
+                          return (
+                            <div key={gid} style={{ marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+                                <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'bold' }}>{groupName}</span>
+                                {isAdmin && (
+                                  <button onClick={() => { setShowAddWgNote(gid as number); setNewWgNote({ title: '', content: '' }); }}
+                                    style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '1px 6px', cursor: 'pointer' }}>+</button>
+                                )}
+                              </div>
+                              {showAddWgNote === gid && isAdmin && (
+                                <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', padding: '6px', marginBottom: '4px' }}>
+                                  <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
+                                    placeholder="כותרת..." style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                  <textarea value={newWgNote.content} onChange={e => setNewWgNote(v => ({...v, content: e.target.value}))}
+                                    placeholder="תוכן..."
+                                    rows={2} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                    <button onClick={async () => {
+                                      await fetch(`${API_URL}/work-groups/${gid}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newWgNote.title, content: newWgNote.content, updated_by_name: session.crewMember?.name || '' }) });
+                                      setShowAddWgNote(null);
+                                      loadAidsData();
+                                    }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>שמור</button>
+                                    <button onClick={() => setShowAddWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>ביטול</button>
+                                  </div>
+                                </div>
+                              )}
+                              {gNotes.map((note: any) => {
+                                const noteKey = `wgn-${note.id}`;
+                                const isOpen = aidExpandedIds.has(noteKey);
+                                const isEditingThis = editingWgNote?.id === note.id;
+                                return (
+                                  <div key={note.id} style={{ marginBottom: '3px', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                                    <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(noteKey) ? s.delete(noteKey) : s.add(noteKey); return s; })}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#ccfbf1' : '#134e4a', border: 'none', color: lightMode ? '#0f766e' : '#2dd4bf', padding: '5px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
+                                      <span style={{ fontSize: '8px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
+                                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.title || '(ללא כותרת)'}</span>
+                                      {isAdmin && <span style={{ fontSize: '9px', color: lightMode ? '#0d9488' : '#14b8a6', flexShrink: 0 }}>✎</span>}
+                                    </button>
+                                    {isOpen && (
+                                      <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', padding: '6px 8px' }}>
+                                        {isEditingThis && isAdmin ? (
+                                          <div>
+                                            <input value={wgNoteForm.title} onChange={e => setWgNoteForm(v => ({...v, title: e.target.value}))}
+                                              style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                            <textarea value={wgNoteForm.content} onChange={e => setWgNoteForm(v => ({...v, content: e.target.value}))}
+                                              rows={3} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                              <button onClick={async () => {
+                                                await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: wgNoteForm.title, content: wgNoteForm.content, updated_by_name: session.crewMember?.name || '' }) });
+                                                setEditingWgNote(null);
+                                                loadAidsData();
+                                              }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>שמור</button>
+                                              <button onClick={async () => {
+                                                if (!confirm('למחוק מדנית זו?')) return;
+                                                await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'DELETE' });
+                                                setEditingWgNote(null);
+                                                loadAidsData();
+                                              }} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>מחק</button>
+                                              <button onClick={() => setEditingWgNote(null)} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>ביטול</button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <div style={{ fontSize: '11px', color: lightMode ? '#134e4a' : '#ccfbf1', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{note.content || '(ריק)'}</div>
+                                            {note.updated_by_name && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginTop: '4px', textAlign: 'left' }}>עדכן: {note.updated_by_name}</div>}
+                                            {isAdmin && (
+                                              <button onClick={() => { setEditingWgNote(note); setWgNoteForm({ title: note.title || '', content: note.content || '' }); }}
+                                                style={{ marginTop: '4px', background: 'transparent', color: lightMode ? '#0f766e' : '#2dd4bf', border: `1px solid ${lightMode ? '#0f766e' : '#2dd4bf'}`, borderRadius: '3px', fontSize: '9px', padding: '2px 8px', cursor: 'pointer' }}>✎ עריכה</button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* קישורים Section */}
+                  {presetLinks.length > 0 && (() => {
+                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workstationBdhDocs.length > 0 || workGroupNotes.length > 0;
+                    const cats = Array.from(new Set(presetLinks.map((l: any) => l.category || 'כללי'))).sort() as string[];
+                    return (
+                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa', padding: '2px 4px', marginBottom: '4px' }}>🔗 קישורים</div>
+                        {cats.map(cat => (
+                          <div key={cat} style={{ marginBottom: '5px' }}>
+                            {cats.length > 1 && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'bold', marginBottom: '2px', letterSpacing: '0.3px' }}>{cat}</div>}
+                            {presetLinks.filter((l: any) => (l.category || 'כללי') === cat).map((link: any) => (
+                              <div key={link.id} style={{ marginBottom: '3px' }}>
+                                <a href={link.url} target="_blank" rel="noreferrer"
+                                  title={link.note || link.name}
+                                  style={{ display: 'block', padding: '4px 7px', background: lightMode ? '#ede9fe' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '4px', color: lightMode ? '#7c3aed' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+                                  🔗 {link.name}
+                                </a>
+                                {link.note && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', paddingRight: '7px', marginTop: '1px' }}>{link.note}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
                 </div>
               )}
               {/* Collapsed label */}
@@ -10084,6 +10225,7 @@ const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
   const [newGroupName, setNewGroupName] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [savingAdminId, setSavingAdminId] = useState<number | null>(null);
 
   const loadGroups = async () => {
     const res = await fetch(`${API_URL}/work-groups`);
@@ -10177,10 +10319,30 @@ const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
                 {/* Add member */}
                 {nonMembers.length > 0 && (
                   <select defaultValue="" onChange={e => { if (e.target.value) { addMember(group.id, Number(e.target.value)); e.target.value = ''; } }}
-                    style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', direction: 'rtl' }}>
+                    style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', direction: 'rtl', marginBottom: '8px' }}>
                     <option value="">+ הוסף עמדה...</option>
                     {nonMembers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                )}
+
+                {/* Admin preset selector */}
+                {group.members.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', flexShrink: 0 }}>עמדת ניהול מדניות:</span>
+                    <select
+                      value={group.admin_preset_id ?? ''}
+                      onChange={async e => {
+                        const val = e.target.value ? Number(e.target.value) : null;
+                        setSavingAdminId(group.id);
+                        await fetch(`${API_URL}/work-groups/${group.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_preset_id: val }) });
+                        setSavingAdminId(null);
+                        loadGroups();
+                      }}
+                      style={{ flex: 1, background: '#1e293b', color: savingAdminId === group.id ? '#64748b' : '#fbbf24', border: '1px solid #78350f', borderRadius: '5px', padding: '3px 8px', fontSize: '11px', direction: 'rtl' }}>
+                      <option value="">— ללא עמדת ניהול —</option>
+                      {group.members.map((m: any) => <option key={m.preset_id} value={m.preset_id}>{m.preset_name}</option>)}
+                    </select>
+                  </div>
                 )}
               </div>
             );
@@ -11146,6 +11308,18 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     vertical_time_based: true as boolean,
   });
 
+  // Preset links state
+  const [editingPresetLinks, setEditingPresetLinks] = useState<any[]>([]);
+  const [newLinkForm, setNewLinkForm] = useState({ url: '', name: '', category: '', note: '' });
+  const [showAddLinkForm, setShowAddLinkForm] = useState(false);
+  const [editingLinkId, setEditingLinkId] = useState<number | null>(null);
+  const [editLinkForm, setEditLinkForm] = useState({ url: '', name: '', category: '', note: '' });
+
+  const loadPresetLinks = async (presetId: number) => {
+    const res = await fetch(`${API_URL}/preset-links/${presetId}`);
+    if (res.ok) setEditingPresetLinks(await res.json());
+  };
+
   // BDH state
   const [bdhDocs, setBdhDocs] = useState<any[]>([]);
   const [bdhForm, setBdhForm] = useState({ name: '', category: '', title: '' });
@@ -11332,6 +11506,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       block_table_ids: Array.isArray(preset.block_table_ids) ? preset.block_table_ids : [],
       vertical_time_based: preset.vertical_time_based !== false,
     });
+    loadPresetLinks(preset.id);
+    setShowAddLinkForm(false);
+    setEditingLinkId(null);
+    setNewLinkForm({ url: '', name: '', category: '', note: '' });
   };
 
   const toggleSectorSelection = (sectorId: number) => {
@@ -11648,6 +11826,100 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   onChange={q => setPresetForm(p => ({ ...p, filter_query: q }))}
                   label='שאילתת סינון פממים לעמדה'
                 />
+
+                {/* Links Section — only when editing existing preset */}
+                {editingPreset && (
+                  <div style={{ marginTop: '20px', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <label style={{ color: '#a78bfa', fontSize: '14px', fontWeight: 'bold' }}>🔗 קישורים</label>
+                      <button type="button" onClick={() => { setShowAddLinkForm(v => !v); setNewLinkForm({ url: '', name: '', category: '', note: '' }); }}
+                        style={{ background: '#5b21b6', color: 'white', border: 'none', borderRadius: '5px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
+                        {showAddLinkForm ? 'ביטול' : '+ קישור חדש'}
+                      </button>
+                    </div>
+                    {showAddLinkForm && (
+                      <div style={{ background: '#1e1b4b', border: '1px solid #4c1d95', borderRadius: '7px', padding: '12px', marginBottom: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>שם קישור:</label>
+                            <input value={newLinkForm.name} onChange={e => setNewLinkForm(v => ({...v, name: e.target.value}))}
+                              placeholder="שם..." style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>קטגוריה:</label>
+                            <input value={newLinkForm.category} onChange={e => setNewLinkForm(v => ({...v, category: e.target.value}))}
+                              placeholder="קטגוריה..." style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '8px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>כתובת URL:</label>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <input value={newLinkForm.url} onChange={e => setNewLinkForm(v => ({...v, url: e.target.value}))}
+                              placeholder="https://..." style={{ flex: 1, padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'ltr', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: '10px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>הערה:</label>
+                          <input value={newLinkForm.note} onChange={e => setNewLinkForm(v => ({...v, note: e.target.value}))}
+                            placeholder="הערה..." style={{ width: '100%', padding: '6px 8px', background: '#0f172a', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                        </div>
+                        <button type="button" disabled={!newLinkForm.name.trim() || !newLinkForm.url.trim()} onClick={async () => {
+                          await fetch(`${API_URL}/preset-links/${editingPreset.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newLinkForm, sort_order: editingPresetLinks.length }) });
+                          setNewLinkForm({ url: '', name: '', category: '', note: '' });
+                          setShowAddLinkForm(false);
+                          loadPresetLinks(editingPreset.id);
+                        }} style={{ background: newLinkForm.name.trim() && newLinkForm.url.trim() ? '#5b21b6' : '#334155', color: 'white', border: 'none', borderRadius: '5px', padding: '6px 18px', fontSize: '13px', cursor: 'pointer' }}>הוסף קישור</button>
+                      </div>
+                    )}
+                    {editingPresetLinks.length === 0 && !showAddLinkForm && (
+                      <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '8px 0' }}>אין קישורים מוגדרים לעמדה זו</div>
+                    )}
+                    {editingPresetLinks.map((link: any) => (
+                      <div key={link.id} style={{ background: '#0f172a', border: '1px solid #4c1d95', borderRadius: '6px', padding: '8px 10px', marginBottom: '5px', direction: 'rtl' }}>
+                        {editingLinkId === link.id ? (
+                          <div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
+                              <input value={editLinkForm.name} onChange={e => setEditLinkForm(v => ({...v, name: e.target.value}))}
+                                placeholder="שם" style={{ padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                              <input value={editLinkForm.category} onChange={e => setEditLinkForm(v => ({...v, category: e.target.value}))}
+                                placeholder="קטגוריה" style={{ padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                            </div>
+                            <input value={editLinkForm.url} onChange={e => setEditLinkForm(v => ({...v, url: e.target.value}))}
+                              placeholder="URL" style={{ width: '100%', padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'ltr', boxSizing: 'border-box', marginBottom: '6px' }} />
+                            <input value={editLinkForm.note} onChange={e => setEditLinkForm(v => ({...v, note: e.target.value}))}
+                              placeholder="הערה" style={{ width: '100%', padding: '4px 7px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button type="button" onClick={async () => {
+                                await fetch(`${API_URL}/preset-links/${link.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editLinkForm) });
+                                setEditingLinkId(null);
+                                loadPresetLinks(editingPreset.id);
+                              }} style={{ background: '#5b21b6', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>שמור</button>
+                              <button type="button" onClick={async () => {
+                                if (!confirm('למחוק קישור זה?')) return;
+                                await fetch(`${API_URL}/preset-links/${link.id}`, { method: 'DELETE' });
+                                loadPresetLinks(editingPreset.id);
+                              }} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>מחק</button>
+                              <button type="button" onClick={() => setEditingLinkId(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}>ביטול</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#a78bfa' }}>{link.name}</span>
+                                {link.category && <span style={{ fontSize: '10px', color: '#64748b', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '1px 7px' }}>{link.category}</span>}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#6366f1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'ltr', textAlign: 'right' }}>{link.url}</div>
+                              {link.note && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{link.note}</div>}
+                            </div>
+                            <button type="button" onClick={() => { setEditingLinkId(link.id); setEditLinkForm({ url: link.url, name: link.name, category: link.category || '', note: link.note || '' }); }}
+                              style={{ background: 'transparent', color: '#a78bfa', border: '1px solid #4c1d95', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>✎</button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button
