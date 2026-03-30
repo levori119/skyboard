@@ -4700,6 +4700,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableMode, setTableMode] = useState(false);
   const [showMapDropdown, setShowMapDropdown] = useState(false);
   const [showTableDropdown, setShowTableDropdown] = useState(false);
+  const [showAlertsMenu, setShowAlertsMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -5794,195 +5797,219 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <header style={{ padding: '10px 20px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+      <header style={{ padding: '6px 16px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {/* Animated header logo — radar sweep + banking plane */}
-            <svg width="32" height="32" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <filter id="hglow" x="-80%" y="-80%" width="260%" height="260%">
                   <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
                   <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
               </defs>
-              {/* Background */}
               <rect width="72" height="72" rx="14" fill="#1e3a8a"/>
-              {/* Grid */}
               <line x1="8"  y1="24" x2="64" y2="24" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
               <line x1="8"  y1="36" x2="64" y2="36" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
               <line x1="8"  y1="48" x2="64" y2="48" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
               <line x1="24" y1="8"  x2="24" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
               <line x1="36" y1="8"  x2="36" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
               <line x1="48" y1="8"  x2="48" y2="64" stroke="#3b82f6" strokeWidth="1.2" opacity="0.45"/>
-              {/* Radar sweep (fast & subtle) */}
               <g>
                 <animateTransform attributeName="transform" type="rotate" from="0 36 36" to="360 36 36" dur="3s" repeatCount="indefinite"/>
                 <line x1="36" y1="36" x2="59" y2="36" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" opacity="0.75"/>
                 <path d="M 59,36 A 23,23 0 0 0 36,13" stroke="#3b82f6" strokeWidth="4" opacity="0.12" fill="none"/>
               </g>
-              {/* Pulsing blip */}
               <circle cx="55" cy="19" r="0" fill="#60a5fa" filter="url(#hglow)">
                 <animate attributeName="r"       values="0;0;3;2;0"   keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
                 <animate attributeName="opacity" values="0;0;1;0.6;0" keyTimes="0;0.2;0.26;0.5;1" dur="3s" begin="0.7s" repeatCount="indefinite"/>
               </circle>
-              {/* Fighter jet — banking animation */}
               <g transform="translate(36,36)">
                 <animateTransform attributeName="transform" additive="sum" type="rotate"
                   values="-18;18;-18" dur="2.8s" repeatCount="indefinite"
                   calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1"/>
-                {/* Fuselage (top-down, pointing up = -Y in SVG) — sharp dart */}
                 <polygon points="0,-12  1.4,-7  2,7  -2,7  -1.4,-7" fill="white"/>
-                {/* Delta wings — large swept triangles */}
                 <polygon points="-1.4,-5  -14,7  -2,7" fill="#93c5fd"/>
                 <polygon points="1.4,-5   14,7  2,7" fill="#93c5fd"/>
-                {/* Twin tail fins */}
                 <polygon points="-2,7  -5,12  -2,9.5" fill="#bfdbfe"/>
                 <polygon points="2,7   5,12  2,9.5" fill="#bfdbfe"/>
-                {/* Cockpit glint */}
                 <circle cx="0" cy="-9.5" r="1.2" fill="#dbeafe" opacity="0.8"/>
               </g>
             </svg>
             <div>
-              <div style={{ fontSize: '16px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKYBOARD</div>
-              <div style={{ fontSize: '9px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
+              <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKYBOARD</div>
+              <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
-          <span style={{ background: '#2563eb', padding: '4px 12px', borderRadius: '4px', fontSize: '14px' }}>
+          <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
             {session.workstationName}
           </span>
           {session.crewMember && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#10b981', padding: '4px 12px', borderRadius: '4px', fontSize: '13px' }}>
-                {session.crewMember.name}
-              </span>
-              <button 
-                onClick={() => { loadCrewMembers(); setShowCrewSwap(true); }}
-                style={{ background: '#f59e0b', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', border: 'none', color: '#1e293b', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                החלף
-              </button>
-            </div>
+            <span style={{ background: '#10b981', padding: '3px 10px', borderRadius: '4px', fontSize: '12px' }}>
+              {session.crewMember.name}
+            </span>
           )}
-          {/* Load mode badge */}
+          {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
               style={{
-                padding: '4px 14px',
-                borderRadius: '6px',
+                padding: '3px 10px', borderRadius: '6px',
                 background: loadLevel === 'full' ? '#dc2626' : '#d97706',
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '13px',
-                letterSpacing: '0.5px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
+                color: 'white', fontWeight: 'bold', fontSize: '12px',
+                display: 'flex', alignItems: 'center', gap: '5px',
                 border: `2px solid ${loadLevel === 'full' ? '#fca5a5' : '#fde68a'}`,
-                cursor: 'default',
-                userSelect: 'none',
+                cursor: 'default', userSelect: 'none',
               }}
               title={`עומס ${loadLevel === 'full' ? 'מלא' : 'חלקי'}: ${loadCount} פ"ממים | באוויר: ${airborneMine} | ממריאים תוך 10 ד': ${groundSoonMine} | נכנסות: ${relevantIncoming} | (סף חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
             >
               {loadLevel === 'full' ? '🔴' : '🟠'}
               {loadLevel === 'full' ? 'עומס מלא' : 'עומס חלקי'}
-              <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '4px', padding: '1px 6px', fontSize: '12px' }}>{loadCount}</span>
+              <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '4px', padding: '0 5px', fontSize: '11px' }}>{loadCount}</span>
             </div>
           )}
-          {/* Mute alert toggles */}
-          {(loadLevel !== 'none' || muteLoadAlerts) && (
-            <button
-              onClick={() => setMuteLoadAlerts(v => !v)}
-              title={muteLoadAlerts ? 'הפעל התראות עומס' : 'השתק התראות עומס'}
-              style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '3px 9px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-            >
-              {muteLoadAlerts ? '🔔' : '🔕'} עומס
-            </button>
-          )}
-          <button
-            onClick={() => setMuteBlockAlerts(v => !v)}
-            title={muteBlockAlerts ? 'הפעל התראות חריגה מבלוק' : 'השתק התראות חריגה מבלוק'}
-            style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '3px 9px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            {muteBlockAlerts ? '🔔' : '🔕'} בלוקים
-          </button>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {/* כפתור מפה + תפריט בחירת מפה */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {/* תפריט התראות */}
+          <div style={{ position: 'relative' }}>
+            {(() => {
+              const hasAlert = (loadLevel !== 'none' && !muteLoadAlerts);
+              return (
+                <button
+                  onClick={() => { setShowAlertsMenu(v => !v); setShowViewMenu(false); setShowUserMenu(false); }}
+                  style={{ background: showAlertsMenu ? '#475569' : (hasAlert ? '#7c2d12' : '#334155'), color: hasAlert ? '#fbbf24' : 'white', border: `1px solid ${hasAlert ? '#f59e0b' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                >
+                  {hasAlert ? '🔔' : '🔕'} התראות {showAlertsMenu ? '▲' : '▼'}
+                </button>
+              );
+            })()}
+            {showAlertsMenu && (
+              <>
+                <div onClick={() => setShowAlertsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '210px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>ניהול התראות</div>
+                  {/* Load alert row */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
+                      {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
+                    </span>
+                    <button
+                      onClick={() => setMuteLoadAlerts(v => !v)}
+                      style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} עומס
+                    </button>
+                  </div>
+                  {/* Block alert row */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
+                      {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
+                    </span>
+                    <button
+                      onClick={() => setMuteBlockAlerts(v => !v)}
+                      style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} בלוקים
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* תפריט תצוגה */}
           <div style={{ position: 'relative' }}>
             <button
-              onClick={() => { setTableMode(false); setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
-              style={{ 
-                background: !tableMode ? '#2563eb' : '#334155', 
-                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                fontWeight: !tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
-              }}
+              onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
+              style={{ background: showViewMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
-              🗺 מפה {showMapDropdown ? '▲' : '▼'}
+              {tableMode ? '📋' : showVerticalView ? '📊' : '🗺'} תצוגה {showViewMenu ? '▲' : '▼'}
             </button>
-            {showMapDropdown && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '140px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
-                onMouseLeave={() => setShowMapDropdown(false)}>
-                {availableMaps.length === 0
-                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין מפות זמינות</div>
-                  : availableMaps.map(m => (
-                    <div key={m.id}
-                      onClick={() => { selectMap(m.id); setShowMapDropdown(false); }}
-                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+            {showViewMenu && (
+              <>
+                <div onClick={() => setShowViewMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  {/* Map option */}
+                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                    <div
+                      onClick={() => { setTableMode(false); setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: !tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: !tableMode ? 'bold' : 'normal' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      🗺 {m.name}
+                      <span>🗺 מפה</span>
+                      {!tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
                     </div>
-                  ))
-                }
-              </div>
-            )}
-          </div>
-
-          {/* כפתור טבלה + תפריט בחירת טבלה */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setTableMode(true); setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
-              style={{ 
-                background: tableMode ? '#2563eb' : '#334155', 
-                color: 'white', padding: '5px 14px', borderRadius: '4px', fontSize: '12px', border: 'none', cursor: 'pointer',
-                fontWeight: tableMode ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px'
-              }}
-            >
-              📋 טבלה {showTableDropdown ? '▲' : '▼'}
-            </button>
-            {showTableDropdown && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', zIndex: 1000, minWidth: '150px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', overflow: 'hidden' }}
-                onMouseLeave={() => setShowTableDropdown(false)}>
-                {availableTableModes.length === 0
-                  ? <div style={{ padding: '10px 14px', color: '#94a3b8', fontSize: '12px' }}>אין טבלאות מוגדרות</div>
-                  : availableTableModes.map(tm => (
-                    <div key={tm.id}
-                      onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); }}
-                      style={{ padding: '9px 14px', cursor: 'pointer', fontSize: '13px', color: 'white', direction: 'rtl', borderBottom: '1px solid #334155',
-                        background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
-                      onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
+                    {showMapDropdown && !tableMode && (
+                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                        {availableMaps.length === 0
+                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין מפות זמינות</div>
+                          : availableMaps.map(m => (
+                            <div key={m.id}
+                              onClick={() => { selectMap(m.id); setShowMapDropdown(false); setShowViewMenu(false); }}
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                              onMouseLeave={e => (e.currentTarget.style.background = '')}
+                            >
+                              🗺 {m.name}
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {/* Table option */}
+                  <div style={{ borderBottom: '1px solid #1e3a5f' }}>
+                    <div
+                      onClick={() => { setTableMode(true); setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: tableMode ? 'bold' : 'normal' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
                     >
-                      📋 {tm.name}
+                      <span>📋 טבלה</span>
+                      {tableMode && <span style={{ fontSize: '10px', color: '#60a5fa' }}>✓ פעיל</span>}
                     </div>
-                  ))
-                }
-              </div>
+                    {showTableDropdown && tableMode && (
+                      <div style={{ background: '#0f172a', borderTop: '1px solid #334155' }}>
+                        {availableTableModes.length === 0
+                          ? <div style={{ padding: '7px 20px', color: '#94a3b8', fontSize: '11px' }}>אין טבלאות מוגדרות</div>
+                          : availableTableModes.map(tm => (
+                            <div key={tm.id}
+                              onClick={() => { setSelectedTableModeId(tm.id); setShowTableDropdown(false); setShowViewMenu(false); }}
+                              style={{ padding: '7px 20px', cursor: 'pointer', fontSize: '12px', color: 'white', direction: 'rtl',
+                                background: tableMode && selectedTableModeId === tm.id ? '#1e40af' : '' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
+                              onMouseLeave={e => (e.currentTarget.style.background = (tableMode && selectedTableModeId === tm.id) ? '#1e40af' : '')}
+                            >
+                              📋 {tm.name}
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {/* Vertical view toggle */}
+                  <div
+                    onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <span>📊 תצוגה ורטיקאלית</span>
+                    {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
+                  </div>
+                </div>
+              </>
             )}
           </div>
-
-          <button
-            onClick={() => setShowVerticalView(v => !v)}
-            title="תצוגה ורטיקאלית – גבהי פממים על ציר זמן"
-            style={{ background: showVerticalView ? '#6d28d9' : '#334155', border: 'none', borderRadius: '4px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', color: 'white', fontWeight: showVerticalView ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
-          >📊 תצוגה ורטיקאלית</button>
 
           <button
             onClick={() => setLightMode(v => !v)}
             title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
-            style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
+            style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}
           >{lightMode ? '🌙' : '☀️'}</button>
           <button onClick={() => {
             if (showNotepad) {
@@ -5990,7 +6017,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               if (canvas) notepadSavedImageRef.current = canvas.toDataURL();
             }
             setShowNotepad(v => !v);
-          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
+          }} style={{ background: showNotepad ? '#f59e0b' : '#334155', padding: '4px 9px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white', fontWeight: showNotepad ? 'bold' : 'normal' }}>
             📄 פתקית
           </button>
           <div style={{ position: 'relative' }}>
@@ -6079,9 +6106,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </button>
             );
           })()}
-          <button onClick={onLogout} style={{ background: '#dc2626', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', border: 'none', color: 'white' }}>
-            יציאה
-          </button>
+          {/* תפריט משתמש */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
+              style={{ background: showUserMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+            >
+              👤 משתמש {showUserMenu ? '▲' : '▼'}
+            </button>
+            {showUserMenu && (
+              <>
+                <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
+                    {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
+                  </div>
+                  <button
+                    onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '13px' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                  >
+                    🔄 החלף משתמש
+                  </button>
+                  <div style={{ borderTop: '1px solid #334155' }}>
+                    <button
+                      onClick={onLogout}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      🚪 יציאה
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
