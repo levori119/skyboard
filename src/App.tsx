@@ -7144,10 +7144,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             const latestSerial = [...relevantSerials].filter((sr: any) => sr.control_station === station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const mySelection = mySelections.find((sel: any) => sel.control_station === station);
                             const mySerial = mySelection?.serial_id ? relevantSerials.find((sr: any) => sr.id === mySelection.serial_id) : null;
-                            const isOutdated = mySerial && latestSerial && latestSerial.id !== mySerial.id;
-                            // Check for dismissed serials newer than selected (new model)
+                            // isOutdated = newer non-dismissed serial exists for this station
                             const stationSrIds2 = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === station).map((sr: any) => sr.id));
                             const stationDismissals2 = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds2.has(d.serial_id));
+                            const dismissedSerialIds2 = new Set(stationDismissals2.map(d => d.serial_id));
+                            const isOutdated = !!(mySerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === station && sr.serial_number > mySerial.serial_number && !dismissedSerialIds2.has(sr.id)));
                             const hasDismissalWarning = stationDismissals2.some(d => {
                               const dSerial = relevantSerials.find((sr: any) => sr.id === d.serial_id);
                               return dSerial && (!mySerial || dSerial.serial_number > mySerial.serial_number);
@@ -7181,11 +7182,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           {mySelections.map((sel: any) => {
                             const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
                             const selSerial = sel.serial_id ? relevantSerials.find((sr: any) => sr.id === sel.serial_id) : null;
-                            const isOutdated = selSerial && latest && latest.id !== sel.serial_id;
                             const displayNum = selSerial?.serial_number ?? latest?.serial_number ?? '?';
-                            // Check if any dismissed serials for this strip+station are newer than selected
+                            // Check dismissed serials for this strip+station
                             const stationSrIds = new Set((relevantSerials as any[]).filter((sr: any) => sr.control_station === sel.control_station).map((sr: any) => sr.id));
                             const stationDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && stationSrIds.has(d.serial_id));
+                            const dismissedSrIds = new Set(stationDismissals.map(d => d.serial_id));
+                            // isOutdated = newer non-dismissed serial exists
+                            const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedSrIds.has(sr.id)));
                             const hasNewerDismissals = stationDismissals.some(d => {
                               const dSerial = relevantSerials.find((sr: any) => sr.id === d.serial_id);
                               return dSerial && (!selSerial || dSerial.serial_number > selSerial.serial_number);
@@ -8246,8 +8249,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
                           {mySelections.map((sel: any) => {
                             const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
-                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
-                            const isOutdated = selSerial && latest && latest.id !== selSerial.id;
+                            const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
+                            const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
                             return (
                               <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
                                 {sel.control_station}–{selSerial?.serial_number ?? '?'}
@@ -8328,8 +8331,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
                           {mySelections.map((sel: any) => {
                             const selSerial = relevantSerials.find((sr: any) => sr.id === sel.serial_id);
-                            const latest = [...relevantSerials].filter((sr: any) => sr.control_station === sel.control_station).sort((a: any, b: any) => b.serial_number - a.serial_number)[0];
-                            const isOutdated = selSerial && latest && latest.id !== selSerial.id;
+                            const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
+                            const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
                             return (
                               <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
                                 {sel.control_station}–{selSerial?.serial_number ?? '?'}
