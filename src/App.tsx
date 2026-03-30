@@ -4412,7 +4412,7 @@ const BlockVisualPainter = ({ btId, existingBlocks, apiUrl, onSaved }: { btId: n
 
   // Compute live positions during drag for each block
   const getLiveBlock = (b: any): { alt_from: number; alt_to: number } => {
-    if (!dragOp || dragOp.blockId !== b.id) return b;
+    if (!dragOp || dragOp.type === 'new' || dragOp.blockId !== b.id) return b;
     if (dragOp.type === 'resize-top') return { alt_from: b.alt_from, alt_to: dragOp.currentFL };
     if (dragOp.type === 'resize-bottom') return { alt_from: dragOp.currentFL, alt_to: b.alt_to };
     if (dragOp.type === 'move') {
@@ -4737,7 +4737,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [aidGroup, setAidGroup] = useState<any | null>(null);
-  const [aidExpandedIds, setAidExpandedIds] = useState<Set<number>>(new Set());
+  const [aidExpandedIds, setAidExpandedIds] = useState<Set<number|string>>(new Set());
   // Whether the table is being drag-hovered from sidebar
   const [tableDragOver, setTableDragOver] = useState(false);
   // Pointer-events drag from sidebar to table
@@ -6153,14 +6153,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             disabled={!hasActions}
                             onClick={async () => {
                               if (serialPopupKnownUntilId) {
-                                await handleSerialSelect(stripId, station, serialPopupKnownUntilId, false);
+                                await handleSerialSelect(Number(stripId), station, Number(serialPopupKnownUntilId), false);
                               }
                               for (const notRelId of serialPopupNotRelevantIds) {
-                                await handleSerialDismiss(stripId, station, notRelId);
+                                await handleSerialDismiss(Number(stripId), station, Number(notRelId));
                               }
                               // Undo dismiss: was dismissed but user removed it without a replacement action
                               if (serialPopupWasDismissedId && !serialPopupNotRelevantIds.includes(serialPopupWasDismissedId) && !serialPopupKnownUntilId) {
-                                await handleSerialSelect(stripId, station, null, false);
+                                await handleSerialSelect(Number(stripId), station, null, false);
                               }
                               setSerialPopupKnownUntilId(null);
                               setSerialPopupNotRelevantIds([]);
@@ -6215,11 +6215,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                               ) : isDismissedSerial ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
-                                  <button onClick={async () => { await handleSerialSelect(stripId, station, sr.id, false); setTableSerialViewPopup(null); }}
+                                  <button onClick={async () => { await handleSerialSelect(Number(stripId), station, Number(sr.id), false); setTableSerialViewPopup(null); }}
                                     style={{ fontSize: '9px', padding: '2px 6px', background: '#166534', color: '#4ade80', border: 'none', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
                                     ✓ הועבר לפ"מ
                                   </button>
-                                  <button onClick={async () => { await handleSerialSelect(stripId, station, null, false); setTableSerialViewPopup(null); }}
+                                  <button onClick={async () => { await handleSerialSelect(Number(stripId), station, null, false); setTableSerialViewPopup(null); }}
                                     style={{ fontSize: '9px', padding: '2px 6px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                     בטל סימון
                                   </button>
@@ -10920,7 +10920,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <MaybeSettingsModal
                 show={!!editingPreset}
                 title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null }); }}
+                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] }); }}
                 wide
               >
               <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
@@ -11156,7 +11156,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
