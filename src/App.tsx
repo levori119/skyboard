@@ -369,7 +369,7 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
             </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKYBOARD</div>
+            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
             <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
           </div>
         </div>
@@ -5883,7 +5883,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </g>
             </svg>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKYBOARD</div>
+              <div style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '2px', fontFamily: 'monospace', lineHeight: 1 }}>SKY KING</div>
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
