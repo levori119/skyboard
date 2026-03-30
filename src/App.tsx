@@ -4254,29 +4254,17 @@ const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[], act
   if (candidateBlocks.length === 0) return false;
   const presetId = Number(s.workstation_preset_id);
 
-  // Classify blocks by ownership
+  // Blocks that specifically belong to this workstation (ws explicitly includes me)
   const mySpecificBlocks = candidateBlocks.filter((b: any) => {
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
     return ws.length > 0 && ws.includes(presetId);
   });
-  const otherWSBlocks = candidateBlocks.filter((b: any) => {
-    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    return ws.length > 0 && !ws.includes(presetId);
-  });
-  const universalBlocks = candidateBlocks.filter((b: any) => {
-    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    return ws.length === 0;
-  });
 
-  // Priority 1: strip is in my specific block → no deviation
-  if (mySpecificBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return false;
-  // Priority 2: strip is in another WS's specific block → deviation (wrong territory)
-  if (otherWSBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return true;
-  // Priority 3: strip is in a universal (shared) block → no deviation
-  if (universalBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return false;
-  // Strip is outside all blocks. Alert only if I have blocks defined (specific or universal).
-  const myBlocks = [...mySpecificBlocks, ...universalBlocks];
-  return myBlocks.length > 0;
+  // If my WS has no specific blocks in this context → not our responsibility, no deviation
+  if (mySpecificBlocks.length === 0) return false;
+
+  // My WS has specific blocks → strip must be in one of them (strict mode)
+  return !mySpecificBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
