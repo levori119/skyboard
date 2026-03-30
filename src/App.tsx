@@ -4249,11 +4249,18 @@ const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[], act
     candidateBlocks = allBlocks;
   }
   if (candidateBlocks.length === 0) return false;
-  const matchingBlock = candidateBlocks.find((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
-  if (!matchingBlock) return false;
   const presetId = Number(s.workstation_preset_id);
-  const blockWs = Array.isArray(matchingBlock.workstations) ? matchingBlock.workstations.map(Number) : [];
-  return !blockWs.includes(presetId);
+  // Only consider blocks that belong to the current workstation.
+  // A block with no workstations defined applies to all workstations.
+  // If the current workstation has no blocks assigned to it at all → no deviation.
+  const myBlocks = candidateBlocks.filter((b: any) => {
+    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
+    return ws.length === 0 || ws.includes(presetId);
+  });
+  if (myBlocks.length === 0) return false;
+  // Deviation = strip altitude is NOT inside any of "my" blocks' ranges
+  const inRange = myBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  return !inRange;
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
