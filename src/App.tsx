@@ -6234,39 +6234,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {/* סטטוס פעולה נוכחית */}
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0c1a2e' }}>
                   <div style={{ color: '#60a5fa', fontSize: '10px', marginBottom: '6px', fontWeight: 'bold' }}>סטטוס ספרור לפ"מ</div>
-                  {mySelection?.dismissed ? (
-                    <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: '6px', padding: '8px 10px' }}>
-                      <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>🚫 לא רלוונטי</div>
-                      <div style={{ color: '#a16207', fontSize: '11px', marginBottom: '3px' }}>ספרור: #{mySerial?.serial_number ?? latestSerial?.serial_number ?? '?'}</div>
-                      {mySelection.acted_at && (
-                        <div style={{ color: '#78350f', fontSize: '9px' }}>
-                          {fmt(mySelection.acted_at)}
-                          {mySelection.acted_by && ` | ${mySelection.acted_by}`}
-                          {mySelection.acted_by_workstation && ` | ${mySelection.acted_by_workstation}`}
+                  {(() => {
+                    // In the new model: dismissed serials go to strip_serial_dismissals.
+                    // The selected (הועבר לפ"מ) serial is always the primary status — show it regardless of dismissed flag.
+                    // Find the selected serial ignoring the dismissed flag (for backward compat with old data).
+                    const selectedSerial = mySelection?.serial_id
+                      ? relevantSerials.find((sr: any) => sr.id === mySelection.serial_id)
+                      : null;
+                    // Check dismissed serials newer than selected for this strip+station
+                    const stationPopupSrIds = new Set(allStationSerials.map((sr: any) => sr.id));
+                    const stationPopupDismissals = (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(stripId) && stationPopupSrIds.has(d.serial_id));
+                    const hasNewerDismissedOnly = !selectedSerial && stationPopupDismissals.length > 0;
+                    const latestDismissed = hasNewerDismissedOnly
+                      ? allStationSerials.find((sr: any) => stationPopupDismissals.some(d => d.serial_id === sr.id))
+                      : null;
+                    if (selectedSerial) {
+                      // Check if there are non-dismissed serials newer than selected
+                      const dismissedIds = new Set(stationPopupDismissals.map(d => d.serial_id));
+                      const hasNewerNonDismissed = allStationSerials.some((sr: any) => sr.serial_number > selectedSerial.serial_number && !dismissedIds.has(sr.id));
+                      return (
+                        <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
+                          <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>✅ מבנה מכיר</div>
+                          <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>ספרור: #{selectedSerial.serial_number}</div>
+                          {selectedSerial.essence && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>מהות: {selectedSerial.essence}</div>}
+                          {mySelection?.acted_at && (
+                            <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.8 }}>
+                              {fmt(mySelection.acted_at)}
+                              {mySelection.acted_by && ` | ${mySelection.acted_by}`}
+                              {mySelection.acted_by_workstation && ` | ${mySelection.acted_by_workstation}`}
+                            </div>
+                          )}
+                          {hasNewerNonDismissed && latestSerial && (
+                            <div style={{ marginTop: '5px', padding: '3px 6px', background: '#dc2626', borderRadius: '4px', color: 'white', fontSize: '10px', fontWeight: 'bold' }}>
+                              ⚠️ קיים ספרור חדש: #{latestSerial.serial_number}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ) : mySerial ? (
-                    <div style={{ background: '#14432a', border: '1px solid #166534', borderRadius: '6px', padding: '8px 10px' }}>
-                      <div style={{ color: '#4ade80', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>✅ מבנה מכיר</div>
-                      <div style={{ color: '#bbf7d0', fontSize: '11px', marginBottom: '2px' }}>ספרור: #{mySerial.serial_number}</div>
-                      {mySerial.essence && <div style={{ color: '#86efac', fontSize: '10px', marginBottom: '2px' }}>מהות: {mySerial.essence}</div>}
-                      {mySelection?.acted_at && (
-                        <div style={{ color: '#4ade80', fontSize: '9px', opacity: 0.8 }}>
-                          {fmt(mySelection.acted_at)}
-                          {mySelection.acted_by && ` | ${mySelection.acted_by}`}
-                          {mySelection.acted_by_workstation && ` | ${mySelection.acted_by_workstation}`}
+                      );
+                    } else if (hasNewerDismissedOnly && latestDismissed) {
+                      // No selected serial but there are dismissed serials — show latest dismissed as info
+                      return (
+                        <div style={{ background: '#1c1917', border: '1px solid #78350f', borderRadius: '6px', padding: '8px 10px' }}>
+                          <div style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', marginBottom: '4px' }}>🚫 לא רלוונטי</div>
+                          <div style={{ color: '#a16207', fontSize: '11px', marginBottom: '3px' }}>ספרור: #{latestDismissed.serial_number}</div>
                         </div>
-                      )}
-                      {latestSerial && latestSerial.id !== mySerial.id && (
-                        <div style={{ marginTop: '5px', padding: '3px 6px', background: '#dc2626', borderRadius: '4px', color: 'white', fontSize: '10px', fontWeight: 'bold' }}>
-                          ⚠️ קיים ספרור חדש: #{latestSerial.serial_number}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>— טרם בוצעה פעולה לפ"מ זה</div>
-                  )}
+                      );
+                    } else {
+                      return <div style={{ color: '#64748b', fontSize: '12px', padding: '4px 0' }}>— טרם בוצעה פעולה לפ"מ זה</div>;
+                    }
+                  })()}
                 </div>
                 {/* ספרורים אחרונים */}
                 <div style={{ padding: '6px 10px 4px' }}>
