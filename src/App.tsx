@@ -3607,8 +3607,9 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
   const [groupBy, setGroupBy] = React.useState<'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'>('none');
   const [showBlocks, setShowBlocks] = React.useState(true);
@@ -3616,6 +3617,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [blockSpaceOrder, setBlockSpaceOrder] = React.useState<string[]>([]);
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
   const [dragOverSegKey, setDragOverSegKey] = React.useState<string | null>(null);
+  const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number } | null>(null);
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -3677,13 +3679,17 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const X_AXIS_H = 22;
   const Y_AXIS_W = 62;
 
-  const candidates = strips.map(s => {
+  const candidatesAll = strips.map(s => {
     const altR = parseAltRange(s.alt);
     const time = getTime(s);
     return { ...s, _time: time, _altLo: altR?.lo ?? null, _altHi: altR?.hi ?? null };
-  }).filter((s): s is typeof s & { _time: number; _altLo: number; _altHi: number } =>
-    s._time !== null && s._altLo !== null && s._altHi !== null
-  );
+  });
+
+  // Time-based: need both time and altitude. No-time: need only altitude.
+  const candidates = timeBased
+    ? candidatesAll.filter((s): s is typeof s & { _time: number; _altLo: number; _altHi: number } =>
+        s._time !== null && s._altLo !== null && s._altHi !== null)
+    : (candidatesAll.filter(s => s._altLo !== null && s._altHi !== null) as (typeof candidatesAll[0] & { _altLo: number; _altHi: number })[]);
 
   const rawMinAlt = candidates.length > 0 ? Math.min(...candidates.map(s => s._altLo)) : 0;
   const maxAlt    = candidates.length > 0 ? Math.max(...candidates.map(s => s._altHi)) : 50000;
@@ -3734,11 +3740,81 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     return p;
   };
 
+  // No-time mode: assign a column index to each strip so overlapping-altitude strips are side-by-side
+  type NoTimePlaced = typeof candidates[0] & { _col: number; _numCols: number; _hasConflict: boolean; _isRange: boolean };
+  const buildNoTimePlaced = (list: typeof candidates): NoTimePlaced[] => {
+    // Sort by altitude descending (highest first)
+    const sorted = [...list].sort((a, b) => b._altLo - a._altLo);
+    // columns: array of sorted altitude-occupied intervals
+    const colIntervals: { lo: number; hi: number }[][] = [];
+    const colMap = new Map<string, number>();
+    for (const s of sorted) {
+      const ALT_MARGIN = 500; // two strips closer than this share a column conflict
+      let placed = false;
+      for (let c = 0; c < colIntervals.length; c++) {
+        const hasOverlap = colIntervals[c].some(iv =>
+          s._altLo < iv.hi + ALT_MARGIN && iv.lo < s._altHi + ALT_MARGIN
+        );
+        if (!hasOverlap) {
+          colIntervals[c].push({ lo: s._altLo, hi: s._altHi });
+          colMap.set(s.id, c);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        colIntervals.push([{ lo: s._altLo, hi: s._altHi }]);
+        colMap.set(s.id, colIntervals.length - 1);
+      }
+    }
+    const numCols = Math.max(colIntervals.length, 1);
+    return list.map(s => ({
+      ...s,
+      _col: colMap.get(s.id) ?? 0,
+      _numCols: numCols,
+      _hasConflict: false,
+      _isRange: s._altLo !== s._altHi,
+    }));
+  };
+
+  // Altitude drag effect
+  const altRangeRef = React.useRef(altRange);
+  const topAltRef = React.useRef(topAlt);
+  altRangeRef.current = altRange;
+  topAltRef.current = topAlt;
+
+  React.useEffect(() => {
+    if (!altDrag) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const el = chartContentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
+      const pct = Math.max(0, Math.min(1, relY / rect.height));
+      const newAlt = topAltRef.current - pct * altRangeRef.current;
+      setAltDrag(prev => prev ? { ...prev, currentAlt: newAlt } : null);
+    };
+    const handleMouseUp = () => {
+      if (!altDrag) return;
+      const newAlt = Math.round(altDrag.currentAlt);
+      const fl = Math.round(newAlt / 100);
+      const altStr = newAlt >= 10000 ? `FL${fl}` : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
+      onUpdateStripAlt?.(altDrag.stripId, altStr);
+      setAltDrag(null);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [altDrag?.stripId]);
+
   const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע', block_space_id: 'מרחב בלוקים' };
 
-  let segments: { key: string; label: string; placed: Placed[]; segBlocks?: any[] }[];
+  const buildSegPlaced = (list: typeof candidates) => timeBased ? buildPlaced(list as any) : buildNoTimePlaced(list);
+
+  let segments: { key: string; label: string; placed: any[]; segBlocks?: any[] }[];
   if (groupBy === 'none') {
-    segments = [{ key: '__none__', label: '', placed: buildPlaced(candidates) }];
+    segments = [{ key: '__none__', label: '', placed: buildSegPlaced(candidates) }];
   } else if (groupBy === 'block_space_id') {
     const valMap = new Map<string, typeof candidates>();
     candidates.forEach(s => {
@@ -3754,13 +3830,12 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       })
       .map(([bsId, list]) => {
         const bs = blockSpaces.find((x: any) => String(x.id) === bsId);
-        // Find ALL blocks belonging to this block space via block_tables (not limited to preset)
         const bsTableIds = blockTables
           .filter((bt: any) => String(bt.block_space_id) === bsId)
           .map((bt: any) => bt.id);
         const blocksPool = allBlocks.length > 0 ? allBlocks : relevantBlocks;
         const segBlocks = blocksPool.filter((b: any) => bsTableIds.includes(b.block_table_id));
-        return { key: bsId, label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildPlaced(list), segBlocks };
+        return { key: bsId, label: bs ? bs.name : bsId === '—' ? 'ללא מרחב' : bsId, placed: buildSegPlaced(list), segBlocks };
       });
   } else {
     const field = groupBy as string;
@@ -3772,7 +3847,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     });
     segments = Array.from(valMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0], 'he'))
-      .map(([label, list]) => ({ key: label, label, placed: buildPlaced(list) }));
+      .map(([label, list]) => ({ key: label, label, placed: buildSegPlaced(list) }));
   }
 
   // Sync & apply block-space drag order
@@ -3857,8 +3932,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     </div>
   );
 
-  const renderChartContent = (placed: Placed[], blocksToShow: any[]) => (
-    <div style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint' }}>
+  const renderChartContent = (placed: any[], blocksToShow: any[], isFirst = false) => (
+    <div ref={isFirst ? chartContentRef : undefined} style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint', cursor: altDrag ? 'ns-resize' : 'default' }}>
       {/* Block range background bands */}
       {blocksToShow.map((b: any) => {
         const bAltHi = b.alt_to * 100;
@@ -3886,7 +3961,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         return <div key={a} style={{ position: 'absolute', top: `${pct}%`, left: 0, right: 0, borderTop: `1px dashed ${gridLine}`, pointerEvents: 'none', zIndex: 1 }} />;
       })}
 
-      {(() => {
+      {/* "Now" line — only in time-based mode */}
+      {timeBased && (() => {
         const nowPct = (now.getTime() - START_MS) / TOTAL_MS * 100;
         return (
           <>
@@ -3898,7 +3974,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         );
       })()}
 
-      {(() => {
+      {/* Conflict zones — only in time-based mode */}
+      {timeBased && (() => {
         const zones: { x1: number; x2: number }[] = [];
         for (let i = 0; i < placed.length; i++) {
           for (let j = i + 1; j < placed.length; j++) {
@@ -3915,58 +3992,128 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         ));
       })()}
 
+      {/* Altitude drag indicator */}
+      {altDrag && (() => {
+        const dragPct = altPct(altDrag.currentAlt);
+        const fl = Math.round(altDrag.currentAlt / 100);
+        const label = altDrag.currentAlt >= 10000 ? `FL${fl}` : altDrag.currentAlt >= 1000 ? `${(altDrag.currentAlt / 1000).toFixed(1)}k` : String(Math.round(altDrag.currentAlt));
+        return (
+          <>
+            <div style={{ position: 'absolute', left: 0, right: 0, top: `${dragPct}%`, height: 2, background: '#f59e0b', zIndex: 10, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', right: 4, top: `${dragPct}%`, transform: 'translateY(-50%)', background: '#f59e0b', color: '#000', fontSize: '10px', fontWeight: 'bold', padding: '1px 4px', borderRadius: 3, zIndex: 11, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+              {label}
+            </div>
+          </>
+        );
+      })()}
+
       {placed.map(s => {
-        const xPct = (s._time - START_MS) / TOTAL_MS * 100;
-        const wPct = STRIP_DUR_MS / TOTAL_MS * 100;
-        if (xPct + wPct < 0 || xPct > 100) return null;
-        const isConflict = s._hasConflict;
+        const isDragging = altDrag?.stripId === s.id;
         const sq = s.sq || s.squadron || '';
         const isDeviation = computeBlockDeviation(s, allBlocks, blockTables, activeBlockTableId);
         const isDeviationAcknowledged = !!s.block_deviation;
-        let topPct: number, heightVal: string;
-        if (s._isRange) {
-          const tp = altPct(s._altHi);
-          const bp = altPct(s._altLo);
-          topPct = Math.max(tp, 0);
-          heightVal = `${Math.max(bp - tp, 4)}%`;
-        } else {
-          const yPct = s._y / CHART_H * 100;
-          const halfPct = (STRIP_H / 2 / CHART_H) * 100;
-          topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
-          heightVal = `${STRIP_H}px`;
-        }
         const effectiveDeviation = isDeviation && !muteBlockAlerts;
         const effectiveDeviationAck = isDeviationAcknowledged && !muteBlockAlerts;
-        const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
-          : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
-        const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
-        const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
-          : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
-        return (
-          <div key={s.id}
-            className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
-            title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
-            onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
-            style={{
-              position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
-              width: `${wPct}%`, height: heightVal,
-              background: effectiveDeviation && !isDeviationAcknowledged ? undefined
-                : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
-              border: `2px solid ${borderColor}`, borderRadius: 4,
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
-              overflow: 'hidden', padding: '2px 5px', zIndex: isConflict ? 3 : 2, boxSizing: 'border-box', cursor: 'default',
-            }}>
-            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-              <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-              {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+
+        // Compute Y position
+        let topPct: number, heightVal: string;
+        const midAlt = isDragging ? altDrag!.currentAlt : (s._altLo + s._altHi) / 2;
+        if (timeBased) {
+          const xPct = (s._time - START_MS) / TOTAL_MS * 100;
+          const wPct = STRIP_DUR_MS / TOTAL_MS * 100;
+          if (xPct + wPct < 0 || xPct > 100) return null;
+          if (s._isRange && !isDragging) {
+            const tp = altPct(s._altHi);
+            const bp = altPct(s._altLo);
+            topPct = Math.max(tp, 0);
+            heightVal = `${Math.max(bp - tp, 4)}%`;
+          } else {
+            const yPct = isDragging ? altPct(midAlt) : s._y / CHART_H * 100;
+            const halfPct = (STRIP_H / 2 / CHART_H) * 100;
+            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+            heightVal = `${STRIP_H}px`;
+          }
+          const isConflict = s._hasConflict;
+          const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
+            : s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : (lightMode ? '#94a3b8' : '#475569');
+          const textMainColor = s.airborne ? '#3b82f6' : isConflict ? '#ef4444' : boldTextColor;
+          const normalBg = s._isRange ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
+            : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
+          return (
+            <div key={s.id}
+              className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
+              onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
+              onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+              style={{
+                position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
+                width: `${wPct}%`, height: heightVal,
+                background: effectiveDeviation && !isDeviationAcknowledged ? undefined
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
+                border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
+                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
+                boxSizing: 'border-box', cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
+                opacity: isDragging ? 0.6 : 1,
+              }}>
+              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+              </div>
             </div>
-          </div>
-        );
+          );
+        } else {
+          // No-time mode: column-based layout
+          const numCols = s._numCols ?? 1;
+          const col = s._col ?? 0;
+          const colW = 100 / numCols;
+          const leftPct = col * colW;
+          if (s._isRange && !isDragging) {
+            const tp = altPct(s._altHi);
+            const bp = altPct(s._altLo);
+            topPct = Math.max(tp, 0);
+            heightVal = `${Math.max(bp - tp, 4)}%`;
+          } else {
+            const yPct = isDragging ? altPct(midAlt) : altPct((s._altLo + s._altHi) / 2);
+            const halfPct = (STRIP_H / 2 / CHART_H) * 100;
+            topPct = Math.min(Math.max(yPct - halfPct, 0), 100 - (STRIP_H / CHART_H) * 100);
+            heightVal = `${STRIP_H}px`;
+          }
+          const borderColor = (effectiveDeviation || effectiveDeviationAck) ? '#f97316'
+            : s.airborne ? '#3b82f6' : (lightMode ? '#94a3b8' : '#475569');
+          const textMainColor = s.airborne ? '#3b82f6' : boldTextColor;
+          const normalBg = s._isRange
+            ? (lightMode ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.18)')
+            : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
+          return (
+            <div key={s.id}
+              className={effectiveDeviation && !isDeviationAcknowledged ? 'block-deviation-flash' : ''}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}`}
+              onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
+              onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+              style={{
+                position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
+                width: `${colW - 0.5}%`, height: heightVal,
+                background: effectiveDeviation && !isDeviationAcknowledged ? undefined
+                  : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : normalBg,
+                border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
+                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : 2,
+                boxSizing: 'border-box', cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
+                opacity: isDragging ? 0.6 : 1,
+              }}>
+              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline', direction: 'rtl' }}>
+                <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+              </div>
+            </div>
+          );
+        }
       })}
 
       {placed.length === 0 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
-          אין פממים
+          {timeBased ? 'אין פממים עם זמן וגובה להצגה' : 'אין פממים עם גובה להצגה'}
         </div>
       )}
     </div>
@@ -4032,23 +4179,24 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     </div>
   );
 
-  const renderSegmentChart = (placed: Placed[], segBlocks?: any[]) => {
+  const renderSegmentChart = (placed: any[], segBlocks?: any[], segIdx = 0) => {
     const blocksForChart = effectiveShowBlocks ? (segBlocks !== undefined ? segBlocks : relevantBlocks) : [];
+    const isFirst = segIdx === 0;
     if (usePerSegmentAxis) {
       return (
         <>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
             {renderYAxisColumn(blocksForChart)}
-            {renderChartContent(placed, blocksForChart)}
+            {renderChartContent(placed, blocksForChart, isFirst)}
           </div>
-          {renderXAxisWithPad(true)}
+          {timeBased && renderXAxisWithPad(true)}
         </>
       );
     }
     return (
       <>
-        {renderChartContent(placed, blocksForChart)}
-        {renderXAxis()}
+        {renderChartContent(placed, blocksForChart, isFirst)}
+        {timeBased && renderXAxis()}
       </>
     );
   };
@@ -4107,7 +4255,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               );
             })}
           </div>
-          <div style={{ height: X_AXIS_H, flexShrink: 0, borderTop: `1px solid ${gridLine}`, background: bg }} />
+          {timeBased && <div style={{ height: X_AXIS_H, flexShrink: 0, borderTop: `1px solid ${gridLine}`, background: bg }} />}
         </div>
 
         {/* Scrollable segments area */}
@@ -4169,13 +4317,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
                   </div>
                 )
               )}
-              {renderSegmentChart(seg.placed, seg.segBlocks)}
+              {renderSegmentChart(seg.placed, seg.segBlocks, idx)}
             </div>
             );
           })}
           {candidates.length === 0 && (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '13px', direction: 'rtl' }}>
-              אין פממים עם זמן וגובה להצגה
+              {timeBased ? 'אין פממים עם זמן וגובה להצגה' : 'אין פממים עם גובה להצגה'}
             </div>
           )}
         </div>
@@ -4214,8 +4362,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           </>
         )}
 
-        {/* Time field selector — pushed to the physical left */}
-        {onTimeFieldChange && (
+        {/* Time field selector — pushed to the physical left — only in time-based mode */}
+        {timeBased && onTimeFieldChange && (
           <>
             <div style={{ marginRight: 'auto' }} />
             <div style={{ width: 1, height: 18, background: gridLine, flexShrink: 0 }} />
@@ -8875,7 +9023,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: false }) }); } catch (e) { console.error(e); } }} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -8892,7 +9040,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: false }) }); } catch (e) { console.error(e); } }} />
         </div>
       ))}
 
@@ -10995,6 +11143,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     relevant_control_stations: [] as string[],
     filter_query: null as QGroup | null,
     block_table_ids: [] as number[],
+    vertical_time_based: true as boolean,
   });
 
   // BDH state
@@ -11157,10 +11306,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           relevant_control_stations: presetForm.relevant_control_stations.length > 0 ? presetForm.relevant_control_stations : null,
           filter_query: presetForm.filter_query || null,
           block_table_ids: presetForm.block_table_ids,
+          vertical_time_based: presetForm.vertical_time_based,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -11180,6 +11330,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       relevant_control_stations: preset.relevant_control_stations || [],
       filter_query: preset.filter_query || null,
       block_table_ids: Array.isArray(preset.block_table_ids) ? preset.block_table_ids : [],
+      vertical_time_based: preset.vertical_time_based !== false,
     });
   };
 
@@ -11253,7 +11404,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <MaybeSettingsModal
                 show={!!editingPreset}
                 title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] }); }}
+                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true }); }}
                 wide
               >
               <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
@@ -11423,6 +11574,24 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   })()}
                 </div>
 
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: '⏱ לפי זמן' }, { val: false, label: '📊 ללא זמן' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, vertical_time_based: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${presetForm.vertical_time_based === opt.val ? '#6366f1' : '#334155'}`, background: presetForm.vertical_time_based === opt.val ? '#1e1b4b' : '#1e293b', color: presetForm.vertical_time_based === opt.val ? '#a5b4fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.vertical_time_based === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    {presetForm.vertical_time_based
+                      ? 'כל פ"מ ממוקם על ציר הזמן לפי שעת ה מראה / זמ"מ'
+                      : 'כל פ"מ מוצג ברוחב מלא — פממים חופפים מוצגים זה לצד זה'}
+                  </p>
+                </div>
+
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
@@ -11489,7 +11658,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [] }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול

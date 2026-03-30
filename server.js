@@ -458,6 +458,7 @@ async function initDb() {
   `);
 
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS block_table_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS vertical_time_based BOOLEAN DEFAULT TRUE`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_space_id INTEGER REFERENCES block_spaces(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS block_deviation BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE block_tables ADD COLUMN IF NOT EXISTS note TEXT`);
@@ -1671,11 +1672,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1687,10 +1688,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10 WHERE id = $11 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11 WHERE id = $12 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -2606,7 +2607,7 @@ app.put('/api/presets/:id/bdh', async (req, res) => {
 app.get('/api/bdh-preset-assignments', async (req, res) => {
   try {
     const result = await pool.query('SELECT preset_id, bdh_id FROM workstation_bdh');
-    const map: Record<number, number[]> = {};
+    const map = {};
     for (const row of result.rows) {
       if (!map[row.preset_id]) map[row.preset_id] = [];
       map[row.preset_id].push(row.bdh_id);
