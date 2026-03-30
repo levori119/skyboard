@@ -4241,9 +4241,10 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
  * assigned altitude block in the CURRENTLY ACTIVE block table.
  *
  * Rules (per user spec):
- *  - No activeBlockTableId  →  never alert (no block context selected)
- *  - WS has no blocks in the active table  →  never alert (not our responsibility)
- *  - WS has blocks in the active table  →  alert when strip altitude is NOT in any of them
+ *  - No activeBlockTableId          →  never alert (no block context selected)
+ *  - Active table has no blocks     →  never alert (empty table)
+ *  - WS has no blocks in the table  →  always alert (table is active but WS has no range)
+ *  - WS has blocks in the table     →  alert when strip altitude is NOT in any of them
  */
 const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], activeBlockTableId?: number | null): boolean => {
   // No active block table → no alerts at all
@@ -4254,15 +4255,20 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
 
   const presetId = Number(s.workstation_preset_id);
 
+  // All blocks in the active table
+  const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
+
+  // Empty table → nothing to alert about
+  if (tableBlocks.length === 0) return false;
+
   // Blocks in the active table that belong specifically to this workstation
-  const myBlocks = allBlocks.filter((b: any) => {
-    if (b.block_table_id !== activeBlockTableId) return false;
+  const myBlocks = tableBlocks.filter((b: any) => {
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
     return ws.length > 0 && ws.includes(presetId);
   });
 
-  // WS has no designated blocks in this table → not our responsibility
-  if (myBlocks.length === 0) return false;
+  // Table has blocks but none for this WS → always alert (strip has no defined range)
+  if (myBlocks.length === 0) return true;
 
   // Alert if the strip's altitude is NOT inside any of my blocks
   return !myBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
