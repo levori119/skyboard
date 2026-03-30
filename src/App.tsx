@@ -4242,30 +4242,41 @@ const computeBlockDeviation = (s: any, allBlocks: any[], blockTables: any[], act
   if (isNaN(altNum)) return false;
   let candidateBlocks: any[];
   if (s.block_space_id) {
-    // Strip is assigned to a block space → all block tables are relevant (ignore activeBlockTableId)
     candidateBlocks = allBlocks.filter((b: any) => {
       const table = blockTables.find((t: any) => t.id === b.block_table_id);
       return table && String(table.block_space_id) === String(s.block_space_id);
     });
   } else if (activeBlockTableId) {
-    // Active block table set → only check that table's blocks
     candidateBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
   } else {
-    candidateBlocks = allBlocks;
+    return false; // No block context → cannot determine deviation
   }
   if (candidateBlocks.length === 0) return false;
   const presetId = Number(s.workstation_preset_id);
-  // Only consider blocks that belong to the current workstation.
-  // A block with no workstations defined applies to all workstations.
-  // If the current workstation has no blocks assigned to it at all → no deviation.
-  const myBlocks = candidateBlocks.filter((b: any) => {
+
+  // Classify blocks by ownership
+  const mySpecificBlocks = candidateBlocks.filter((b: any) => {
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    return ws.length === 0 || ws.includes(presetId);
+    return ws.length > 0 && ws.includes(presetId);
   });
-  if (myBlocks.length === 0) return false;
-  // Deviation = strip altitude is NOT inside any of "my" blocks' ranges
-  const inRange = myBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
-  return !inRange;
+  const otherWSBlocks = candidateBlocks.filter((b: any) => {
+    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
+    return ws.length > 0 && !ws.includes(presetId);
+  });
+  const universalBlocks = candidateBlocks.filter((b: any) => {
+    const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
+    return ws.length === 0;
+  });
+
+  // Priority 1: strip is in my specific block → no deviation
+  if (mySpecificBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return false;
+  // Priority 2: strip is in another WS's specific block → deviation (wrong territory)
+  if (otherWSBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return true;
+  // Priority 3: strip is in a universal (shared) block → no deviation
+  if (universalBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to)) return false;
+  // Strip is outside all blocks. Alert only if I have blocks defined (specific or universal).
+  const myBlocks = [...mySpecificBlocks, ...universalBlocks];
+  return myBlocks.length > 0;
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
