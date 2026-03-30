@@ -12,3 +12,9 @@ id = "bbK2b3SOE0RJe-5YOTFCG"
 uri = "file://exports/SKYBOARD_תיאור_מערכת.docx"
 type = "word_document"
 title = "SKYBOARD — תיאור מערכת (Word)"
+
+[[outputs]]
+id = "p40Y-Y5leClYB84X4g9Gx"
+uri = "file://SKYBOARD_Specification.docx"
+type = "word_document"
+title = "SKYBOARD — מסמך אפיון מערכת"

@@ -25,6 +25,7 @@
   "dependencies": {
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
+    "docx": "^9.6.1",
     "express": "^5.2.1",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
