@@ -511,7 +511,8 @@ async function initDb() {
       id SERIAL PRIMARY KEY,
       bdh_id INTEGER REFERENCES bdh_documents(id) ON DELETE CASCADE,
       order_index INTEGER NOT NULL DEFAULT 0,
-      content TEXT NOT NULL DEFAULT ''
+      content TEXT NOT NULL DEFAULT '',
+      is_header BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
   await pool.query(`
