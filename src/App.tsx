@@ -4429,12 +4429,28 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
  *  - WS has no blocks in the table  →  always alert (table is active but WS has no range)
  *  - WS has blocks in the table     →  alert when strip altitude is NOT in any of them
  */
+// Parse an altitude string into feet (same logic as VerticalView's parseAltSingle)
+const parseAltToFeet = (raw: string): number | null => {
+  if (!raw) return null;
+  const u = raw.trim().toUpperCase().replace(/,/g, '');
+  const fl = u.match(/^F[L]?(\d+)/);
+  if (fl) return parseInt(fl[1]) * 100;
+  const num = u.match(/^(\d+)$/);
+  if (num) {
+    const n = parseInt(num[1]);
+    return (n >= 100 && n <= 999) ? n * 100 : n; // 3-digit → FL×100, else raw feet
+  }
+  return null;
+};
+
 const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], activeBlockTableId?: number | null): boolean => {
   // No active block table → no alerts at all
   if (!activeBlockTableId) return false;
   if (!s.alt || !s.workstation_preset_id) return false;
-  const altNum = parseFloat(String(s.alt));
-  if (isNaN(altNum)) return false;
+
+  // Parse altitude using FL-aware parser (returns feet)
+  const altFt = parseAltToFeet(String(s.alt));
+  if (altFt === null) return false;
 
   const presetId = Number(s.workstation_preset_id);
 
@@ -4453,8 +4469,9 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
   // Table has blocks but none for this WS → always alert (strip has no defined range)
   if (myBlocks.length === 0) return true;
 
-  // Alert if the strip's altitude is NOT inside any of my blocks
-  return !myBlocks.some((b: any) => altNum >= b.alt_from && altNum <= b.alt_to);
+  // Alert if the strip's altitude in feet is NOT inside any of my blocks
+  // Block alt_from/alt_to are stored as FL values → multiply by 100 to get feet
+  return !myBlocks.some((b: any) => altFt >= b.alt_from * 100 && altFt <= b.alt_to * 100);
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
