@@ -6329,24 +6329,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {/* כפתור ספרורים */}
           {(() => {
-            // Alert if any strip+station has an unhandled serial (not selected and not dismissed)
-            const stationsForAlert = (relevantControlStations && relevantControlStations.length > 0)
-              ? relevantControlStations
-              : Array.from(new Set(relevantSerials.map(sr => sr.control_station)));
+            // Alert only when a strip has a selection that is outdated (newer serial exists) —
+            // matching exactly the red-badge logic shown in the table rows.
             const hasSerialAlerts = myTableStrips.some(strip => {
-              const dismissedForStrip = new Set(
-                (stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(strip.id)).map(d => d.serial_id)
-              );
-              return stationsForAlert.some(station => {
-                const stationSerials = relevantSerials.filter(sr => sr.control_station === station);
-                if (stationSerials.length === 0) return false;
-                const latestSerial = stationSerials.reduce((a: any, b: any) => a.serial_number > b.serial_number ? a : b);
-                if (dismissedForStrip.has(latestSerial.id)) return false;
-                // If the latest serial is already selected → no alert for this station
-                const selection = stripSerialSelections.find((sel: any) =>
-                  sel.strip_id === strip.id && sel.control_station === station && !sel.dismissed && sel.serial_id === latestSerial.id
+              const mySelections = (stripSerialSelections as any[]).filter(sel => sel.strip_id === strip.id && !sel.dismissed && sel.serial_id);
+              if (mySelections.length === 0) return false;
+              return mySelections.some((sel: any) => {
+                const selSerial = (relevantSerials as any[]).find(sr => sr.id === sel.serial_id);
+                if (!selSerial) return false;
+                const dismissedForStation = new Set(
+                  (stripSerialDismissals as any[])
+                    .filter(d => String(d.strip_id) === String(strip.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station))
+                    .map(d => d.serial_id)
                 );
-                return !selection;
+                return (relevantSerials as any[]).some(sr => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id));
               });
             });
             return (
