@@ -4798,6 +4798,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
+  const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -8785,13 +8786,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       )}
                     </div>
                   ))}
-                  {/* Auto block tables */}
+                  {/* Auto block tables — collapsible בלוקים section */}
                   {aidBlockTables.length > 0 && (
-                    <>
-                      {aidGroup && (aidGroup.items || []).length > 0 && (
-                        <div style={{ height: '1px', background: lightMode ? '#e2e8f0' : '#334155', margin: '4px 0' }} />
-                      )}
-                      {aidBlockTables.map((bt: any) => {
+                    <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
+                      <div
+                        onClick={() => setBlocksPanelOpen(v => !v)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: blocksPanelOpen ? '4px' : 0 }}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc' }}>🗂️ בלוקים</span>
+                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{blocksPanelOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {blocksPanelOpen && aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
                         const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => b.alt_from - a.alt_from);
@@ -8836,7 +8841,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         );
                       })}
-                    </>
+                    </div>
                   )}
                   {/* מדניות Section */}
                   {workGroupNotes.length > 0 && (() => {
