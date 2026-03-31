@@ -8807,56 +8807,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       })}
                     </>
                   )}
-                  {/* BDH Section */}
-                  {workstationBdhDocs.length > 0 && (
-                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0) ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
-                      <div
-                        onClick={() => setBdhPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: '4px' }}
-                      >
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📋 בד"ח</span>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{bdhPanelOpen ? '▲' : '▼'}</span>
-                      </div>
-                      {bdhPanelOpen && (
-                        <div>
-                          <input
-                            value={bdhSearchQuery}
-                            onChange={e => setBdhSearchQuery(e.target.value)}
-                            placeholder={'חיפוש בד"ח...'}
-                            style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
-                          />
-                          {(() => {
-                            const filtered = workstationBdhDocs.filter((doc: any) =>
-                              !bdhSearchQuery || doc.name.includes(bdhSearchQuery) || doc.category.includes(bdhSearchQuery)
-                            );
-                            const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
-                            return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px' }}>
-                                {cats.length > 1 && <div style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px', fontWeight: 'bold', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cat}</div>}
-                                {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
-                                  <div
-                                    key={doc.id}
-                                    onDoubleClick={() => { setBdhViewerDoc(doc); setBdhChecked({}); }}
-                                    title="דאבל קליק לפתיחה"
-                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', cursor: 'pointer', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl' }}
-                                  >
-                                    📋 {doc.name}
-                                    <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים — דאבל קליק לפתיחה</div>
-                                  </div>
-                                ))}
-                              </div>
-                            ));
-                          })()}
-                          {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
-                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>לא נמצאו תוצאות</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {/* מדניות Section */}
                   {workGroupNotes.length > 0 && (() => {
-                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workstationBdhDocs.length > 0;
+                    const hasPrev = aidGroup || aidBlockTables.length > 0;
                     const groups = Array.from(new Set(workGroupNotes.map((n: any) => n.work_group_id)));
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
@@ -8952,7 +8905,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                   {/* קישורים Section */}
                   {presetLinks.length > 0 && (() => {
-                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workstationBdhDocs.length > 0 || workGroupNotes.length > 0;
+                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0;
                     const cats = Array.from(new Set(presetLinks.map((l: any) => l.category || 'כללי'))).sort() as string[];
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
@@ -8976,7 +8929,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })()}
 
-                  {!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
+                  {/* BDH Section */}
+                  {workstationBdhDocs.length > 0 && (
+                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
+                      <div
+                        onClick={() => setBdhPanelOpen(v => !v)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: '4px' }}
+                      >
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📋 בד"ח</span>
+                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{bdhPanelOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {bdhPanelOpen && (
+                        <div>
+                          <input
+                            value={bdhSearchQuery}
+                            onChange={e => setBdhSearchQuery(e.target.value)}
+                            placeholder={'חיפוש בד"ח...'}
+                            style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
+                          />
+                          {(() => {
+                            const filtered = workstationBdhDocs.filter((doc: any) =>
+                              !bdhSearchQuery || doc.name.includes(bdhSearchQuery) || doc.category.includes(bdhSearchQuery)
+                            );
+                            const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
+                            return cats.map(cat => (
+                              <div key={cat} style={{ marginBottom: '6px' }}>
+                                <div style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px', fontWeight: 'bold', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cat}</div>
+                                {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
+                                  <div
+                                    key={doc.id}
+                                    onDoubleClick={() => { setBdhViewerDoc(doc); setBdhChecked({}); }}
+                                    title="דאבל קליק לפתיחה"
+                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', cursor: 'pointer', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl' }}
+                                  >
+                                    📋 {doc.name}
+                                    <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים — דאבל קליק לפתיחה</div>
+                                  </div>
+                                ))}
+                              </div>
+                            ));
+                          })()}
+                          {workstationBdhDocs.filter((doc: any) => !bdhSearchQuery || doc.name.includes(bdhSearchQuery)).length === 0 && (
+                            <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '10px', textAlign: 'center', padding: '8px 0' }}>לא נמצאו תוצאות</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
                 </div>
               )}
               {/* Collapsed label */}
@@ -11390,7 +11391,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [bdhDocs, setBdhDocs] = useState<any[]>([]);
   const [bdhForm, setBdhForm] = useState({ name: '', category: '', title: '' });
   const [editingBdh, setEditingBdh] = useState<any | null>(null);
-  const [bdhItemsEdit, setBdhItemsEdit] = useState<{ id?: number; content: string; _key: number }[]>([]);
+  const [bdhItemsEdit, setBdhItemsEdit] = useState<{ id?: number; content: string; is_header?: boolean; _key: number }[]>([]);
+  const [bdhDragOver, setBdhDragOver] = useState<number | null>(null);
+  const bdhDragIdxRef = React.useRef<number | null>(null);
   const [bdhPresetAssignments, setBdhPresetAssignments] = useState<Record<number, number[]>>({});
   const [bdhAssignPresetId, setBdhAssignPresetId] = useState<number | null>(null);
   const [bdhSearchAdmin, setBdhSearchAdmin] = useState('');
@@ -12926,7 +12929,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       <input value={bdhForm.title} onChange={e => setBdhForm(f => ({ ...f, title: e.target.value }))} style={inputStyle} />
                     </div>
 
-                    {/* Items — compact table */}
+                    {/* Items — compact table with drag-and-drop */}
                     <div style={{ marginBottom: '14px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                         <label style={labelStyle}>סעיפים וכותרות</label>
@@ -12937,36 +12940,71 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             style={{ background: '#14432a', color: '#86efac', border: '1px solid #166534', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>+ סעיף</button>
                         </div>
                       </div>
-                      {/* Table header */}
                       {bdhItemsEdit.length > 0 && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '22px 1fr 52px 44px', gap: '0', background: '#0c1626', borderRadius: '4px 4px 0 0', borderBottom: '1px solid #334155', padding: '2px 4px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '18px 22px 1fr 44px 52px', gap: '0', background: '#0c1626', borderRadius: '4px 4px 0 0', borderBottom: '1px solid #334155', padding: '2px 4px' }}>
+                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>⠿</span>
                           <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>#</span>
                           <span style={{ color: '#475569', fontSize: '9px' }}>תוכן</span>
-                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>עיצוב</span>
                           <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>פעולות</span>
+                          <span style={{ color: '#475569', fontSize: '9px', textAlign: 'center' }}>עיצוב</span>
                         </div>
                       )}
                       <div style={{ border: bdhItemsEdit.length > 0 ? '1px solid #334155' : 'none', borderTop: 'none', borderRadius: '0 0 4px 4px', overflow: 'hidden' }}>
                         {bdhItemsEdit.map((item, idx) => (
-                          <div key={item._key} style={{ display: 'grid', gridTemplateColumns: '22px 1fr 52px 44px', gap: '0', alignItems: 'center', background: item.is_header ? '#1e3a5f' : (idx % 2 === 0 ? '#0f172a' : '#0c1626'), borderBottom: idx < bdhItemsEdit.length - 1 ? '1px solid #1e293b' : 'none', minHeight: '28px' }}>
-                            <span style={{ color: item.is_header ? '#93c5fd' : '#475569', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', padding: '2px 0', flexShrink: 0 }}>{item.is_header ? 'H' : idx + 1}</span>
+                          <div
+                            key={item._key}
+                            draggable
+                            onDragStart={() => { bdhDragIdxRef.current = idx; }}
+                            onDragOver={e => { e.preventDefault(); setBdhDragOver(idx); }}
+                            onDragLeave={() => setBdhDragOver(null)}
+                            onDrop={e => {
+                              e.preventDefault();
+                              const from = bdhDragIdxRef.current;
+                              if (from === null || from === idx) { bdhDragIdxRef.current = null; setBdhDragOver(null); return; }
+                              setBdhItemsEdit(prev => {
+                                const a = [...prev];
+                                const [removed] = a.splice(from, 1);
+                                a.splice(from < idx ? idx - 1 : idx, 0, removed);
+                                return a;
+                              });
+                              bdhDragIdxRef.current = null;
+                              setBdhDragOver(null);
+                            }}
+                            onDragEnd={() => { bdhDragIdxRef.current = null; setBdhDragOver(null); }}
+                            style={{ display: 'grid', gridTemplateColumns: '18px 22px 1fr 44px 52px', gap: '0', alignItems: 'center', background: bdhDragOver === idx ? '#1e3a5f' : (item.is_header ? '#1a2e4a' : (idx % 2 === 0 ? '#0f172a' : '#0c1626')), borderBottom: idx < bdhItemsEdit.length - 1 ? '1px solid #1e293b' : 'none', minHeight: '28px', borderTop: bdhDragOver === idx ? '2px solid #3b82f6' : 'none', cursor: 'grab' }}
+                          >
+                            {/* Drag handle */}
+                            <span style={{ color: '#334155', fontSize: '11px', textAlign: 'center', userSelect: 'none' }}>⠿</span>
+                            {/* Type indicator + per-header add button */}
+                            {item.is_header ? (
+                              <button
+                                onClick={() => {
+                                  const newItem = { content: '', is_header: false, _key: Date.now() + Math.random() };
+                                  setBdhItemsEdit(prev => { const a = [...prev]; a.splice(idx + 1, 0, newItem); return a; });
+                                }}
+                                title="הוסף סעיף תחת כותרת זו"
+                                style={{ background: 'none', border: 'none', color: '#86efac', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: '0', textAlign: 'center' }}>+</button>
+                            ) : (
+                              <span style={{ color: '#475569', fontSize: '9px', fontWeight: 'bold', textAlign: 'center' }}>{idx + 1}</span>
+                            )}
+                            {/* Content */}
                             <div
                               contentEditable suppressContentEditableWarning
                               onBlur={e => { const html = e.currentTarget.innerHTML; setBdhItemsEdit(prev => prev.map((it, i) => i === idx ? { ...it, content: html } : it)); }}
                               dangerouslySetInnerHTML={{ __html: item.content }}
-                              style={{ padding: '4px 6px', color: item.is_header ? '#93c5fd' : 'white', fontSize: item.is_header ? '12px' : '12px', fontWeight: item.is_header ? 'bold' : 'normal', minHeight: '24px', outline: 'none', direction: 'rtl', lineHeight: '1.5', background: 'transparent', width: '100%', boxSizing: 'border-box' as const }}
+                              style={{ padding: '4px 6px', color: item.is_header ? '#93c5fd' : 'white', fontWeight: item.is_header ? 'bold' : 'normal', fontSize: '12px', minHeight: '24px', outline: 'none', direction: 'rtl', lineHeight: '1.5', background: 'transparent', width: '100%', boxSizing: 'border-box' as const, cursor: 'text' }}
                             />
+                            {/* Actions */}
+                            <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', padding: '0 2px' }}>
+                              <button onClick={() => setBdhItemsEdit(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '1px 3px' }}>✕</button>
+                            </div>
+                            {/* Format buttons */}
                             <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', padding: '0 2px' }}>
                               {!item.is_header && <>
                                 <button onMouseDown={e => { e.preventDefault(); document.execCommand('bold'); }} title="B" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 'bold', fontSize: '10px', padding: '1px 3px' }}>B</button>
                                 <button onMouseDown={e => { e.preventDefault(); document.execCommand('italic'); }} title="I" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontStyle: 'italic', fontSize: '10px', padding: '1px 3px' }}>I</button>
                                 <button onMouseDown={e => { e.preventDefault(); document.execCommand('underline'); }} title="U" style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', textDecoration: 'underline', fontSize: '10px', padding: '1px 3px' }}>U</button>
                               </>}
-                            </div>
-                            <div style={{ display: 'flex', gap: '1px', justifyContent: 'center', padding: '0 2px' }}>
-                              {idx > 0 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>↑</button>}
-                              {idx < bdhItemsEdit.length - 1 && <button onClick={() => setBdhItemsEdit(prev => { const a = [...prev]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; })} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>↓</button>}
-                              <button onClick={() => setBdhItemsEdit(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '1px 3px' }}>✕</button>
                             </div>
                           </div>
                         ))}
