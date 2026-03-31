@@ -3618,6 +3618,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
   const [dragOverSegKey, setDragOverSegKey] = React.useState<string | null>(null);
   const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number } | null>(null);
+  const [altExpand, setAltExpand] = React.useState(0); // extra feet added on each side (positive = expand)
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -3697,9 +3698,14 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const altPerPx  = rawRange / CHART_H;
   const bottomPad = 2 * STRIP_H * altPerPx;
   const topPad    = 2 * STRIP_H * altPerPx;
-  const minAlt    = rawMinAlt - bottomPad;
-  const topAlt    = maxAlt + topPad;
-  const altRange  = topAlt - minAlt || 1;
+  // Floor from relevant blocks — can't expand below the lowest block alt_from
+  const blockAltFloor = relevantBlocks.length > 0
+    ? Math.min(...relevantBlocks.map((b: any) => b.alt_from * 100))
+    : 0;
+  // altExpand > 0 → show more range on each side; < 0 → show less (shrink)
+  const minAlt    = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
+  const topAlt    = maxAlt + topPad + altExpand;
+  const altRange  = Math.max(topAlt - minAlt, 1);
 
   // Convert altitude to % from top (0% = top = maxAlt)
   const altPct = (alt: number) => (1 - (alt - minAlt) / altRange) * 100;
@@ -4167,11 +4173,15 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         if (pct < -2 || pct > 102) return null;
         const clampedPct = Math.min(Math.max(pct, 1), 98);
         return (
-          <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
+          <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 22, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
             {altLabel(a)}
           </div>
         );
       })}
+      <button onClick={() => setAltExpand(v => v + 2000)} title="הרחב טווח גובה ב-2000 רגל"
+        style={{ position: 'absolute', top: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>+</button>
+      <button onClick={() => setAltExpand(v => v - 2000)} title="צמצם טווח גובה ב-2000 רגל"
+        style={{ position: 'absolute', bottom: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '17px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>−</button>
     </div>
   );
 
@@ -4266,11 +4276,20 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               if (pct < -2 || pct > 102) return null;
               const clampedPct = Math.min(Math.max(pct, 1), 98);
               return (
-                <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 2, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
+                <div key={a} style={{ position: 'absolute', top: `${clampedPct}%`, transform: 'translateY(-50%)', right: 4, left: 22, fontWeight: 'bold', fontSize: '11px', color: boldTextColor, whiteSpace: 'nowrap', lineHeight: 1, textAlign: 'right', zIndex: 2 }}>
                   {altLabel(a)}
                 </div>
               );
             })}
+            {/* Expand/shrink range buttons */}
+            <button
+              onClick={() => setAltExpand(v => v + 2000)}
+              title="הרחב טווח גובה ב-2000 רגל"
+              style={{ position: 'absolute', top: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '15px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>+</button>
+            <button
+              onClick={() => setAltExpand(v => v - 2000)}
+              title="צמצם טווח גובה ב-2000 רגל"
+              style={{ position: 'absolute', bottom: 3, left: 2, zIndex: 10, width: 18, height: 18, background: lightMode ? '#e2e8f0' : '#1e293b', border: `1px solid ${gridLine}`, borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: '17px', color: boldTextColor, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, userSelect: 'none' }}>−</button>
           </div>
           {timeBased && <div style={{ height: X_AXIS_H, flexShrink: 0, borderTop: `1px solid ${gridLine}`, background: bg }} />}
         </div>
