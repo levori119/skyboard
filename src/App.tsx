@@ -3606,6 +3606,91 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
   );
 };
 
+// --- BlockMiniView: narrow side-panel block+altitude view for single-block mode ---
+const BlockMiniView = ({ relevantBlocks, strips, lightMode }: { relevantBlocks: any[]; strips: any[]; lightMode: boolean }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [containerH, setContainerH] = React.useState(400);
+  React.useEffect(() => {
+    const el = containerRef.current; if (!el) return;
+    const ro = new ResizeObserver(ents => { for (const e of ents) setContainerH(e.contentRect.height); });
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+
+  const minAltFt = relevantBlocks.length ? Math.min(...relevantBlocks.map((b: any) => b.alt_from)) * 100 : 10000;
+  const maxAltFt = relevantBlocks.length ? Math.max(...relevantBlocks.map((b: any) => b.alt_to)) * 100 : 60000;
+  const pad = 5000;
+  const altMin = minAltFt - pad;
+  const altMax = maxAltFt + pad;
+  const altRange = altMax - altMin || 1;
+
+  const toY = (ft: number) => ((altMax - ft) / altRange) * containerH;
+
+  const TICK_STEP = 5000;
+  const ticks: number[] = [];
+  for (let a = Math.ceil(altMin / TICK_STEP) * TICK_STEP; a <= altMax; a += TICK_STEP) ticks.push(a);
+
+  const placedStrips = strips.map((s: any) => {
+    const ft = parseAltToFeet(String(s.alt || ''));
+    return { ...s, altFt: ft };
+  }).filter((s: any) => s.altFt !== null && s.altFt >= altMin - 1000 && s.altFt <= altMax + 1000);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+      {/* Block bands */}
+      {relevantBlocks.map((b: any) => {
+        const y1 = toY(b.alt_to * 100);
+        const y2 = toY(b.alt_from * 100);
+        if (y2 <= 0 && y1 <= 0) return null;
+        if (y1 >= containerH && y2 >= containerH) return null;
+        return (
+          <div key={b.id} style={{
+            position: 'absolute', left: 0, right: 0,
+            top: Math.max(0, y1), height: Math.max(2, Math.min(containerH, y2) - Math.max(0, y1)),
+            background: (b.color || '#6366f1') + '33',
+            borderTop: `2px solid ${b.color || '#6366f1'}cc`,
+            borderBottom: `2px solid ${b.color || '#6366f1'}cc`,
+            pointerEvents: 'none',
+          }}>
+            {b.mission && (
+              <span style={{ position: 'absolute', top: 2, right: 2, fontSize: '7px', color: b.color || '#a5b4fc', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80%' }}>{b.mission}</span>
+            )}
+          </div>
+        );
+      })}
+      {/* Altitude ticks */}
+      {ticks.map(a => {
+        const y = toY(a);
+        if (y < 0 || y > containerH) return null;
+        return (
+          <div key={a} style={{ position: 'absolute', left: 0, right: 0, top: y, height: 1, background: lightMode ? '#e2e8f0' : '#334155', pointerEvents: 'none' }}>
+            <span style={{ position: 'absolute', right: 2, top: -8, fontSize: '7px', color: lightMode ? '#94a3b8' : '#475569', whiteSpace: 'nowrap' }}>FL{a / 100}</span>
+          </div>
+        );
+      })}
+      {/* Strip chips */}
+      {placedStrips.map((s: any) => {
+        const y = toY(s.altFt!);
+        return (
+          <div key={s.id} style={{
+            position: 'absolute', left: 2, right: 2,
+            top: y - 6, height: 13,
+            borderRadius: '2px',
+            background: lightMode ? '#1e293b' : '#e2e8f0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '7px', fontWeight: 'bold',
+            color: lightMode ? '#e2e8f0' : '#1e293b',
+            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+            cursor: 'default', zIndex: 2,
+            paddingInline: '2px',
+          }} title={`${s.plane_type || ''} FL${Math.round((s.altFt!) / 100)}`}>
+            {s.plane_type || `FL${Math.round((s.altFt!) / 100)}`}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // --- תצוגה ורטיקאלית ---
 const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500 }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -5233,6 +5318,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
 
+  // --- single-block mini view logic ---
+  const miniViewBlocks = (() => {
+    const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
+    const btIds: number[] = preset?.block_table_ids || [];
+    const pid = preset ? Number(preset.id) : null;
+    const allRel = dashboardBlocks.filter((b: any) =>
+      btIds.includes(b.block_table_id) ||
+      (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
+    );
+    return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel;
+  })();
+  const miniViewBlockTableIds = Array.from(new Set(miniViewBlocks.map((b: any) => b.block_table_id)));
+  // singleBlockMode: one block table selected OR only one block table assigned to this workstation
+  const singleBlockMode = miniViewBlocks.length > 0 && (activeBlockTableId !== null || miniViewBlockTableIds.length === 1);
+
   // Load count per the rules:
   // 1. Airborne strips at my workstation
   // 2. Ground strips at my workstation with takeoff within next 10 min
@@ -6277,7 +6377,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
                   >
-                    <span>📊 תצוגה ורטיקאלית</span>
+                    <span>📊 תצוגת בלוקים</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
                   </div>
                 </div>
@@ -6977,6 +7077,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })()}
             </div>
           )
+        )}
+
+        {/* BlockMiniView — narrow altitude strip shown when left panel is open and only 1 block table is in play */}
+        {neighborPanelOpen && singleBlockMode && (
+          <div style={{
+            width: 80, flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0f172a',
+            borderLeft: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ padding: '4px 4px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}
+            </div>
+            <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+              <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
+            </div>
+          </div>
         )}
 
         {/* Map Area / Table View */}
