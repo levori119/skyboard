@@ -7124,20 +7124,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   />
                 ))}
               </div>
-              {/* BlockMiniView — shown below transfer points when only 1 block table is in play, hidden when full vertical view is active */}
-              {singleBlockMode && !showVerticalView && (
-                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: blockMiniViewOpen ? 'calc(50vh - 60px)' : 'auto' }}>
-                  <div
-                    onClick={() => setBlockMiniViewOpen(v => !v)}
-                    style={{ padding: '4px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: blockMiniViewOpen ? `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}` : 'none', background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'center' }}>🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}</span>
-                    <span style={{ fontSize: '8px', flexShrink: 0, marginRight: '2px' }}>{blockMiniViewOpen ? '▲' : '▼'}</span>
+              {/* BlockMiniView — shown below transfer points when blocks exist, hidden when full vertical view is active */}
+              {miniViewBlocks.length > 0 && !showVerticalView && (
+                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: 'calc(50vh - 60px)' }}>
+                  <div style={{ padding: '4px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}</span>
                   </div>
-                  {blockMiniViewOpen && (
-                    <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-                      <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
-                    </div>
-                  )}
+                  <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+                    <BlockMiniView
+                      relevantBlocks={miniViewBlocks}
+                      strips={myTableStrips}
+                      lightMode={lightMode}
+                      onUpdateStripAlt={(sId, newAlt) => {
+                        fetch(`/api/strips/${sId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: newAlt }) })
+                          .then(() => loadData());
+                      }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -8974,27 +8977,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ display: 'flex', alignItems: 'center', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: '4px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc', flex: 1 }}>🗂️ בלוקים</span>
                       </div>
-                      {/* BlockMiniView for active/all block tables */}
-                      {(() => {
-                        const activeBtIds = activeBlockTableId
-                          ? [activeBlockTableId]
-                          : aidBlockTables.map((bt: any) => bt.id);
-                        const aidMiniBlocks = dashboardBlocks.filter((b: any) => activeBtIds.includes(b.block_table_id));
-                        if (aidMiniBlocks.length === 0) return null;
-                        return (
-                          <div style={{ height: 320, position: 'relative', marginBottom: '6px', background: lightMode ? '#f8fafc' : '#0f172a', borderRadius: '6px', border: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, overflow: 'hidden' }}>
-                            <BlockMiniView
-                              relevantBlocks={aidMiniBlocks}
-                              strips={myTableStrips}
-                              lightMode={lightMode}
-                              onUpdateStripAlt={(sId, newAlt) => {
-                                fetch(`/api/strips/${sId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: newAlt }) })
-                                  .then(() => loadData());
-                              }}
-                            />
-                          </div>
-                        );
-                      })()}
                       {aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
