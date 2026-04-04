@@ -2886,10 +2886,19 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           </div>
         )}
         {/* שורה 3: גובה (גדול יותר) */}
-        <div ref={altRef} onClick={handleEditClick}
-          style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {s.alt ? `גובה: ${s.alt}` : '-'}
-          {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
+          <div ref={altRef} onClick={handleEditClick}
+            style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+            {s.alt ? `גובה: ${s.alt}` : '-'}
+            {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
+          </div>
+          {isBlockDeviation && !blockDeviation && (
+            <button
+              onClick={async (e) => { e.stopPropagation(); setBlockDeviation(true); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} }}
+              title="אשר חריגה מבלוק"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0', lineHeight: 1, flexShrink: 0, color: '#f97316' }}
+            >★</button>
+          )}
         </div>
         {/* שורה 5: הערה (ללא רווח) */}
         {(s.notes || editingNotes) ? (
@@ -4883,6 +4892,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
+  const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
@@ -7040,24 +7050,37 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
                 >◀</button>
               </div>
-              {allSectors.map(n => (
-                <DraggableNeighborPanel
-                  key={n.id}
-                  neighbor={n}
-                  subSectors={subSectors}
-                  onDropOnMap={handleNeighborDropOnMap}
-                  isExpanded={expandedNeighbors.has(n.id)}
-                  onToggle={() => toggleNeighborExpanded(n.id)}
-                  outgoingTransfers={outgoingTransfers}
-                  incomingTransfers={incomingTransfers}
-                  onCancelTransfer={handleCancelTransfer}
-                  onAcceptTransfer={handleAcceptTransfer}
-                  onRejectTransfer={handleRejectTransfer}
-                  onAcceptToMap={handleAcceptToMap}
-                  dragStripId={tableMode ? tableDragRow : null}
-                  onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
-                />
-              ))}
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {allSectors.map(n => (
+                  <DraggableNeighborPanel
+                    key={n.id}
+                    neighbor={n}
+                    subSectors={subSectors}
+                    onDropOnMap={handleNeighborDropOnMap}
+                    isExpanded={expandedNeighbors.has(n.id)}
+                    onToggle={() => toggleNeighborExpanded(n.id)}
+                    outgoingTransfers={outgoingTransfers}
+                    incomingTransfers={incomingTransfers}
+                    onCancelTransfer={handleCancelTransfer}
+                    onAcceptTransfer={handleAcceptTransfer}
+                    onRejectTransfer={handleRejectTransfer}
+                    onAcceptToMap={handleAcceptToMap}
+                    dragStripId={tableMode ? tableDragRow : null}
+                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
+                  />
+                ))}
+              </div>
+              {/* BlockMiniView — shown below transfer points when only 1 block table is in play */}
+              {singleBlockMode && (
+                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: 220 }}>
+                  <div style={{ padding: '3px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}
+                  </div>
+                  <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+                    <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* Collapsed strip — shows toggle button on left edge */
@@ -7077,22 +7100,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })()}
             </div>
           )
-        )}
-
-        {/* BlockMiniView — narrow altitude strip shown when left panel is open and only 1 block table is in play */}
-        {neighborPanelOpen && singleBlockMode && (
-          <div style={{
-            width: 80, flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0f172a',
-            borderLeft: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`,
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <div style={{ padding: '4px 4px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}
-            </div>
-            <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-              <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
-            </div>
-          </div>
         )}
 
         {/* Map Area / Table View */}
@@ -9055,14 +9062,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })()}
 
-                  {/* קישורים Section */}
+                  {/* קישורים Section — collapsible */}
                   {presetLinks.length > 0 && (() => {
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0;
                     const cats = Array.from(new Set(presetLinks.map((l: any) => l.category || 'כללי'))).sort() as string[];
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
-                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa', padding: '2px 4px', marginBottom: '4px' }}>🔗 קישורים</div>
-                        {cats.map(cat => (
+                        <div
+                          onClick={() => setLinksPanelOpen(v => !v)}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: linksPanelOpen ? '4px' : 0 }}
+                        >
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa' }}>🔗 קישורים</span>
+                          <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{linksPanelOpen ? '▲' : '▼'}</span>
+                        </div>
+                        {linksPanelOpen && cats.map(cat => (
                           <div key={cat} style={{ marginBottom: '5px' }}>
                             {cats.length > 1 && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'bold', marginBottom: '2px', letterSpacing: '0.3px' }}>{cat}</div>}
                             {presetLinks.filter((l: any) => (l.category || 'כללי') === cat).map((link: any) => (
