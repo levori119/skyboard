@@ -3615,10 +3615,16 @@ const TableHandwritingCanvas = ({ existing, onConfirm, onCancel, showText = true
   );
 };
 
-// --- BlockMiniView: narrow side-panel block+altitude view for single-block mode ---
-const BlockMiniView = ({ relevantBlocks, strips, lightMode }: { relevantBlocks: any[]; strips: any[]; lightMode: boolean }) => {
+// --- BlockMiniView: narrow side-panel block+altitude view ---
+const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: {
+  relevantBlocks: any[]; strips: any[]; lightMode: boolean;
+  onUpdateStripAlt?: (stripId: string, newAlt: string) => void;
+}) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [containerH, setContainerH] = React.useState(400);
+  const dragRef = React.useRef<{ stripId: string; startY: number; startAltFt: number } | null>(null);
+  const [dragAlt, setDragAlt] = React.useState<{ id: string; altFt: number } | null>(null);
+
   React.useEffect(() => {
     const el = containerRef.current; if (!el) return;
     const ro = new ResizeObserver(ents => { for (const e of ents) setContainerH(e.contentRect.height); });
@@ -3633,18 +3639,44 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode }: { relevantBlocks: 
   const altRange = altMax - altMin || 1;
 
   const toY = (ft: number) => ((altMax - ft) / altRange) * containerH;
+  const fromY = (y: number) => altMax - (y / containerH) * altRange;
+
+  React.useEffect(() => {
+    if (!dragRef.current) return;
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
+      const newAltFt = Math.round(fromY(relY) / 500) * 500;
+      setDragAlt({ id: dragRef.current.stripId, altFt: newAltFt });
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!dragRef.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const relY = e.clientY - rect.top;
+      const newAltFt = Math.round(fromY(relY) / 500) * 500;
+      const fl = Math.round(newAltFt / 100);
+      if (onUpdateStripAlt) onUpdateStripAlt(dragRef.current.stripId, `FL${fl}`);
+      dragRef.current = null;
+      setDragAlt(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+  }, [dragRef.current !== null, altMin, altMax, containerH]);
 
   const TICK_STEP = 5000;
   const ticks: number[] = [];
   for (let a = Math.ceil(altMin / TICK_STEP) * TICK_STEP; a <= altMax; a += TICK_STEP) ticks.push(a);
 
+  const CHIP_H = 28;
   const placedStrips = strips.map((s: any) => {
     const ft = parseAltToFeet(String(s.alt || ''));
     return { ...s, altFt: ft };
   }).filter((s: any) => s.altFt !== null && s.altFt >= altMin - 1000 && s.altFt <= altMax + 1000);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden', cursor: dragRef.current ? 'ns-resize' : 'default' }}>
       {/* Block bands */}
       {relevantBlocks.map((b: any) => {
         const y1 = toY(b.alt_to * 100);
@@ -3676,23 +3708,44 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode }: { relevantBlocks: 
           </div>
         );
       })}
-      {/* Strip chips */}
+      {/* Strip chips — draggable */}
       {placedStrips.map((s: any) => {
-        const y = toY(s.altFt!);
+        const isDragging = dragAlt?.id === s.id;
+        const displayAltFt = isDragging ? dragAlt!.altFt : s.altFt!;
+        const y = toY(displayAltFt);
+        const fl = Math.round(displayAltFt / 100);
         return (
-          <div key={s.id} style={{
-            position: 'absolute', left: 2, right: 2,
-            top: y - 6, height: 13,
-            borderRadius: '2px',
-            background: lightMode ? '#1e293b' : '#e2e8f0',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '7px', fontWeight: 'bold',
-            color: lightMode ? '#e2e8f0' : '#1e293b',
-            overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-            cursor: 'default', zIndex: 2,
-            paddingInline: '2px',
-          }} title={`${s.plane_type || ''} FL${Math.round((s.altFt!) / 100)}`}>
-            {s.plane_type || `FL${Math.round((s.altFt!) / 100)}`}
+          <div
+            key={s.id}
+            onPointerDown={onUpdateStripAlt ? (e) => {
+              e.preventDefault(); e.stopPropagation();
+              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+              dragRef.current = { stripId: s.id, startY: e.clientY, startAltFt: s.altFt! };
+              setDragAlt({ id: s.id, altFt: s.altFt! });
+            } : undefined}
+            style={{
+              position: 'absolute', left: 2, right: 2,
+              top: y - CHIP_H / 2, height: CHIP_H,
+              borderRadius: '3px',
+              background: isDragging ? (lightMode ? '#1d4ed8' : '#3b82f6') : (lightMode ? '#1e293b' : '#334155'),
+              border: `1px solid ${isDragging ? '#60a5fa' : (lightMode ? '#475569' : '#64748b')}`,
+              display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'center',
+              color: lightMode ? '#f8fafc' : '#f1f5f9',
+              overflow: 'hidden',
+              cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
+              zIndex: isDragging ? 10 : 2,
+              userSelect: 'none', touchAction: 'none',
+              padding: '1px 3px',
+              opacity: isDragging ? 0.85 : 1,
+            }}
+            title={`${s.callSign || ''} | FL${fl}${s.plane_type ? ' | ' + s.plane_type : ''}`}
+          >
+            <div style={{ fontSize: '9px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+              {s.callSign || '—'}
+            </div>
+            <div style={{ fontSize: '8px', color: lightMode ? '#93c5fd' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+              FL{fl}{s.plane_type ? ` · ${s.plane_type}` : ''}
+            </div>
           </div>
         );
       })}
@@ -8915,17 +8968,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       )}
                     </div>
                   ))}
-                  {/* Auto block tables — collapsible בלוקים section */}
+                  {/* Auto block tables — always-open בלוקים section with mini block view */}
                   {aidBlockTables.length > 0 && (
                     <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
-                      <div
-                        onClick={() => setBlocksPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: blocksPanelOpen ? '4px' : 0 }}
-                      >
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc' }}>🗂️ בלוקים</span>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{blocksPanelOpen ? '▲' : '▼'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc', flex: 1 }}>🗂️ בלוקים</span>
                       </div>
-                      {blocksPanelOpen && aidBlockTables.map((bt: any) => {
+                      {/* BlockMiniView for active/all block tables */}
+                      {(() => {
+                        const activeBtIds = activeBlockTableId
+                          ? [activeBlockTableId]
+                          : aidBlockTables.map((bt: any) => bt.id);
+                        const aidMiniBlocks = dashboardBlocks.filter((b: any) => activeBtIds.includes(b.block_table_id));
+                        if (aidMiniBlocks.length === 0) return null;
+                        return (
+                          <div style={{ height: 320, position: 'relative', marginBottom: '6px', background: lightMode ? '#f8fafc' : '#0f172a', borderRadius: '6px', border: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, overflow: 'hidden' }}>
+                            <BlockMiniView
+                              relevantBlocks={aidMiniBlocks}
+                              strips={myTableStrips}
+                              lightMode={lightMode}
+                              onUpdateStripAlt={(sId, newAlt) => {
+                                fetch(`/api/strips/${sId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: newAlt }) })
+                                  .then(() => loadData());
+                              }}
+                            />
+                          </div>
+                        );
+                      })()}
+                      {aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
                         const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => b.alt_from - a.alt_from);
@@ -8946,7 +9016,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
                               </button>
                               <button
-                                onClick={e => { e.stopPropagation(); setActiveBlockTableId(isActiveBt ? null : bt.id); }}
+                                onClick={e => { e.stopPropagation(); setActiveBlockTableId(isActiveBt ? null : bt.id); setBlockMiniViewOpen(false); }}
                                 title={isActiveBt ? 'בטל בחירת בלוק' : 'בחר בלוק'}
                                 style={{ background: 'transparent', border: 'none', borderRight: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, cursor: 'pointer', padding: '0 8px', fontSize: '14px', color: isActiveBt ? '#f97316' : (lightMode ? '#94a3b8' : '#475569'), flexShrink: 0 }}
                               >{isActiveBt ? '★' : '☆'}</button>
