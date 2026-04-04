@@ -4894,6 +4894,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
+  const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -7070,15 +7071,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   />
                 ))}
               </div>
-              {/* BlockMiniView — shown below transfer points when only 1 block table is in play */}
-              {singleBlockMode && (
-                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: 220 }}>
-                  <div style={{ padding: '3px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}
+              {/* BlockMiniView — shown below transfer points when only 1 block table is in play, hidden when full vertical view is active */}
+              {singleBlockMode && !showVerticalView && (
+                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: blockMiniViewOpen ? 'calc(50vh - 60px)' : 'auto' }}>
+                  <div
+                    onClick={() => setBlockMiniViewOpen(v => !v)}
+                    style={{ padding: '4px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: blockMiniViewOpen ? `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}` : 'none', background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'center' }}>🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}</span>
+                    <span style={{ fontSize: '8px', flexShrink: 0, marginRight: '2px' }}>{blockMiniViewOpen ? '▲' : '▼'}</span>
                   </div>
-                  <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-                    <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
-                  </div>
+                  {blockMiniViewOpen && (
+                    <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+                      <BlockMiniView relevantBlocks={miniViewBlocks} strips={myTableStrips} lightMode={lightMode} />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -8927,18 +8933,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const btSpaceName = dashboardBlockSpaces.find((bs: any) => Number(bs.id) === Number(bt.block_space_id))?.name;
                         return (
                           <div key={btKey} style={{ marginBottom: '4px', border: `1px solid ${isActiveBt ? '#f97316' : (lightMode ? '#c7d2fe' : '#3730a3')}`, borderRadius: '6px', overflow: 'hidden' }}>
-                            <button
-                              onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
-                              onContextMenu={e => { e.preventDefault(); setBtCtxMenu({ btId: bt.id, x: e.clientX, y: e.clientY }); }}
-                              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: isActiveBt ? (lightMode ? '#fff7ed' : '#431407') : (lightMode ? '#e0e7ff' : '#1e1b4b'), border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
-                              <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
-                              <div style={{ flex: 1, overflow: 'hidden', textAlign: 'right', minWidth: 0 }}>
-                                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</div>
-                                {btSpaceName && <div style={{ fontSize: '9px', fontWeight: 'normal', color: isActiveBt ? '#fb923c' : (lightMode ? '#6366f1' : '#818cf8'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btSpaceName}</div>}
-                              </div>
-                              {isActiveBt && <span style={{ fontSize: '9px', flexShrink: 0, color: '#f97316' }}>★</span>}
-                              <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'stretch', background: isActiveBt ? (lightMode ? '#fff7ed' : '#431407') : (lightMode ? '#e0e7ff' : '#1e1b4b') }}>
+                              <button
+                                onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(btKey) ? s.delete(btKey) : s.add(btKey); return s; })}
+                                onContextMenu={e => { e.preventDefault(); setBtCtxMenu({ btId: bt.id, x: e.clientX, y: e.clientY }); }}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: isActiveBt ? '#f97316' : (lightMode ? '#3730a3' : '#a5b4fc'), padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold', minWidth: 0 }}>
+                                <span style={{ fontSize: '9px', flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
+                                <div style={{ flex: 1, overflow: 'hidden', textAlign: 'right', minWidth: 0 }}>
+                                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.name}</div>
+                                  {btSpaceName && <div style={{ fontSize: '9px', fontWeight: 'normal', color: isActiveBt ? '#fb923c' : (lightMode ? '#6366f1' : '#818cf8'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{btSpaceName}</div>}
+                                </div>
+                                <span style={{ fontSize: '9px', flexShrink: 0 }}>🗂️</span>
+                              </button>
+                              <button
+                                onClick={e => { e.stopPropagation(); setActiveBlockTableId(isActiveBt ? null : bt.id); }}
+                                title={isActiveBt ? 'בטל בחירת בלוק' : 'בחר בלוק'}
+                                style={{ background: 'transparent', border: 'none', borderRight: `1px solid ${lightMode ? '#c7d2fe' : '#3730a3'}`, cursor: 'pointer', padding: '0 8px', fontSize: '14px', color: isActiveBt ? '#f97316' : (lightMode ? '#94a3b8' : '#475569'), flexShrink: 0 }}
+                              >{isActiveBt ? '★' : '☆'}</button>
+                            </div>
                             {isOpen && (
                               <div style={{ background: lightMode ? '#f8fafc' : '#0f172a', padding: '6px' }}>
                                 {btBlocks.length === 0 && <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '4px 0' }}>אין בלוקים</div>}
