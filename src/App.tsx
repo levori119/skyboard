@@ -3848,16 +3848,26 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   // Preset-defined altitude range in feet (presetAltMin/Max are in FL units = hundreds of feet)
   const presetMinFt = presetAltMin != null ? presetAltMin * 100 : null;
   const presetMaxFt = presetAltMax != null ? presetAltMax * 100 : null;
-  // Floor from relevant blocks — can't expand below the lowest block alt_from
+  // Floor from relevant blocks — used only when no preset is set
   const blockAltFloor = relevantBlocks.length > 0
     ? Math.min(...relevantBlocks.map((b: any) => b.alt_from * 100))
     : 0;
-  // altExpand > 0 → show more range on each side; < 0 → show less (shrink)
-  let minAlt = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
-  let topAlt = maxAlt + topPad + altExpand;
-  // Enforce preset range: the configured range is a minimum floor/ceiling that can never be shrunk below
-  if (presetMinFt != null) minAlt = Math.min(minAlt, presetMinFt);
-  if (presetMaxFt != null) topAlt = Math.max(topAlt, presetMaxFt);
+  // altExpand > 0 → show more range; < 0 → show less (but preset floor/ceiling block shrinking)
+  let minAlt: number;
+  let topAlt: number;
+  if (presetMinFt != null) {
+    // Preset overrides blockAltFloor and strip-based bottom pad
+    // Only positive altExpand expands the view; negative has no effect (can't shrink below preset)
+    minAlt = presetMinFt - Math.max(0, altExpand);
+  } else {
+    minAlt = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
+  }
+  if (presetMaxFt != null) {
+    // Preset overrides strip-based top pad
+    topAlt = presetMaxFt + Math.max(0, altExpand);
+  } else {
+    topAlt = maxAlt + topPad + altExpand;
+  }
   const altRange  = Math.max(topAlt - minAlt, 1);
 
   // Convert altitude to % from top (0% = top = maxAlt)
