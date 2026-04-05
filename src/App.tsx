@@ -3753,6 +3753,198 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
   );
 };
 
+// --- תצוגת סטריפים קלאסית ---
+const CLASSIC_STRIP_FIELDS = [
+  { key: '', label: '— ריק —' },
+  { key: 'callSign', label: 'או"ק' },
+  { key: 'sq', label: 'טייסת' },
+  { key: 'alt', label: 'גובה' },
+  { key: 'task', label: 'משימה' },
+  { key: 'takeoff_time', label: 'שעת המראה' },
+  { key: 'erka', label: 'ערקה' },
+  { key: 'mivtza', label: 'מבצע' },
+  { key: 'koteret', label: 'כותרת' },
+  { key: 'numberOfFormation', label: 'מספר מצבה' },
+  { key: 'notes', label: 'הערות' },
+];
+
+const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging }: {
+  strip: any; rows: any[]; lightMode: boolean;
+  onUpdateField?: (field: string, value: string) => void;
+  onDragStart?: (e: React.DragEvent) => void;
+  isDragging?: boolean;
+}) => {
+  const [editingRow, setEditingRow] = useState<number | null>(null);
+  const [editVal, setEditVal] = useState('');
+  const getVal = (fieldKey: string) => {
+    if (!fieldKey) return '';
+    if (fieldKey === 'callSign') return strip.callSign || strip.callsign || '';
+    if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
+    if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
+    return strip[fieldKey] || '';
+  };
+  return (
+    <div
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
+      style={{ border: `1px solid ${lightMode ? '#94a3b8' : '#334155'}`, borderRadius: '4px', marginBottom: '4px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none' }}
+    >
+      {[0, 1, 2].map(i => {
+        const row = rows[i] || {};
+        const val = getVal(row.field_name || '');
+        const isEditing = editingRow === i;
+        return (
+          <div key={i}
+            style={{
+              padding: '3px 8px', minHeight: '26px', display: 'flex', alignItems: 'center',
+              justifyContent: row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center',
+              background: row.bg_color || (lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a')),
+              color: row.text_color || (lightMode ? '#1e293b' : '#e2e8f0'),
+              fontSize: `${row.font_size || 14}px`,
+              fontWeight: row.bold ? 'bold' : 'normal',
+              fontStyle: row.italic ? 'italic' : 'normal',
+              textDecoration: row.underline ? 'underline' : 'none',
+              borderBottom: i < 2 ? `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` : 'none',
+              cursor: (row.editable && onUpdateField) ? 'text' : 'grab',
+              borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
+            }}
+            onDoubleClick={() => { if (row.editable && row.field_name && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
+          >
+            {isEditing ? (
+              <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
+                onBlur={() => { if (onUpdateField && row.field_name) onUpdateField(row.field_name, editVal); setEditingRow(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && row.field_name) onUpdateField(row.field_name, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
+                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any }}
+              />
+            ) : (
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
+                {val || <span style={{ opacity: 0.3 }}>{row.row_label || ''}</span>}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, allSectors, lightMode, onTransfer, onAcceptTransfer, onUpdateStripField }: {
+  strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
+  classicStripTable: any; receivePoints: any[]; transferPoints: any[];
+  allSectors: any[]; lightMode: boolean;
+  onTransfer: (stripId: string, toSectorId: number) => void;
+  onAcceptTransfer: (transferId: string) => void;
+  onUpdateStripField: (stripId: string, field: string, value: string) => void;
+}) => {
+  const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
+  const [draggingStripId, setDraggingStripId] = useState<string | null>(null);
+  const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<'mine' | number | null>(null);
+
+  const border = lightMode ? '#cbd5e1' : '#1e3a5f';
+  const headerBg = lightMode ? '#e2e8f0' : '#1e293b';
+  const headerColor = lightMode ? '#374151' : '#94a3b8';
+  const sectorHeaderBg = lightMode ? '#dbeafe' : '#1e3a5f';
+  const sectorHeaderColor = lightMode ? '#1e40af' : '#93c5fd';
+  const panelBg = lightMode ? '#f8fafc' : '#0b1220';
+
+  const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg };
+  const PANEL_HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
+  const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '3px 8px', fontSize: '12px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
+
+  const transferToSynth = (t: any) => ({
+    callSign: t.callsign, sq: t.sq, alt: t.alt, task: t.task, squadron: t.squadron,
+    takeoff_time: t.takeoff_time, notes: t.notes, erka: t.erka, mivtza: t.mivtza,
+    koteret: t.koteret, numberOfFormation: t.number_of_formation,
+  });
+
+  return (
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}>
+      {/* RIGHT panel — Receive (ממי מקבל) */}
+      <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
+        <div style={PANEL_HDR}>📥 ממי מקבל</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {receivePoints.length === 0
+            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות קבלה</div>
+            : receivePoints.map((pt: any) => {
+              const ptT = incomingTransfers.filter(t => t.from_sector_id === pt.sector_id);
+              return (
+                <div key={pt.sector_id} style={{ marginBottom: '6px' }}>
+                  <div style={SEC_HDR}>{pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})</div>
+                  <div style={{ padding: '3px' }}>
+                    {ptT.length === 0
+                      ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
+                      : ptT.map((t: any) => (
+                        <div key={t.id} draggable onDragStart={() => setDraggingTransferId(String(t.id))} onDragEnd={() => setDraggingTransferId(null)}>
+                          <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} isDragging={draggingTransferId === String(t.id)} />
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+
+      {/* CENTER panel — My Strips (שלי) */}
+      <div style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
+        onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+        onDrop={e => { e.preventDefault(); setDropTarget(null); if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); } }}
+      >
+        <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' && draggingTransferId ? '← שחרר לקבל' : ''}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {strips.length === 0
+            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
+            : strips.map((s: any) => (
+              <div key={s.id} draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
+                  onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* LEFT panel — Transfer (למי מעביר) */}
+      <div style={PANEL_STYLE}>
+        <div style={PANEL_HDR}>📤 למי מעביר</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {transferPoints.length === 0
+            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות העברה</div>
+            : transferPoints.map((pt: any) => {
+              const ptOut = outgoingTransfers.filter(t => t.to_sector_id === pt.sector_id);
+              const isDrop = dropTarget === pt.sector_id;
+              return (
+                <div key={pt.sector_id} style={{ marginBottom: '6px' }}
+                  onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
+                  onDrop={e => { e.preventDefault(); setDropTarget(null); if (draggingStripId) { onTransfer(draggingStripId, pt.sector_id); setDraggingStripId(null); } }}
+                >
+                  <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                    {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
+                    {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
+                  </div>
+                  <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
+                    {ptOut.length === 0
+                      ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
+                      : ptOut.map((t: any) => <ClassicStripCard key={t.id} strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />)
+                    }
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- תצוגה ורטיקאלית ---
 const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -4967,6 +5159,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
+  const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -5356,6 +5549,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const isClassicMode = myPresetConfig?.display_mode === 'classic';
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Block spaces relevant to this workstation — only those that have block tables assigned to this preset
   const presetBlockSpaces = React.useMemo(() => {
@@ -5555,6 +5749,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
       fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
       fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
+      fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
 
       // Build all requests
       const requests: Promise<Response>[] = [
@@ -6029,6 +6224,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (err) {
       console.error('Failed to accept transfer:', err);
     }
+  };
+
+  const handleUpdateStripField = async (stripId: string, field: string, value: string) => {
+    try {
+      const updateData: any = {};
+      if (field === 'callSign') updateData.callsign = value;
+      else if (field === 'numberOfFormation') updateData.number_of_formation = value;
+      else updateData[field] = value;
+      await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateData) });
+      setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, [field]: value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) } : s));
+    } catch (e) { console.error(e); }
   };
 
   const handleRejectTransfer = async (transferId: string) => {
@@ -7164,11 +7370,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )
         )}
 
-        {/* Map Area / Table View */}
+        {/* Map Area / Table View / Classic View */}
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint' }}
+          style={{ flex: 1, position: 'relative', background: isClassicMode ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: isClassicMode ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: isClassicMode ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -7183,8 +7389,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
         >
+          {/* Classic Strip View */}
+          {isClassicMode && (() => {
+            const classicTable = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
+            const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
+            const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
+            return (
+              <ClassicView
+                strips={myTableStrips}
+                incomingTransfers={incomingTransfers}
+                outgoingTransfers={outgoingTransfers}
+                classicStripTable={classicTable}
+                receivePoints={rcvPts}
+                transferPoints={tfrPts}
+                allSectors={allSectors}
+                lightMode={lightMode}
+                onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
+                onAcceptTransfer={handleAcceptTransfer}
+                onUpdateStripField={handleUpdateStripField}
+              />
+            );
+          })()}
+
           {/* Table Mode */}
-          {tableMode && (() => {
+          {!isClassicMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
             const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
@@ -8376,7 +8604,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
 
 
-          {!tableMode && <>
+          {!isClassicMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
             <button
@@ -11557,10 +11785,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
-  const availableTabs = effectiveMode === 'admin' ? adminOnlyTabs : teamLeadTabs as TabKey[];
+  const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [sectors, setSectors] = useState<any[]>([]);
@@ -11604,6 +11832,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     vertical_time_based: true as boolean,
     view_alt_min: '' as string | number,
     view_alt_max: '' as string | number,
+    display_mode: 'complex' as string,
+    classic_strip_table_id: '' as string | number,
+    classic_receive_points: [] as { sector_id: number; label: string }[],
+    classic_transfer_points: [] as { sector_id: number; label: string }[],
   });
 
   // Preset links state
@@ -11617,6 +11849,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     const res = await fetch(`${API_URL}/preset-links/${presetId}`);
     if (res.ok) setEditingPresetLinks(await res.json());
   };
+
+  // Classic Strip Tables state
+  const [classicTables, setClassicTables] = useState<any[]>([]);
+  const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
+  const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
+  const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
+    { row_number: 1, field_name: 'callSign', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
+    { row_number: 2, field_name: 'alt', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
+    { row_number: 3, field_name: 'task', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+  ]);
 
   // BDH state
   const [bdhDocs, setBdhDocs] = useState<any[]>([]);
@@ -11653,6 +11895,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       if (blockSpacesRes.ok) setBlockSpaces(await blockSpacesRes.json());
       if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
       if (bdhRes.ok) setBdhDocs(await bdhRes.json());
+      fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -11783,10 +12026,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           vertical_time_based: presetForm.vertical_time_based,
           view_alt_min: presetForm.view_alt_min !== '' ? Number(presetForm.view_alt_min) : null,
           view_alt_max: presetForm.view_alt_max !== '' ? Number(presetForm.view_alt_max) : null,
+          display_mode: presetForm.display_mode || 'complex',
+          classic_strip_table_id: presetForm.classic_strip_table_id ? Number(presetForm.classic_strip_table_id) : null,
+          classic_receive_points: presetForm.classic_receive_points || [],
+          classic_transfer_points: presetForm.classic_transfer_points || [],
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -11809,6 +12056,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       vertical_time_based: preset.vertical_time_based !== false,
       view_alt_min: preset.view_alt_min ?? '',
       view_alt_max: preset.view_alt_max ?? '',
+      display_mode: preset.display_mode || 'complex',
+      classic_strip_table_id: preset.classic_strip_table_id || '',
+      classic_receive_points: preset.classic_receive_points || [],
+      classic_transfer_points: preset.classic_transfer_points || [],
     });
     loadPresetLinks(preset.id);
     setShowAddLinkForm(false);
@@ -11872,6 +12123,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
         {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
+        {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -11886,7 +12138,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <MaybeSettingsModal
                 show={!!editingPreset}
                 title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' }); }}
+                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] }); }}
                 wide
               >
               <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
@@ -12101,6 +12353,69 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </p>
                 </div>
 
+                {/* Classic / Complex display mode */}
+                <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                  <label style={{ display: 'block', marginBottom: '10px', color: '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>🖥️ מצב תצוגת עמדה:</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    {[{ val: 'complex', label: 'מפה / טבלה' }, { val: 'classic', label: 'סטריפים קלאסי' }].map(opt => (
+                      <button key={opt.val} onClick={() => setPresetForm(p => ({ ...p, display_mode: opt.val }))}
+                        style={{ padding: '7px 18px', borderRadius: '6px', border: `1px solid ${presetForm.display_mode === opt.val ? '#6366f1' : '#334155'}`, background: presetForm.display_mode === opt.val ? '#1e1b4b' : '#1e293b', color: presetForm.display_mode === opt.val ? '#a5b4fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.display_mode === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {presetForm.display_mode === 'classic' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>תבנית עיצוב סטריפ:</label>
+                        <select value={presetForm.classic_strip_table_id}
+                          onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id: e.target.value }))}
+                          style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
+                          <option value="">— ללא תבנית —</option>
+                          {classicTables.map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                        </select>
+                        {classicTables.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#ef4444' }}>צור תבנית בלשונית "תצוגת סטריפים קלאסית"</p>}
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>נקודות קבלה (ממי מקבל):</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {sectors.map((sec: any) => {
+                            const existing = presetForm.classic_receive_points.find(p => p.sector_id === sec.id);
+                            return (
+                              <button key={sec.id} onClick={() => setPresetForm(p => ({
+                                ...p, classic_receive_points: existing
+                                  ? p.classic_receive_points.filter(x => x.sector_id !== sec.id)
+                                  : [...p.classic_receive_points, { sector_id: sec.id, label: sec.label_he || sec.name }]
+                              }))}
+                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#22c55e' : '#334155'}`, background: existing ? '#14532d' : '#1e293b', color: existing ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                                {sec.label_he || sec.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>נקודות העברה (למי מעביר):</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {sectors.map((sec: any) => {
+                            const existing = presetForm.classic_transfer_points.find(p => p.sector_id === sec.id);
+                            return (
+                              <button key={sec.id} onClick={() => setPresetForm(p => ({
+                                ...p, classic_transfer_points: existing
+                                  ? p.classic_transfer_points.filter(x => x.sector_id !== sec.id)
+                                  : [...p.classic_transfer_points, { sector_id: sec.id, label: sec.label_he || sec.name }]
+                              }))}
+                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#f59e0b' : '#334155'}`, background: existing ? '#422006' : '#1e293b', color: existing ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                                {sec.label_he || sec.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
@@ -12261,7 +12576,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
@@ -13314,6 +13629,164 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 ) : (
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155', fontSize: '14px' }}>בחר בד"ח לעריכה או לחץ "+ חדש"</div>
                 )}
+              </div>
+            );
+          })()}
+
+          {activeTab === 'classic_strips' && (() => {
+            const ROW_ALIGN_OPTS = [{ val: 'center', label: 'מרכז' }, { val: 'right', label: 'ימין' }, { val: 'left', label: 'שמאל' }];
+            const startNew = () => {
+              setEditingClassicTable(null);
+              setClassicTableForm({ name: '', description: '' });
+              setClassicTableRows([
+                { row_number: 1, field_name: 'callSign', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
+                { row_number: 2, field_name: 'alt', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
+                { row_number: 3, field_name: 'task', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+              ]);
+            };
+            const startEdit = (ct: any) => {
+              setEditingClassicTable(ct);
+              setClassicTableForm({ name: ct.name, description: ct.description || '' });
+              const baseRows = (ct.rows || []).sort((a: any, b: any) => a.row_number - b.row_number);
+              setClassicTableRows([1, 2, 3].map(rn => {
+                const r = baseRows.find((x: any) => x.row_number === rn) || {};
+                return { row_number: rn, field_name: r.field_name || '', row_label: r.row_label || '', editable: r.editable ?? false, text_color: r.text_color || '', bg_color: r.bg_color || '', font_size: r.font_size || 14, bold: r.bold ?? false, italic: r.italic ?? false, underline: r.underline ?? false, text_align: r.text_align || 'center' };
+              }));
+            };
+            const saveTable = async () => {
+              if (!classicTableForm.name.trim()) return;
+              const body = { name: classicTableForm.name, description: classicTableForm.description, rows: classicTableRows };
+              const method = editingClassicTable ? 'PUT' : 'POST';
+              const url = editingClassicTable ? `${API_URL}/classic-strip-tables/${editingClassicTable.id}` : `${API_URL}/classic-strip-tables`;
+              try {
+                await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables);
+                startNew();
+              } catch (e) { console.error(e); }
+            };
+            const deleteTable = async (id: number) => {
+              if (!window.confirm('למחוק תבנית זו?')) return;
+              await fetch(`${API_URL}/classic-strip-tables/${id}`, { method: 'DELETE' });
+              fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables);
+              startNew();
+            };
+            const updateRow = (idx: number, changes: Partial<typeof classicTableRows[0]>) => setClassicTableRows(rows => rows.map((r, i) => i === idx ? { ...r, ...changes } : r));
+
+            return (
+              <div style={{ display: 'flex', gap: '16px', direction: 'rtl' }}>
+                {/* Left: table list */}
+                <div style={{ width: '200px', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#94a3b8' }}>תבניות ({classicTables.length})</span>
+                    <button onClick={startNew} style={{ padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ חדש</button>
+                  </div>
+                  {classicTables.map((ct: any) => (
+                    <div key={ct.id} onClick={() => startEdit(ct)}
+                      style={{ padding: '8px 10px', marginBottom: '4px', borderRadius: '6px', cursor: 'pointer', background: editingClassicTable?.id === ct.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingClassicTable?.id === ct.id ? '#3b82f6' : '#1e293b'}`, color: editingClassicTable?.id === ct.id ? '#93c5fd' : '#94a3b8', fontSize: '13px' }}>
+                      {ct.name}
+                    </div>
+                  ))}
+                  {classicTables.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין תבניות</div>}
+                </div>
+
+                {/* Right: form */}
+                <div style={{ flex: 1, background: '#0f172a', borderRadius: '8px', padding: '18px', border: '1px solid #1e293b' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '14px' }}>
+                    {editingClassicTable ? `עריכת תבנית: ${editingClassicTable.name}` : 'תבנית חדשה'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>שם תבנית</label>
+                      <input value={classicTableForm.name} onChange={e => setClassicTableForm(p => ({ ...p, name: e.target.value }))}
+                        placeholder="לדוגמה: מרחב א׳" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>תיאור (אופציונלי)</label>
+                      <input value={classicTableForm.description} onChange={e => setClassicTableForm(p => ({ ...p, description: e.target.value }))}
+                        placeholder="הערה קצרה" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                    </div>
+
+                    {/* 3 Row configs */}
+                    {classicTableRows.map((row, idx) => (
+                      <div key={idx} style={{ background: '#1e293b', borderRadius: '7px', padding: '12px', border: '1px solid #334155' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa', marginBottom: '8px' }}>שורה {row.row_number}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>שדה</span>
+                            <select value={row.field_name} onChange={e => updateRow(idx, { field_name: e.target.value })}
+                              style={{ padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                              {CLASSIC_STRIP_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>תווית</span>
+                            <input value={row.row_label} onChange={e => updateRow(idx, { row_label: e.target.value })}
+                              placeholder="תווית" style={{ width: '80px', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>גודל</span>
+                            <input type="number" value={row.font_size} onChange={e => updateRow(idx, { font_size: Number(e.target.value) })}
+                              style={{ width: '55px', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>יישור</span>
+                            <select value={row.text_align} onChange={e => updateRow(idx, { text_align: e.target.value })}
+                              style={{ padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                              {ROW_ALIGN_OPTS.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>צבע טקסט</span>
+                            <input type="color" value={row.text_color || '#e2e8f0'} onChange={e => updateRow(idx, { text_color: e.target.value })}
+                              style={{ width: '36px', height: '30px', padding: '2px', background: 'transparent', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer' }} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>צבע רקע</span>
+                            <input type="color" value={row.bg_color || '#1e293b'} onChange={e => updateRow(idx, { bg_color: e.target.value })}
+                              style={{ width: '36px', height: '30px', padding: '2px', background: 'transparent', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer' }} />
+                          </div>
+                          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                            {[{ key: 'bold', label: 'ב' }, { key: 'italic', label: 'נ' }, { key: 'underline', label: 'ק' }, { key: 'editable', label: '✏️' }].map(t => (
+                              <button key={t.key} onClick={() => updateRow(idx, { [t.key]: !row[t.key as keyof typeof row] })}
+                                style={{ padding: '4px 8px', borderRadius: '4px', border: `1px solid ${row[t.key as keyof typeof row] ? '#6366f1' : '#334155'}`, background: row[t.key as keyof typeof row] ? '#1e1b4b' : '#0f172a', color: row[t.key as keyof typeof row] ? '#a5b4fc' : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: t.key === 'bold' ? 'bold' : 'normal', fontStyle: t.key === 'italic' ? 'italic' : 'normal', textDecoration: t.key === 'underline' ? 'underline' : 'none' }}>
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Preview */}
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px' }}>תצוגה מקדימה:</div>
+                      <div style={{ maxWidth: '180px' }}>
+                        <ClassicStripCard
+                          strip={{ callSign: 'ALPHA', sq: '119', alt: 'FL250', task: 'CAS', notes: 'test', takeoff_time: '14:30', erka: 'E1', mivtza: 'OPS', koteret: 'K1', numberOfFormation: '2' }}
+                          rows={classicTableRows}
+                          lightMode={false}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                      <button onClick={saveTable}
+                        style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        {editingClassicTable ? 'עדכן' : 'שמור'}
+                      </button>
+                      {editingClassicTable && (
+                        <button onClick={() => deleteTable(editingClassicTable.id)}
+                          style={{ padding: '8px 16px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                          מחק
+                        </button>
+                      )}
+                      <button onClick={startNew}
+                        style={{ padding: '8px 14px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                        נקה
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })()}

@@ -525,6 +525,39 @@ async function initDb() {
     )
   `);
 
+  // --- Classic Strip Tables ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS classic_strip_tables (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS classic_strip_rows (
+      id SERIAL PRIMARY KEY,
+      table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE CASCADE,
+      row_number INTEGER NOT NULL DEFAULT 1,
+      field_name VARCHAR(50),
+      editable BOOLEAN DEFAULT false,
+      text_color VARCHAR(30) DEFAULT '#000000',
+      bg_color VARCHAR(30) DEFAULT '',
+      font_size INTEGER DEFAULT 14,
+      bold BOOLEAN DEFAULT false,
+      italic BOOLEAN DEFAULT false,
+      underline BOOLEAN DEFAULT false,
+      border_color VARCHAR(30) DEFAULT '',
+      border_width INTEGER DEFAULT 0,
+      text_align VARCHAR(10) DEFAULT 'center',
+      row_label VARCHAR(50) DEFAULT '',
+      UNIQUE(table_id, row_number)
+    )
+  `);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS display_mode VARCHAR DEFAULT 'complex'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
+
   console.log('Database initialized');
 }
 
@@ -1701,11 +1734,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || [])]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1717,10 +1750,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13 WHERE id = $14 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_receive_points = $16, classic_transfer_points = $17 WHERE id = $18 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -1740,6 +1773,81 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting workstation preset:', err);
     res.status(500).json({ error: 'Failed to delete workstation preset' });
+  }
+});
+
+// --- Classic Strip Tables API ---
+app.get('/api/classic-strip-tables', async (req, res) => {
+  try {
+    const tables = await pool.query('SELECT * FROM classic_strip_tables ORDER BY name');
+    const rows = await pool.query('SELECT * FROM classic_strip_rows ORDER BY table_id, row_number');
+    const result = tables.rows.map(t => ({
+      ...t,
+      rows: rows.rows.filter(r => r.table_id === t.id)
+    }));
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch classic strip tables' });
+  }
+});
+
+app.post('/api/classic-strip-tables', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const result = await pool.query('INSERT INTO classic_strip_tables (name) VALUES ($1) RETURNING *', [name]);
+    const t = result.rows[0];
+    // Create 3 default empty rows
+    for (let i = 1; i <= 3; i++) {
+      await pool.query('INSERT INTO classic_strip_rows (table_id, row_number) VALUES ($1, $2) ON CONFLICT DO NOTHING', [t.id, i]);
+    }
+    const rows = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [t.id]);
+    res.json({ ...t, rows: rows.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create classic strip table' });
+  }
+});
+
+app.put('/api/classic-strip-tables/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    await pool.query('UPDATE classic_strip_tables SET name = $1 WHERE id = $2', [name, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update classic strip table' });
+  }
+});
+
+app.delete('/api/classic-strip-tables/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM classic_strip_tables WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete classic strip table' });
+  }
+});
+
+// Update all 3 rows for a table at once
+app.put('/api/classic-strip-tables/:id/rows', async (req, res) => {
+  try {
+    const { rows } = req.body; // array of row objects
+    for (const row of rows) {
+      await pool.query(
+        `INSERT INTO classic_strip_rows (table_id, row_number, field_name, editable, text_color, bg_color, font_size, bold, italic, underline, border_color, border_width, text_align, row_label)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         ON CONFLICT (table_id, row_number) DO UPDATE SET
+           field_name = $3, editable = $4, text_color = $5, bg_color = $6, font_size = $7, bold = $8, italic = $9, underline = $10, border_color = $11, border_width = $12, text_align = $13, row_label = $14`,
+        [req.params.id, row.row_number, row.field_name || null, row.editable || false, row.text_color || '#000000', row.bg_color || '', row.font_size || 14, row.bold || false, row.italic || false, row.underline || false, row.border_color || '', row.border_width || 0, row.text_align || 'center', row.row_label || '']
+      );
+    }
+    const result = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update classic strip rows' });
   }
 });
 
