@@ -558,6 +558,32 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
 
+  // Ground (GROUND workstation) tables
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfields (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      notes TEXT,
+      map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfield_points (
+      id SERIAL PRIMARY KEY,
+      airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      x_pct FLOAT NOT NULL DEFAULT 50,
+      y_pct FLOAT NOT NULL DEFAULT 50,
+      display_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
+
   console.log('Database initialized');
 }
 
@@ -1734,11 +1760,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || [])]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1750,10 +1776,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_receive_points = $16, classic_transfer_points = $17 WHERE id = $18 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_receive_points = $16, classic_transfer_points = $17, preset_type = $18, airfield_id = $19 WHERE id = $20 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -1848,6 +1874,128 @@ app.put('/api/classic-strip-tables/:id/rows', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update classic strip rows' });
+  }
+});
+
+// --- Airfields API (GROUND workstation) ---
+app.get('/api/airfields', async (req, res) => {
+  try {
+    const afs = await pool.query('SELECT * FROM airfields ORDER BY name');
+    const pts = await pool.query('SELECT * FROM airfield_points ORDER BY airfield_id, display_order, id');
+    const fields = afs.rows.map(af => ({
+      ...af,
+      points: pts.rows.filter(p => p.airfield_id === af.id)
+    }));
+    res.json(fields);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch airfields' });
+  }
+});
+
+app.post('/api/airfields', async (req, res) => {
+  try {
+    const { name, notes, map_id } = req.body;
+    const result = await pool.query(
+      'INSERT INTO airfields (name, notes, map_id) VALUES ($1,$2,$3) RETURNING *',
+      [name, notes || null, map_id || null]
+    );
+    res.json({ ...result.rows[0], points: [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create airfield' });
+  }
+});
+
+app.put('/api/airfields/:id', async (req, res) => {
+  try {
+    const { name, notes, map_id } = req.body;
+    const result = await pool.query(
+      'UPDATE airfields SET name=$1, notes=$2, map_id=$3 WHERE id=$4 RETURNING *',
+      [name, notes || null, map_id || null, req.params.id]
+    );
+    const pts = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
+    res.json({ ...result.rows[0], points: pts.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update airfield' });
+  }
+});
+
+app.delete('/api/airfields/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfields WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete airfield' });
+  }
+});
+
+app.get('/api/airfields/:id/points', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch airfield points' });
+  }
+});
+
+app.post('/api/airfields/:id/points', async (req, res) => {
+  try {
+    const { name, x_pct, y_pct, display_order } = req.body;
+    const result = await pool.query(
+      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create airfield point' });
+  }
+});
+
+app.put('/api/airfield-points/:id', async (req, res) => {
+  try {
+    const { name, x_pct, y_pct, display_order } = req.body;
+    const result = await pool.query(
+      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4 WHERE id=$5 RETURNING *',
+      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update airfield point' });
+  }
+});
+
+app.delete('/api/airfield-points/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_points WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete airfield point' });
+  }
+});
+
+// Update strip aircraft positions and ground_status
+app.put('/api/strips/:id/aircraft', async (req, res) => {
+  try {
+    const { aircraft_positions, ground_status } = req.body;
+    const fields = [];
+    const vals = [];
+    let idx = 1;
+    if (aircraft_positions !== undefined) { fields.push(`aircraft_positions=$${idx++}`); vals.push(JSON.stringify(aircraft_positions)); }
+    if (ground_status !== undefined) { fields.push(`ground_status=$${idx++}`); vals.push(ground_status); }
+    if (fields.length === 0) return res.status(400).json({ error: 'Nothing to update' });
+    vals.push(req.params.id);
+    const result = await pool.query(`UPDATE strips SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, vals);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update strip aircraft data' });
   }
 });
 

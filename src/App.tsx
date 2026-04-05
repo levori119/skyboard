@@ -3753,6 +3753,271 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
   );
 };
 
+// --- תצוגת מגרש (GROUND) ---
+const GROUND_STATUSES = [
+  { key: 'none', label: 'לא קרא למגדל', color: '#64748b', bg: '#0f172a', dot: '#475569' },
+  { key: 'taxi', label: 'קרא להסעה', color: '#60a5fa', bg: '#1e3a5f', dot: '#3b82f6' },
+  { key: 'lineup', label: 'קרא להתיישרות', color: '#fcd34d', bg: '#422006', dot: '#f59e0b' },
+  { key: 'takeoff', label: 'קרא להמראה', color: '#86efac', bg: '#14532d', dot: '#22c55e' },
+] as const;
+
+type GroundStatusKey = 'none' | 'taxi' | 'lineup' | 'takeoff';
+
+type AircraftPos = {
+  idx: number;
+  point_id: number | null;
+  status: GroundStatusKey;
+};
+
+const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
+  const count = Math.max(1, parseInt(strip.number_of_formation) || 1);
+  const existing: AircraftPos[] = Array.isArray(strip.aircraft_positions) ? strip.aircraft_positions : [];
+  return Array.from({ length: count }, (_, i) => {
+    const idx = i + 1;
+    const ex = existing.find(a => a.idx === idx);
+    return ex || { idx, point_id: null, status: 'none' };
+  });
+};
+
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer }: {
+  strips: any[];
+  incomingTransfers: any[];
+  outgoingTransfers: any[];
+  airfield: any | null;
+  airfieldMapSrc: string | null;
+  lightMode: boolean;
+  allSectors: any[];
+  presetSectors: number[];
+  onUpdateAircraft: (stripId: string, aircraft: AircraftPos[]) => void;
+  onTransfer: (stripId: string, toSectorId: number, aircraftIdx?: number) => void;
+  onAcceptTransfer: (transferId: string) => void;
+}) => {
+  const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
+  const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
+  const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string } | null>(null);
+  const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
+  const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
+
+  const border = lightMode ? '#cbd5e1' : '#1e3a5f';
+  const panelBg = lightMode ? '#f1f5f9' : '#0b1220';
+  const headerBg = lightMode ? '#e2e8f0' : '#1e293b';
+  const headerColor = lightMode ? '#374151' : '#94a3b8';
+
+  const points: any[] = airfield?.points || [];
+  const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
+
+  const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
+
+  const handleAircraftStatusCycle = (strip: any, idx: number) => {
+    const positions = getAircraftPositions(strip);
+    const a = positions.find(x => x.idx === idx)!;
+    const statuses: GroundStatusKey[] = ['none', 'taxi', 'lineup', 'takeoff'];
+    const nextStatus = statuses[(statuses.indexOf(a.status) + 1) % statuses.length];
+    const updated = positions.map(x => x.idx === idx ? { ...x, status: nextStatus } : x);
+    onUpdateAircraft(String(strip.id), updated);
+  };
+
+  const handleAircraftPointAssign = (strip: any, idx: number, pointId: number | null) => {
+    const positions = getAircraftPositions(strip);
+    const updated = positions.map(x => x.idx === idx ? { ...x, point_id: pointId } : x);
+    onUpdateAircraft(String(strip.id), updated);
+  };
+
+  const mapRef = React.useRef<HTMLDivElement>(null);
+
+  const PANEL: React.CSSProperties = { display: 'flex', flexDirection: 'column', overflow: 'hidden', background: panelBg };
+  const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
+
+  return (
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}>
+      {/* RIGHT panel — Strips list */}
+      <div style={{ ...PANEL, width: '220px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
+        <div style={HDR}>✈️ פמ"מים ({strips.length})</div>
+        {/* Incoming transfers zone */}
+        {incomingTransfers.length > 0 && (
+          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a' }}>
+            <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📥 מחכים לקבלה ({incomingTransfers.length})</div>
+            {incomingTransfers.map(t => (
+              <div key={t.id} draggable onDragStart={() => setDraggingTransferId(String(t.id))} onDragEnd={() => setDraggingTransferId(null)}
+                onClick={() => onAcceptTransfer(String(t.id))}
+                style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 'bold' }}>{t.callsign || '?'}</span>
+                <span style={{ fontSize: '10px', opacity: 0.7 }}>{t.from_sector_name || ''} ← לחץ לקבל</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
+          {strips.map(strip => {
+            const aircraft = getAircraftPositions(strip);
+            return (
+              <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a' }}>
+                {/* Strip header */}
+                <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{strip.callSign || strip.callsign || '—'}</span>
+                  <span style={{ fontSize: '11px', color: headerColor }}>{strip.sq || strip.squadron || ''}{aircraft.length > 1 ? ` ×${aircraft.length}` : ''}</span>
+                </div>
+                {/* Per-aircraft cards */}
+                {aircraft.map(ac => {
+                  const pt = points.find(p => p.id === ac.point_id);
+                  const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
+                  return (
+                    <div key={ac.idx}
+                      draggable
+                      onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); }}
+                      onDragEnd={() => setDragging(null)}
+                      style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, cursor: 'grab', display: 'flex', alignItems: 'center', gap: '6px', background: st.bg + '40', userSelect: 'none' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0', minWidth: '16px' }}>{ac.idx}</span>
+                      <div style={{ flex: 1, fontSize: '11px', color: headerColor }}>
+                        <div>{pt?.name || <span style={{ opacity: 0.4 }}>ללא נקודה</span>}</div>
+                      </div>
+                      <button onClick={() => handleAircraftStatusCycle(strip, ac.idx)}
+                        title={st.label}
+                        style={{ padding: '2px 6px', borderRadius: '10px', border: 'none', background: st.bg, color: st.color, fontSize: '10px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                        {st.label.split(' ').slice(-2).join(' ')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* CENTER — Airfield map */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 מגרש'}</div>
+        <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
+          {airfieldMapSrc
+            ? <img src={airfieldMapSrc} alt="airfield" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
+          }
+
+          {/* Airfield points — drop zones + labels */}
+          {points.map(pt => {
+            const isDrop = mapDragOver === pt.id;
+            return (
+              <div key={pt.id}
+                style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%, -50%)', zIndex: 10, pointerEvents: 'all' }}
+                onDragOver={e => { e.preventDefault(); setMapDragOver(pt.id); }}
+                onDragLeave={() => { if (mapDragOver === pt.id) setMapDragOver(null); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  setMapDragOver(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (data.stripId && data.idx) handleAircraftPointAssign(strips.find(s => String(s.id) === String(data.stripId)), data.idx, pt.id);
+                  } catch {}
+                }}
+              >
+                <div style={{ background: isDrop ? '#22c55e' : (lightMode ? '#1e293bcc' : '#000000cc'), border: `2px solid ${isDrop ? '#22c55e' : '#3b82f6'}`, borderRadius: '50%', width: isDrop ? '40px' : '14px', height: isDrop ? '40px' : '14px', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+                <div style={{ position: 'absolute', top: '16px', left: '50%', transform: 'translateX(-50%)', background: lightMode ? '#1e293bcc' : '#000000cc', color: 'white', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                  {pt.name}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Aircraft markers on the map */}
+          {strips.map(strip => {
+            const aircraft = getAircraftPositions(strip);
+            return aircraft.filter(ac => ac.point_id).map(ac => {
+              const pt = points.find(p => p.id === ac.point_id);
+              if (!pt) return null;
+              const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
+              const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === ac.idx;
+              return (
+                <div key={`${strip.id}-${ac.idx}`}
+                  draggable
+                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); }}
+                  onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
+                  style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%, -80%)', zIndex: 20, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                  <div style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.callSign || strip.callsign || '?'}</span>
+                    <span style={{ color: 'white' }}>#{ac.idx}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron || ''}</span>
+                  </div>
+                </div>
+              );
+            });
+          })}
+        </div>
+      </div>
+
+      {/* LEFT panel — Transfer sectors */}
+      <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
+        <div style={HDR}>📤 העברה</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {transferSectors.length === 0 && <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>}
+          {transferSectors.map(sec => {
+            const isDrop = leftDragOver === sec.id;
+            return (
+              <div key={sec.id} style={{ marginBottom: '6px', border: `2px solid ${isDrop ? '#22c55e' : border}`, borderRadius: '8px', overflow: 'hidden', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'all 0.15s' }}
+                onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  setLeftDragOver(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (data.stripId && data.idx) {
+                      const strip = strips.find(s => String(s.id) === String(data.stripId));
+                      const acCount = getAircraftPositions(strip).length;
+                      setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?' });
+                    }
+                  } catch {}
+                }}
+              >
+                <div style={{ padding: '6px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : headerBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : headerColor, fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {sec.label_he || sec.name}
+                  {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
+                </div>
+                {/* Pending outgoing transfers to this sector */}
+                {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
+                  <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
+                    {t.callsign || '?'} ↗ ממתין
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Transfer pending dialog */}
+      {transferPending && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setTransferPending(null)}>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '320px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '8px' }}>העברה לסקטור</div>
+            <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>
+              פמ"מ: <strong style={{ color: 'white' }}>{transferPending.stripName}</strong> | מטוס #{transferPending.aircraftIdx}
+              <br />לאן להעביר?
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+              <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId, transferPending.aircraftIdx); setTransferPending(null); }}
+                style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+                ✈️ מטוס בודד #{transferPending.aircraftIdx}
+              </button>
+              <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId); setTransferPending(null); }}
+                style={{ padding: '10px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+                📋 כל הפמ"מ
+              </button>
+              <button onClick={() => setTransferPending(null)}
+                style={{ padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- תצוגת סטריפים קלאסית ---
 const CLASSIC_STRIP_FIELDS = [
   { key: '', label: '— ריק —' },
@@ -5160,6 +5425,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
+  const [airfields, setAirfields] = useState<any[]>([]);
+  const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -5550,6 +5817,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const isClassicMode = myPresetConfig?.display_mode === 'classic';
+  const isGroundMode = myPresetConfig?.preset_type === 'ground';
+  const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
+
+  React.useEffect(() => {
+    if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
+    fetch(`${API_URL}/maps/${activeAirfield.map_id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setGroundMapSrc(data?.image_data || null))
+      .catch(() => setGroundMapSrc(null));
+  }, [activeAirfield?.map_id]);
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Block spaces relevant to this workstation — only those that have block tables assigned to this preset
   const presetBlockSpaces = React.useMemo(() => {
@@ -5750,6 +6027,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
       fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
 
       // Build all requests
       const requests: Promise<Response>[] = [
@@ -6224,6 +6502,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (err) {
       console.error('Failed to accept transfer:', err);
     }
+  };
+
+  const handleUpdateAircraft = async (stripId: string, aircraft: AircraftPos[]) => {
+    try {
+      await fetch(`${API_URL}/strips/${stripId}/aircraft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aircraft_positions: aircraft }) });
+      setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, aircraft_positions: aircraft } : s));
+    } catch (e) { console.error(e); }
   };
 
   const handleUpdateStripField = async (stripId: string, field: string, value: string) => {
@@ -7374,7 +7659,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: isClassicMode ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: isClassicMode ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: isClassicMode ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -7389,8 +7674,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
         >
+          {/* Ground View */}
+          {isGroundMode && (() => {
+            const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
+            return (
+              <GroundView
+                strips={myTableStrips}
+                incomingTransfers={incomingTransfers}
+                outgoingTransfers={outgoingTransfers}
+                airfield={activeAirfield}
+                airfieldMapSrc={groundMapSrc}
+                lightMode={lightMode}
+                allSectors={allSectors}
+                presetSectors={presetSectors}
+                onUpdateAircraft={handleUpdateAircraft}
+                onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
+                onAcceptTransfer={handleAcceptTransfer}
+              />
+            );
+          })()}
+
           {/* Classic Strip View */}
-          {isClassicMode && (() => {
+          {!isGroundMode && isClassicMode && (() => {
             const classicTable = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
             const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
@@ -7412,7 +7717,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
 
           {/* Table Mode */}
-          {!isClassicMode && tableMode && (() => {
+          {!isGroundMode && !isClassicMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
             const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
@@ -8604,7 +8909,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
 
 
-          {!isClassicMode && !tableMode && <>
+          {!isGroundMode && !isClassicMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
             <button
@@ -11785,8 +12090,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -11836,6 +12141,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     classic_strip_table_id: '' as string | number,
     classic_receive_points: [] as { sector_id: number; label: string }[],
     classic_transfer_points: [] as { sector_id: number; label: string }[],
+    preset_type: 'normal' as string,
+    airfield_id: '' as string | number,
   });
 
   // Preset links state
@@ -11852,6 +12159,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Classic Strip Tables state
   const [classicTables, setClassicTables] = useState<any[]>([]);
+  const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
+  const [airfieldForm, setAirfieldForm] = useState({ name: '', map_id: '' });
+  const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
+  const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
+  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', x_pct: '', y_pct: '' });
+  const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
   const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
@@ -11896,6 +12209,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       if (blockTablesRes.ok) setBlockTables(await blockTablesRes.json());
       if (bdhRes.ok) setBdhDocs(await bdhRes.json());
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
+      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -12030,10 +12344,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           classic_strip_table_id: presetForm.classic_strip_table_id ? Number(presetForm.classic_strip_table_id) : null,
           classic_receive_points: presetForm.classic_receive_points || [],
           classic_transfer_points: presetForm.classic_transfer_points || [],
+          preset_type: presetForm.preset_type || 'normal',
+          airfield_id: presetForm.airfield_id ? Number(presetForm.airfield_id) : null,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -12060,6 +12376,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       classic_strip_table_id: preset.classic_strip_table_id || '',
       classic_receive_points: preset.classic_receive_points || [],
       classic_transfer_points: preset.classic_transfer_points || [],
+      preset_type: preset.preset_type || 'normal',
+      airfield_id: preset.airfield_id?.toString() || '',
     });
     loadPresetLinks(preset.id);
     setShowAddLinkForm(false);
@@ -12124,6 +12442,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
         {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
+        {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -12138,7 +12457,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <MaybeSettingsModal
                 show={!!editingPreset}
                 title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] }); }}
+                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                 wide
               >
               <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
@@ -12416,6 +12735,31 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   )}
                 </div>
 
+                {/* Ground (מגרש) mode */}
+                <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                  <label style={{ display: 'block', marginBottom: '10px', color: '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>🛬 מצב מגרש (GROUND):</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    {[{ val: 'normal', label: 'רגיל' }, { val: 'ground', label: '🛬 מגרש' }].map(opt => (
+                      <button key={opt.val} onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
+                        style={{ padding: '7px 18px', borderRadius: '6px', border: `1px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {presetForm.preset_type === 'ground' && (
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>שדה תעופה:</label>
+                      <select value={presetForm.airfield_id}
+                        onChange={e => setPresetForm(p => ({ ...p, airfield_id: e.target.value }))}
+                        style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
+                        <option value="">— ללא שדה —</option>
+                        {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
+                      </select>
+                      {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
+                    </div>
+                  )}
+                </div>
+
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
@@ -12576,7 +12920,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [] }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
@@ -13924,6 +14268,109 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>{sec.body}</div>
                 </div>
               ))}
+            </div>
+          );
+        })()}
+
+        {/* Airfields Tab */}
+        {activeTab === 'airfields' && (() => {
+          const loadAirfieldPoints = async (airfieldId: number) => {
+            const res = await fetch(`${API_URL}/airfields/${airfieldId}/points`);
+            if (res.ok) setAirfieldPoints(await res.json());
+            else setAirfieldPoints([]);
+          };
+          const saveAirfield = async () => {
+            if (!airfieldForm.name.trim()) return;
+            const method = editingAirfield ? 'PUT' : 'POST';
+            const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null }) });
+            if (res.ok) {
+              setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' });
+              const updated = await fetch(`${API_URL}/airfields`);
+              if (updated.ok) setAdminAirfields(await updated.json());
+            }
+          };
+          const deleteAirfield = async (id: number) => {
+            if (!confirm('למחוק שדה זה?')) return;
+            await fetch(`${API_URL}/airfields/${id}`, { method: 'DELETE' });
+            const updated = await fetch(`${API_URL}/airfields`);
+            if (updated.ok) setAdminAirfields(await updated.json());
+            if (selectedAdminAirfieldId === id) { setSelectedAdminAirfieldId(null); setAirfieldPoints([]); }
+          };
+          const addPoint = async () => {
+            if (!selectedAdminAirfieldId || !airfieldPointForm.name.trim()) return;
+            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct: parseFloat(airfieldPointForm.x_pct) || 50, y_pct: parseFloat(airfieldPointForm.y_pct) || 50 }) });
+            if (res.ok) { setAirfieldPointForm({ name: '', x_pct: '', y_pct: '' }); loadAirfieldPoints(selectedAdminAirfieldId); }
+          };
+          const deletePoint = async (pointId: number) => {
+            await fetch(`${API_URL}/airfield-points/${pointId}`, { method: 'DELETE' });
+            if (selectedAdminAirfieldId) loadAirfieldPoints(selectedAdminAirfieldId);
+          };
+          const selAirfield = adminAirfields.find(af => af.id === selectedAdminAirfieldId);
+          const selMap = selAirfield ? maps.find((m: any) => m.id === selAirfield.map_id) : null;
+          return (
+            <div style={{ direction: 'rtl' }}>
+              <h3 style={{ color: '#e2e8f0', marginBottom: '20px' }}>🛬 ניהול שדות תעופה</h3>
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                {/* Airfield list + form */}
+                <div style={{ flex: '0 0 280px' }}>
+                  <div style={{ background: '#0f172a', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>{editingAirfield ? 'עריכת שדה' : 'הוספת שדה'}</div>
+                    <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="שם שדה התעופה" style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
+                    <select value={airfieldForm.map_id} onChange={e => setAirfieldForm(p => ({ ...p, map_id: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '10px' }}>
+                      <option value="">— ללא מפה —</option>
+                      {maps.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={saveAirfield} style={{ padding: '6px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{editingAirfield ? 'שמור' : '+ הוסף'}</button>
+                      {editingAirfield && <button onClick={() => { setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' }); }} style={{ padding: '6px 12px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
+                    </div>
+                  </div>
+                  {adminAirfields.map(af => (
+                    <div key={af.id} onClick={() => { setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); }}
+                      style={{ padding: '10px 14px', marginBottom: '6px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold' }}>{af.name}</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={e => { e.stopPropagation(); setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); }} style={{ padding: '3px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
+                        <button onClick={e => { e.stopPropagation(); deleteAirfield(af.id); }} style={{ padding: '3px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
+                      </div>
+                    </div>
+                  ))}
+                  {adminAirfields.length === 0 && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>אין שדות תעופה</p>}
+                </div>
+                {/* Points manager */}
+                {selectedAdminAirfieldId && (
+                  <div style={{ flex: 1, minWidth: '320px' }}>
+                    <div style={{ color: '#7dd3fc', fontSize: '15px', fontWeight: 'bold', marginBottom: '12px' }}>נקודות בשדה: {selAirfield?.name}</div>
+                    {selMap && <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>מפה: {selMap.name} — ציין אחוז X/Y (0–100) לפי מיקום על המפה</div>}
+                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '12px', marginBottom: '14px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '3px' }}>שם נקודה</div>
+                        <input value={airfieldPointForm.name} onChange={e => setAirfieldPointForm(p => ({ ...p, name: e.target.value }))} placeholder="שם" style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', width: '100px' }} />
+                      </div>
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '3px' }}>X% (שמאל)</div>
+                        <input type="number" min="0" max="100" value={airfieldPointForm.x_pct} onChange={e => setAirfieldPointForm(p => ({ ...p, x_pct: e.target.value }))} placeholder="50" style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', width: '70px' }} />
+                      </div>
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '3px' }}>Y% (מלמעלה)</div>
+                        <input type="number" min="0" max="100" value={airfieldPointForm.y_pct} onChange={e => setAirfieldPointForm(p => ({ ...p, y_pct: e.target.value }))} placeholder="50" style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', width: '70px' }} />
+                      </div>
+                      <button onClick={addPoint} style={{ padding: '6px 14px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף</button>
+                    </div>
+                    {airfieldPoints.length === 0
+                      ? <p style={{ color: '#64748b', fontSize: '13px' }}>אין נקודות מוגדרות</p>
+                      : airfieldPoints.map(pt => (
+                        <div key={pt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#0f172a', borderRadius: '6px', marginBottom: '5px', border: '1px solid #1e293b' }}>
+                          <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 'bold' }}>{pt.name}</span>
+                          <span style={{ color: '#64748b', fontSize: '12px' }}>X:{pt.x_pct}% Y:{pt.y_pct}%</span>
+                          <button onClick={() => deletePoint(pt.id)} style={{ padding: '2px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
+                        </div>
+                      ))
+                    }
+                  </div>
+                )}
+              </div>
             </div>
           );
         })()}
