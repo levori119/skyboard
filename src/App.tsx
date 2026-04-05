@@ -3754,7 +3754,7 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500 }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
@@ -3845,13 +3845,19 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const altPerPx  = rawRange / CHART_H;
   const bottomPad = 2 * STRIP_H * altPerPx;
   const topPad    = 2 * STRIP_H * altPerPx;
+  // Preset-defined altitude range in feet (presetAltMin/Max are in FL units = hundreds of feet)
+  const presetMinFt = presetAltMin != null ? presetAltMin * 100 : null;
+  const presetMaxFt = presetAltMax != null ? presetAltMax * 100 : null;
   // Floor from relevant blocks — can't expand below the lowest block alt_from
   const blockAltFloor = relevantBlocks.length > 0
     ? Math.min(...relevantBlocks.map((b: any) => b.alt_from * 100))
     : 0;
   // altExpand > 0 → show more range on each side; < 0 → show less (shrink)
-  const minAlt    = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
-  const topAlt    = maxAlt + topPad + altExpand;
+  let minAlt = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
+  let topAlt = maxAlt + topPad + altExpand;
+  // Enforce preset range: the configured range is a minimum floor/ceiling that can never be shrunk below
+  if (presetMinFt != null) minAlt = Math.min(minAlt, presetMinFt);
+  if (presetMaxFt != null) topAlt = Math.max(topAlt, presetMaxFt);
   const altRange  = Math.max(topAlt - minAlt, 1);
 
   // Convert altitude to % from top (0% = top = maxAlt)
@@ -7124,25 +7130,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   />
                 ))}
               </div>
-              {/* BlockMiniView — shown below transfer points when blocks exist, hidden when full vertical view is active */}
-              {miniViewBlocks.length > 0 && !showVerticalView && (
-                <div style={{ flexShrink: 0, background: lightMode ? '#f1f5f9' : '#0a0f1a', borderTop: `2px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, display: 'flex', flexDirection: 'column', height: 'calc(50vh - 60px)' }}>
-                  <div style={{ padding: '4px 6px', fontSize: '9px', fontWeight: 'bold', textAlign: 'center', color: lightMode ? '#6d28d9' : '#a5b4fc', borderBottom: `1px solid ${lightMode ? '#c7d2fe' : '#312e81'}`, background: lightMode ? '#ede9fe' : '#1e1b4b', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🗂️ {miniViewBlocks[0]?.mission || 'בלוקים'}</span>
-                  </div>
-                  <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
-                    <BlockMiniView
-                      relevantBlocks={miniViewBlocks}
-                      strips={myTableStrips}
-                      lightMode={lightMode}
-                      onUpdateStripAlt={(sId, newAlt) => {
-                        fetch(`/api/strips/${sId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: newAlt }) })
-                          .then(() => loadData());
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           ) : (
             /* Collapsed strip — shows toggle button on left edge */
@@ -9187,7 +9174,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                                   <div
                                     key={doc.id}
-                                    onDoubleClick={() => { setBdhViewerDoc(doc); setBdhChecked({}); }}
+                                    onDoubleClick={() => { setBdhViewerDoc(doc); }}
                                     title="דאבל קליק לפתיחה"
                                     style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', cursor: 'pointer', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl' }}
                                   >
@@ -9460,7 +9447,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -9477,7 +9464,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} />
+          <VerticalView strips={myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={activeBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, activeBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} />
         </div>
       ))}
 
@@ -11602,6 +11589,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     filter_query: null as QGroup | null,
     block_table_ids: [] as number[],
     vertical_time_based: true as boolean,
+    view_alt_min: '' as string | number,
+    view_alt_max: '' as string | number,
   });
 
   // Preset links state
@@ -11779,10 +11768,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           filter_query: presetForm.filter_query || null,
           block_table_ids: presetForm.block_table_ids,
           vertical_time_based: presetForm.vertical_time_based,
+          view_alt_min: presetForm.view_alt_min !== '' ? Number(presetForm.view_alt_min) : null,
+          view_alt_max: presetForm.view_alt_max !== '' ? Number(presetForm.view_alt_max) : null,
         })
       });
       setEditingPreset(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -11803,6 +11794,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       filter_query: preset.filter_query || null,
       block_table_ids: Array.isArray(preset.block_table_ids) ? preset.block_table_ids : [],
       vertical_time_based: preset.vertical_time_based !== false,
+      view_alt_min: preset.view_alt_min ?? '',
+      view_alt_max: preset.view_alt_max ?? '',
     });
     loadPresetLinks(preset.id);
     setShowAddLinkForm(false);
@@ -11880,7 +11873,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <MaybeSettingsModal
                 show={!!editingPreset}
                 title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true }); }}
+                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' }); }}
                 wide
               >
               <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
@@ -12068,6 +12061,33 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </p>
                 </div>
 
+                {/* Altitude range */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טווח גובה מינימלי לתצוגת בלוקים (FL):</label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', direction: 'rtl' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>מינימום (FL)</span>
+                      <input type="number" placeholder="ריק = אוטומטי"
+                        value={presetForm.view_alt_min}
+                        onChange={e => setPresetForm(p => ({ ...p, view_alt_min: e.target.value }))}
+                        style={{ width: '120px', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}
+                      />
+                    </div>
+                    <span style={{ color: '#64748b', fontSize: '16px', marginTop: '16px' }}>—</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>מקסימום (FL)</span>
+                      <input type="number" placeholder="ריק = אוטומטי"
+                        value={presetForm.view_alt_max}
+                        onChange={e => setPresetForm(p => ({ ...p, view_alt_max: e.target.value }))}
+                        style={{ width: '120px', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}
+                      />
+                    </div>
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    הטווח המינימלי שיוצג תמיד בתצוגת הבלוקים, גם אם אין פממים בגבהים אלו. לחיצות + / - לא יצמצמו מתחת לטווח זה.
+                  </p>
+                </div>
+
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
@@ -12228,7 +12248,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   {editingPreset && (
                     <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true }); }}
+                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '' }); }}
                       style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                     >
                       ביטול
