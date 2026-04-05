@@ -3852,19 +3852,22 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const blockAltFloor = relevantBlocks.length > 0
     ? Math.min(...relevantBlocks.map((b: any) => b.alt_from * 100))
     : 0;
-  // altExpand > 0 → show more range; < 0 → show less (but preset floor/ceiling block shrinking)
+  // altExpand > 0 → expand view; < 0 → shrink (but preset floor blocks shrinking)
   let minAlt: number;
   let topAlt: number;
   if (presetMinFt != null) {
-    // Preset overrides blockAltFloor and strip-based bottom pad
-    // Only positive altExpand expands the view; negative has no effect (can't shrink below preset)
-    minAlt = presetMinFt - Math.max(0, altExpand);
+    // Hard floor: never show below preset min — not even with - button
+    minAlt = presetMinFt;
   } else {
     minAlt = Math.max(blockAltFloor, rawMinAlt - bottomPad - altExpand);
   }
   if (presetMaxFt != null) {
-    // Preset overrides strip-based top pad
-    topAlt = presetMaxFt + Math.max(0, altExpand);
+    // Soft ceiling: always show at least up to preset max, but auto-expand for strips above it
+    // When a strip is above presetMaxFt show it with a 2000ft buffer (same logic user expects)
+    const stripsTopFt = candidates.length > 0 && maxAlt > presetMaxFt
+      ? maxAlt + 2000
+      : presetMaxFt;
+    topAlt = Math.max(presetMaxFt, stripsTopFt) + Math.max(0, altExpand);
   } else {
     topAlt = maxAlt + topPad + altExpand;
   }
