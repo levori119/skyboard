@@ -818,6 +818,18 @@ app.post('/api/strips/:id/assign', async (req, res) => {
   }
 });
 
+// Accept a queued (distributed) strip — moves it from receive panel to mine panel
+app.post('/api/strips/:id/accept-queued', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id.replace('s', ''));
+    await pool.query("UPDATE strips SET status = NULL WHERE id = $1 AND status = 'queued'", [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error accepting queued strip:', err);
+    res.status(500).json({ error: 'Failed to accept strip' });
+  }
+});
+
 app.post('/api/strips/:id/assign-workstation', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));

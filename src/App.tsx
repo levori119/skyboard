@@ -4198,17 +4198,19 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, allSectors, lightMode, onTransfer, onAcceptTransfer, onUpdateStripField }: {
-  strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
+const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, allSectors, lightMode, onTransfer, onAcceptTransfer, onAcceptQueued, onUpdateStripField }: {
+  strips: any[]; queuedStrips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   allSectors: any[]; lightMode: boolean;
   onTransfer: (stripId: string, toSectorId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
+  onAcceptQueued: (stripId: string) => void;
   onUpdateStripField: (stripId: string, field: string, value: string) => void;
 }) => {
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
   const [draggingStripId, setDraggingStripId] = useState<string | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
+  const [draggingQueuedId, setDraggingQueuedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'mine' | number | null>(null);
 
   const border = lightMode ? '#cbd5e1' : '#1e3a5f';
@@ -4232,9 +4234,25 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}>
       {/* RIGHT panel — Receive (ממי מקבל) */}
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
-        <div style={PANEL_HDR}>📥 ממי מקבל</div>
+        <div style={PANEL_HDR}>📥 ממי מקבל ({queuedStrips.length + incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {receivePoints.length === 0
+          {/* Distributed strips (from חלוקת פמ) */}
+          {queuedStrips.length > 0 && (
+            <div style={{ marginBottom: '6px' }}>
+              <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', borderBottom: `1px solid ${border}` }}>
+                📨 מחלק ({queuedStrips.length})
+              </div>
+              <div style={{ padding: '3px' }}>
+                {queuedStrips.map((s: any) => (
+                  <div key={s.id} draggable onDragStart={() => setDraggingQueuedId(String(s.id))} onDragEnd={() => setDraggingQueuedId(null)}>
+                    <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingQueuedId === String(s.id)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Sector-based incoming transfers */}
+          {receivePoints.length === 0 && queuedStrips.length === 0
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות קבלה</div>
             : receivePoints.map((pt: any) => {
               const ptT = incomingTransfers.filter(t => t.from_sector_id === pt.sector_id);
@@ -4262,10 +4280,14 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       <div style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
         onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
-        onDrop={e => { e.preventDefault(); setDropTarget(null); if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); } }}
+        onDrop={e => {
+          e.preventDefault(); setDropTarget(null);
+          if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); }
+          else if (draggingQueuedId) { onAcceptQueued(draggingQueuedId); setDraggingQueuedId(null); }
+        }}
       >
         <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' && draggingTransferId ? '← שחרר לקבל' : ''}
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' && (draggingTransferId || draggingQueuedId) ? '← שחרר לקבל' : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {strips.length === 0
@@ -7829,9 +7851,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const classicTable = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
             const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
+            const classicQueued = myTableStrips.filter((s: any) => s.status === 'queued');
+            const classicActive = myTableStrips.filter((s: any) => s.status !== 'queued');
+            const handleAcceptQueued = async (stripId: string) => {
+              await fetch(`${API_URL}/strips/${stripId}/accept-queued`, { method: 'POST' });
+              loadData();
+            };
             return (
               <ClassicView
-                strips={myTableStrips}
+                strips={classicActive}
+                queuedStrips={classicQueued}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}
                 classicStripTable={classicTable}
@@ -7841,6 +7870,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 lightMode={lightMode}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onAcceptTransfer={handleAcceptTransfer}
+                onAcceptQueued={handleAcceptQueued}
                 onUpdateStripField={handleUpdateStripField}
               />
             );
