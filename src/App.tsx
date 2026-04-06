@@ -6132,6 +6132,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
       fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+      // Refresh live preset config so changes made in admin are picked up without page reload
+      if (session.presetId) {
+        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
+          if (!presets) return;
+          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
+          if (p) setLivePresetConfig(p);
+        }).catch(() => {});
+      }
       // airfields loaded in separate effect below (independent of primarySectorId)
 
       // Build all requests
@@ -6235,13 +6243,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
-  // Airfields must load regardless of primarySectorId (GROUND workstations may have no primary sector)
+  // Airfields + preset config must load regardless of primarySectorId (GROUND workstations may have no primary sector)
   useEffect(() => {
-    const loadAirfields = () => {
+    const loadAirfieldsAndConfig = () => {
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
+      if (session.presetId && !primarySectorId) {
+        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
+          if (!presets) return;
+          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
+          if (p) setLivePresetConfig(p);
+        }).catch(() => {});
+      }
     };
-    loadAirfields();
-    const interval = setInterval(loadAirfields, 5000);
+    loadAirfieldsAndConfig();
+    const interval = setInterval(loadAirfieldsAndConfig, 5000);
     return () => clearInterval(interval);
   }, []);
 
