@@ -581,6 +581,8 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#3b82f6'`);
+  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS marker VARCHAR(30) DEFAULT 'circle'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
@@ -1948,8 +1950,8 @@ app.post('/api/airfields/:id/points', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
     const result = await pool.query(
-      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0]
+      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle']
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1962,8 +1964,8 @@ app.put('/api/airfield-points/:id', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
     const result = await pool.query(
-      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4 WHERE id=$5 RETURNING *',
-      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.params.id]
+      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6 WHERE id=$7 RETURNING *',
+      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {
