@@ -4140,18 +4140,15 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
     return strip[fieldKey] || '';
   };
-  const getRowVal = (row: any) => {
-    const fields: { field_name: string }[] = (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
-      ? row.fields
-      : (row.field_name ? [{ field_name: row.field_name }] : []);
-    return fields.map(f => getVal(f.field_name)).filter(Boolean).join(row.separator || ' / ');
-  };
+  const getRowFields = (row: any): any[] => (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
+    ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
+  const getRowVal = (row: any) => getRowFields(row).map(f => getVal(f.field_name)).filter(Boolean).join(row.separator || ' / ');
   const getSingleEditableField = (row: any): string | null => {
     if (!row.editable) return null;
-    const fields: { field_name: string }[] = (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
-      ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
+    const fields = getRowFields(row);
     return fields.length === 1 ? fields[0].field_name : null;
   };
+  const defaultColor = lightMode ? '#1e293b' : '#e2e8f0';
   return (
     <div
       draggable={!!onDragStart}
@@ -4160,16 +4157,20 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     >
       {[0, 1, 2].map(i => {
         const row = rows[i] || {};
+        const fields = getRowFields(row);
         const val = getRowVal(row);
         const editableField = getSingleEditableField(row);
         const isEditing = editingRow === i;
+        const rowDefaultBg = lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a');
+        const justifyContent = row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center';
+        const hasPerFieldStyle = fields.some((f: any) => f.text_color || f.bg_color || f.bold != null || f.italic != null || f.underline != null || f.font_size);
         return (
           <div key={i}
             style={{
               padding: '3px 8px', minHeight: '26px', display: 'flex', alignItems: 'center',
-              justifyContent: row.text_align === 'right' ? 'flex-end' : row.text_align === 'left' ? 'flex-start' : 'center',
-              background: row.bg_color || (lightMode ? (i % 2 === 0 ? '#ffffff' : '#f8fafc') : (i % 2 === 0 ? '#1e293b' : '#0f172a')),
-              color: row.text_color || (lightMode ? '#1e293b' : '#e2e8f0'),
+              justifyContent,
+              background: row.bg_color || rowDefaultBg,
+              color: row.text_color || defaultColor,
               fontSize: `${row.font_size || 14}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
               fontStyle: row.italic ? 'italic' : 'normal',
@@ -4186,6 +4187,30 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
                 onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any }}
               />
+            ) : hasPerFieldStyle && fields.length > 1 ? (
+              /* Per-field styled rendering */
+              <span style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'baseline', overflow: 'hidden', width: '100%', justifyContent }}>
+                {fields.map((f: any, fi: number) => {
+                  const fVal = getVal(f.field_name);
+                  return (
+                    <span key={fi} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+                      {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{row.separator || ' / '}</span>}
+                      <span style={{
+                        color: f.text_color || undefined,
+                        background: f.bg_color || undefined,
+                        fontSize: f.font_size ? `${f.font_size}px` : undefined,
+                        fontWeight: f.bold ? 'bold' : undefined,
+                        fontStyle: f.italic ? 'italic' : undefined,
+                        textDecoration: f.underline ? 'underline' : undefined,
+                        borderRadius: f.bg_color ? '2px' : undefined,
+                        padding: f.bg_color ? '0 2px' : undefined,
+                        opacity: fVal ? 1 : 0.3,
+                        whiteSpace: 'nowrap',
+                      }}>{fVal || row.row_label || ''}</span>
+                    </span>
+                  );
+                })}
+              </span>
             ) : (
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
                 {val || <span style={{ opacity: 0.3 }}>{row.row_label || ''}</span>}
@@ -14168,11 +14193,17 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             };
             const saveTable = async () => {
               if (!classicTableForm.name.trim()) return;
-              const body = { name: classicTableForm.name, description: classicTableForm.description, rows: classicTableRows };
-              const method = editingClassicTable ? 'PUT' : 'POST';
-              const url = editingClassicTable ? `${API_URL}/classic-strip-tables/${editingClassicTable.id}` : `${API_URL}/classic-strip-tables`;
               try {
-                await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                let tableId: number;
+                if (editingClassicTable) {
+                  await fetch(`${API_URL}/classic-strip-tables/${editingClassicTable.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: classicTableForm.name, description: classicTableForm.description }) });
+                  tableId = editingClassicTable.id;
+                } else {
+                  const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: classicTableForm.name, description: classicTableForm.description }) });
+                  const created = await r.json();
+                  tableId = created.id;
+                }
+                await fetch(`${API_URL}/classic-strip-tables/${tableId}/rows`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: classicTableRows }) });
                 fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables);
                 startNew();
               } catch (e) { console.error(e); }
@@ -14233,16 +14264,48 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         {/* Fields list */}
                         <div style={{ marginBottom: '10px' }}>
                           <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '5px' }}>שדות בשורה זו:</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {activeFields.map((f, fi) => (
-                              <div key={fi} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <select value={f.field_name}
-                                  onChange={e => { const updated = [...activeFields]; updated[fi] = { field_name: e.target.value }; setRowFields(updated); }}
-                                  style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                  {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
-                                </select>
-                                <button onClick={() => setRowFields(activeFields.filter((_, i) => i !== fi))}
-                                  style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {activeFields.map((f: any, fi: number) => (
+                              <div key={fi} style={{ background: '#0a1628', borderRadius: '5px', padding: '6px 8px', border: '1px solid #1e293b' }}>
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '5px' }}>
+                                  <select value={f.field_name}
+                                    onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, field_name: e.target.value }; setRowFields(updated); }}
+                                    style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                                    {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
+                                  </select>
+                                  <button onClick={() => setRowFields(activeFields.filter((_: any, i: number) => i !== fi))}
+                                    style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                                </div>
+                                {/* Per-field styling row */}
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>טקסט</span>
+                                    <input type="color" value={f.text_color || '#e2e8f0'}
+                                      onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, text_color: e.target.value }; setRowFields(updated); }}
+                                      title="צבע טקסט שדה"
+                                      style={{ width: '28px', height: '24px', padding: '1px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>רקע</span>
+                                    <input type="color" value={f.bg_color || '#1e293b'}
+                                      onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, bg_color: e.target.value }; setRowFields(updated); }}
+                                      title="צבע רקע שדה"
+                                      style={{ width: '28px', height: '24px', padding: '1px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                    <span style={{ fontSize: '9px', color: '#64748b' }}>גודל</span>
+                                    <input type="number" value={f.font_size || ''} placeholder="–"
+                                      onChange={e => { const updated = [...activeFields]; updated[fi] = { ...f, font_size: e.target.value ? Number(e.target.value) : undefined }; setRowFields(updated); }}
+                                      style={{ width: '40px', padding: '3px 4px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', textAlign: 'center' }} />
+                                  </div>
+                                  {[{ key: 'bold', label: 'ב' }, { key: 'italic', label: 'נ' }, { key: 'underline', label: 'ק' }].map(t => (
+                                    <button key={t.key}
+                                      onClick={() => { const updated = [...activeFields]; updated[fi] = { ...f, [t.key]: !f[t.key] }; setRowFields(updated); }}
+                                      style={{ padding: '3px 7px', borderRadius: '4px', border: `1px solid ${f[t.key] ? '#6366f1' : '#334155'}`, background: f[t.key] ? '#1e1b4b' : '#0f172a', color: f[t.key] ? '#a5b4fc' : '#64748b', cursor: 'pointer', fontSize: '11px', fontWeight: t.key === 'bold' ? 'bold' : 'normal', fontStyle: t.key === 'italic' ? 'italic' : 'normal', textDecoration: t.key === 'underline' ? 'underline' : 'none', marginTop: '10px' }}>
+                                      {t.label}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
