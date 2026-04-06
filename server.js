@@ -553,6 +553,8 @@ async function initDb() {
       UNIQUE(table_id, row_number)
     )
   `);
+  await pool.query(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS fields JSONB DEFAULT NULL`);
+  await pool.query(`ALTER TABLE classic_strip_rows ADD COLUMN IF NOT EXISTS separator VARCHAR(10) DEFAULT ' / '`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS display_mode VARCHAR DEFAULT 'complex'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
@@ -1862,11 +1864,11 @@ app.put('/api/classic-strip-tables/:id/rows', async (req, res) => {
     const { rows } = req.body; // array of row objects
     for (const row of rows) {
       await pool.query(
-        `INSERT INTO classic_strip_rows (table_id, row_number, field_name, editable, text_color, bg_color, font_size, bold, italic, underline, border_color, border_width, text_align, row_label)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        `INSERT INTO classic_strip_rows (table_id, row_number, field_name, editable, text_color, bg_color, font_size, bold, italic, underline, border_color, border_width, text_align, row_label, fields, separator)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          ON CONFLICT (table_id, row_number) DO UPDATE SET
-           field_name = $3, editable = $4, text_color = $5, bg_color = $6, font_size = $7, bold = $8, italic = $9, underline = $10, border_color = $11, border_width = $12, text_align = $13, row_label = $14`,
-        [req.params.id, row.row_number, row.field_name || null, row.editable || false, row.text_color || '#000000', row.bg_color || '', row.font_size || 14, row.bold || false, row.italic || false, row.underline || false, row.border_color || '', row.border_width || 0, row.text_align || 'center', row.row_label || '']
+           field_name = $3, editable = $4, text_color = $5, bg_color = $6, font_size = $7, bold = $8, italic = $9, underline = $10, border_color = $11, border_width = $12, text_align = $13, row_label = $14, fields = $15, separator = $16`,
+        [req.params.id, row.row_number, row.field_name || null, row.editable || false, row.text_color || '#000000', row.bg_color || '', row.font_size || 14, row.bold || false, row.italic || false, row.underline || false, row.border_color || '', row.border_width || 0, row.text_align || 'center', row.row_label || '', row.fields ? JSON.stringify(row.fields) : null, row.separator || ' / ']
       );
     }
     const result = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [req.params.id]);

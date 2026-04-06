@@ -4048,6 +4048,18 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
     return strip[fieldKey] || '';
   };
+  const getRowVal = (row: any) => {
+    const fields: { field_name: string }[] = (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
+      ? row.fields
+      : (row.field_name ? [{ field_name: row.field_name }] : []);
+    return fields.map(f => getVal(f.field_name)).filter(Boolean).join(row.separator || ' / ');
+  };
+  const getSingleEditableField = (row: any): string | null => {
+    if (!row.editable) return null;
+    const fields: { field_name: string }[] = (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
+      ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
+    return fields.length === 1 ? fields[0].field_name : null;
+  };
   return (
     <div
       draggable={!!onDragStart}
@@ -4056,7 +4068,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     >
       {[0, 1, 2].map(i => {
         const row = rows[i] || {};
-        const val = getVal(row.field_name || '');
+        const val = getRowVal(row);
+        const editableField = getSingleEditableField(row);
         const isEditing = editingRow === i;
         return (
           <div key={i}
@@ -4070,15 +4083,15 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               fontStyle: row.italic ? 'italic' : 'normal',
               textDecoration: row.underline ? 'underline' : 'none',
               borderBottom: i < 2 ? `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` : 'none',
-              cursor: (row.editable && onUpdateField) ? 'text' : 'grab',
+              cursor: (editableField && onUpdateField) ? 'text' : 'grab',
               borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
             }}
-            onDoubleClick={() => { if (row.editable && row.field_name && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
+            onDoubleClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
           >
             {isEditing ? (
               <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
-                onBlur={() => { if (onUpdateField && row.field_name) onUpdateField(row.field_name, editVal); setEditingRow(null); }}
-                onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && row.field_name) onUpdateField(row.field_name, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
+                onBlur={() => { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); }}
+                onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any }}
               />
             ) : (
@@ -12168,10 +12181,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
-  const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
-    { row_number: 1, field_name: 'callSign', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
-    { row_number: 2, field_name: 'alt', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
-    { row_number: 3, field_name: 'task', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+  const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; fields: { field_name: string }[]; separator: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
+    { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
+    { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
+    { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
   ]);
 
   // BDH state
@@ -13990,9 +14003,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               setEditingClassicTable(null);
               setClassicTableForm({ name: '', description: '' });
               setClassicTableRows([
-                { row_number: 1, field_name: 'callSign', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
-                { row_number: 2, field_name: 'alt', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
-                { row_number: 3, field_name: 'task', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+                { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
+                { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
+                { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
               ]);
             };
             const startEdit = (ct: any) => {
@@ -14001,7 +14014,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               const baseRows = (ct.rows || []).sort((a: any, b: any) => a.row_number - b.row_number);
               setClassicTableRows([1, 2, 3].map(rn => {
                 const r = baseRows.find((x: any) => x.row_number === rn) || {};
-                return { row_number: rn, field_name: r.field_name || '', row_label: r.row_label || '', editable: r.editable ?? false, text_color: r.text_color || '', bg_color: r.bg_color || '', font_size: r.font_size || 14, bold: r.bold ?? false, italic: r.italic ?? false, underline: r.underline ?? false, text_align: r.text_align || 'center' };
+                return { row_number: rn, field_name: r.field_name || '', fields: Array.isArray(r.fields) ? r.fields : [], separator: r.separator || ' / ', row_label: r.row_label || '', editable: r.editable ?? false, text_color: r.text_color || '', bg_color: r.bg_color || '', font_size: r.font_size || 14, bold: r.bold ?? false, italic: r.italic ?? false, underline: r.underline ?? false, text_align: r.text_align || 'center' };
               }));
             };
             const saveTable = async () => {
@@ -14058,17 +14071,46 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     </div>
 
                     {/* 3 Row configs */}
-                    {classicTableRows.map((row, idx) => (
+                    {classicTableRows.map((row, idx) => {
+                      const activeFields: { field_name: string }[] =
+                        row.fields && row.fields.length > 0 ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
+                      const setRowFields = (newFields: { field_name: string }[]) => {
+                        updateRow(idx, { fields: newFields, field_name: newFields[0]?.field_name || '' });
+                      };
+                      return (
                       <div key={idx} style={{ background: '#1e293b', borderRadius: '7px', padding: '12px', border: '1px solid #334155' }}>
                         <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa', marginBottom: '8px' }}>שורה {row.row_number}</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>שדה</span>
-                            <select value={row.field_name} onChange={e => updateRow(idx, { field_name: e.target.value })}
-                              style={{ padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                              {CLASSIC_STRIP_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                            </select>
+
+                        {/* Fields list */}
+                        <div style={{ marginBottom: '10px' }}>
+                          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '5px' }}>שדות בשורה זו:</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {activeFields.map((f, fi) => (
+                              <div key={fi} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <select value={f.field_name}
+                                  onChange={e => { const updated = [...activeFields]; updated[fi] = { field_name: e.target.value }; setRowFields(updated); }}
+                                  style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                                  {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
+                                </select>
+                                <button onClick={() => setRowFields(activeFields.filter((_, i) => i !== fi))}
+                                  style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>×</button>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+                              <button onClick={() => setRowFields([...activeFields, { field_name: '' }])}
+                                style={{ padding: '3px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>+ שדה</button>
+                              {activeFields.length > 1 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>מפריד:</span>
+                                  <input value={row.separator} onChange={e => updateRow(idx, { separator: e.target.value })}
+                                    style={{ width: '50px', padding: '3px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', textAlign: 'center' }} />
+                                </div>
+                              )}
+                            </div>
                           </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <span style={{ fontSize: '11px', color: '#64748b' }}>תווית</span>
                             <input value={row.row_label} onChange={e => updateRow(idx, { row_label: e.target.value })}
@@ -14106,7 +14148,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Preview */}
                     <div>
