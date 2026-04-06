@@ -12123,6 +12123,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
+  const [showNewPresetModal, setShowNewPresetModal] = useState(false);
   const [presetForm, setPresetForm] = useState({
     name: '',
     map_id: '',
@@ -12349,6 +12350,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         })
       });
       setEditingPreset(null);
+      setShowNewPresetModal(false);
       setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' });
       loadData();
     } catch (err) {
@@ -12451,16 +12453,23 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {/* Presets Tab */}
           {activeTab === 'presets' && (
             <div>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>הגדרת עמדות</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
+                <button
+                  onClick={() => { setEditingPreset(null); setShowNewPresetModal(true); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                  style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+                  + חדש
+                </button>
+              </div>
               
-              {/* Preset Form */}
+              {/* Preset Form — opens as modal for both new and edit */}
               <MaybeSettingsModal
-                show={!!editingPreset}
-                title={`עריכת עמדה: ${editingPreset?.name || ''}`}
-                onClose={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                show={!!editingPreset || showNewPresetModal}
+                title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                 wide
               >
-              <div style={{ background: editingPreset ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingPreset ? '0' : '20px', marginBottom: '20px' }}>
+              <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
                   {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
                 </h3>
@@ -12918,14 +12927,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   >
                     {editingPreset ? 'עדכון' : 'הוספה'}
                   </button>
-                  {editingPreset && (
-                    <button
-                      onClick={() => { setEditingPreset(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
-                      style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
-                    >
-                      ביטול
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                    style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    ביטול
+                  </button>
                 </div>
               </div>
               </MaybeSettingsModal>
