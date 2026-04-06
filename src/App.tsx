@@ -3755,10 +3755,10 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
 
 // --- תצוגת מגרש (GROUND) ---
 const GROUND_STATUSES = [
-  { key: 'none', label: 'לא קרא למגדל', color: '#64748b', bg: '#0f172a', dot: '#475569' },
-  { key: 'taxi', label: 'קרא להסעה', color: '#60a5fa', bg: '#1e3a5f', dot: '#3b82f6' },
-  { key: 'lineup', label: 'קרא להתיישרות', color: '#fcd34d', bg: '#422006', dot: '#f59e0b' },
-  { key: 'takeoff', label: 'קרא להמראה', color: '#86efac', bg: '#14532d', dot: '#22c55e' },
+  { key: 'none',    label: 'Pre-Call — טרם קרא',      color: '#64748b', bg: '#0f172a', dot: '#475569', flash: false },
+  { key: 'taxi',    label: 'Taxi — קרא להסעה',        color: '#86efac', bg: '#14532d', dot: '#22c55e', flash: false },
+  { key: 'lineup',  label: 'Line-up — להתיישרות',    color: '#60a5fa', bg: '#1e3a5f', dot: '#3b82f6', flash: false },
+  { key: 'takeoff', label: 'Take-off — המראה',        color: '#fca5a5', bg: '#450a0a', dot: '#ef4444', flash: true  },
 ] as const;
 
 type GroundStatusKey = 'none' | 'taxi' | 'lineup' | 'takeoff';
@@ -3837,6 +3837,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string } | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
+  const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
+
+  const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
+  const pointAircraftCount = React.useMemo(() => {
+    const counts: Record<number, number> = {};
+    strips.forEach(strip => {
+      const aircraft = getAircraftPositions(strip);
+      aircraft.forEach(ac => { if (ac.point_id) counts[ac.point_id] = (counts[ac.point_id] || 0) + 1; });
+    });
+    return counts;
+  }, [strips]);
 
   const border = lightMode ? '#cbd5e1' : '#1e3a5f';
   const panelBg = lightMode ? '#f1f5f9' : '#0b1220';
@@ -3939,6 +3950,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {points.map(pt => {
             const isDrop = mapDragOver === pt.id;
             const ptColor = pt.color || '#3b82f6';
+            const ptCount = pointAircraftCount[pt.id] || 0;
+            const isDense = ptCount >= DENSITY_WARN;
             return (
               <div key={pt.id}
                 style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%, -50%)', zIndex: 10, pointerEvents: 'all' }}
@@ -3957,12 +3970,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   ? <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#22c55e55', border: '2px solid #22c55e', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <GroundMarkerSVG marker={pt.marker || 'circle'} color="#22c55e" size={20} />
                     </div>
-                  : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))' }}>
+                  : <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))' }}>
+                      {isDense && (
+                        <div style={{ position: 'absolute', inset: '-6px', borderRadius: '50%', border: '2px solid #f59e0b', boxShadow: '0 0 8px 2px #f59e0b88', pointerEvents: 'none', animation: 'groundTakeoffFlash 1s ease-in-out infinite' }} />
+                      )}
                       <GroundMarkerSVG marker={pt.marker || 'circle'} color={ptColor} size={22} />
+                      {ptCount > 0 && (
+                        <div style={{ position: 'absolute', top: '-6px', right: '-8px', background: isDense ? '#f59e0b' : ptColor, color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: '14px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #000' }}>
+                          {ptCount}
+                        </div>
+                      )}
                     </div>
                 }
-                <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', background: '#000000cc', color: ptColor, fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none', border: `1px solid ${ptColor}55` }}>
-                  {pt.name}
+                <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', background: '#000000cc', color: isDense ? '#f59e0b' : ptColor, fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none', border: `1px solid ${isDense ? '#f59e0b' : ptColor}55` }}>
+                  {isDense && '⚠️ '}{pt.name}
                 </div>
               </div>
             );
@@ -3971,26 +3992,49 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* Aircraft markers on the map */}
           {strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
-            return aircraft.filter(ac => ac.point_id).map(ac => {
+            return aircraft.filter(ac => ac.point_id).map((ac, acMapIdx) => {
               const pt = points.find(p => p.id === ac.point_id);
               if (!pt) return null;
               const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
               const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === ac.idx;
+              const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === ac.idx;
+              const stackOffset = acMapIdx * 2;
               return (
                 <div key={`${strip.id}-${ac.idx}`}
                   draggable
-                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); }}
+                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                   onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                  style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%, -80%)', zIndex: 20, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
-                  <div style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '4px', padding: '2px 5px', fontSize: '11px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.callSign || strip.callsign || '?'}</span>
-                    <span style={{ color: 'white' }}>#{ac.idx}</span>
-                    <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron || ''}</span>
+                  style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                  <div
+                    className={st.flash ? 'ground-takeoff-flash' : ''}
+                    onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
+                    style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
+                    <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                    <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
+                    {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                   </div>
+                  {/* Quick status menu */}
+                  {isMenuOpen && (
+                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
+                      onClick={e => e.stopPropagation()}>
+                      <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
+                      {GROUND_STATUSES.map(s => (
+                        <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
+                          style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: ac.status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${ac.status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: ac.status === s.key ? 'bold' : 'normal' }}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             });
           })}
+
+          {/* Click anywhere on map to close quick menu */}
+          {groundQuickMenu && (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 15 }} onClick={() => setGroundQuickMenu(null)} />
+          )}
         </div>
       </div>
 
