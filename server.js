@@ -822,7 +822,7 @@ app.post('/api/strips/:id/assign', async (req, res) => {
 app.post('/api/strips/:id/accept-queued', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
-    await pool.query("UPDATE strips SET status = NULL WHERE id = $1 AND status = 'queued'", [id]);
+    await pool.query("UPDATE strips SET status = NULL, in_table = true WHERE id = $1 AND status = 'queued'", [id]);
     res.json({ success: true });
   } catch (err) {
     console.error('Error accepting queued strip:', err);
@@ -1640,7 +1640,9 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
       block_space_id: r.block_space_id || null,
-      block_deviation: r.block_deviation || false
+      block_deviation: r.block_deviation || false,
+      aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
+      ground_status: r.ground_status || 'none'
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);

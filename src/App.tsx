@@ -3819,8 +3819,9 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
   });
 };
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer }: {
+const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onAcceptQueued }: {
   strips: any[];
+  queuedStrips?: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
   airfield: any | null;
@@ -3831,6 +3832,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdateAircraft: (stripId: string, aircraft: AircraftPos[]) => void;
   onTransfer: (stripId: string, toSectorId: number, aircraftIdx?: number) => void;
   onAcceptTransfer: (transferId: string) => void;
+  onAcceptQueued?: (stripId: string) => void;
 }) => {
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -3884,6 +3886,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       {/* RIGHT panel — Strips list */}
       <div style={{ ...PANEL, width: '220px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
         <div style={HDR}>✈️ פמ"מים ({strips.length})</div>
+        {/* Queued strips zone — distributed but not yet accepted */}
+        {(queuedStrips || []).length > 0 && (
+          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#fefce8' : '#1a1a0a' }}>
+            <div style={{ fontSize: '11px', color: '#eab308', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📨 ממחלק ({(queuedStrips || []).length})</div>
+            {(queuedStrips || []).map((s: any) => (
+              <div key={s.id}
+                onClick={() => onAcceptQueued && onAcceptQueued(String(s.id))}
+                style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#fef9c3' : '#2a2800', color: lightMode ? '#713f12' : '#fde047', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 'bold' }}>{s.callSign || s.callsign || '?'}</span>
+                <span style={{ fontSize: '10px', opacity: 0.7 }}>לחץ לקבל</span>
+              </div>
+            ))}
+          </div>
+        )}
         {/* Incoming transfers zone */}
         {incomingTransfers.length > 0 && (
           <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a' }}>
@@ -7854,9 +7870,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
+            const groundQueuedStrips = strips.filter(s =>
+              Number(s.workstation_preset_id) === Number(session.presetId) &&
+              s.status === 'queued' &&
+              !s.inTable && !s.onMap
+            );
+            const handleAcceptQueuedGround = async (stripId: string) => {
+              await fetch(`${API_URL}/strips/${stripId}/accept-queued`, { method: 'POST' });
+              loadData();
+            };
             return (
               <GroundView
                 strips={myTableStrips}
+                queuedStrips={groundQueuedStrips}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}
                 airfield={activeAirfield}
@@ -7867,6 +7893,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateAircraft={handleUpdateAircraft}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onAcceptTransfer={handleAcceptTransfer}
+                onAcceptQueued={handleAcceptQueuedGround}
               />
             );
           })()}
