@@ -14440,9 +14440,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null }) });
             if (res.ok) {
+              const savedAirfield = await res.json();
               setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' });
               const updated = await fetch(`${API_URL}/airfields`);
               if (updated.ok) setAdminAirfields(await updated.json());
+              setSelectedAdminAirfieldId(savedAirfield.id);
+              loadAirfieldPoints(savedAirfield.id);
             }
           };
           const deleteAirfield = async (id: number) => {
