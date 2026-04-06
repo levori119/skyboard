@@ -3841,6 +3841,8 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
 
+  const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -3858,8 +3860,6 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
 
   const points: any[] = airfield?.points || [];
   const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
-
-  const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
