@@ -6132,7 +6132,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
       fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
-      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
+      // airfields loaded in separate effect below (independent of primarySectorId)
 
       // Build all requests
       const requests: Promise<Response>[] = [
@@ -6234,6 +6234,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [primarySectorId]);
+
+  // Airfields must load regardless of primarySectorId (GROUND workstations may have no primary sector)
+  useEffect(() => {
+    const loadAirfields = () => {
+      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
+    };
+    loadAirfields();
+    const interval = setInterval(loadAirfields, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchTableModes = async () => {
