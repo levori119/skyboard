@@ -12463,8 +12463,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               </div>
               
               {/* Preset Form — opens as modal for both new and edit */}
-              <MaybeSettingsModal
-                show={!!editingPreset || showNewPresetModal}
+              {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
+                show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
                 onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                 wide
@@ -12935,7 +12935,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                 </div>
               </div>
-              </MaybeSettingsModal>
+              </MaybeSettingsModal>}
               
               {/* Presets List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
