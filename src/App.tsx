@@ -14419,15 +14419,20 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
         {/* Airfields Tab */}
         {activeTab === 'airfields' && (() => {
           const loadAirfieldPoints = async (airfieldId: number) => {
-            const res = await fetch(`${API_URL}/airfields/${airfieldId}/points`);
-            if (res.ok) setAirfieldPoints(await res.json());
+            setAdminSelMapSrc(null);
+            const [ptRes, afRes] = await Promise.all([
+              fetch(`${API_URL}/airfields/${airfieldId}/points`),
+              fetch(`${API_URL}/airfields/${airfieldId}`),
+            ]);
+            if (ptRes.ok) setAirfieldPoints(await ptRes.json());
             else setAirfieldPoints([]);
-            const af = adminAirfields.find(a => a.id === airfieldId);
-            if (af?.map_id) {
-              const mr = await fetch(`${API_URL}/maps/${af.map_id}`);
-              if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
-              else setAdminSelMapSrc(null);
-            } else setAdminSelMapSrc(null);
+            if (afRes.ok) {
+              const afData = await afRes.json();
+              if (afData.map_id) {
+                const mr = await fetch(`${API_URL}/maps/${afData.map_id}`);
+                if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
+              }
+            }
           };
           const saveAirfield = async () => {
             if (!airfieldForm.name.trim()) return;
@@ -14466,11 +14471,42 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 <div style={{ flex: '0 0 280px' }}>
                   <div style={{ background: '#0f172a', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
                     <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>{editingAirfield ? 'עריכת שדה' : 'הוספת שדה'}</div>
-                    <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="שם שדה התעופה" style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
-                    <select value={airfieldForm.map_id} onChange={e => setAirfieldForm(p => ({ ...p, map_id: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '10px' }}>
+                    <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="שם שדה התעופה" style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px', direction: 'rtl' }} />
+
+                    {/* Map assignment — select existing or upload new */}
+                    <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '4px' }}>מפה קרקעית</div>
+                    <select value={airfieldForm.map_id} onChange={e => setAirfieldForm(p => ({ ...p, map_id: e.target.value }))}
+                      style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: `1px solid ${airfieldForm.map_id ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '6px', direction: 'rtl' }}>
                       <option value="">— ללא מפה —</option>
                       {maps.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                     </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <div style={{ color: '#475569', fontSize: '11px' }}>או</div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', color: '#60a5fa', whiteSpace: 'nowrap' }}>
+                        📎 העלה תמונת מפה
+                        <input type="file" accept="image/*" style={{ display: 'none' }}
+                          onChange={async e => {
+                            const file = e.target.files?.[0]; if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = async ev => {
+                              const imageData = ev.target?.result as string;
+                              const mapName = airfieldForm.name.trim() || file.name.replace(/\.[^.]+$/, '');
+                              const res = await fetch(`${API_URL}/maps`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: mapName, image_data: imageData }) });
+                              if (res.ok) {
+                                const newMap = await res.json();
+                                const mapsRes = await fetch(`${API_URL}/maps`);
+                                if (mapsRes.ok) setMaps(await mapsRes.json());
+                                setAirfieldForm(p => ({ ...p, map_id: String(newMap.id) }));
+                                setAdminSelMapSrc(imageData);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {airfieldForm.map_id && <span style={{ fontSize: '10px', color: '#22c55e' }}>✓ מפה נבחרה</span>}
+                    </div>
+
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button onClick={saveAirfield} style={{ padding: '6px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>{editingAirfield ? 'שמור' : '+ הוסף'}</button>
                       {editingAirfield && <button onClick={() => { setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' }); }} style={{ padding: '6px 12px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>}
@@ -14526,7 +14562,32 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                               ? '📍 לחץ על המפה למקם את הנקודה — לחץ ESC לביטול'
                               : airfieldPointForm.name.trim() ? '👆 לחץ "הנח על מפה" ואז לחץ על המפה למיקום' : 'הזן שם נקודה ואז הנח על המפה'}
                           </div>
-                        : <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '6px' }}>⚠️ שדה זה אין לו מפה — לא ניתן להנחת נקודות</div>
+                        : <div style={{ marginBottom: '10px' }}>
+                            <div style={{ color: '#f59e0b', fontSize: '12px', marginBottom: '8px' }}>⚠️ לא שויכה מפה לשדה זה — העלה מפה כדי להנחיל נקודות</div>
+                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', color: '#60a5fa' }}>
+                              📎 העלה מפה עכשיו
+                              <input type="file" accept="image/*" style={{ display: 'none' }}
+                                onChange={async e => {
+                                  const file = e.target.files?.[0]; if (!file || !selectedAdminAirfieldId) return;
+                                  const reader = new FileReader();
+                                  reader.onload = async ev => {
+                                    const imageData = ev.target?.result as string;
+                                    const mapName = selAirfield?.name || file.name.replace(/\.[^.]+$/, '');
+                                    const mapRes = await fetch(`${API_URL}/maps`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: mapName, image_data: imageData }) });
+                                    if (!mapRes.ok) return;
+                                    const newMap = await mapRes.json();
+                                    await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: selAirfield?.name, map_id: newMap.id }) });
+                                    const mapsRes = await fetch(`${API_URL}/maps`);
+                                    if (mapsRes.ok) setMaps(await mapsRes.json());
+                                    const updatedAfs = await fetch(`${API_URL}/airfields`);
+                                    if (updatedAfs.ok) setAdminAirfields(await updatedAfs.json());
+                                    setAdminSelMapSrc(imageData);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          </div>
                       }
                       {selMapSrc && (
                         <button onClick={() => { if (!airfieldPointForm.name.trim()) return; setPlacingPointMode(true); }}
