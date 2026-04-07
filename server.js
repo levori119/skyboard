@@ -2011,6 +2011,7 @@ app.delete('/api/airfield-points/:id', async (req, res) => {
 // Update strip aircraft positions and ground_status
 app.put('/api/strips/:id/aircraft', async (req, res) => {
   try {
+    const stripId = parseInt(String(req.params.id).replace('s', ''));
     const { aircraft_positions, ground_status } = req.body;
     const fields = [];
     const vals = [];
@@ -2018,7 +2019,7 @@ app.put('/api/strips/:id/aircraft', async (req, res) => {
     if (aircraft_positions !== undefined) { fields.push(`aircraft_positions=$${idx++}`); vals.push(JSON.stringify(aircraft_positions)); }
     if (ground_status !== undefined) { fields.push(`ground_status=$${idx++}`); vals.push(ground_status); }
     if (fields.length === 0) return res.status(400).json({ error: 'Nothing to update' });
-    vals.push(req.params.id);
+    vals.push(stripId);
     const result = await pool.query(`UPDATE strips SET ${fields.join(', ')} WHERE id=$${idx} RETURNING *`, vals);
     res.json(result.rows[0]);
   } catch (err) {

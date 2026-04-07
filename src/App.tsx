@@ -3843,6 +3843,34 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
+  // Track actual rendered image bounds (objectFit:contain letterboxing compensation)
+  const airfieldImgRef = React.useRef<HTMLImageElement>(null);
+  const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const updateImgBounds = React.useCallback(() => {
+    const img = airfieldImgRef.current;
+    if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
+    const c = img.parentElement; if (!c) { setImgBounds(null); return; }
+    const cW = c.offsetWidth, cH = c.offsetHeight;
+    const nRatio = img.naturalWidth / img.naturalHeight;
+    const cRatio = cW / cH;
+    let w, h, left, top;
+    if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
+    else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
+    setImgBounds({ left, top, width: w, height: h });
+  }, []);
+  React.useEffect(() => {
+    const img = airfieldImgRef.current;
+    if (!img) return;
+    const ro = new ResizeObserver(updateImgBounds);
+    if (img.parentElement) ro.observe(img.parentElement);
+    return () => ro.disconnect();
+  }, [updateImgBounds, airfieldMapSrc]);
+
+  // Convert % coordinates to absolute px within the rendered image area
+  const ptPos = (x_pct: number, y_pct: number) => imgBounds
+    ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
+    : { left: `${x_pct}%`, top: `${y_pct}%` };
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -3955,10 +3983,10 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
 
       {/* CENTER — Airfield map */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 מגרש'}</div>
+        <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
         <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
           {airfieldMapSrc
-            ? <img src={airfieldMapSrc} alt="airfield" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
@@ -3968,9 +3996,10 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
             const ptColor = pt.color || '#3b82f6';
             const ptCount = pointAircraftCount[pt.id] || 0;
             const isDense = ptCount >= DENSITY_WARN;
+            const pos = ptPos(pt.x_pct, pt.y_pct);
             return (
               <div key={pt.id}
-                style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%, -50%)', zIndex: 10, pointerEvents: 'all' }}
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%, -50%)', zIndex: 10, pointerEvents: 'all' }}
                 onDragOver={e => { e.preventDefault(); setMapDragOver(pt.id); }}
                 onDragLeave={() => { if (mapDragOver === pt.id) setMapDragOver(null); }}
                 onDrop={e => {
@@ -4020,7 +4049,7 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                   draggable
                   onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                   onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                  style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                  style={{ position: 'absolute', left: ptPos(pt.x_pct, pt.y_pct).left, top: ptPos(pt.x_pct, pt.y_pct).top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
                   <div
                     className={st.flash ? 'ground-takeoff-flash' : ''}
                     onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
@@ -12378,6 +12407,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
   const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle' });
   const [placingPointMode, setPlacingPointMode] = useState(false);
+  const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setAdminMapImgBounds(null); return; }
+    const c = imgEl.parentElement; if (!c) { setAdminMapImgBounds(null); return; }
+    const cW = c.offsetWidth, cH = c.offsetHeight;
+    const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+    const cRatio = cW / cH;
+    let w, h, left, top;
+    if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
+    else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
+    setAdminMapImgBounds({ left, top, width: w, height: h });
+  };
+  const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
+    ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
+    : { left: `${x_pct}%`, top: `${y_pct}%` };
   const [selectedAdminAirfieldId, setSelectedAdminAirfieldId] = useState<number | null>(null);
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
@@ -12688,7 +12732,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   {editingPreset ? 'עריכת עמדה' : 'עמדה חדשה'}
                 </h3>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                {/* Row 1: Name + Preset type */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
                   <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שם עמדה:</label>
                     <input
@@ -12699,8 +12744,32 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       style={{ width: '100%', padding: '10px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '14px', boxSizing: 'border-box' }}
                     />
                   </div>
-                  
                   <div>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>סוג עמדה:</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'ground', label: '🛬 שדה תעופה' }].map(opt => (
+                        <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
+                          style={{ flex: 1, padding: '10px 8px', borderRadius: '6px', border: `2px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Row 2: Map (only for normal) or Airfield (if שדה תעופה) */}
+                {presetForm.preset_type === 'ground' ? (
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שדה תעופה:</label>
+                    <select value={presetForm.airfield_id}
+                      onChange={e => setPresetForm(p => ({ ...p, airfield_id: e.target.value }))}
+                      style={{ width: '100%', padding: '10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '14px', direction: 'rtl' }}>
+                      <option value="">— ללא שדה —</option>
+                      {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
+                    </select>
+                    {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מפה:</label>
                     <select
                       value={presetForm.map_id}
@@ -12713,7 +12782,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       ))}
                     </select>
                   </div>
-                </div>
+                )}
 
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>מצב תצוגה ברירת מחדל:</label>
@@ -12954,31 +13023,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                           })}
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Ground (מגרש) mode */}
-                <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                  <label style={{ display: 'block', marginBottom: '10px', color: '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>🛬 מצב מגרש (GROUND):</label>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                    {[{ val: 'normal', label: 'רגיל' }, { val: 'ground', label: '🛬 מגרש' }].map(opt => (
-                      <button key={opt.val} onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
-                        style={{ padding: '7px 18px', borderRadius: '6px', border: `1px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {presetForm.preset_type === 'ground' && (
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>שדה תעופה:</label>
-                      <select value={presetForm.airfield_id}
-                        onChange={e => setPresetForm(p => ({ ...p, airfield_id: e.target.value }))}
-                        style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
-                        <option value="">— ללא שדה —</option>
-                        {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
-                      </select>
-                      {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
                     </div>
                   )}
                 </div>
@@ -14753,13 +14797,27 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         onKeyDown={e => { if (e.key === 'Escape') setPlacingPointMode(false); }}
                         onClick={e => {
                           if (!placingPointMode) return;
+                          const imgEl = (e.currentTarget as HTMLElement).querySelector('img') as HTMLImageElement | null;
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const x_pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                          const y_pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                          let x_pct: number, y_pct: number;
+                          if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
+                            const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+                            const cRatio = rect.width / rect.height;
+                            let imgL: number, imgT: number, imgW: number, imgH: number;
+                            if (nRatio > cRatio) { imgW = rect.width; imgH = imgW / nRatio; imgL = 0; imgT = (rect.height - imgH) / 2; }
+                            else { imgH = rect.height; imgW = imgH * nRatio; imgL = (rect.width - imgW) / 2; imgT = 0; }
+                            x_pct = Math.round(((e.clientX - rect.left - imgL) / imgW) * 100);
+                            y_pct = Math.round(((e.clientY - rect.top - imgT) / imgH) * 100);
+                          } else {
+                            x_pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                            y_pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                          }
+                          x_pct = Math.max(0, Math.min(100, x_pct));
+                          y_pct = Math.max(0, Math.min(100, y_pct));
                           addPointAt(x_pct, y_pct);
                         }}
                       >
-                        <img src={selMapSrc} alt="airfield map" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', maxHeight: '340px' }} />
+                        <img src={selMapSrc} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)} style={{ width: '100%', maxHeight: '340px', objectFit: 'contain', display: 'block' }} />
                         {placingPointMode && (
                           <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                             <div style={{ background: '#000000cc', color: '#fbbf24', padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>
@@ -14768,14 +14826,17 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           </div>
                         )}
                         {/* Show existing points on map */}
-                        {airfieldPoints.map(pt => (
-                          <div key={pt.id} style={{ position: 'absolute', left: `${pt.x_pct}%`, top: `${pt.y_pct}%`, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
+                        {airfieldPoints.map(pt => {
+                          const apos = adminPtPos(pt.x_pct, pt.y_pct);
+                          return (
+                          <div key={pt.id} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                               <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={20} />
                               <div style={{ background: '#000000cc', color: pt.color || '#3b82f6', fontSize: '9px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap' }}>{pt.name}</div>
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
 
