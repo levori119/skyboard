@@ -4302,8 +4302,66 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}>
-      {/* RIGHT panel — Receive (ממי מקבל) */}
+      {/* RIGHT panel — Transfer (למי מעביר) */}
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
+        <div style={PANEL_HDR}>📤 למי מעביר</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {transferPoints.length === 0
+            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות העברה</div>
+            : transferPoints.map((pt: any) => {
+              const ptOut = outgoingTransfers.filter(t => t.to_sector_id === pt.sector_id);
+              const isDrop = dropTarget === pt.sector_id;
+              return (
+                <div key={pt.sector_id} style={{ marginBottom: '6px' }}
+                  onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
+                  onDrop={e => { e.preventDefault(); setDropTarget(null); if (draggingStripId) { onTransfer(draggingStripId, pt.sector_id); setDraggingStripId(null); } }}
+                >
+                  <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                    {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
+                    {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
+                  </div>
+                  <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
+                    {ptOut.length === 0
+                      ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
+                      : ptOut.map((t: any) => <ClassicStripCard key={t.id} strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />)
+                    }
+                  </div>
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+
+      {/* CENTER panel — My Strips (שלי) — same as before */}
+      <div style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
+        onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+        onDrop={e => {
+          e.preventDefault(); setDropTarget(null);
+          if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); }
+          else if (draggingQueuedId) { onAcceptQueued(draggingQueuedId); setDraggingQueuedId(null); }
+        }}
+      >
+        <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' && (draggingTransferId || draggingQueuedId) ? '← שחרר לקבל' : ''}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {strips.length === 0
+            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
+            : strips.map((s: any) => (
+              <div key={s.id} draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
+                  onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* LEFT panel — Receive (ממי מקבל) */}
+      <div style={PANEL_STYLE}>
         <div style={PANEL_HDR}>📥 ממי מקבל ({queuedStrips.length + incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {/* Distributed strips (from חלוקת פמ) */}
@@ -4346,63 +4404,6 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
         </div>
       </div>
 
-      {/* CENTER panel — My Strips (שלי) */}
-      <div style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
-        onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
-        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
-        onDrop={e => {
-          e.preventDefault(); setDropTarget(null);
-          if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); }
-          else if (draggingQueuedId) { onAcceptQueued(draggingQueuedId); setDraggingQueuedId(null); }
-        }}
-      >
-        <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' && (draggingTransferId || draggingQueuedId) ? '← שחרר לקבל' : ''}
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {strips.length === 0
-            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
-            : strips.map((s: any) => (
-              <div key={s.id} draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
-                  onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
-              </div>
-            ))
-          }
-        </div>
-      </div>
-
-      {/* LEFT panel — Transfer (למי מעביר) */}
-      <div style={PANEL_STYLE}>
-        <div style={PANEL_HDR}>📤 למי מעביר</div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {transferPoints.length === 0
-            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות העברה</div>
-            : transferPoints.map((pt: any) => {
-              const ptOut = outgoingTransfers.filter(t => t.to_sector_id === pt.sector_id);
-              const isDrop = dropTarget === pt.sector_id;
-              return (
-                <div key={pt.sector_id} style={{ marginBottom: '6px' }}
-                  onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
-                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
-                  onDrop={e => { e.preventDefault(); setDropTarget(null); if (draggingStripId) { onTransfer(draggingStripId, pt.sector_id); setDraggingStripId(null); } }}
-                >
-                  <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
-                    {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
-                    {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
-                  </div>
-                  <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
-                    {ptOut.length === 0
-                      ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
-                      : ptOut.map((t: any) => <ClassicStripCard key={t.id} strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />)
-                    }
-                  </div>
-                </div>
-              );
-            })
-          }
-        </div>
-      </div>
     </div>
   );
 };
@@ -12386,6 +12387,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     preset_type: 'normal' as string,
     airfield_id: '' as string | number,
   });
+  const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
+  const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
 
   // Preset links state
   const [editingPresetLinks, setEditingPresetLinks] = useState<any[]>([]);
@@ -12609,6 +12612,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       });
       setEditingPreset(null);
       setShowNewPresetModal(false);
+      setPresetFormInitial(null);
       setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' });
       loadData();
     } catch (err) {
@@ -12618,7 +12622,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   const editPreset = (preset: any) => {
     setEditingPreset(preset);
-    setPresetForm({
+    const f = {
       name: preset.name,
       map_id: preset.map_id?.toString() || '',
       relevant_sectors: preset.relevant_sectors || [],
@@ -12638,7 +12642,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       classic_transfer_points: preset.classic_transfer_points || [],
       preset_type: preset.preset_type || 'normal',
       airfield_id: preset.airfield_id?.toString() || '',
-    });
+    };
+    setPresetForm(f);
+    setPresetFormInitial(JSON.stringify(f));
     loadPresetLinks(preset.id);
     setShowAddLinkForm(false);
     setEditingLinkId(null);
@@ -12714,7 +12720,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { setEditingPreset(null); setShowNewPresetModal(true); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -12724,7 +12730,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -13181,12 +13187,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                   <button
                     onClick={savePreset}
-                    style={{ padding: '10px 25px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                    disabled={!presetIsDirty}
+                    style={{ padding: '10px 25px', background: presetIsDirty ? '#059669' : '#1e3a2a', color: presetIsDirty ? 'white' : '#4ade80', border: `1px solid ${presetIsDirty ? '#059669' : '#166534'}`, borderRadius: '6px', cursor: presetIsDirty ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: 'bold', opacity: presetIsDirty ? 1 : 0.5, transition: 'all 0.2s' }}
                   >
-                    {editingPreset ? 'עדכון' : 'הוספה'}
+                    {editingPreset ? '💾 עדכון' : '✅ הוספה'}
                   </button>
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '' }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
