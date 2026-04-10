@@ -4187,7 +4187,16 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   };
   const getRowFields = (row: any): any[] => (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
     ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
-  const getRowVal = (row: any) => getRowFields(row).map(f => getVal(f.field_name)).filter(Boolean).join(row.separator || ' / ');
+  const getRowVal = (row: any) => {
+    const rf = getRowFields(row);
+    return rf.reduce((acc: string, f: any, i: number) => {
+      const v = getVal(f.field_name);
+      if (!v) return acc;
+      if (!acc) return v;
+      const sep = rf[i - 1]?.separator ?? ' / ';
+      return acc + sep + v;
+    }, '');
+  };
   const getSingleEditableField = (row: any): string | null => {
     if (!row.editable) return null;
     const fields = getRowFields(row);
@@ -4216,7 +4225,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               justifyContent,
               background: row.bg_color || rowDefaultBg,
               color: row.text_color || defaultColor,
-              fontSize: `${row.font_size || 14}px`,
+              fontSize: `${row.font_size || 12}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
               fontStyle: row.italic ? 'italic' : 'normal',
               textDecoration: row.underline ? 'underline' : 'none',
@@ -4239,7 +4248,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
                   const fVal = getVal(f.field_name);
                   return (
                     <span key={fi} style={{ display: 'inline-flex', alignItems: 'baseline' }}>
-                      {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{row.separator || ' / '}</span>}
+                      {fi > 0 && <span style={{ color: row.text_color || defaultColor, opacity: 0.6, whiteSpace: 'pre' }}>{fields[fi - 1]?.separator ?? ' / '}</span>}
                       <span style={{
                         color: f.text_color || undefined,
                         background: f.bg_color || undefined,
@@ -4251,14 +4260,14 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
                         padding: f.bg_color ? '0 2px' : undefined,
                         opacity: fVal ? 1 : 0.3,
                         whiteSpace: 'nowrap',
-                      }}>{fVal || row.row_label || ''}</span>
+                      }}>{fVal || ''}</span>
                     </span>
                   );
                 })}
               </span>
             ) : (
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
-                {val || <span style={{ opacity: 0.3 }}>{row.row_label || ''}</span>}
+                {val}
               </span>
             )}
           </div>
@@ -12431,9 +12440,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
   const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; fields: { field_name: string }[]; separator: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
-    { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
-    { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
-    { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+    { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: true, italic: false, underline: false, text_align: 'center' },
+    { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: '', editable: true, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
+    { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
   ]);
 
   // BDH state
@@ -14256,9 +14265,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               setEditingClassicTable(null);
               setClassicTableForm({ name: '', description: '' });
               setClassicTableRows([
-                { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: 'או"ק', editable: false, text_color: '', bg_color: '', font_size: 16, bold: true, italic: false, underline: false, text_align: 'center' },
-                { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: 'גובה', editable: true, text_color: '', bg_color: '', font_size: 14, bold: false, italic: false, underline: false, text_align: 'center' },
-                { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: 'משימה', editable: false, text_color: '', bg_color: '', font_size: 13, bold: false, italic: false, underline: false, text_align: 'center' },
+                { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: true, italic: false, underline: false, text_align: 'center' },
+                { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: '', editable: true, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
+                { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
               ]);
             };
             const startEdit = (ct: any) => {
@@ -14267,7 +14276,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               const baseRows = (ct.rows || []).sort((a: any, b: any) => a.row_number - b.row_number);
               setClassicTableRows([1, 2, 3].map(rn => {
                 const r = baseRows.find((x: any) => x.row_number === rn) || {};
-                return { row_number: rn, field_name: r.field_name || '', fields: Array.isArray(r.fields) ? r.fields : [], separator: r.separator || ' / ', row_label: r.row_label || '', editable: r.editable ?? false, text_color: r.text_color || '', bg_color: r.bg_color || '', font_size: r.font_size || 14, bold: r.bold ?? false, italic: r.italic ?? false, underline: r.underline ?? false, text_align: r.text_align || 'center' };
+                return { row_number: rn, field_name: r.field_name || '', fields: Array.isArray(r.fields) ? r.fields : [], separator: r.separator || ' / ', row_label: r.row_label || '', editable: r.editable ?? false, text_color: r.text_color || '', bg_color: r.bg_color || '', font_size: r.font_size || 12, bold: r.bold ?? false, italic: r.italic ?? false, underline: r.underline ?? false, text_align: r.text_align || 'center' };
               }));
             };
             const saveTable = async () => {
@@ -14350,7 +14359,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                                   <div style={{ flex: 1, borderTop: '1px dashed #334155' }} />
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '2px 8px' }}>
                                     <span style={{ fontSize: '10px', color: '#64748b' }}>מפריד:</span>
-                                    <input value={row.separator} onChange={e => updateRow(idx, { separator: e.target.value })}
+                                    <input value={(activeFields[fi - 1] as any).separator ?? ' / '} onChange={e => { const updated = [...activeFields]; updated[fi - 1] = { ...updated[fi - 1], separator: e.target.value }; setRowFields(updated); }}
                                       style={{ width: '44px', padding: '1px 4px', background: '#0f172a', border: 'none', borderRadius: '4px', color: '#94a3b8', fontSize: '11px', textAlign: 'center', outline: 'none' }} />
                                   </div>
                                   <div style={{ flex: 1, borderTop: '1px dashed #334155' }} />
@@ -14399,18 +14408,13 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                               </div>
                             </React.Fragment>))}
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
-                              <button onClick={() => setRowFields([...activeFields, { field_name: '' }])}
+                              <button onClick={() => setRowFields([...activeFields, { field_name: '', separator: ' / ' }])}
                                 style={{ padding: '3px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>+ שדה</button>
                             </div>
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'flex-end' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>תווית</span>
-                            <input value={row.row_label} onChange={e => updateRow(idx, { row_label: e.target.value })}
-                              placeholder="תווית" style={{ width: '80px', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
-                          </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             <span style={{ fontSize: '11px', color: '#64748b' }}>גודל</span>
                             <input type="number" value={row.font_size} onChange={e => updateRow(idx, { font_size: Number(e.target.value) })}
