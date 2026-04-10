@@ -14678,48 +14678,47 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           };
           const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
           return (
-            <div style={{ display: 'flex', gap: '20px', direction: 'rtl' }}>
+            <div style={{ display: 'flex', gap: '16px', direction: 'rtl', alignItems: 'flex-start' }}>
 
-              {/* RIGHT column: list + add button (same pattern as BDH/blocks) */}
-              <div style={{ width: '240px', flexShrink: 0 }}>
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+              {/* RIGHT panel: list + editor controls (pinned right) */}
+              <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* Airfield list */}
+                <div>
                   <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
-                    style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>+ שדה חדש</button>
+                    style={{ width: '100%', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>+ שדה חדש</button>
+                  {adminAirfields.length === 0
+                    ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px 0' }}>אין שדות תעופה</div>
+                    : adminAirfields.map(af => (
+                      <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); }}
+                        style={{ padding: '7px 10px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
+                        <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>🛬 {af.name}</div>
+                        <div style={{ color: '#64748b', fontSize: '10px' }}>{af.map_id ? 'מפה מוגדרת' : 'ללא מפה'}</div>
+                        <button onClick={e => { e.stopPropagation(); deleteAirfield(af.id); }}
+                          style={{ marginTop: '4px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
+                      </div>
+                    ))
+                  }
                 </div>
-                {adminAirfields.length === 0
-                  ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '16px 0' }}>אין שדות תעופה</div>
-                  : adminAirfields.map(af => (
-                    <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); }}
-                      style={{ padding: '7px 10px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
-                      <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>🛬 {af.name}</div>
-                      <div style={{ color: '#64748b', fontSize: '10px' }}>{af.map_id ? 'מפה מוגדרת' : 'ללא מפה'}</div>
-                      <button onClick={e => { e.stopPropagation(); if (!confirm('למחוק שדה זה?')) return; deleteAirfield(af.id); }}
-                        style={{ marginTop: '4px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
-                    </div>
-                  ))
-                }
-              </div>
 
-              {/* LEFT column: editor (shown when airfield selected or creating new) */}
-              {showAirfieldForm && (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Header row */}
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1, minWidth: '140px' }}>
+                {/* Editor form (shown when airfield selected/new) */}
+                {showAirfieldForm && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>שם שדה התעופה:</label>
                       <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="לדוגמה: נבטים"
-                        style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                        style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
                     </div>
-                    <div style={{ flex: 1, minWidth: '160px' }}>
+                    <div>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>מפה קרקעית:</label>
-                      <div style={{ display: 'flex', gap: '5px' }}>
+                      <div style={{ display: 'flex', gap: '4px' }}>
                         <select value={airfieldForm.map_id}
                           onChange={async e => { setAirfieldForm(p => ({ ...p, map_id: e.target.value })); await loadMapById(e.target.value); }}
-                          style={{ flex: 1, padding: '8px 10px', background: '#0f172a', border: `1px solid ${airfieldForm.map_id ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                          style={{ flex: 1, padding: '7px 8px', background: '#0f172a', border: `1px solid ${airfieldForm.map_id ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
                           <option value="">— ללא מפה —</option>
                           {maps.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '7px 10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', color: '#60a5fa', whiteSpace: 'nowrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', padding: '6px 8px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', color: '#60a5fa' }}>
                           📎
                           <input type="file" accept="image/*" style={{ display: 'none' }}
                             onChange={async e => {
@@ -14738,41 +14737,33 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={saveAirfield} disabled={!airfieldForm.name.trim()}
-                        style={{ padding: '8px 18px', background: airfieldForm.name.trim() ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: airfieldForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: airfieldForm.name.trim() ? 1 : 0.5 }}>
+                        style={{ flex: 1, padding: '7px', background: airfieldForm.name.trim() ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: airfieldForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: airfieldForm.name.trim() ? 1 : 0.5 }}>
                         {editingAirfield ? 'שמור' : 'צור'}
                       </button>
                       <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
-                        style={{ padding: '8px 12px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                        style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
                     </div>
-                  </div>
 
-                  {!hasMap && (
-                    <div style={{ color: '#f59e0b', fontSize: '12px', background: '#1c1400', border: '1px solid #78350f', borderRadius: '6px', padding: '10px 14px', marginBottom: '12px' }}>
-                      ⚠️ בחר מפה קרקעית להנחלת נקודות
-                    </div>
-                  )}
-
-                  {hasMap && (
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                      {/* Point form + list */}
-                      <div style={{ width: '220px', flexShrink: 0 }}>
-                        <div style={{ background: '#0f172a', borderRadius: '7px', padding: '12px', marginBottom: '10px', border: '1px solid #1e293b' }}>
-                          <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px' }}>נקודה חדשה:</div>
+                    {/* Point form */}
+                    {hasMap && (
+                      <>
+                        <div style={{ borderTop: '1px solid #334155', paddingTop: '8px' }}>
+                          <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>נקודה חדשה:</div>
                           <input value={airfieldPointForm.name} onChange={e => setAirfieldPointForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הנקודה"
-                            style={{ width: '100%', padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '8px' }} />
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                            style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
                             <div>
                               <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>צבע</div>
                               <input type="color" value={airfieldPointForm.color} onChange={e => setAirfieldPointForm(p => ({ ...p, color: e.target.value }))}
-                                style={{ width: '36px', height: '28px', padding: '1px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
+                                style={{ width: '32px', height: '26px', padding: '1px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }} />
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>סמל</div>
                               <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap' }}>
                                 {GROUND_POINT_MARKERS.map(m => (
                                   <button key={m.key} onClick={() => setAirfieldPointForm(p => ({ ...p, marker: m.key }))} title={m.label}
-                                    style={{ padding: '3px 4px', borderRadius: '3px', border: `2px solid ${airfieldPointForm.marker === m.key ? airfieldPointForm.color : '#334155'}`, background: airfieldPointForm.marker === m.key ? '#1e293b' : '#0f172a', cursor: 'pointer' }}>
-                                    <GroundMarkerSVG marker={m.key} color={airfieldPointForm.marker === m.key ? airfieldPointForm.color : '#64748b'} size={14} />
+                                    style={{ padding: '2px 3px', borderRadius: '3px', border: `2px solid ${airfieldPointForm.marker === m.key ? airfieldPointForm.color : '#334155'}`, background: airfieldPointForm.marker === m.key ? '#1e293b' : '#0f172a', cursor: 'pointer' }}>
+                                    <GroundMarkerSVG marker={m.key} color={airfieldPointForm.marker === m.key ? airfieldPointForm.color : '#64748b'} size={13} />
                                   </button>
                                 ))}
                               </div>
@@ -14780,75 +14771,87 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           </div>
                           {selectedAdminAirfieldId
                             ? <button onClick={() => { if (!airfieldPointForm.name.trim()) return; setPlacingPointMode(true); }} disabled={!airfieldPointForm.name.trim()}
-                                style={{ width: '100%', padding: '7px', background: placingPointMode ? '#92400e' : (airfieldPointForm.name.trim() ? '#1d4ed8' : '#1e293b'), color: 'white', border: 'none', borderRadius: '5px', cursor: airfieldPointForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: airfieldPointForm.name.trim() ? 1 : 0.5 }}>
+                                style={{ width: '100%', padding: '6px', background: placingPointMode ? '#92400e' : (airfieldPointForm.name.trim() ? '#1d4ed8' : '#1e293b'), color: 'white', border: 'none', borderRadius: '5px', cursor: airfieldPointForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: airfieldPointForm.name.trim() ? 1 : 0.5 }}>
                                 {placingPointMode ? '📍 לחץ על המפה...' : '📍 הנח על מפה'}
                               </button>
                             : <div style={{ color: '#f59e0b', fontSize: '11px', textAlign: 'center' }}>שמור תחילה</div>
                           }
-                          {placingPointMode && <div style={{ marginTop: '4px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }}>ESC לביטול</div>}
+                          {placingPointMode && <div style={{ marginTop: '3px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }}>ESC לביטול</div>}
                         </div>
-                        <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px' }}>נקודות ({airfieldPoints.length}):</div>
-                        {airfieldPoints.length === 0
-                          ? <p style={{ color: '#475569', fontSize: '11px', textAlign: 'center', margin: 0 }}>אין נקודות</p>
-                          : airfieldPoints.map(pt => (
-                            <div key={pt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px', background: '#0f172a', borderRadius: '5px', marginBottom: '3px', border: `1px solid ${pt.color || '#1e293b'}44` }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={13} />
-                                <span style={{ color: '#e2e8f0', fontSize: '12px' }}>{pt.name}</span>
-                              </div>
-                              <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 6px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
-                            </div>
-                          ))
-                        }
-                      </div>
 
-                      {/* Map with point placement */}
-                      <div style={{ flex: 1, minWidth: '280px' }}>
-                        <div
-                          style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${placingPointMode ? '#fbbf24' : '#1e3a5f'}`, cursor: placingPointMode ? 'crosshair' : 'default' }}
-                          tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') setPlacingPointMode(false); }}
-                          onClick={e => {
-                            if (!placingPointMode) return;
-                            const imgEl = (e.currentTarget as HTMLElement).querySelector('img') as HTMLImageElement | null;
-                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                            let x_pct: number, y_pct: number;
-                            if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
-                              const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
-                              const cRatio = rect.width / rect.height;
-                              let imgL: number, imgT: number, imgW: number, imgH: number;
-                              if (nRatio > cRatio) { imgW = rect.width; imgH = imgW / nRatio; imgL = 0; imgT = (rect.height - imgH) / 2; }
-                              else { imgH = rect.height; imgW = imgH * nRatio; imgL = (rect.width - imgW) / 2; imgT = 0; }
-                              x_pct = Math.round(((e.clientX - rect.left - imgL) / imgW) * 100);
-                              y_pct = Math.round(((e.clientY - rect.top - imgT) / imgH) * 100);
-                            } else {
-                              x_pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                              y_pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                            }
-                            x_pct = Math.max(0, Math.min(100, x_pct));
-                            y_pct = Math.max(0, Math.min(100, y_pct));
-                            addPointAt(x_pct, y_pct);
-                          }}
-                        >
-                          <img src={adminSelMapSrc!} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
-                            style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
-                          {placingPointMode && (
-                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px' }}>
-                              <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>📍 לחץ על המפה — ESC לביטול</div>
-                            </div>
-                          )}
-                          {airfieldPoints.map(pt => {
-                            const apos = adminPtPos(pt.x_pct, pt.y_pct);
-                            return (
-                              <div key={pt.id} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
-                                <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={20} />
-                                <div style={{ background: '#000000cc', color: pt.color || '#3b82f6', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', textAlign: 'center', marginTop: '1px' }}>{pt.name}</div>
+                        {/* Points list */}
+                        <div>
+                          <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>נקודות ({airfieldPoints.length}):</div>
+                          {airfieldPoints.length === 0
+                            ? <p style={{ color: '#475569', fontSize: '11px', textAlign: 'center', margin: 0 }}>אין נקודות</p>
+                            : airfieldPoints.map(pt => (
+                              <div key={pt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 7px', background: '#0f172a', borderRadius: '5px', marginBottom: '3px', border: `1px solid ${pt.color || '#1e293b'}44` }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
+                                  <span style={{ color: '#e2e8f0', fontSize: '11px' }}>{pt.name}</span>
+                                </div>
+                                <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 5px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
                               </div>
-                            );
-                          })}
+                            ))
+                          }
                         </div>
+                      </>
+                    )}
+
+                    {!hasMap && (
+                      <div style={{ color: '#f59e0b', fontSize: '11px', background: '#1c1400', border: '1px solid #78350f', borderRadius: '5px', padding: '8px 10px' }}>
+                        ⚠️ בחר מפה קרקעית להנחלת נקודות
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* LEFT area: map (large, fills remaining space) */}
+              {hasMap && showAirfieldForm && (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${placingPointMode ? '#fbbf24' : '#1e3a5f'}`, cursor: placingPointMode ? 'crosshair' : 'default' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') setPlacingPointMode(false); }}
+                    onClick={e => {
+                      if (!placingPointMode) return;
+                      const imgEl = (e.currentTarget as HTMLElement).querySelector('img') as HTMLImageElement | null;
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      let x_pct: number, y_pct: number;
+                      if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
+                        const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+                        const cRatio = rect.width / rect.height;
+                        let imgL: number, imgT: number, imgW: number, imgH: number;
+                        if (nRatio > cRatio) { imgW = rect.width; imgH = imgW / nRatio; imgL = 0; imgT = (rect.height - imgH) / 2; }
+                        else { imgH = rect.height; imgW = imgH * nRatio; imgL = (rect.width - imgW) / 2; imgT = 0; }
+                        x_pct = Math.round(((e.clientX - rect.left - imgL) / imgW) * 100);
+                        y_pct = Math.round(((e.clientY - rect.top - imgT) / imgH) * 100);
+                      } else {
+                        x_pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                        y_pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                      }
+                      x_pct = Math.max(0, Math.min(100, x_pct));
+                      y_pct = Math.max(0, Math.min(100, y_pct));
+                      addPointAt(x_pct, y_pct);
+                    }}
+                  >
+                    <img src={adminSelMapSrc!} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
+                      style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
+                    {placingPointMode && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px' }}>
+                        <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>📍 לחץ על המפה — ESC לביטול</div>
+                      </div>
+                    )}
+                    {airfieldPoints.map(pt => {
+                      const apos = adminPtPos(pt.x_pct, pt.y_pct);
+                      return (
+                        <div key={pt.id} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
+                          <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={20} />
+                          <div style={{ background: '#000000cc', color: pt.color || '#3b82f6', fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', textAlign: 'center', marginTop: '1px' }}>{pt.name}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
