@@ -7942,7 +7942,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const classicTable = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
             const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
-            const classicQueued = myTableStrips.filter((s: any) => s.status === 'queued');
+            const classicQueued = strips.filter((s: any) =>
+              Number(s.workstation_preset_id) === Number(session.presetId) &&
+              s.status === 'queued' &&
+              !s.inTable && !s.onMap
+            );
             const classicActive = myTableStrips.filter((s: any) => s.status !== 'queued');
             const handleAcceptQueued = async (stripId: string) => {
               await fetch(`${API_URL}/strips/${stripId}/accept-queued`, { method: 'POST' });
@@ -10501,6 +10505,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
 
   const [randomizing, setRandomizing] = useState(false);
   const [randomizingTimes, setRandomizingTimes] = useState(false);
+  const [distributingAll, setDistributingAll] = useState(false);
 
   const randomizeTakeoffTimes = async () => {
     if (strips.length === 0) return;
@@ -10530,9 +10535,7 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
     if (unassignedStrips.length === 0 || presets.length === 0) return;
     setRandomizing(true);
     try {
-      // Shuffle unassigned strips
       const shuffled = [...unassignedStrips].sort(() => Math.random() - 0.5);
-      // Round-robin across presets
       const assignments: { stripId: string; presetId: number }[] = shuffled.map((strip, idx) => ({
         stripId: strip.id,
         presetId: presets[idx % presets.length].id
@@ -10554,12 +10557,57 @@ const StripDistribution = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
+  const distributeAllEqually = async () => {
+    if (strips.length === 0 || presets.length === 0) return;
+    if (!confirm(`לחלק את כל ${strips.length} הפמ"מים בשווה בין ${presets.length} עמדות?`)) return;
+    setDistributingAll(true);
+    try {
+      const shuffled = [...strips].sort(() => Math.random() - 0.5);
+      await Promise.all(
+        shuffled.map((strip, idx) =>
+          fetch(`${API_URL}/strips/${strip.id}/assign-workstation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workstationPresetId: presets[idx % presets.length].id })
+          })
+        )
+      );
+      await loadData();
+    } catch (err) {
+      console.error('Failed to distribute all:', err);
+    } finally {
+      setDistributingAll(false);
+    }
+  };
+
   return (
     <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
       <header style={{ padding: '15px 30px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <h1 style={{ margin: 0, color: 'white', fontSize: '24px' }}>חלוקה כללית</h1>
           <span style={{ color: '#94a3b8', fontSize: '14px' }}>סה"כ {strips.length} פממים</span>
+          {strips.length > 0 && presets.length > 0 && (
+            <button
+              onClick={distributeAllEqually}
+              disabled={distributingAll}
+              style={{
+                padding: '8px 18px',
+                background: distributingAll ? '#475569' : '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: distributingAll ? 'default' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'background 0.2s'
+              }}
+            >
+              ⚖️ {distributingAll ? 'מחלק...' : `חלוקה שווה לכל (${strips.length})`}
+            </button>
+          )}
           {unassignedStrips.length > 0 && presets.length > 0 && (
             <button
               onClick={randomDistribute}
