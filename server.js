@@ -836,7 +836,7 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
     const { workstationPresetId } = req.body;
     if (workstationPresetId !== null) {
       await pool.query(
-        'UPDATE strips SET workstation_preset_id = $1, status = $2, on_map = $3, held_by_workstation = $4 WHERE id = $5',
+        'UPDATE strips SET workstation_preset_id = $1, status = $2, on_map = $3, held_by_workstation = $4, in_table = false WHERE id = $5',
         [workstationPresetId, 'queued', false, null, id]
       );
     } else {
