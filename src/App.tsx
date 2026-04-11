@@ -14678,9 +14678,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
           };
           const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
           return (
-            <div style={{ display: 'flex', gap: '16px', direction: 'rtl', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
-              {/* RIGHT panel: list + editor controls (pinned right) */}
+              {/* LEFT panel: list + editor controls */}
               <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
                 {/* Airfield list */}
