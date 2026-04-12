@@ -6334,7 +6334,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const loadData = async () => {
-    if (!primarySectorId) return;
+    if (!primarySectorId) {
+      // No sector configured — still load classic-specific data for preset-based classic workstations
+      if (session.presetId) {
+        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
+          if (!presets) return;
+          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
+          if (p) setLivePresetConfig(p);
+        }).catch(() => {});
+        fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => setClassicIncomingTransfers(data))
+          .catch(() => {});
+        fetch(`${API_URL}/presets/${session.presetId}/classic-outgoing`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => setClassicOutgoingTransfers(data))
+          .catch(() => {});
+        fetch(`${API_URL}/strips/global`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => setAllStripsForClassic(data))
+          .catch(() => {});
+        fetch(`${API_URL}/workstations/${session.presetId}/strips`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => setStrips(data))
+          .catch(() => {});
+      }
+      return;
+    }
     try {
       const hasPreset = !!session.presetId;
       
@@ -13004,7 +13030,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <div>
                       <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>עמדות שיש ממשק איתן (קבלה ומסירה):</label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').map((wp: any) => {
+                        {presets.filter((wp: any) => wp.id !== editingPreset?.id).map((wp: any) => {
                           const isSelected = (presetForm.classic_partner_preset_ids || []).includes(Number(wp.id));
                           return (
                             <button key={wp.id} type="button"
@@ -13019,7 +13045,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                             </button>
                           );
                         })}
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').length === 0 && (
+                        {presets.filter((wp: any) => wp.id !== editingPreset?.id).length === 0 && (
                           <span style={{ color: '#475569', fontSize: '12px' }}>אין עמדות אחרות</span>
                         )}
                       </div>
