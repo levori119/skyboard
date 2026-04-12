@@ -587,6 +587,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_partner_preset_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
 
   console.log('Database initialized');
 }
@@ -1367,6 +1370,64 @@ app.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
   }
 });
 
+// Classic preset-to-preset transfer initiation
+app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
+  try {
+    const stripId = parseInt(req.params.id.replace('s', ''));
+    const { fromPresetId, toPresetId } = req.body;
+    await pool.query('UPDATE strips SET status = $1 WHERE id = $2', ['pending_transfer', stripId]);
+    const result = await pool.query(
+      `INSERT INTO strip_transfers (strip_id, from_preset_id, to_preset_id, status, from_sector_id, to_sector_id)
+       VALUES ($1, $2, $3, 'pending', 0, 0) RETURNING *`,
+      [stripId, fromPresetId, toPresetId]
+    );
+    res.json({ transfer: result.rows[0] });
+  } catch (err) {
+    console.error('Error initiating classic transfer:', err);
+    res.status(500).json({ error: 'Failed to initiate transfer' });
+  }
+});
+
+// Classic incoming transfers for a preset (by to_preset_id)
+app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.presetId);
+    const result = await pool.query(`
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
+             p.name as from_preset_name
+      FROM strip_transfers t
+      JOIN strips s ON t.strip_id = s.id
+      LEFT JOIN workstation_presets p ON t.from_preset_id = p.id
+      WHERE t.to_preset_id = $1 AND t.status = 'pending'
+      ORDER BY t.created_at
+    `, [presetId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching classic incoming transfers:', err);
+    res.status(500).json({ error: 'Failed to fetch transfers' });
+  }
+});
+
+// Classic outgoing transfers from a preset (by from_preset_id)
+app.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
+  try {
+    const presetId = parseInt(req.params.presetId);
+    const result = await pool.query(`
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
+             p.name as to_preset_name
+      FROM strip_transfers t
+      JOIN strips s ON t.strip_id = s.id
+      LEFT JOIN workstation_presets p ON t.to_preset_id = p.id
+      WHERE t.from_preset_id = $1 AND t.status = 'pending'
+      ORDER BY t.created_at
+    `, [presetId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching classic outgoing transfers:', err);
+    res.status(500).json({ error: 'Failed to fetch transfers' });
+  }
+});
+
 app.post('/api/transfers/:id/accept', async (req, res) => {
   try {
     const transferId = req.params.id;
@@ -1376,14 +1437,18 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
-    const { strip_id, to_sector_id, to_workstation_id, target_x, target_y } = transfer.rows[0];
+    const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
     
-    // Update strip: move to target sector AND assign to receiving workstation
-    // This ensures the strip disappears from the sending workstation
-    await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
-      [to_sector_id, 'queued', false, target_x || 0, target_y || 0, to_workstation_id, to_workstation_id, strip_id]
-    );
+    if (to_preset_id) {
+      // Classic preset-to-preset transfer: just reset strip status, no sector move
+      await pool.query('UPDATE strips SET status = $1 WHERE id = $2', ['queued', strip_id]);
+    } else {
+      // Standard sector-based transfer: move strip to target sector and assign to receiving workstation
+      await pool.query(
+        'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
+        [to_sector_id, 'queued', false, target_x || 0, target_y || 0, to_workstation_id, to_workstation_id, strip_id]
+      );
+    }
     
     await pool.query(
       'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
@@ -1650,6 +1715,47 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
   }
 });
 
+// All strips in workstation-compatible format (for classic mode query-based filtering)
+app.get('/api/strips/global', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM strips ORDER BY id');
+    res.json(result.rows.map(r => ({
+      id: 's' + r.id,
+      callSign: r.callsign,
+      numberOfFormation: r.number_of_formation || null,
+      sq: r.sq,
+      alt: r.alt,
+      task: r.task,
+      squadron: r.squadron,
+      sectorId: r.sector_id,
+      status: r.status,
+      x: r.x,
+      y: r.y,
+      onMap: r.on_map,
+      airborne: r.airborne,
+      notes: r.notes,
+      weapons: r.weapons || [],
+      targets: r.targets || [],
+      systems: r.systems || [],
+      shkadia: r.shkadia,
+      workstation_preset_id: r.workstation_preset_id,
+      custom_fields: r.custom_fields || {},
+      takeoff_time: r.takeoff_time || null,
+      inTable: r.in_table || false,
+      erka: r.erka || '',
+      koteret: r.koteret || '',
+      mivtza: r.mivtza || '',
+      block_space_id: r.block_space_id || null,
+      block_deviation: r.block_deviation || false,
+      aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
+      ground_status: r.ground_status || 'none'
+    })));
+  } catch (err) {
+    console.error('Error fetching global strips:', err);
+    res.status(500).json({ error: 'Failed to fetch strips' });
+  }
+});
+
 // Get strips waiting for a workstation preset
 app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
   try {
@@ -1778,11 +1884,11 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(classic_partner_preset_ids || [])]
     );
     const row = result.rows[0];
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
@@ -1794,10 +1900,10 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_receive_points = $16, classic_transfer_points = $17, preset_type = $18, airfield_id = $19 WHERE id = $20 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_receive_points = $16, classic_transfer_points = $17, preset_type = $18, airfield_id = $19, classic_partner_preset_ids = $20 WHERE id = $21 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(classic_partner_preset_ids || []), req.params.id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
