@@ -4758,19 +4758,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       const newAlt = Math.round(rawAlt / 500) * 500;
       setAltDrag(prev => prev ? { ...prev, currentAlt: newAlt } : null);
     };
-    const handleMouseMove = (e: MouseEvent) => calcAlt(e.clientY);
-    const handleMouseUp = () => { const d = altDragRef.current; if (d) commitAlt(d.currentAlt); };
-    const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); if (e.touches[0]) calcAlt(e.touches[0].clientY); };
-    const handleTouchEnd = () => { const d = altDragRef.current; if (d) commitAlt(d.currentAlt); };
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd);
+    const handlePointerMove = (e: PointerEvent) => calcAlt(e.clientY);
+    const handlePointerUp = () => { const d = altDragRef.current; if (d) commitAlt(d.currentAlt); };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [altDrag?.stripId]);
@@ -5011,22 +5005,29 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (isConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
-              onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
-              onTouchStart={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
                 background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
                   : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (isConflict ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
-                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
-                boxSizing: 'border-box', cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
+                display: 'flex', flexDirection: 'row', alignItems: 'stretch',
+                overflow: 'hidden', zIndex: isDragging ? 10 : isConflict ? 3 : 2,
+                boxSizing: 'border-box', cursor: 'default',
                 opacity: isDragging ? 0.6 : 1,
               }}>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+              {onUpdateStripAlt && (
+                <div
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
+                  style={{ width: '12px', flexShrink: 0, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.12)', touchAction: 'none', userSelect: 'none', fontSize: '9px', color: '#94a3b8' }}>
+                  ⠿
+                </div>
+              )}
+              <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                </div>
               </div>
             </div>
           );
@@ -5059,22 +5060,29 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (ntConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
-              onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
-              onTouchStart={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
                 width: `${colW - 0.5}%`, height: heightVal,
                 background: (effectiveDeviation && !isDeviationAcknowledged) ? undefined
                   : effectiveDeviationAck ? 'rgba(234, 88, 12, 0.2)' : (ntConflict ? undefined : normalBg),
                 border: `2px solid ${isDragging ? '#f59e0b' : borderColor}`, borderRadius: 4,
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start',
-                overflow: 'hidden', padding: '2px 5px', zIndex: isDragging ? 10 : ntConflict ? 3 : 2,
-                boxSizing: 'border-box', cursor: onUpdateStripAlt ? 'ns-resize' : 'default',
+                display: 'flex', flexDirection: 'row', alignItems: 'stretch',
+                overflow: 'hidden', zIndex: isDragging ? 10 : ntConflict ? 3 : 2,
+                boxSizing: 'border-box', cursor: 'default',
                 opacity: isDragging ? 0.6 : 1,
               }}>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline', direction: 'rtl' }}>
-                <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+              {onUpdateStripAlt && (
+                <div
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
+                  style={{ width: '12px', flexShrink: 0, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.12)', touchAction: 'none', userSelect: 'none', fontSize: '9px', color: '#94a3b8' }}>
+                  ⠿
+                </div>
+              )}
+              <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl' }}>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                </div>
               </div>
             </div>
           );
