@@ -4741,28 +4741,37 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 
   React.useEffect(() => {
     if (!altDrag) return;
-    const handleMouseMove = (e: MouseEvent) => {
+    const commitAlt = (currentAlt: number) => {
+      const newAlt = Math.round(currentAlt);
+      const fl = Math.round(newAlt / 100);
+      const altStr = newAlt >= 10000 ? `FL${fl}` : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
+      onUpdateStripAlt?.(altDragRef.current!.stripId, altStr);
+      setAltDrag(null);
+    };
+    const calcAlt = (clientY: number) => {
       const el = chartContentRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const relY = e.clientY - rect.top;
+      const relY = clientY - rect.top;
       const pct = Math.max(0, Math.min(1, relY / rect.height));
       const rawAlt = topAltRef.current - pct * altRangeRef.current;
       const newAlt = Math.round(rawAlt / 500) * 500;
       setAltDrag(prev => prev ? { ...prev, currentAlt: newAlt } : null);
     };
-    const handleMouseUp = () => {
-      const drag = altDragRef.current;
-      if (!drag) return;
-      const newAlt = Math.round(drag.currentAlt);
-      const fl = Math.round(newAlt / 100);
-      const altStr = newAlt >= 10000 ? `FL${fl}` : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
-      onUpdateStripAlt?.(drag.stripId, altStr);
-      setAltDrag(null);
-    };
+    const handleMouseMove = (e: MouseEvent) => calcAlt(e.clientY);
+    const handleMouseUp = () => { const d = altDragRef.current; if (d) commitAlt(d.currentAlt); };
+    const handleTouchMove = (e: TouchEvent) => { e.preventDefault(); if (e.touches[0]) calcAlt(e.touches[0].clientY); };
+    const handleTouchEnd = () => { const d = altDragRef.current; if (d) commitAlt(d.currentAlt); };
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); };
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [altDrag?.stripId]);
 
@@ -5003,6 +5012,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+              onTouchStart={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
                 width: `${wPct}%`, height: heightVal,
@@ -5050,6 +5060,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               onMouseDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+              onTouchStart={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
                 width: `${colW - 0.5}%`, height: heightVal,
