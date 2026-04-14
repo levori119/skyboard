@@ -7011,8 +7011,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromPresetId: session.presetId, toPresetId })
       });
-      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
-      setAllStripsForClassic(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+      setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, status: 'pending_transfer' } : s));
+      setAllStripsForClassic(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, status: 'pending_transfer' } : s));
       loadData();
     } catch (err) {
       console.error('Failed to initiate classic transfer:', err);
@@ -8125,7 +8125,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           {/* Classic Strip View */}
           {!isGroundMode && isClassicMode && (() => {
-            const classicTable = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
+            const classicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
+            const classicTableNight = myPresetConfig?.classic_strip_table_id_night
+              ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night)
+              : null;
+            const classicTable = lightMode ? classicTableDay : (classicTableNight || classicTableDay);
             const isNewClassic = myPresetConfig?.preset_type === 'classic';
             const partnerPresets: any[] = isNewClassic
               ? (myPresetConfig?.classic_partner_preset_ids || [])
@@ -12638,6 +12642,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     view_alt_max: '' as string | number,
     display_mode: 'complex' as string,
     classic_strip_table_id: '' as string | number,
+    classic_strip_table_id_night: '' as string | number,
     classic_receive_points: [] as { sector_id: number; label: string }[],
     classic_transfer_points: [] as { sector_id: number; label: string }[],
     preset_type: 'normal' as string,
@@ -12862,6 +12867,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           view_alt_max: presetForm.view_alt_max !== '' ? Number(presetForm.view_alt_max) : null,
           display_mode: presetForm.preset_type === 'classic' ? 'classic' : (presetForm.display_mode || 'complex'),
           classic_strip_table_id: presetForm.classic_strip_table_id ? Number(presetForm.classic_strip_table_id) : null,
+          classic_strip_table_id_night: presetForm.classic_strip_table_id_night ? Number(presetForm.classic_strip_table_id_night) : null,
           classic_receive_points: presetForm.classic_receive_points || [],
           classic_transfer_points: presetForm.classic_transfer_points || [],
           preset_type: presetForm.preset_type || 'normal',
@@ -12872,7 +12878,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setEditingPreset(null);
       setShowNewPresetModal(false);
       setPresetFormInitial(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] });
+      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save preset:', err);
@@ -12897,6 +12903,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       view_alt_max: preset.view_alt_max ?? '',
       display_mode: preset.display_mode || 'complex',
       classic_strip_table_id: preset.classic_strip_table_id || '',
+      classic_strip_table_id_night: preset.classic_strip_table_id_night || '',
       classic_receive_points: preset.classic_receive_points || [],
       classic_transfer_points: preset.classic_transfer_points || [],
       preset_type: preset.preset_type || 'normal',
@@ -12980,7 +12987,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -12990,7 +12997,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -13037,20 +13044,32 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                     <label style={{ display: 'block', marginBottom: '10px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>📋 הגדרת עמדת סטריפים</label>
-                    <div style={{ marginBottom: '12px' }}>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>תבנית עיצוב סטריפ:</label>
-                      <select value={presetForm.classic_strip_table_id}
-                        onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id: e.target.value }))}
-                        style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
-                        <option value="">— ללא תבנית —</option>
-                        {(classicTables || []).map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                      </select>
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', marginBottom: '6px', color: '#fbbf24', fontSize: '13px' }}>☀️ תבנית יום:</label>
+                        <select value={presetForm.classic_strip_table_id}
+                          onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id: e.target.value }))}
+                          style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
+                          <option value="">— ללא תבנית —</option>
+                          {(classicTables || []).map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', marginBottom: '6px', color: '#818cf8', fontSize: '13px' }}>🌙 תבנית לילה:</label>
+                        <select value={presetForm.classic_strip_table_id_night}
+                          onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id_night: e.target.value }))}
+                          style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
+                          <option value="">— כמו יום —</option>
+                          {(classicTables || []).map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>עמדות שיש ממשק איתן (קבלה ומסירה):</label>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>עמדות למסירה וקבלה (כל סוג עמדה):</label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {presets.filter((wp: any) => wp.id !== editingPreset?.id).map((wp: any) => {
                           const isSelected = (presetForm.classic_partner_preset_ids || []).includes(Number(wp.id));
+                          const typeLabel = wp.preset_type === 'classic' ? '📋' : wp.preset_type === 'ground' ? '🛫' : '🗺';
                           return (
                             <button key={wp.id} type="button"
                               onClick={() => setPresetForm(p => ({
@@ -13060,7 +13079,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                   : [...(p.classic_partner_preset_ids || []), Number(wp.id)]
                               }))}
                               style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${isSelected ? '#22c55e' : '#334155'}`, background: isSelected ? '#14532d' : '#1e293b', color: isSelected ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isSelected ? 'bold' : 'normal' }}>
-                              {isSelected ? '✓ ' : ''}{wp.name}
+                              {isSelected ? '✓ ' : ''}{typeLabel} {wp.name}
                             </button>
                           );
                         })}
@@ -13489,7 +13508,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     {editingPreset ? '💾 עדכון' : '✅ הוספה'}
                   </button>
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
@@ -14612,16 +14631,33 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '14px' }}>
                     {editingClassicTable ? `עריכת תבנית: ${editingClassicTable.name}` : 'תבנית חדשה'}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>שם תבנית</label>
-                      <input value={classicTableForm.name} onChange={e => setClassicTableForm(p => ({ ...p, name: e.target.value }))}
-                        placeholder="לדוגמה: מרחב א׳" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>שם תבנית</label>
+                        <input value={classicTableForm.name} onChange={e => setClassicTableForm(p => ({ ...p, name: e.target.value }))}
+                          placeholder="לדוגמה: מרחב א׳" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>תיאור (אופציונלי)</label>
+                        <input value={classicTableForm.description} onChange={e => setClassicTableForm(p => ({ ...p, description: e.target.value }))}
+                          placeholder="הערה קצרה" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                      </div>
                     </div>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#64748b', display: 'block', marginBottom: '4px' }}>תיאור (אופציונלי)</label>
-                      <input value={classicTableForm.description} onChange={e => setClassicTableForm(p => ({ ...p, description: e.target.value }))}
-                        placeholder="הערה קצרה" style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                    <div style={{ flexShrink: 0, width: '140px' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px', textAlign: 'center' }}>תצוגה מקדימה</div>
+                      <div style={{ transform: 'scale(0.9)', transformOrigin: 'top center' }}>
+                        <ClassicStripCard
+                          strip={{ callSign: 'F-16', sq: '101', alt: 'FL200', task: 'CAS', takeoff_time: '0800', notes: '' }}
+                          rows={classicTableRows}
+                          lightMode={false}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'none' }}>{/* spacer for old name/desc fields — now in flex row above */}</div>
+                    <div style={{ display: 'none' }}>
                     </div>
 
                     {/* 3 Row configs */}
