@@ -593,6 +593,11 @@ async function initDb() {
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
   // Fix legacy rows where text_color was incorrectly defaulted to '#000000' — reset to empty so dark mode works
   await pool.query(`UPDATE classic_strip_rows SET text_color = '' WHERE text_color = '#000000'`);
+  // Fix classic_strip_rows default to empty string (not black) for new rows
+  await pool.query(`ALTER TABLE classic_strip_rows ALTER COLUMN text_color SET DEFAULT ''`);
+  // Fix strips.workstation_preset_id FK from NO ACTION → SET NULL so preset deletion works
+  await pool.query(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
+  await pool.query(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
 
   console.log('Database initialized');
 }
@@ -1921,6 +1926,8 @@ app.put('/api/workstation-presets/:id', async (req, res) => {
 
 app.delete('/api/workstation-presets/:id', async (req, res) => {
   try {
+    // Unassign strips before deleting so the FK (NO ACTION) doesn't block
+    await pool.query('UPDATE strips SET workstation_preset_id = NULL WHERE workstation_preset_id = $1', [req.params.id]);
     await pool.query('DELETE FROM workstation_presets WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {

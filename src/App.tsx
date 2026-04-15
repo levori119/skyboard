@@ -4433,6 +4433,11 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
           🎯 שלי ({strips.length}) {dropTarget === 'mine' && (draggingTransferId || draggingQueuedId) ? '← שחרר לקבל' : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {!classicStripTable && (
+            <div style={{ background: '#78350f', color: '#fde68a', padding: '8px 12px', borderRadius: '6px', margin: '6px 4px', fontSize: '12px', textAlign: 'center' }}>
+              ⚠️ לא הוגדרה תבנית סטריפ לעמדה זו — ערוך את הגדרות העמדה
+            </div>
+          )}
           {strips.length === 0
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
@@ -12930,10 +12935,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const deletePreset = async (id: number) => {
     if (!confirm('למחוק עמדה זו?')) return;
     try {
-      await fetch(`${API_URL}/workstation-presets/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/workstation-presets/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'שגיאה לא ידועה' }));
+        alert(`שגיאה במחיקה: ${err.error || 'שגיאה לא ידועה'}`);
+        return;
+      }
       loadData();
     } catch (err) {
       console.error('Failed to delete preset:', err);
+      alert('שגיאה בחיבור לשרת');
     }
   };
 
