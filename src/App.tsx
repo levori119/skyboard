@@ -14597,8 +14597,14 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   tableId = created.id;
                 }
                 await fetch(`${API_URL}/classic-strip-tables/${tableId}/rows`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: classicTableRows }) });
-                fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables);
-                startNew();
+                const updatedTables = await fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []);
+                setClassicTables(updatedTables);
+                if (editingClassicTable) {
+                  const refreshed = updatedTables.find((t: any) => t.id === tableId);
+                  if (refreshed) startEdit(refreshed);
+                } else {
+                  startNew();
+                }
               } catch (e) { console.error(e); }
             };
             const deleteTable = async (id: number) => {
@@ -14656,10 +14662,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'none' }}>{/* spacer for old name/desc fields — now in flex row above */}</div>
-                    <div style={{ display: 'none' }}>
-                    </div>
-
                     {/* 3 Row configs */}
                     {classicTableRows.map((row, idx) => {
                       const activeFields: { field_name: string }[] =
@@ -14771,18 +14773,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       </div>
                       );
                     })}
-
-                    {/* Preview */}
-                    <div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px' }}>תצוגה מקדימה:</div>
-                      <div style={{ maxWidth: '180px' }}>
-                        <ClassicStripCard
-                          strip={{ callSign: 'ALPHA', sq: '119', alt: 'FL250', task: 'CAS', notes: 'test', takeoff_time: '14:30', erka: 'E1', mivtza: 'OPS', koteret: 'K1', numberOfFormation: '2' }}
-                          rows={classicTableRows}
-                          lightMode={false}
-                        />
-                      </div>
-                    </div>
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                       <button onClick={saveTable}
