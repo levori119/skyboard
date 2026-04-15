@@ -591,6 +591,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_partner_preset_ids JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
+  // Fix legacy rows where text_color was incorrectly defaulted to '#000000' — reset to empty so dark mode works
+  await pool.query(`UPDATE classic_strip_rows SET text_color = '' WHERE text_color = '#000000'`);
 
   console.log('Database initialized');
 }
@@ -1378,8 +1380,8 @@ app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
     const { fromPresetId, toPresetId } = req.body;
     await pool.query('UPDATE strips SET status = $1 WHERE id = $2', ['pending_transfer', stripId]);
     const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_preset_id, to_preset_id, status, from_sector_id, to_sector_id)
-       VALUES ($1, $2, $3, 'pending', 0, 0) RETURNING *`,
+      `INSERT INTO strip_transfers (strip_id, from_preset_id, to_preset_id, status)
+       VALUES ($1, $2, $3, 'pending') RETURNING *`,
       [stripId, fromPresetId, toPresetId]
     );
     res.json({ transfer: result.rows[0] });
@@ -1991,7 +1993,7 @@ app.put('/api/classic-strip-tables/:id/rows', async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          ON CONFLICT (table_id, row_number) DO UPDATE SET
            field_name = $3, editable = $4, text_color = $5, bg_color = $6, font_size = $7, bold = $8, italic = $9, underline = $10, border_color = $11, border_width = $12, text_align = $13, row_label = $14, fields = $15, separator = $16`,
-        [req.params.id, row.row_number, row.field_name || null, row.editable || false, row.text_color || '#000000', row.bg_color || '', row.font_size || 14, row.bold || false, row.italic || false, row.underline || false, row.border_color || '', row.border_width || 0, row.text_align || 'center', row.row_label || '', row.fields ? JSON.stringify(row.fields) : null, row.separator || ' / ']
+        [req.params.id, row.row_number, row.field_name || null, row.editable || false, row.text_color || '', row.bg_color || '', row.font_size || 14, row.bold || false, row.italic || false, row.underline || false, row.border_color || '', row.border_width || 0, row.text_align || 'center', row.row_label || '', row.fields ? JSON.stringify(row.fields) : null, row.separator || ' / ']
       );
     }
     const result = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [req.params.id]);
