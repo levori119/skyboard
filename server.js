@@ -1957,9 +1957,14 @@ app.post('/api/classic-strip-tables', async (req, res) => {
     const { name } = req.body;
     const result = await pool.query('INSERT INTO classic_strip_tables (name) VALUES ($1) RETURNING *', [name]);
     const t = result.rows[0];
-    // Create 3 default empty rows
+    // Create 3 default rows with sensible field defaults
+    const defaultFields = ['callSign', 'alt', 'task'];
     for (let i = 1; i <= 3; i++) {
-      await pool.query('INSERT INTO classic_strip_rows (table_id, row_number) VALUES ($1, $2) ON CONFLICT DO NOTHING', [t.id, i]);
+      await pool.query(
+        `INSERT INTO classic_strip_rows (table_id, row_number, field_name, font_size, bold, text_align)
+         VALUES ($1, $2, $3, 14, $4, 'center') ON CONFLICT DO NOTHING`,
+        [t.id, i, defaultFields[i - 1], i === 1]
+      );
     }
     const rows = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [t.id]);
     res.json({ ...t, rows: rows.rows });

@@ -6382,6 +6382,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .then(r => r.ok ? r.json() : [])
           .then(data => setStrips(data))
           .catch(() => {});
+        fetch(`${API_URL}/classic-strip-tables`)
+          .then(r => r.ok ? r.json() : [])
+          .then(data => setClassicStripTables(data))
+          .catch(() => {});
       }
       return;
     }
