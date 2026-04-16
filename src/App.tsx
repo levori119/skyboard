@@ -12852,12 +12852,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   };
 
   // Preset management
+  const [presetSaveSuccess, setPresetSaveSuccess] = useState(false);
   const savePreset = async () => {
     if (!presetForm.name.trim()) return;
     try {
       const method = editingPreset ? 'PUT' : 'POST';
       const url = editingPreset ? `${API_URL}/workstation-presets/${editingPreset.id}` : `${API_URL}/workstation-presets`;
-      await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -12884,13 +12885,24 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           classic_partner_preset_ids: presetForm.classic_partner_preset_ids || [],
         })
       });
-      setEditingPreset(null);
-      setShowNewPresetModal(false);
-      setPresetFormInitial(null);
-      setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] });
-      loadData();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert(`שגיאה בשמירת עמדה: ${errData.error || res.status}`);
+        return;
+      }
+      const saved = await res.json();
+      await loadData();
+      setPresetSaveSuccess(true);
+      setTimeout(() => setPresetSaveSuccess(false), 2500);
+      if (!editingPreset) {
+        setShowNewPresetModal(false);
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] });
+      } else if (saved) {
+        editPreset(saved);
+      }
     } catch (err) {
       console.error('Failed to save preset:', err);
+      alert('שגיאה בחיבור לשרת');
     }
   };
 
@@ -13514,7 +13526,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
                   <button
                     onClick={savePreset}
                     disabled={!presetIsDirty}
@@ -13522,6 +13534,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   >
                     {editingPreset ? '💾 עדכון' : '✅ הוספה'}
                   </button>
+                  {presetSaveSuccess && (
+                    <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
+                  )}
                   <button
                     onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
