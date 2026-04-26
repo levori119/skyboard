@@ -1305,7 +1305,7 @@ app.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
              t.target_x, t.target_y, t.sub_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
-      JOIN sectors sec ON t.from_sector_id = sec.id
+      LEFT JOIN sectors sec ON t.from_sector_id = sec.id
       WHERE t.to_sector_id = $1 AND t.status = 'pending'
       ORDER BY t.created_at
     `, [sectorId]);
@@ -1323,7 +1323,7 @@ app.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
       SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, sec.name as to_sector_name, sec.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
-      JOIN sectors sec ON t.to_sector_id = sec.id
+      LEFT JOIN sectors sec ON t.to_sector_id = sec.id
       WHERE t.from_sector_id = $1 AND t.status = 'pending'
       ORDER BY t.created_at
     `, [sectorId]);
@@ -1345,8 +1345,8 @@ app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
              t.target_x, t.target_y, t.sub_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
-      JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
       WHERE t.to_workstation_id = $1 AND t.status = 'pending'
       ORDER BY t.created_at
     `, [presetId]);
@@ -1366,8 +1366,8 @@ app.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
-      JOIN sectors sec_from ON t.from_sector_id = sec_from.id
-      JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
       WHERE t.from_workstation_id = $1 AND t.status = 'pending'
       ORDER BY t.created_at
     `, [presetId]);
@@ -1396,19 +1396,38 @@ app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
   }
 });
 
-// Classic incoming transfers for a preset (by to_preset_id)
+// Classic incoming transfers for a preset:
+//   - Direct preset-to-preset (to_preset_id = presetId)
+//   - Sector-based transfers TO any sector listed in this preset's classic_receive_points
 app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
+    const presetRow = await pool.query('SELECT classic_receive_points FROM workstation_presets WHERE id = $1', [presetId]);
+    let recvPoints = [];
+    if (presetRow.rows.length > 0) {
+      const raw = presetRow.rows[0].classic_receive_points;
+      recvPoints = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw) : []);
+    }
+    const recvSectorIds = recvPoints
+      .map(p => Number(p.sector_id))
+      .filter(n => Number.isFinite(n));
     const result = await pool.query(`
       SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
-             p.name as from_preset_name
+             p.name as from_preset_name,
+             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
+             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
       LEFT JOIN workstation_presets p ON t.from_preset_id = p.id
-      WHERE t.to_preset_id = $1 AND t.status = 'pending'
+      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      WHERE t.status = 'pending'
+        AND (
+          t.to_preset_id = $1
+          OR (t.to_preset_id IS NULL AND t.from_preset_id IS NULL AND t.to_sector_id = ANY($2::int[]))
+        )
       ORDER BY t.created_at
-    `, [presetId]);
+    `, [presetId, recvSectorIds]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching classic incoming transfers:', err);
@@ -1416,17 +1435,27 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
   }
 });
 
-// Classic outgoing transfers from a preset (by from_preset_id)
+// Classic outgoing transfers from a preset:
+//   - Direct preset-to-preset (from_preset_id = presetId)
+//   - Sector-based transfers initiated by this preset (from_workstation_id = presetId, no to_preset_id)
 app.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
     const result = await pool.query(`
       SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
-             p.name as to_preset_name
+             p.name as to_preset_name,
+             sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
+             sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
       LEFT JOIN workstation_presets p ON t.to_preset_id = p.id
-      WHERE t.from_preset_id = $1 AND t.status = 'pending'
+      LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
+      LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
+      WHERE t.status = 'pending'
+        AND (
+          t.from_preset_id = $1
+          OR (t.from_preset_id IS NULL AND t.to_preset_id IS NULL AND t.from_workstation_id = $1)
+        )
       ORDER BY t.created_at
     `, [presetId]);
     res.json(result.rows);

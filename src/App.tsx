@@ -4337,85 +4337,100 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
         <div style={PANEL_HDR}>📤 למי מעביר ({outgoingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {isPresetMode ? (
-            // New preset-based mode: show partner presets as drop zones
-            partnerPresets!.length === 0
-              ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו עמדות שיתוף</div>
-              : partnerPresets!.map((pp: any) => {
-                const ptOut = outgoingTransfers.filter(t => Number(t.to_preset_id) === Number(pp.id));
-                const isDrop = dropTarget === `preset-${pp.id}`;
-                return (
-                  <div key={pp.id} style={{ marginBottom: '6px' }}
-                    onDragOver={e => { e.preventDefault(); setDropTarget(`preset-${pp.id}`); }}
-                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
-                    onDrop={e => {
-                      e.preventDefault(); setDropTarget(null);
-                      if (draggingStripId) {
-                        const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
-                        if (!alreadyTransferred && onTransferToPreset) {
-                          onTransferToPreset(draggingStripId, Number(pp.id));
-                        }
-                        setDraggingStripId(null);
-                      }
-                    }}
-                  >
-                    <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
-                      {pp.name} ({ptOut.length})
-                      {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
-                    </div>
-                    <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
-                      {ptOut.length === 0
-                        ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
-                        : ptOut.map((t: any) => (
-                          <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                            <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+          {(() => {
+            const partners = isPresetMode ? (partnerPresets || []) : [];
+            const sectorPts = transferPoints || [];
+            const showPartners = partners.length > 0;
+            const showSectorPts = sectorPts.length > 0;
+            const nothing = !showPartners && !showSectorPts;
+            if (nothing) {
+              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו יעדי העברה</div>;
+            }
+            return (
+              <>
+                {showPartners && (
+                  <>
+                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
+                    {partners.map((pp: any) => {
+                      const ptOut = outgoingTransfers.filter(t => Number(t.to_preset_id) === Number(pp.id));
+                      const isDrop = dropTarget === `preset-${pp.id}`;
+                      return (
+                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}
+                          onDragOver={e => { e.preventDefault(); setDropTarget(`preset-${pp.id}`); }}
+                          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
+                          onDrop={e => {
+                            e.preventDefault(); setDropTarget(null);
+                            if (draggingStripId) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
+                              if (!alreadyTransferred && onTransferToPreset) {
+                                onTransferToPreset(draggingStripId, Number(pp.id));
+                              }
+                              setDraggingStripId(null);
+                            }
+                          }}
+                        >
+                          <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                            📋 {pp.name} ({ptOut.length})
+                            {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
                           </div>
-                        ))
-                      }
-                    </div>
-                  </div>
-                );
-              })
-          ) : (
-            // Legacy sector-based mode
-            transferPoints.length === 0
-              ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות העברה</div>
-              : transferPoints.map((pt: any) => {
-                const ptOut = outgoingTransfers.filter(t => t.to_sector_id === pt.sector_id);
-                const isDrop = dropTarget === pt.sector_id;
-                return (
-                  <div key={pt.sector_id} style={{ marginBottom: '6px' }}
-                    onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
-                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
-                    onDrop={e => {
-                      e.preventDefault(); setDropTarget(null);
-                      if (draggingStripId) {
-                        const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
-                        if (!alreadyTransferred) {
-                          onTransfer(draggingStripId, pt.sector_id);
-                        }
-                        setDraggingStripId(null);
-                      }
-                    }}
-                  >
-                    <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
-                      {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
-                      {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
-                    </div>
-                    <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
-                      {ptOut.length === 0
-                        ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
-                        : ptOut.map((t: any) => (
-                          <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                            <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                          <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
+                            {ptOut.length === 0
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
+                              : ptOut.map((t: any) => (
+                                <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                </div>
+                              ))
+                            }
                           </div>
-                        ))
-                      }
-                    </div>
-                  </div>
-                );
-              })
-          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                {showSectorPts && (
+                  <>
+                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות העברה</div>}
+                    {sectorPts.map((pt: any) => {
+                      const ptOut = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.to_preset_id);
+                      const isDrop = dropTarget === pt.sector_id;
+                      return (
+                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}
+                          onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
+                          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
+                          onDrop={e => {
+                            e.preventDefault(); setDropTarget(null);
+                            if (draggingStripId) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
+                              if (!alreadyTransferred) {
+                                onTransfer(draggingStripId, pt.sector_id);
+                              }
+                              setDraggingStripId(null);
+                            }
+                          }}
+                        >
+                          <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                            📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
+                            {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
+                          </div>
+                          <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
+                            {ptOut.length === 0
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
+                              : ptOut.map((t: any) => (
+                                <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                </div>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -4454,74 +4469,91 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
       <div style={PANEL_STYLE}>
         <div style={PANEL_HDR}>📥 ממי מקבל ({queuedStrips.length + incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {isPresetMode ? (
-            // New preset-based mode: show partner presets with incoming transfers
-            partnerPresets!.length === 0
-              ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו עמדות שיתוף</div>
-              : partnerPresets!.map((pp: any) => {
-                const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
-                return (
-                  <div key={pp.id} style={{ marginBottom: '6px' }}>
-                    <div style={SEC_HDR}>{pp.name} ({ptIn.length})</div>
+          {(() => {
+            const partners = isPresetMode ? (partnerPresets || []) : [];
+            const sectorPts = receivePoints || [];
+            const showPartners = partners.length > 0;
+            const showSectorPts = sectorPts.length > 0;
+            const showQueued = queuedStrips.length > 0;
+            const nothing = !showPartners && !showSectorPts && !showQueued;
+            if (nothing) {
+              return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו מקורות קבלה</div>;
+            }
+            return (
+              <>
+                {showQueued && (
+                  <div style={{ marginBottom: '6px' }}>
+                    <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', borderBottom: `1px solid ${border}` }}>
+                      📨 מחלק ({queuedStrips.length})
+                    </div>
                     <div style={{ padding: '3px' }}>
-                      {ptIn.length === 0
-                        ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
-                        : ptIn.map((t: any) => (
-                          <div key={t.id}>
-                            <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
-                            <button
-                              onClick={() => onAcceptTransfer(String(t.id))}
-                              style={{ width: '100%', marginTop: '2px', padding: '4px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                              ✅ קיבלתי
-                            </button>
+                      {queuedStrips.map((s: any) => (
+                        <div key={s.id} draggable onDragStart={() => setDraggingQueuedId(String(s.id))} onDragEnd={() => setDraggingQueuedId(null)}>
+                          <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingQueuedId === String(s.id)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showPartners && (
+                  <>
+                    {(showSectorPts || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
+                    {partners.map((pp: any) => {
+                      const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
+                      return (
+                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}>
+                          <div style={SEC_HDR}>📋 {pp.name} ({ptIn.length})</div>
+                          <div style={{ padding: '3px' }}>
+                            {ptIn.length === 0
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
+                              : ptIn.map((t: any) => (
+                                <div key={t.id}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                  <button
+                                    onClick={() => onAcceptTransfer(String(t.id))}
+                                    style={{ width: '100%', marginTop: '2px', padding: '4px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                                    ✅ קיבלתי
+                                  </button>
+                                </div>
+                              ))
+                            }
                           </div>
-                        ))
-                      }
-                    </div>
-                  </div>
-                );
-              })
-          ) : (
-            <>
-              {/* Distributed strips (from חלוקת פמ) - legacy mode */}
-              {queuedStrips.length > 0 && (
-                <div style={{ marginBottom: '6px' }}>
-                  <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', borderBottom: `1px solid ${border}` }}>
-                    📨 מחלק ({queuedStrips.length})
-                  </div>
-                  <div style={{ padding: '3px' }}>
-                    {queuedStrips.map((s: any) => (
-                      <div key={s.id} draggable onDragStart={() => setDraggingQueuedId(String(s.id))} onDragEnd={() => setDraggingQueuedId(null)}>
-                        <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingQueuedId === String(s.id)} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {/* Sector-based incoming transfers - legacy mode */}
-              {receivePoints.length === 0 && queuedStrips.length === 0
-                ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו נקודות קבלה</div>
-                : receivePoints.map((pt: any) => {
-                  const ptT = incomingTransfers.filter(t => t.from_sector_id === pt.sector_id);
-                  return (
-                    <div key={pt.sector_id} style={{ marginBottom: '6px' }}>
-                      <div style={SEC_HDR}>{pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})</div>
-                      <div style={{ padding: '3px' }}>
-                        {ptT.length === 0
-                          ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
-                          : ptT.map((t: any) => (
-                            <div key={t.id} draggable onDragStart={() => setDraggingTransferId(String(t.id))} onDragEnd={() => setDraggingTransferId(null)}>
-                              <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} isDragging={draggingTransferId === String(t.id)} />
-                            </div>
-                          ))
-                        }
-                      </div>
-                    </div>
-                  );
-                })
-              }
-            </>
-          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                {showSectorPts && (
+                  <>
+                    {(showPartners || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות קבלה</div>}
+                    {sectorPts.map((pt: any) => {
+                      const ptT = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.from_preset_id);
+                      return (
+                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}>
+                          <div style={SEC_HDR}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})</div>
+                          <div style={{ padding: '3px' }}>
+                            {ptT.length === 0
+                              ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
+                              : ptT.map((t: any) => (
+                                <div key={t.id}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                  <button
+                                    onClick={() => onAcceptTransfer(String(t.id))}
+                                    style={{ width: '100%', marginTop: '2px', padding: '4px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                                    ✅ קיבלתי
+                                  </button>
+                                </div>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -13091,12 +13123,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         </select>
                       </div>
                     </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>עמדות למסירה וקבלה (כל סוג עמדה):</label>
+                    <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בחר עמדות סטריפים אחרות שיופיעו כיעד ישיר להעברה/קבלה.</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id).map((wp: any) => {
+                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').map((wp: any) => {
                           const isSelected = (presetForm.classic_partner_preset_ids || []).includes(Number(wp.id));
-                          const typeLabel = wp.preset_type === 'classic' ? '📋' : wp.preset_type === 'ground' ? '🛫' : '🗺';
                           return (
                             <button key={wp.id} type="button"
                               onClick={() => setPresetForm(p => ({
@@ -13106,13 +13138,54 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                   : [...(p.classic_partner_preset_ids || []), Number(wp.id)]
                               }))}
                               style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${isSelected ? '#22c55e' : '#334155'}`, background: isSelected ? '#14532d' : '#1e293b', color: isSelected ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isSelected ? 'bold' : 'normal' }}>
-                              {isSelected ? '✓ ' : ''}{typeLabel} {wp.name}
+                              {isSelected ? '✓ ' : ''}📋 {wp.name}
                             </button>
                           );
                         })}
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id).length === 0 && (
-                          <span style={{ color: '#475569', fontSize: '12px' }}>אין עמדות אחרות</span>
+                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').length === 0 && (
+                          <span style={{ color: '#475569', fontSize: '12px' }}>אין עמדות סטריפים אחרות</span>
                         )}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות העברה לעמדות שאינן סטריפים:</label>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>נקודות סקטור לקבלה והעברה מ/אל עמדות מפה/טבלה רגילות.</p>
+                      <div style={{ marginBottom: '10px' }}>
+                        <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>נקודות קבלה (ממי מקבל):</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {sectors.map((sec: any) => {
+                            const existing = (presetForm.classic_receive_points || []).find(p => p.sector_id === sec.id);
+                            return (
+                              <button key={sec.id} type="button" onClick={() => setPresetForm(p => ({
+                                ...p, classic_receive_points: existing
+                                  ? (p.classic_receive_points || []).filter(x => x.sector_id !== sec.id)
+                                  : [...(p.classic_receive_points || []), { sector_id: sec.id, label: sec.label_he || sec.name }]
+                              }))}
+                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#22c55e' : '#334155'}`, background: existing ? '#14532d' : '#1e293b', color: existing ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                                {sec.label_he || sec.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>נקודות העברה (למי מעביר):</label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {sectors.map((sec: any) => {
+                            const existing = (presetForm.classic_transfer_points || []).find(p => p.sector_id === sec.id);
+                            return (
+                              <button key={sec.id} type="button" onClick={() => setPresetForm(p => ({
+                                ...p, classic_transfer_points: existing
+                                  ? (p.classic_transfer_points || []).filter(x => x.sector_id !== sec.id)
+                                  : [...(p.classic_transfer_points || []), { sector_id: sec.id, label: sec.label_he || sec.name }]
+                              }))}
+                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#f59e0b' : '#334155'}`, background: existing ? '#422006' : '#1e293b', color: existing ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                                {sec.label_he || sec.name}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
