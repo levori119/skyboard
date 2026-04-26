@@ -1440,7 +1440,11 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
       WHERE t.status = 'pending'
         AND (
           (t.to_preset_id = $1 AND (cardinality($3::int[]) = 0 OR t.from_preset_id = ANY($3::int[])))
-          OR (t.to_preset_id IS NULL AND t.from_preset_id IS NULL AND t.to_sector_id = ANY($2::int[]))
+          OR (
+            t.to_preset_id IS NULL AND t.from_preset_id IS NULL
+            AND t.to_sector_id = ANY($2::int[])
+            AND (t.from_workstation_id IS NULL OR t.from_workstation_id <> $1)
+          )
         )
       ORDER BY t.created_at
     `, [presetId, recvSectorIds, incomingPartnerIds]);
@@ -1568,6 +1572,60 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
   } catch (err) {
     console.error('Error rejecting transfer:', err);
     res.status(500).json({ error: 'Failed to reject transfer' });
+  }
+});
+
+// Move a pending transfer to a different destination (sector or preset).
+// Used by the classic view to drag an already-transferred strip between transfer points / partner stations.
+app.post('/api/transfers/:id/move', async (req, res) => {
+  try {
+    const transferId = req.params.id;
+    const { to_sector_id, to_preset_id } = req.body || {};
+    if (!to_sector_id && !to_preset_id) {
+      return res.status(400).json({ error: 'Must specify to_sector_id or to_preset_id' });
+    }
+    const existing = await pool.query("SELECT * FROM strip_transfers WHERE id = $1 AND status = 'pending'", [transferId]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Transfer not found or not pending' });
+    }
+    const t = existing.rows[0];
+    if (to_preset_id) {
+      // No-op if already targeting this preset.
+      if (Number(t.to_preset_id) === Number(to_preset_id)) {
+        return res.json({ success: true, noop: true });
+      }
+      await pool.query(
+        "UPDATE strip_transfers SET to_preset_id = $1, to_sector_id = NULL, to_workstation_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        [Number(to_preset_id), transferId]
+      );
+    } else {
+      // No-op if already targeting this sector (and not via preset).
+      if (!t.to_preset_id && Number(t.to_sector_id) === Number(to_sector_id)) {
+        return res.json({ success: true, noop: true });
+      }
+      // Recompute to_workstation_id from the new sector — same logic used at transfer creation
+      // (find a preset whose relevant_sectors contains the sector, excluding the sender).
+      let resolvedToWorkstationId = null;
+      const presetsResult = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
+      const presetsWithSector = presetsResult.rows
+        .map(row => ({
+          ...row,
+          relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
+            (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : [])
+        }))
+        .filter(preset => preset.relevant_sectors.includes(Number(to_sector_id)) && preset.id !== t.from_workstation_id);
+      if (presetsWithSector.length > 0) {
+        resolvedToWorkstationId = presetsWithSector[0].id;
+      }
+      await pool.query(
+        "UPDATE strip_transfers SET to_sector_id = $1, to_preset_id = NULL, to_workstation_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+        [Number(to_sector_id), resolvedToWorkstationId, transferId]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error moving transfer:', err);
+    res.status(500).json({ error: 'Failed to move transfer' });
   }
 });
 

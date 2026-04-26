@@ -4203,11 +4203,13 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     return fields.length === 1 ? fields[0].field_name : null;
   };
   const defaultColor = lightMode ? '#1e293b' : '#e2e8f0';
+  // Compact card with a colored accent stripe at the bottom for clear visual separation between strips.
+  const accent = lightMode ? '#3b82f6' : '#1d4ed8';
   return (
     <div
       draggable={!!onDragStart}
       onDragStart={onDragStart}
-      style={{ border: `1px solid ${lightMode ? '#94a3b8' : '#334155'}`, borderRadius: '4px', marginBottom: '4px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none' }}
+      style={{ border: `1.5px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', marginBottom: '5px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none', boxShadow: `0 2px 0 ${accent}` }}
     >
       {[0, 1, 2].map(i => {
         const row = rows[i] || {};
@@ -4221,7 +4223,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
         return (
           <div key={i}
             style={{
-              padding: '3px 8px', minHeight: '26px', display: 'flex', alignItems: 'center',
+              padding: '1px 6px', minHeight: '18px', display: 'flex', alignItems: 'center',
               justifyContent,
               background: row.bg_color || rowDefaultBg,
               color: row.text_color || defaultColor,
@@ -4665,7 +4667,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
   );
 };
 
-const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer }: {
+const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
   strips: any[]; queuedStrips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
@@ -4677,12 +4679,15 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   onAcceptQueued: (stripId: string) => void;
   onUpdateStripField: (stripId: string, field: string, value: string) => void;
   onCancelTransfer?: (transferId: string) => void;
+  onMoveTransfer?: (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => void;
 }) => {
   const isPresetMode = !!partnerPresets;
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
   const [draggingStripId, setDraggingStripId] = useState<string | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [draggingQueuedId, setDraggingQueuedId] = useState<string | null>(null);
+  // For dragging an already-transferred outgoing strip between transfer points / partner stations.
+  const [draggingTransferMoveId, setDraggingTransferMoveId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'mine' | number | string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -4804,6 +4809,11 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                               setDraggingSection(null); return;
                             }
                             e.preventDefault(); setDropTarget(null);
+                            if (draggingTransferMoveId) {
+                              if (onMoveTransfer) onMoveTransfer(draggingTransferMoveId, { to_preset_id: Number(pp.id) });
+                              setDraggingTransferMoveId(null);
+                              return;
+                            }
                             if (draggingStripId) {
                               const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
                               if (!alreadyTransferred && onTransferToPreset) {
@@ -4823,8 +4833,16 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                <div key={t.id} style={{ position: 'relative' }}
+                                  draggable
+                                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
+                                  onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
+                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode}
+                                    onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
+                                  <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
+                                    onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
                                 </div>
                               ))
                             }
@@ -4856,6 +4874,11 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                               setDraggingSection(null); return;
                             }
                             e.preventDefault(); setDropTarget(null);
+                            if (draggingTransferMoveId) {
+                              if (onMoveTransfer) onMoveTransfer(draggingTransferMoveId, { to_sector_id: Number(pt.sector_id) });
+                              setDraggingTransferMoveId(null);
+                              return;
+                            }
                             if (draggingStripId) {
                               const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
                               if (!alreadyTransferred) {
@@ -4875,8 +4898,16 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                <div key={t.id} style={{ position: 'relative' }}
+                                  draggable
+                                  onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
+                                  onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
+                                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode}
+                                    onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
+                                  <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
+                                    onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
                                 </div>
                               ))
                             }
@@ -4979,13 +5010,11 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                             {ptIn.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
                               : ptIn.map((t: any) => (
-                                <div key={t.id}>
+                                <div key={t.id} style={{ position: 'relative' }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
-                                  <button
-                                    onClick={() => onAcceptTransfer(String(t.id))}
-                                    style={{ width: '100%', marginTop: '2px', padding: '4px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                                    ✅ קיבלתי
-                                  </button>
+                                  <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+                                    onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
                                 </div>
                               ))
                             }
@@ -5021,13 +5050,11 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                             {ptT.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
                               : ptT.map((t: any) => (
-                                <div key={t.id}>
+                                <div key={t.id} style={{ position: 'relative' }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
-                                  <button
-                                    onClick={() => onAcceptTransfer(String(t.id))}
-                                    style={{ width: '100%', marginTop: '2px', padding: '4px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                                    ✅ קיבלתי
-                                  </button>
+                                  <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+                                    onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
                                 </div>
                               ))
                             }
@@ -7555,6 +7582,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const handleMoveTransfer = async (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(target),
+      });
+      loadData();
+    } catch (err) {
+      console.error('Failed to move transfer:', err);
+    }
+  };
+
   const deleteStrip = async (stripId: string) => {
     try {
       await fetch(`${API_URL}/strips/${stripId}`, { method: 'DELETE' });
@@ -8705,6 +8745,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onAcceptQueued={handleAcceptQueued}
                 onUpdateStripField={handleUpdateStripField}
                 onCancelTransfer={handleCancelTransfer}
+                onMoveTransfer={handleMoveTransfer}
               />
             );
           })()}
