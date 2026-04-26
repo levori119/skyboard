@@ -589,6 +589,18 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_partner_preset_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_incoming_partner_preset_ids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_outgoing_partner_preset_ids JSONB DEFAULT '[]'`);
+  // One-time migration: copy legacy bidirectional partners into both incoming and outgoing arrays
+  await pool.query(`
+    UPDATE workstation_presets
+    SET classic_incoming_partner_preset_ids = classic_partner_preset_ids,
+        classic_outgoing_partner_preset_ids = classic_partner_preset_ids
+    WHERE classic_partner_preset_ids IS NOT NULL
+      AND classic_partner_preset_ids::text <> '[]'
+      AND (classic_incoming_partner_preset_ids IS NULL OR classic_incoming_partner_preset_ids::text = '[]')
+      AND (classic_outgoing_partner_preset_ids IS NULL OR classic_outgoing_partner_preset_ids::text = '[]')
+  `);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
   // Fix legacy rows where text_color was incorrectly defaulted to '#000000' — reset to empty so dark mode works
@@ -1402,11 +1414,15 @@ app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
 app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
-    const presetRow = await pool.query('SELECT classic_receive_points FROM workstation_presets WHERE id = $1', [presetId]);
+    const presetRow = await pool.query('SELECT classic_receive_points, classic_incoming_partner_preset_ids FROM workstation_presets WHERE id = $1', [presetId]);
     let recvPoints = [];
+    let incomingPartnerIds = [];
     if (presetRow.rows.length > 0) {
       const raw = presetRow.rows[0].classic_receive_points;
       recvPoints = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw) : []);
+      const rawIn = presetRow.rows[0].classic_incoming_partner_preset_ids;
+      incomingPartnerIds = (Array.isArray(rawIn) ? rawIn : (typeof rawIn === 'string' ? JSON.parse(rawIn) : []))
+        .map(Number).filter(Number.isFinite);
     }
     const recvSectorIds = recvPoints
       .map(p => Number(p.sector_id))
@@ -1423,11 +1439,11 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
       LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
       WHERE t.status = 'pending'
         AND (
-          t.to_preset_id = $1
+          (t.to_preset_id = $1 AND (cardinality($3::int[]) = 0 OR t.from_preset_id = ANY($3::int[])))
           OR (t.to_preset_id IS NULL AND t.from_preset_id IS NULL AND t.to_sector_id = ANY($2::int[]))
         )
       ORDER BY t.created_at
-    `, [presetId, recvSectorIds]);
+    `, [presetId, recvSectorIds, incomingPartnerIds]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching classic incoming transfers:', err);
@@ -1903,6 +1919,50 @@ app.delete('/api/table-modes/:id', async (req, res) => {
   }
 });
 
+// Helper: mirror directional partner relationships across other classic presets.
+// When preset A says "I receive from X" → X must say "I transfer to A".
+// When preset A says "I transfer to Y" → Y must say "I receive from A".
+// Removed entries are mirrored as removals on the other side.
+async function mirrorClassicPartnerLinks(savedPresetId, incomingIds, outgoingIds) {
+  try {
+    const meId = Number(savedPresetId);
+    const inSet = new Set((Array.isArray(incomingIds) ? incomingIds : []).map(Number).filter(Number.isFinite));
+    const outSet = new Set((Array.isArray(outgoingIds) ? outgoingIds : []).map(Number).filter(Number.isFinite));
+    const others = await pool.query(
+      `SELECT id, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids
+       FROM workstation_presets
+       WHERE preset_type = 'classic' AND id <> $1`,
+      [meId]
+    );
+    for (const row of others.rows) {
+      const oid = Number(row.id);
+      const otherIn = new Set((Array.isArray(row.classic_incoming_partner_preset_ids) ? row.classic_incoming_partner_preset_ids : []).map(Number).filter(Number.isFinite));
+      const otherOut = new Set((Array.isArray(row.classic_outgoing_partner_preset_ids) ? row.classic_outgoing_partner_preset_ids : []).map(Number).filter(Number.isFinite));
+      const beforeIn = JSON.stringify([...otherIn].sort());
+      const beforeOut = JSON.stringify([...otherOut].sort());
+      // If I (meId) listed `oid` in my outgoing → ensure `meId` is in their incoming. If not → remove me from their incoming.
+      if (outSet.has(oid)) otherIn.add(meId); else otherIn.delete(meId);
+      // If I (meId) listed `oid` in my incoming → ensure `meId` is in their outgoing. If not → remove me from their outgoing.
+      if (inSet.has(oid)) otherOut.add(meId); else otherOut.delete(meId);
+      const afterIn = JSON.stringify([...otherIn].sort());
+      const afterOut = JSON.stringify([...otherOut].sort());
+      if (afterIn !== beforeIn || afterOut !== beforeOut) {
+        const otherLegacyUnion = Array.from(new Set([...otherIn, ...otherOut]));
+        await pool.query(
+          `UPDATE workstation_presets
+           SET classic_incoming_partner_preset_ids = $1,
+               classic_outgoing_partner_preset_ids = $2,
+               classic_partner_preset_ids = $3
+           WHERE id = $4`,
+          [JSON.stringify([...otherIn]), JSON.stringify([...otherOut]), JSON.stringify(otherLegacyUnion), oid]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Error mirroring classic partner links:', err);
+  }
+}
+
 // Workstation Presets API
 app.get('/api/workstation-presets', async (req, res) => {
   try {
@@ -1921,13 +1981,18 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids } = req.body;
+    // Backward-compat: if only legacy single list provided, treat as both directions
+    const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
+    const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
+    const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(classic_partner_preset_ids || [])]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || [])]
     );
     const row = result.rows[0];
+    await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error creating workstation preset:', err);
@@ -1937,15 +2002,19 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids } = req.body;
+    const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
+    const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
+    const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21 WHERE id = $22 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(classic_partner_preset_ids || []), req.params.id]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24 WHERE id = $22 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || [])]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
     }
     const row = result.rows[0];
+    await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
     res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
   } catch (err) {
     console.error('Error updating workstation preset:', err);

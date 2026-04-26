@@ -4357,11 +4357,320 @@ const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: boolean; 
   );
 };
 
-const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer }: {
+// Reorderable list item helper using HTML5 drag-and-drop
+const useReorderable = <T,>(items: T[], onChange: (items: T[]) => void) => {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const onDragStart = (idx: number) => (e: React.DragEvent) => {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDragOver = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragIdx === null || dragIdx === idx) return;
+    const arr = [...items];
+    const [moved] = arr.splice(dragIdx, 1);
+    arr.splice(idx, 0, moved);
+    setDragIdx(idx);
+    onChange(arr);
+  };
+  const onDragEnd = () => setDragIdx(null);
+  return { dragIdx, onDragStart, onDragOver, onDragEnd };
+};
+
+// Editor for classic preset's directional partner stations + transfer/receive points
+// + a live SVG flow diagram showing data direction.
+const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, sectors, editingPresetId, onShowHelp }: {
+  presetForm: any;
+  setPresetForm: (updater: (p: any) => any) => void;
+  presets: any[];
+  sectors: any[];
+  editingPresetId?: number;
+  onShowHelp: () => void;
+}) => {
+  const myName = presetForm.name || 'עמדה זו';
+  const incomingIds: number[] = presetForm.classic_incoming_partner_preset_ids || [];
+  const outgoingIds: number[] = presetForm.classic_outgoing_partner_preset_ids || [];
+  const recvPts: any[] = presetForm.classic_receive_points || [];
+  const xferPts: any[] = presetForm.classic_transfer_points || [];
+
+  const otherClassic = presets.filter((wp: any) => wp.id !== editingPresetId && wp.preset_type === 'classic');
+  const presetById = (id: number) => presets.find((p: any) => Number(p.id) === Number(id));
+  const sectorById = (id: number) => sectors.find((s: any) => Number(s.id) === Number(id));
+
+  const setIncoming = (next: number[]) => setPresetForm(p => ({ ...p, classic_incoming_partner_preset_ids: next }));
+  const setOutgoing = (next: number[]) => setPresetForm(p => ({ ...p, classic_outgoing_partner_preset_ids: next }));
+  const setRecv = (next: any[]) => setPresetForm(p => ({ ...p, classic_receive_points: next }));
+  const setXfer = (next: any[]) => setPresetForm(p => ({ ...p, classic_transfer_points: next }));
+
+  const incomingReorder = useReorderable<number>(incomingIds, setIncoming);
+  const outgoingReorder = useReorderable<number>(outgoingIds, setOutgoing);
+  const recvReorder = useReorderable<any>(recvPts, setRecv);
+  const xferReorder = useReorderable<any>(xferPts, setXfer);
+
+  const PartnerList = ({ ids, reorderApi, onRemove, onAdd, accent, label, emoji }: any) => {
+    const candidates = otherClassic.filter((wp: any) => !ids.includes(Number(wp.id)));
+    return (
+      <div style={{ marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          <label style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>{emoji} {label}:</label>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minHeight: '6px', marginBottom: '5px' }}>
+          {ids.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>(אין)</div>}
+          {ids.map((pid: number, idx: number) => {
+            const pp = presetById(pid);
+            const isDragging = reorderApi.dragIdx === idx;
+            return (
+              <div key={pid} draggable onDragStart={reorderApi.onDragStart(idx)} onDragOver={reorderApi.onDragOver(idx)} onDragEnd={reorderApi.onDragEnd}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: isDragging ? '#1e3a5f' : '#1e293b', border: `1px solid ${accent}55`, borderRadius: '4px', cursor: 'grab', opacity: isDragging ? 0.5 : 1 }}>
+                <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title="גרור לסידור">≡</span>
+                <span style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>📋 {pp?.name || `[${pid}]`}</span>
+                <button type="button" onClick={() => onRemove(pid)} title="הסר"
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>✕</button>
+              </div>
+            );
+          })}
+        </div>
+        {candidates.length > 0 && (
+          <select value="" onChange={e => { if (e.target.value) onAdd(Number(e.target.value)); e.currentTarget.value = ''; }}
+            style={{ padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#cbd5e1', fontSize: '12px', direction: 'rtl', width: '100%' }}>
+            <option value="">+ הוסף עמדה...</option>
+            {candidates.map((wp: any) => <option key={wp.id} value={wp.id}>📋 {wp.name}</option>)}
+          </select>
+        )}
+        {candidates.length === 0 && otherClassic.length === 0 && (
+          <div style={{ color: '#475569', fontSize: '11px', fontStyle: 'italic' }}>אין עמדות סטריפים אחרות</div>
+        )}
+      </div>
+    );
+  };
+
+  const PointList = ({ pts, reorderApi, accent, emoji, label, partnerDirIds, partnerDirLabel, onUpdate }: any) => {
+    const usedSecIds = new Set(pts.map((p: any) => Number(p.sector_id)));
+    const available = sectors.filter((s: any) => !usedSecIds.has(Number(s.id)));
+    return (
+      <div style={{ marginBottom: '10px' }}>
+        <label style={{ display: 'block', color: accent, fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>{emoji} {label}:</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '5px' }}>
+          {pts.length === 0 && <div style={{ color: '#475569', fontSize: '11px', padding: '4px 8px' }}>(אין)</div>}
+          {pts.map((pt: any, idx: number) => {
+            const sec = sectorById(pt.sector_id);
+            const linkedPartnerIds: number[] = Array.isArray(pt.partner_preset_ids) ? pt.partner_preset_ids : [];
+            const isDragging = reorderApi.dragIdx === idx;
+            const partnerCandidates = (partnerDirIds || []).filter((pid: number) => !linkedPartnerIds.includes(Number(pid)));
+            const updateThis = (patch: any) => {
+              const next = pts.map((x: any, i: number) => i === idx ? { ...x, ...patch } : x);
+              onUpdate(next);
+            };
+            return (
+              <div key={pt.sector_id} draggable onDragStart={reorderApi.onDragStart(idx)} onDragOver={reorderApi.onDragOver(idx)} onDragEnd={reorderApi.onDragEnd}
+                style={{ padding: '5px 8px', background: isDragging ? '#1e3a5f' : '#1e293b', border: `1px solid ${accent}55`, borderRadius: '4px', cursor: 'grab', opacity: isDragging ? 0.5 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#64748b', fontSize: '12px', cursor: 'grab' }} title="גרור לסידור">≡</span>
+                  <span style={{ color: accent, fontSize: '12px', fontWeight: 'bold', flex: 1 }}>📍 {pt.label || sec?.label_he || sec?.name || `סקטור ${pt.sector_id}`}</span>
+                  <button type="button" onClick={() => onUpdate(pts.filter((_: any, i: number) => i !== idx))} title="הסר"
+                    style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>✕</button>
+                </div>
+                {/* Linked partner stations chips */}
+                <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center', paddingInlineStart: '20px' }}>
+                  <span style={{ color: '#64748b', fontSize: '10px' }}>{partnerDirLabel}:</span>
+                  {linkedPartnerIds.length === 0 && <span style={{ color: '#475569', fontSize: '10px', fontStyle: 'italic' }}>(ללא)</span>}
+                  {linkedPartnerIds.map((pid: number) => {
+                    const pp = presetById(pid);
+                    return (
+                      <span key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', fontSize: '10px', color: '#cbd5e1' }}>
+                        📋 {pp?.name || `[${pid}]`}
+                        <button type="button" onClick={() => updateThis({ partner_preset_ids: linkedPartnerIds.filter(x => x !== pid) })}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: 0, lineHeight: 1 }}>×</button>
+                      </span>
+                    );
+                  })}
+                  {partnerCandidates.length > 0 && (
+                    <select value="" onChange={e => { if (e.target.value) updateThis({ partner_preset_ids: [...linkedPartnerIds, Number(e.target.value)] }); e.currentTarget.value = ''; }}
+                      style={{ padding: '1px 4px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: '#cbd5e1', fontSize: '10px' }}>
+                      <option value="">+ עמדה</option>
+                      {partnerCandidates.map((pid: number) => {
+                        const pp = presetById(pid);
+                        return <option key={pid} value={pid}>{pp?.name || `[${pid}]`}</option>;
+                      })}
+                    </select>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {available.length > 0 && (
+          <select value="" onChange={e => {
+            if (!e.target.value) return;
+            const sec = sectorById(Number(e.target.value));
+            if (sec) onUpdate([...pts, { sector_id: sec.id, label: sec.label_he || sec.name, partner_preset_ids: [] }]);
+            e.currentTarget.value = '';
+          }}
+            style={{ padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#cbd5e1', fontSize: '12px', direction: 'rtl', width: '100%' }}>
+            <option value="">+ הוסף נקודה...</option>
+            {available.map((s: any) => <option key={s.id} value={s.id}>📍 {s.label_he || s.name}</option>)}
+          </select>
+        )}
+      </div>
+    );
+  };
+
+  // ── Live flow diagram (SVG) ──────────────────────────────────────────────────
+  const FlowDiagram = () => {
+    // Right side (RTL) = sources I receive from = incoming partners + receive points
+    // Left side = destinations I transfer to = outgoing partners + transfer points
+    const rightItems: { kind: 'partner' | 'point'; name: string; sub?: string }[] = [
+      ...incomingIds.map(pid => ({ kind: 'partner' as const, name: presetById(pid)?.name || `[${pid}]` })),
+      ...recvPts.map((pt: any) => {
+        const sec = sectorById(pt.sector_id);
+        const partnersOnPt = (pt.partner_preset_ids || []).map((pid: number) => presetById(pid)?.name || `[${pid}]`).join(', ');
+        return { kind: 'point' as const, name: pt.label || sec?.label_he || sec?.name || `סקטור ${pt.sector_id}`, sub: partnersOnPt };
+      }),
+    ];
+    const leftItems: { kind: 'partner' | 'point'; name: string; sub?: string }[] = [
+      ...outgoingIds.map(pid => ({ kind: 'partner' as const, name: presetById(pid)?.name || `[${pid}]` })),
+      ...xferPts.map((pt: any) => {
+        const sec = sectorById(pt.sector_id);
+        const partnersOnPt = (pt.partner_preset_ids || []).map((pid: number) => presetById(pid)?.name || `[${pid}]`).join(', ');
+        return { kind: 'point' as const, name: pt.label || sec?.label_he || sec?.name || `סקטור ${pt.sector_id}`, sub: partnersOnPt };
+      }),
+    ];
+
+    const rowH = 32;
+    const itemW = 170;
+    const centerW = 130;
+    const padding = 30;
+    const gapX = 80;
+    const maxRows = Math.max(rightItems.length, leftItems.length, 1);
+    const height = padding * 2 + maxRows * rowH + 10;
+    const width = padding * 2 + itemW * 2 + centerW + gapX * 2;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    // RTL: right column at high X, left column at low X
+    const rightColX = width - padding - itemW;
+    const leftColX = padding;
+    const startY = padding;
+
+    if (rightItems.length === 0 && leftItems.length === 0) {
+      return (
+        <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px', fontStyle: 'italic' }}>
+          הגדר שותפים או נקודות מעל כדי לראות תרשים זרימה
+        </div>
+      );
+    }
+
+    const renderItem = (item: typeof rightItems[number], x: number, y: number, key: string) => {
+      const isPartner = item.kind === 'partner';
+      const fill = isPartner ? '#14532d' : '#451a03';
+      const stroke = isPartner ? '#22c55e' : '#f59e0b';
+      const tx = isPartner ? '#86efac' : '#fcd34d';
+      const sub = item.sub ? ` (${item.sub})` : '';
+      return (
+        <g key={key}>
+          <rect x={x} y={y} width={itemW} height={rowH - 6} rx={6} fill={fill} stroke={stroke} strokeWidth={1.5} />
+          <text x={x + itemW / 2} y={y + (rowH - 6) / 2 + 4} textAnchor="middle" fill={tx} fontSize="11" fontWeight="bold" direction="rtl">
+            {(isPartner ? '📋 ' : '📍 ') + item.name}{sub}
+          </text>
+        </g>
+      );
+    };
+
+    return (
+      <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ background: '#020617', borderRadius: '6px', maxHeight: '320px' }}>
+        {/* arrowhead defs */}
+        <defs>
+          <marker id="ah-in" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#22c55e" />
+          </marker>
+          <marker id="ah-out" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
+          </marker>
+        </defs>
+        {/* center: my station */}
+        <rect x={centerX - centerW / 2} y={centerY - 22} width={centerW} height={44} rx={8} fill="#1e3a5f" stroke="#3b82f6" strokeWidth={2} />
+        <text x={centerX} y={centerY - 4} textAnchor="middle" fill="#bfdbfe" fontSize="12" fontWeight="bold" direction="rtl">📋 {myName}</text>
+        <text x={centerX} y={centerY + 12} textAnchor="middle" fill="#94a3b8" fontSize="10" direction="rtl">(העמדה הזו)</text>
+        {/* right items (incoming) */}
+        {rightItems.map((it, i) => {
+          const y = startY + i * rowH;
+          const arrowStartX = rightColX;
+          const arrowEndX = centerX + centerW / 2 + 4;
+          return (
+            <g key={`r-${i}`}>
+              {renderItem(it, rightColX, y, `r-${i}`)}
+              <line x1={arrowStartX} y1={y + (rowH - 6) / 2} x2={arrowEndX} y2={centerY} stroke="#22c55e" strokeWidth={1.5} markerEnd="url(#ah-in)" />
+            </g>
+          );
+        })}
+        {/* left items (outgoing) */}
+        {leftItems.map((it, i) => {
+          const y = startY + i * rowH;
+          const arrowStartX = centerX - centerW / 2 - 4;
+          const arrowEndX = leftColX + itemW;
+          return (
+            <g key={`l-${i}`}>
+              {renderItem(it, leftColX, y, `l-${i}`)}
+              <line x1={arrowStartX} y1={centerY} x2={arrowEndX} y2={y + (rowH - 6) / 2} stroke="#f59e0b" strokeWidth={1.5} markerEnd="url(#ah-out)" />
+            </g>
+          );
+        })}
+        {/* labels for sides */}
+        <text x={width - padding} y={15} textAnchor="end" fill="#86efac" fontSize="10" fontWeight="bold" direction="rtl">📥 ממי מקבל</text>
+        <text x={padding} y={15} textAnchor="start" fill="#fcd34d" fontSize="10" fontWeight="bold" direction="rtl">📤 למי מעביר</text>
+      </svg>
+    );
+  };
+
+  return (
+    <>
+      {/* Section: directional partner stations */}
+      <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
+          <button type="button" onClick={onShowHelp} title="עזרה: איך עובדות העברות בעמדת סטריפים?"
+            style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #334155', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
+        </div>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <PartnerList ids={incomingIds} reorderApi={incomingReorder}
+            onRemove={(pid: number) => setIncoming(incomingIds.filter(x => x !== pid))}
+            onAdd={(pid: number) => setIncoming([...incomingIds, pid])}
+            accent="#86efac" emoji="📥" label="ממי מקבל (קלט)" />
+          <PartnerList ids={outgoingIds} reorderApi={outgoingReorder}
+            onRemove={(pid: number) => setOutgoing(outgoingIds.filter(x => x !== pid))}
+            onAdd={(pid: number) => setOutgoing([...outgoingIds, pid])}
+            accent="#fcd34d" emoji="📤" label="למי מעביר (פלט)" />
+        </div>
+      </div>
+
+      {/* Section: transfer points (with linked partners) */}
+      <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+        <label style={{ display: 'block', marginBottom: '4px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות העברה לעמדות שאינן סטריפים:</label>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>נקודות סקטור לקבלה והעברה מ/אל עמדות מפה/טבלה רגילות. ניתן לסמן לכל נקודה אילו עמדות סטריפים שותפות עוברות דרכה (להמחשה בתרשים).</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <PointList pts={recvPts} reorderApi={recvReorder} accent="#86efac" emoji="📥" label="נקודות קבלה"
+            partnerDirIds={incomingIds} partnerDirLabel="עמדות שותפות בקבלה" onUpdate={setRecv} />
+          <PointList pts={xferPts} reorderApi={xferReorder} accent="#fcd34d" emoji="📤" label="נקודות העברה"
+            partnerDirIds={outgoingIds} partnerDirLabel="עמדות שותפות בהעברה" onUpdate={setXfer} />
+        </div>
+      </div>
+
+      {/* Section: live flow diagram */}
+      <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+        <label style={{ display: 'block', marginBottom: '6px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>🔀 תרשים זרימה (בזמ"א):</label>
+        <FlowDiagram />
+      </div>
+    </>
+  );
+};
+
+const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer }: {
   strips: any[]; queuedStrips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
   allSectors: any[]; lightMode: boolean;
+  presetId?: number | string;
   onTransfer: (stripId: string, toSectorId: number) => void;
   onTransferToPreset?: (stripId: string, toPresetId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
@@ -4377,6 +4686,42 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   const [dropTarget, setDropTarget] = useState<'mine' | number | string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+
+  // Section reorder (drag the section header ≡): persisted per-preset to localStorage.
+  // Stored as { rightPartners: number[], rightPoints: number[], leftPartners: number[], leftPoints: number[] } of IDs in user order.
+  const orderKey = `sky_classic_panel_order_${presetId ?? 'global'}`;
+  const loadOrder = (key: string) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return { rightPartners: [], rightPoints: [], leftPartners: [], leftPoints: [], ...JSON.parse(raw) };
+    } catch {}
+    return { rightPartners: [], rightPoints: [], leftPartners: [], leftPoints: [] };
+  };
+  const [savedOrder, setSavedOrder] = useState<{ rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] }>(() => loadOrder(orderKey));
+  React.useEffect(() => { setSavedOrder(loadOrder(orderKey)); }, [orderKey]);
+  const persistOrder = (next: typeof savedOrder) => { setSavedOrder(next); try { localStorage.setItem(orderKey, JSON.stringify(next)); } catch {} };
+  const applyOrder = <I,>(items: I[], getKey: (item: I) => number, keys: number[]): I[] => {
+    if (!keys.length) return items;
+    const map = new Map<number, I>();
+    items.forEach(it => map.set(getKey(it), it));
+    const ordered: I[] = [];
+    keys.forEach(k => { if (map.has(k)) { ordered.push(map.get(k)!); map.delete(k); } });
+    map.forEach(v => ordered.push(v));
+    return ordered;
+  };
+  // section drag-token: { panel: 'right'|'left', kind: 'partner'|'point', id: number }
+  const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
+  const reorderSection = (panel: 'right' | 'left', kind: 'partner' | 'point', srcId: number, dstId: number, currentList: number[]) => {
+    if (srcId === dstId) return;
+    const arr = [...currentList];
+    const si = arr.indexOf(srcId);
+    if (si === -1) arr.unshift(srcId);
+    else arr.splice(si, 1);
+    const di = arr.indexOf(dstId);
+    arr.splice(di === -1 ? arr.length : di, 0, srcId);
+    const fieldKey = `${panel}${kind === 'partner' ? 'Partners' : 'Points'}` as keyof typeof savedOrder;
+    persistOrder({ ...savedOrder, [fieldKey]: arr });
+  };
 
   const border = lightMode ? '#cbd5e1' : '#1e3a5f';
   const headerBg = lightMode ? '#e2e8f0' : '#1e293b';
@@ -4440,14 +4785,24 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                 {showPartners && (
                   <>
                     {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
-                    {partners.map((pp: any) => {
+                    {applyOrder(partners, (p: any) => Number(p.id), savedOrder.rightPartners).map((pp: any) => {
                       const ptOut = outgoingTransfers.filter(t => Number(t.to_preset_id) === Number(pp.id));
                       const isDrop = dropTarget === `preset-${pp.id}`;
+                      const isSectionDrag = draggingSection?.panel === 'right' && draggingSection?.kind === 'partner';
                       return (
                         <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}
-                          onDragOver={e => { e.preventDefault(); setDropTarget(`preset-${pp.id}`); }}
+                          onDragOver={e => {
+                            if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return; }
+                            e.preventDefault(); setDropTarget(`preset-${pp.id}`);
+                          }}
                           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
                           onDrop={e => {
+                            if (isSectionDrag && draggingSection) {
+                              e.preventDefault();
+                              const cur = applyOrder(partners, (p: any) => Number(p.id), savedOrder.rightPartners).map((p: any) => Number(p.id));
+                              reorderSection('right', 'partner', draggingSection.id, Number(pp.id), cur);
+                              setDraggingSection(null); return;
+                            }
                             e.preventDefault(); setDropTarget(null);
                             if (draggingStripId) {
                               const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
@@ -4459,6 +4814,8 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                           }}
                         >
                           <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                            <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'partner', id: Number(pp.id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-partner'); }} onDragEnd={() => setDraggingSection(null)}
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
                             📋 {pp.name} ({ptOut.length})
                             {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
                           </div>
@@ -4480,14 +4837,24 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                 {showSectorPts && (
                   <>
                     {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות העברה</div>}
-                    {sectorPts.map((pt: any) => {
+                    {applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.rightPoints).map((pt: any) => {
                       const ptOut = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.to_preset_id);
                       const isDrop = dropTarget === pt.sector_id;
+                      const isSectionDrag = draggingSection?.panel === 'right' && draggingSection?.kind === 'point';
                       return (
                         <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}
-                          onDragOver={e => { e.preventDefault(); setDropTarget(pt.sector_id); }}
+                          onDragOver={e => {
+                            if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return; }
+                            e.preventDefault(); setDropTarget(pt.sector_id);
+                          }}
                           onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node) && dropTarget === pt.sector_id) setDropTarget(null); }}
                           onDrop={e => {
+                            if (isSectionDrag && draggingSection) {
+                              e.preventDefault();
+                              const cur = applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.rightPoints).map((s: any) => Number(s.sector_id));
+                              reorderSection('right', 'point', draggingSection.id, Number(pt.sector_id), cur);
+                              setDraggingSection(null); return;
+                            }
                             e.preventDefault(); setDropTarget(null);
                             if (draggingStripId) {
                               const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
@@ -4499,6 +4866,8 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                           }}
                         >
                           <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                            <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-point'); }} onDragEnd={() => setDraggingSection(null)}
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
                             📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
                             {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
                           </div>
@@ -4587,11 +4956,25 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                 {showPartners && (
                   <>
                     {(showSectorPts || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
-                    {partners.map((pp: any) => {
+                    {applyOrder(partners, (p: any) => Number(p.id), savedOrder.leftPartners).map((pp: any) => {
                       const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
+                      const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'partner';
                       return (
-                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}>
-                          <div style={SEC_HDR}>📋 {pp.name} ({ptIn.length})</div>
+                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}
+                          onDragOver={e => { if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                          onDrop={e => {
+                            if (isSectionDrag && draggingSection) {
+                              e.preventDefault();
+                              const cur = applyOrder(partners, (p: any) => Number(p.id), savedOrder.leftPartners).map((p: any) => Number(p.id));
+                              reorderSection('left', 'partner', draggingSection.id, Number(pp.id), cur);
+                              setDraggingSection(null);
+                            }
+                          }}>
+                          <div style={SEC_HDR}>
+                            <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'left', kind: 'partner', id: Number(pp.id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'left-partner'); }} onDragEnd={() => setDraggingSection(null)}
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
+                            📋 {pp.name} ({ptIn.length})
+                          </div>
                           <div style={{ padding: '3px' }}>
                             {ptIn.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
@@ -4615,11 +4998,25 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                 {showSectorPts && (
                   <>
                     {(showPartners || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות קבלה</div>}
-                    {sectorPts.map((pt: any) => {
+                    {applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.leftPoints).map((pt: any) => {
                       const ptT = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.from_preset_id);
+                      const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'point';
                       return (
-                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}>
-                          <div style={SEC_HDR}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})</div>
+                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}
+                          onDragOver={e => { if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                          onDrop={e => {
+                            if (isSectionDrag && draggingSection) {
+                              e.preventDefault();
+                              const cur = applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.leftPoints).map((s: any) => Number(s.sector_id));
+                              reorderSection('left', 'point', draggingSection.id, Number(pt.sector_id), cur);
+                              setDraggingSection(null);
+                            }
+                          }}>
+                          <div style={SEC_HDR}>
+                            <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'left', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'left-point'); }} onDragEnd={() => setDraggingSection(null)}
+                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
+                            📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})
+                          </div>
                           <div style={{ padding: '3px' }}>
                             {ptT.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
@@ -8262,9 +8659,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const classicTable = lightMode ? classicTableDay : (classicTableNight || classicTableDay);
             const isNewClassic = myPresetConfig?.preset_type === 'classic';
             const partnerPresets: any[] = isNewClassic
-              ? (myPresetConfig?.classic_partner_preset_ids || [])
-                  .map((id: number) => workstationPresets.find((p: any) => Number(p.id) === Number(id)))
-                  .filter(Boolean)
+              ? (() => {
+                  const inc: number[] = Array.isArray(myPresetConfig?.classic_incoming_partner_preset_ids) ? myPresetConfig.classic_incoming_partner_preset_ids : [];
+                  const out: number[] = Array.isArray(myPresetConfig?.classic_outgoing_partner_preset_ids) ? myPresetConfig.classic_outgoing_partner_preset_ids : [];
+                  const legacy: number[] = Array.isArray(myPresetConfig?.classic_partner_preset_ids) ? myPresetConfig.classic_partner_preset_ids : [];
+                  // Prefer union of directional fields; fall back to legacy union when both directional are empty.
+                  const merged = (inc.length || out.length) ? Array.from(new Set([...inc, ...out].map(Number))) : legacy.map(Number);
+                  return merged
+                    .map((id: number) => workstationPresets.find((p: any) => Number(p.id) === Number(id)))
+                    .filter(Boolean);
+                })()
               : [];
             const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
             const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
@@ -8294,6 +8698,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 partnerPresets={isNewClassic ? partnerPresets : undefined}
                 allSectors={allSectors}
                 lightMode={lightMode}
+                presetId={session.presetId}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
@@ -12778,6 +13183,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     classic_transfer_points: [] as { sector_id: number; label: string }[],
     preset_type: 'normal' as string,
     classic_partner_preset_ids: [] as number[],
+    classic_incoming_partner_preset_ids: [] as number[],
+    classic_outgoing_partner_preset_ids: [] as number[],
     airfield_id: '' as string | number,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
@@ -13005,6 +13412,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           preset_type: presetForm.preset_type || 'normal',
           airfield_id: presetForm.airfield_id ? Number(presetForm.airfield_id) : null,
           classic_partner_preset_ids: presetForm.classic_partner_preset_ids || [],
+          classic_incoming_partner_preset_ids: presetForm.classic_incoming_partner_preset_ids || [],
+          classic_outgoing_partner_preset_ids: presetForm.classic_outgoing_partner_preset_ids || [],
         })
       });
       if (!res.ok) {
@@ -13018,7 +13427,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -13052,6 +13461,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       preset_type: preset.preset_type || 'normal',
       airfield_id: preset.airfield_id?.toString() || '',
       classic_partner_preset_ids: Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : [],
+      classic_incoming_partner_preset_ids: Array.isArray(preset.classic_incoming_partner_preset_ids) ? preset.classic_incoming_partner_preset_ids.map(Number) : (Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : []),
+      classic_outgoing_partner_preset_ids: Array.isArray(preset.classic_outgoing_partner_preset_ids) ? preset.classic_outgoing_partner_preset_ids.map(Number) : (Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : []),
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -13136,7 +13547,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -13146,7 +13557,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -13213,75 +13624,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         </select>
                       </div>
                     </div>
-                    <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
-                        <button type="button" onClick={() => setShowClassicTransferHelp(true)} title="עזרה: איך עובדות העברות בעמדת סטריפים?"
-                          style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #334155', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
-                      </div>
-                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בחר עמדות סטריפים אחרות שיופיעו כיעד ישיר להעברה/קבלה.</p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').map((wp: any) => {
-                          const isSelected = (presetForm.classic_partner_preset_ids || []).includes(Number(wp.id));
-                          return (
-                            <button key={wp.id} type="button"
-                              onClick={() => setPresetForm(p => ({
-                                ...p,
-                                classic_partner_preset_ids: isSelected
-                                  ? (p.classic_partner_preset_ids || []).filter(id => id !== Number(wp.id))
-                                  : [...(p.classic_partner_preset_ids || []), Number(wp.id)]
-                              }))}
-                              style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${isSelected ? '#22c55e' : '#334155'}`, background: isSelected ? '#14532d' : '#1e293b', color: isSelected ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isSelected ? 'bold' : 'normal' }}>
-                              {isSelected ? '✓ ' : ''}📋 {wp.name}
-                            </button>
-                          );
-                        })}
-                        {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').length === 0 && (
-                          <span style={{ color: '#475569', fontSize: '12px' }}>אין עמדות סטריפים אחרות</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות העברה לעמדות שאינן סטריפים:</label>
-                      <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>נקודות סקטור לקבלה והעברה מ/אל עמדות מפה/טבלה רגילות.</p>
-                      <div style={{ marginBottom: '10px' }}>
-                        <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>נקודות קבלה (ממי מקבל):</label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                          {sectors.map((sec: any) => {
-                            const existing = (presetForm.classic_receive_points || []).find(p => p.sector_id === sec.id);
-                            return (
-                              <button key={sec.id} type="button" onClick={() => setPresetForm(p => ({
-                                ...p, classic_receive_points: existing
-                                  ? (p.classic_receive_points || []).filter(x => x.sector_id !== sec.id)
-                                  : [...(p.classic_receive_points || []), { sector_id: sec.id, label: sec.label_he || sec.name }]
-                              }))}
-                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#22c55e' : '#334155'}`, background: existing ? '#14532d' : '#1e293b', color: existing ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                                {sec.label_he || sec.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '4px', color: '#94a3b8', fontSize: '12px' }}>נקודות העברה (למי מעביר):</label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                          {sectors.map((sec: any) => {
-                            const existing = (presetForm.classic_transfer_points || []).find(p => p.sector_id === sec.id);
-                            return (
-                              <button key={sec.id} type="button" onClick={() => setPresetForm(p => ({
-                                ...p, classic_transfer_points: existing
-                                  ? (p.classic_transfer_points || []).filter(x => x.sector_id !== sec.id)
-                                  : [...(p.classic_transfer_points || []), { sector_id: sec.id, label: sec.label_he || sec.name }]
-                              }))}
-                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#f59e0b' : '#334155'}`, background: existing ? '#422006' : '#1e293b', color: existing ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                                {sec.label_he || sec.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
+                    <ClassicPartnersAndPointsEditor
+                      presetForm={presetForm}
+                      setPresetForm={setPresetForm}
+                      presets={presets}
+                      sectors={sectors}
+                      editingPresetId={editingPreset?.id}
+                      onShowHelp={() => setShowClassicTransferHelp(true)}
+                    />
                   </div>
                 ) : (
                   <div style={{ marginBottom: '15px' }}>
@@ -13705,7 +14055,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
