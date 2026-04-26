@@ -4277,6 +4277,86 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   );
 };
 
+const ClassicTransferHelpModal = ({ lightMode, onClose }: { lightMode: boolean; onClose: () => void }) => {
+  const bg = lightMode ? '#ffffff' : '#0f172a';
+  const border = lightMode ? '#cbd5e1' : '#334155';
+  const text = lightMode ? '#1e293b' : '#e2e8f0';
+  const subtext = lightMode ? '#475569' : '#94a3b8';
+  const greenBg = lightMode ? '#dcfce7' : '#14532d';
+  const greenText = lightMode ? '#166534' : '#86efac';
+  const amberBg = lightMode ? '#fef3c7' : '#451a03';
+  const amberText = lightMode ? '#92400e' : '#fcd34d';
+  const stationBox = (label: string, color: string, fill: string) => (
+    <g>
+      <rect width="120" height="44" rx="6" fill={fill} stroke={color} strokeWidth="1.5" />
+      <text x="60" y="27" textAnchor="middle" fontSize="13" fontWeight="bold" fill={color}>{label}</text>
+    </g>
+  );
+  const arrow = (color: string) => (
+    <g>
+      <line x1="0" y1="22" x2="50" y2="22" stroke={color} strokeWidth="2" />
+      <polygon points="50,22 42,17 42,27" fill={color} />
+      <line x1="50" y1="22" x2="0" y2="22" stroke={color} strokeWidth="2" />
+      <polygon points="0,22 8,17 8,27" fill={color} />
+    </g>
+  );
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: bg, border: `1px solid ${border}`, borderRadius: '12px', padding: '20px', maxWidth: '640px', width: '90%', maxHeight: '90vh', overflowY: 'auto', color: text, boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '10px', borderBottom: `1px solid ${border}` }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>❓ איך עובדות העברות בעמדת סטריפים?</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: subtext, cursor: 'pointer', fontSize: '20px', padding: '4px 10px' }}>✕</button>
+        </div>
+
+        <div style={{ marginBottom: '18px', padding: '12px', background: greenBg, borderRadius: '8px', border: `1px solid ${greenText}` }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: greenText, fontWeight: 'bold' }}>📋 העברה ישירה בין עמדות סטריפים</h3>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
+            כאשר שתי עמדות סטריפים מעבירות פמ"מ ביניהן — ההעברה היא ישירה, <b>מעמדה לעמדה</b>, בלי סקטור באמצע.
+            <br />
+            <b>בהגדרות העמדה:</b> בוחרים את העמדות תחת "📋 עמדות סטריפים שותפות (העברה ישירה)". הרשימה מציגה רק עמדות מסוג סטריפים.
+            <br />
+            <b>בעמדה עצמה:</b> העמדות השותפות מופיעות תחת הכותרת "📋 עמדות סטריפים" — בפאנל הימני להעברה, ובפאנל השמאלי לקבלה.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
+            <svg width="320" height="50" viewBox="0 0 320 50">
+              <g transform="translate(10,3)">{stationBox('📋 עמדה A', greenText, greenBg)}</g>
+              <g transform="translate(135,3)">{arrow(greenText)}</g>
+              <g transform="translate(190,3)">{stationBox('📋 עמדה B', greenText, greenBg)}</g>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ padding: '12px', background: amberBg, borderRadius: '8px', border: `1px solid ${amberText}` }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: amberText, fontWeight: 'bold' }}>📍 העברה דרך נקודת העברה (לעמדות שאינן סטריפים)</h3>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: 1.6, color: text }}>
+            כדי להעביר פמ"מ בין עמדת סטריפים לעמדה רגילה (מפה/טבלה) — משתמשים בנקודות העברה משותפות (סקטורים).
+            <br />
+            <b>בהגדרות העמדה:</b> בוחרים את הסקטורים תחת "📍 נקודות העברה לעמדות שאינן סטריפים" — בנפרד לקבלה (ממי מקבל) ולהעברה (למי מעביר). העמדה הרגילה מצידה צריכה להגדיר אותם סקטורים בנקודות הקבלה/העברה שלה.
+            <br />
+            <b>בעמדה עצמה:</b> הנקודות מופיעות תחת הכותרת "📍 נקודות העברה" / "📍 נקודות קבלה" — בנפרד מעמדות הסטריפים השותפות.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '8px', background: bg, borderRadius: '6px' }}>
+            <svg width="460" height="50" viewBox="0 0 460 50">
+              <g transform="translate(10,3)">{stationBox('📋 עמדת סטריפים', amberText, greenBg)}</g>
+              <g transform="translate(135,3)">{arrow(amberText)}</g>
+              <g transform="translate(190,3)">
+                <rect width="80" height="44" rx="22" fill={amberBg} stroke={amberText} strokeWidth="1.5" strokeDasharray="3 2" />
+                <text x="40" y="27" textAnchor="middle" fontSize="11" fontWeight="bold" fill={amberText}>📍 נקודה</text>
+              </g>
+              <g transform="translate(275,3)">{arrow(amberText)}</g>
+              <g transform="translate(330,3)">{stationBox('🗺 עמדה רגילה', amberText, bg)}</g>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '14px', padding: '10px', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius: '6px', fontSize: '12px', color: subtext, lineHeight: 1.5 }}>
+          💡 <b>טיפ:</b> ניתן להגדיר את שני הסוגים יחד באותה עמדה. בעמדה הם יוצגו זה לצד זה עם כותרות מפרידות.
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer }: {
   strips: any[]; queuedStrips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
@@ -4296,6 +4376,7 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   const [draggingQueuedId, setDraggingQueuedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'mine' | number | string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string } | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const border = lightMode ? '#cbd5e1' : '#1e3a5f';
   const headerBg = lightMode ? '#e2e8f0' : '#1e293b';
@@ -4315,7 +4396,7 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   });
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}
       onClick={() => setCtxMenu(null)}
     >
       {/* Context menu for cancel transfer */}
@@ -4332,6 +4413,14 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
           >🚫 בטל העברה</button>
         </div>
       )}
+
+      {/* Floating help button (top-right) */}
+      <button
+        onClick={() => setShowHelp(true)}
+        title="עזרה: איך עובדות העברות בעמדת סטריפים?"
+        style={{ position: 'absolute', top: '6px', insetInlineEnd: '6px', zIndex: 100, width: '28px', height: '28px', borderRadius: '50%', border: `1px solid ${border}`, background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }}
+      >?</button>
+      {showHelp && <ClassicTransferHelpModal lightMode={lightMode} onClose={() => setShowHelp(false)} />}
 
       {/* RIGHT panel — Transfer (למי מעביר) */}
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
@@ -12667,6 +12756,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Preset editing
   const [editingPreset, setEditingPreset] = useState<any | null>(null);
   const [showNewPresetModal, setShowNewPresetModal] = useState(false);
+  const [showClassicTransferHelp, setShowClassicTransferHelp] = useState(false);
   const [presetForm, setPresetForm] = useState({
     name: '',
     map_id: '',
@@ -13124,7 +13214,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       </div>
                     </div>
                     <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                      <label style={{ display: 'block', marginBottom: '6px', color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
+                        <button type="button" onClick={() => setShowClassicTransferHelp(true)} title="עזרה: איך עובדות העברות בעמדת סטריפים?"
+                          style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #334155', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
+                      </div>
                       <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בחר עמדות סטריפים אחרות שיופיעו כיעד ישיר להעברה/קבלה.</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {presets.filter((wp: any) => wp.id !== editingPreset?.id && wp.preset_type === 'classic').map((wp: any) => {
@@ -15275,6 +15369,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
         })()}
 
       </div>
+      {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
     </div>
   );
 };
