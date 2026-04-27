@@ -3946,11 +3946,20 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
           {strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
+            const isWholeDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
             return (
-              <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a' }}>
-                {/* Strip header */}
-                <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{strip.callSign || strip.callsign || '—'}</span>
+              <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a', opacity: isWholeDragging ? 0.4 : 1 }}>
+                {/* Strip header — draggable to assign / transfer the WHOLE formation */}
+                <div
+                  draggable
+                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); }}
+                  onDragEnd={() => setDragging(null)}
+                  title='גרור להעברת כל הפמ"מ'
+                  style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab', userSelect: 'none' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ opacity: 0.55, fontSize: '11px' }}>≡</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{strip.callSign || strip.callsign || '—'}</span>
+                  </span>
                   <span style={{ fontSize: '11px', color: headerColor }}>{strip.sq || strip.squadron || ''}{aircraft.length > 1 ? ` ×${aircraft.length}` : ''}</span>
                 </div>
                 {/* Per-aircraft cards */}
@@ -4007,7 +4016,17 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                   setMapDragOver(null);
                   try {
                     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                    if (data.stripId && data.idx) handleAircraftPointAssign(strips.find(s => String(s.id) === String(data.stripId)), data.idx, pt.id);
+                    if (!data.stripId) return;
+                    const strip = strips.find(s => String(s.id) === String(data.stripId));
+                    if (!strip) return;
+                    if (data.all) {
+                      // Whole formation → assign every aircraft to this point.
+                      const positions = getAircraftPositions(strip);
+                      const updated = positions.map(x => ({ ...x, point_id: pt.id }));
+                      onUpdateAircraft(String(strip.id), updated);
+                    } else if (data.idx) {
+                      handleAircraftPointAssign(strip, data.idx, pt.id);
+                    }
                   } catch {}
                 }}
               >
@@ -4034,45 +4053,97 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
             );
           })}
 
-          {/* Aircraft markers on the map */}
+          {/* Aircraft markers on the map.
+              Per strip, group placed aircraft by point. When ALL aircraft of a formation are
+              at the same point AND share the same status, render a single merged "whole-strip"
+              chip ("CALL ×N"). Otherwise render individual chips per aircraft, slightly stacked. */}
           {strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
-            return aircraft.filter(ac => ac.point_id).map((ac, acMapIdx) => {
-              const pt = points.find(p => p.id === ac.point_id);
+            const placed = aircraft.filter(ac => ac.point_id);
+            if (placed.length === 0) return null;
+            const byPoint: Record<number, AircraftPos[]> = {};
+            placed.forEach(ac => {
+              const pid = ac.point_id as number;
+              (byPoint[pid] = byPoint[pid] || []).push(ac);
+            });
+            return Object.entries(byPoint).map(([pidStr, acsAtPoint]) => {
+              const pid = Number(pidStr);
+              const pt = points.find(p => p.id === pid);
               if (!pt) return null;
-              const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
-              const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === ac.idx;
-              const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === ac.idx;
-              const stackOffset = acMapIdx * 2;
-              return (
-                <div key={`${strip.id}-${ac.idx}`}
-                  draggable
-                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
-                  onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                  style={{ position: 'absolute', left: ptPos(pt.x_pct, pt.y_pct).left, top: ptPos(pt.x_pct, pt.y_pct).top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
-                  <div
-                    className={st.flash ? 'ground-takeoff-flash' : ''}
-                    onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
-                    style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
-                    <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
-                    <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
-                    {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
-                  </div>
-                  {/* Quick status menu */}
-                  {isMenuOpen && (
-                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
-                      onClick={e => e.stopPropagation()}>
-                      <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
-                      {GROUND_STATUSES.map(s => (
-                        <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
-                          style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: ac.status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${ac.status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: ac.status === s.key ? 'bold' : 'normal' }}>
-                          {s.label}
-                        </button>
-                      ))}
+              const allSameStatus = acsAtPoint.every(a => a.status === acsAtPoint[0].status);
+              // Only merge when there's actually >1 aircraft to merge — single-ship strips
+              // should keep the per-aircraft visual ("#1") for consistency with their card.
+              const merged = aircraft.length > 1 && acsAtPoint.length === aircraft.length && allSameStatus;
+              if (merged) {
+                const st = GROUND_STATUSES.find(s => s.key === acsAtPoint[0].status) || GROUND_STATUSES[0];
+                const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
+                const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === -1;
+                const pos = ptPos(pt.x_pct, pt.y_pct);
+                return (
+                  <div key={`${strip.id}-all-${pid}`}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); setGroundQuickMenu(null); }}
+                    onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%, calc(-100% - 28px))', zIndex: 30, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    <div
+                      className={st.flash ? 'ground-takeoff-flash' : ''}
+                      onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
+                      style={{ background: st.bg, border: `2.5px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
+                      <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                      <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
+                      {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                     </div>
-                  )}
-                </div>
-              );
+                    {isMenuOpen && (
+                      <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס לכל המבנה</div>
+                        {GROUND_STATUSES.map(s => (
+                          <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => ({ ...x, status: s.key as GroundStatusKey })); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
+                            style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: acsAtPoint[0].status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${acsAtPoint[0].status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: acsAtPoint[0].status === s.key ? 'bold' : 'normal' }}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              // Not merged — render one chip per aircraft at this point, slightly stacked.
+              return acsAtPoint.map((ac, acMapIdx) => {
+                const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
+                const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === ac.idx;
+                const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === ac.idx;
+                const stackOffset = acMapIdx * 2;
+                const pos = ptPos(pt.x_pct, pt.y_pct);
+                return (
+                  <div key={`${strip.id}-${ac.idx}`}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
+                    onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    <div
+                      className={st.flash ? 'ground-takeoff-flash' : ''}
+                      onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
+                      style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
+                      <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                      <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
+                      {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
+                    </div>
+                    {isMenuOpen && (
+                      <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
+                        {GROUND_STATUSES.map(s => (
+                          <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
+                            style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: ac.status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${ac.status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: ac.status === s.key ? 'bold' : 'normal' }}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              });
             });
           })}
 
@@ -4099,9 +4170,12 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                   setLeftDragOver(null);
                   try {
                     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                    if (data.stripId && data.idx) {
-                      const strip = strips.find(s => String(s.id) === String(data.stripId));
-                      const acCount = getAircraftPositions(strip).length;
+                    if (!data.stripId) return;
+                    const strip = strips.find(s => String(s.id) === String(data.stripId));
+                    if (data.all) {
+                      // Whole-formation drag → transfer the whole strip directly (no dialog).
+                      onTransfer(String(data.stripId), sec.id);
+                    } else if (data.idx) {
                       setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?' });
                     }
                   } catch {}
