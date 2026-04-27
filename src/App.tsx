@@ -4056,8 +4056,38 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
           {/* Aircraft markers on the map.
               Per strip, group placed aircraft by point. When ALL aircraft of a formation are
               at the same point AND share the same status, render a single merged "whole-strip"
-              chip ("CALL ×N"). Otherwise render individual chips per aircraft, slightly stacked. */}
-          {strips.map(strip => {
+              chip ("CALL ×N"). Otherwise render individual chips per aircraft, slightly stacked.
+              Across strips, chips at the same point are stacked vertically so existing chips
+              remain visible when a new aircraft is dropped on the same point. */}
+          {(() => {
+            // Pre-compute a global slot index for every chip at every point so chips from
+            // *different* strips also stack instead of overlapping each other.
+            const ptSlots: Record<number, string[]> = {};
+            strips.forEach(strip => {
+              const aircraft = getAircraftPositions(strip);
+              const placed = aircraft.filter(ac => ac.point_id);
+              if (placed.length === 0) return;
+              const byPoint: Record<number, AircraftPos[]> = {};
+              placed.forEach(ac => { const pid = ac.point_id as number; (byPoint[pid] = byPoint[pid] || []).push(ac); });
+              Object.entries(byPoint).forEach(([pidStr, acsAtPoint]) => {
+                const pid = Number(pidStr);
+                const allSameStatus = acsAtPoint.every(a => a.status === acsAtPoint[0].status);
+                const merged = aircraft.length > 1 && acsAtPoint.length === aircraft.length && allSameStatus;
+                ptSlots[pid] = ptSlots[pid] || [];
+                if (merged) {
+                  ptSlots[pid].push(`${strip.id}|all`);
+                } else {
+                  acsAtPoint.forEach(ac => ptSlots[pid].push(`${strip.id}|${ac.idx}`));
+                }
+              });
+            });
+            const slotIndex = (pid: number, key: string): number => {
+              const arr = ptSlots[pid] || [];
+              const i = arr.indexOf(key);
+              return i < 0 ? 0 : i;
+            };
+            const SLOT_GAP = 24; // px between stacked chips (chip height ~22px + 2px gap)
+            return strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
             const placed = aircraft.filter(ac => ac.point_id);
             if (placed.length === 0) return null;
@@ -4079,12 +4109,14 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                 const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
                 const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === -1;
                 const pos = ptPos(pt.x_pct, pt.y_pct);
+                const slot = slotIndex(pid, `${strip.id}|all`);
+                const stackOffset = slot * SLOT_GAP;
                 return (
                   <div key={`${strip.id}-all-${pid}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%, calc(-100% - 28px))', zIndex: 30, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 30 + slot, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
@@ -4108,19 +4140,20 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                   </div>
                 );
               }
-              // Not merged — render one chip per aircraft at this point, slightly stacked.
+              // Not merged — render one chip per aircraft at this point, stacked across all strips.
               return acsAtPoint.map((ac, acMapIdx) => {
                 const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
                 const isDragging = dragging?.stripId === String(strip.id) && dragging?.idx === ac.idx;
                 const isMenuOpen = groundQuickMenu?.stripId === String(strip.id) && groundQuickMenu?.idx === ac.idx;
-                const stackOffset = acMapIdx * 2;
+                const slot = slotIndex(pid, `${strip.id}|${ac.idx}`);
+                const stackOffset = slot * SLOT_GAP;
                 const pos = ptPos(pt.x_pct, pt.y_pct);
                 return (
                   <div key={`${strip.id}-${ac.idx}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + slot + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
@@ -4145,7 +4178,8 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                 );
               });
             });
-          })}
+            });
+          })()}
 
           {/* Click anywhere on map to close quick menu */}
           {groundQuickMenu && (
@@ -7930,7 +7964,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
 
-          {/* תפריט תצוגה */}
+          {/* תפריט תצוגה — מוסתר בעמדת סטריפים, וגם כשהעמדה נעולה לתצוגה אחת */}
+          {!isClassicMode && (myPresetConfig?.allow_view_switching !== false) && (
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
@@ -8017,6 +8052,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </>
             )}
           </div>
+          )}
 
           <button
             onClick={() => setLightMode(v => !v)}
@@ -8096,8 +8132,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </>
             )}
           </div>
-          {/* כפתור ספרורים */}
-          {(() => {
+          {/* כפתור ספרורים — מוסתר כשהעמדה הוגדרה ללא ספרורים */}
+          {(myPresetConfig?.show_serials !== false) && (() => {
             // Alert only when a strip has a selection that is outdated (newer serial exists) —
             // matching exactly the red-badge logic shown in the table rows.
             const hasSerialAlerts = myTableStrips.some(strip => {
@@ -13301,6 +13337,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     classic_incoming_partner_preset_ids: [] as number[],
     classic_outgoing_partner_preset_ids: [] as number[],
     airfield_id: '' as string | number,
+    show_serials: true as boolean,
+    allow_view_switching: true as boolean,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -13529,6 +13567,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           classic_partner_preset_ids: presetForm.classic_partner_preset_ids || [],
           classic_incoming_partner_preset_ids: presetForm.classic_incoming_partner_preset_ids || [],
           classic_outgoing_partner_preset_ids: presetForm.classic_outgoing_partner_preset_ids || [],
+          show_serials: presetForm.show_serials !== false,
+          allow_view_switching: presetForm.allow_view_switching !== false,
         })
       });
       if (!res.ok) {
@@ -13542,7 +13582,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true });
       } else if (saved) {
         editPreset(saved);
       }
@@ -13578,6 +13618,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       classic_partner_preset_ids: Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : [],
       classic_incoming_partner_preset_ids: Array.isArray(preset.classic_incoming_partner_preset_ids) ? preset.classic_incoming_partner_preset_ids.map(Number) : (Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : []),
       classic_outgoing_partner_preset_ids: Array.isArray(preset.classic_outgoing_partner_preset_ids) ? preset.classic_outgoing_partner_preset_ids.map(Number) : (Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : []),
+      show_serials: preset.show_serials !== false,
+      allow_view_switching: preset.allow_view_switching !== false,
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -13662,7 +13704,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -13672,7 +13714,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -13897,6 +13939,40 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       </>
                     );
                   })()}
+                </div>
+
+                {/* Show serials toggle */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>📡 הצגת ספרורים בעמדה:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: '✅ כן — הצג כפתור ספרורים' }, { val: false, label: '🚫 לא — הסתר ספרורים' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, show_serials: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm.show_serials !== false) === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm.show_serials !== false) === opt.val ? '#0c4a6e' : '#1e293b', color: (presetForm.show_serials !== false) === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm.show_serials !== false) === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    קובע אם הכפתור 📡 ספרורים יוצג בכותרת העמדה (וגם עמודת הספרורים בטבלה).
+                  </p>
+                </div>
+
+                {/* Allow view switching toggle */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🔁 אפשר מעבר בין מפה ↔ טבלה:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: '✅ כן — תפריט תצוגה זמין' }, { val: false, label: '🔒 לא — נעל לתצוגה אחת' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, allow_view_switching: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm.allow_view_switching !== false) === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm.allow_view_switching !== false) === opt.val ? '#0c4a6e' : '#1e293b', color: (presetForm.allow_view_switching !== false) === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm.allow_view_switching !== false) === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                    כשמכובה — תפריט "תצוגה" מוסתר ולא ניתן לעבור בין מפה לטבלה. בעמדת סטריפים זה מוסתר אוטומטית בכל מקרה.
+                  </p>
                 </div>
 
                 <div style={{ marginTop: '15px' }}>
@@ -14170,7 +14246,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
