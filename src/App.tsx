@@ -15326,9 +15326,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {/* 3 Row configs */}
                     {classicTableRows.map((row, idx) => {
-                      const activeFields: { field_name: string }[] =
+                      const activeFields: { field_name: string; separator?: string; [k: string]: any }[] =
                         row.fields && row.fields.length > 0 ? row.fields : (row.field_name ? [{ field_name: row.field_name }] : []);
-                      const setRowFields = (newFields: { field_name: string }[]) => {
+                      const setRowFields = (newFields: { field_name: string; separator?: string; [k: string]: any }[]) => {
                         updateRow(idx, { fields: newFields, field_name: newFields[0]?.field_name || '' });
                       };
                       return (
