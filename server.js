@@ -2402,17 +2402,38 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
 });
 
 // DELETE single aircraft from a strip (ground mode single-aircraft transfer)
+// Renumbers the remaining aircraft so indices stay sequential (1, 2, 3, ...)
 app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   try {
     const stripId = parseInt(req.params.stripId);
     const idx = parseInt(req.params.idx);
+
     // Remove the aircraft row
     await pool.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
-    // Remove this idx from aircraft_positions JSON array and decrement number_of_formation
+
+    // Renumber remaining rows: any idx > removed idx shifts down by 1
+    await pool.query(
+      'UPDATE strip_aircraft SET idx = idx - 1 WHERE strip_id=$1 AND idx > $2',
+      [stripId, idx]
+    );
+
+    // Update aircraft_positions on the strip:
+    //  - remove the deleted entry
+    //  - shift higher indices down by 1
+    //  - decrement number_of_formation
     const updated = await pool.query(
       `UPDATE strips SET
         aircraft_positions = (
-          SELECT COALESCE(jsonb_agg(elem ORDER BY (elem->>'idx')::int), '[]'::jsonb)
+          SELECT COALESCE(
+            jsonb_agg(
+              CASE WHEN (elem->>'idx')::int > $2
+                THEN jsonb_set(elem, '{idx}', to_jsonb((elem->>'idx')::int - 1))
+                ELSE elem
+              END
+              ORDER BY (elem->>'idx')::int
+            ),
+            '[]'::jsonb
+          )
           FROM jsonb_array_elements(COALESCE(aircraft_positions, '[]'::jsonb)) elem
           WHERE (elem->>'idx')::int != $2
         ),

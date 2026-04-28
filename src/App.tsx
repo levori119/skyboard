@@ -3682,7 +3682,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -3699,10 +3699,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onCreateStrip: (callSign: string, sq: string, count: number, sectorId: number | null) => Promise<void>;
   currentPresetId?: number | null;
   currentSectorId?: number | null;
+  singleTransfers?: { sectorId: number; callSign: string; aircraftIdx: number; totalCount: number }[];
 }) => {
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
-  const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string } | null>(null);
+  const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
@@ -4203,7 +4204,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       // Whole-formation drag → transfer the whole strip directly (no dialog).
                       onTransfer(String(data.stripId), sec.id);
                     } else if (data.idx) {
-                      setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?' });
+                      const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+                      setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?', totalCount });
                     }
                   } catch {}
                 }}
@@ -4213,9 +4215,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
                 </div>
                 {/* Pending outgoing transfers to this sector */}
+                {(singleTransfers || []).filter(t => t.sectorId === sec.id).map((t, i) => (
+                  <div key={`single-${i}`} style={{ padding: '3px 6px', fontSize: '11px', color: '#93c5fd', background: '#1e3a5f', borderTop: `1px solid ${border}` }}>
+                    ✈️ {t.callSign}#{t.aircraftIdx} ({t.aircraftIdx}/{t.totalCount}) ↗ הועבר
+                  </div>
+                ))}
                 {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
                   <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
-                    {t.callsign || '?'} ↗ ממתין
+                    📋 {t.callsign || '?'} (כל הפמ"מ) ↗ ממתין
                   </div>
                 ))}
               </div>
@@ -4232,17 +4239,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '8px' }}>העברה לסקטור</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>
-              פמ"מ: <strong style={{ color: 'white' }}>{transferPending.stripName}</strong> | מטוס #{transferPending.aircraftIdx}
-              <br />לאן להעביר?
+              פמ"מ: <strong style={{ color: 'white' }}>{transferPending.stripName}</strong>
+              <br />מה להעביר?
             </div>
             <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
               <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId, transferPending.aircraftIdx); setTransferPending(null); }}
                 style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                ✈️ מטוס בודד #{transferPending.aircraftIdx}
+                ✈️ מטוס #{transferPending.aircraftIdx} מתוך {transferPending.totalCount}
               </button>
               <button onClick={() => { onTransfer(transferPending.stripId, transferPending.sectorId); setTransferPending(null); }}
                 style={{ padding: '10px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                📋 כל הפמ"מ
+                📋 כל הפמ"מ ({transferPending.totalCount} מטוסים)
               </button>
               <button onClick={() => setTransferPending(null)}
                 style={{ padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
@@ -6394,6 +6401,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfields, setAirfields] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
   const [groundStripAircraft, setGroundStripAircraft] = useState<Record<string, GroundAircraftRow[]>>({});
+  const [groundSingleTransfers, setGroundSingleTransfers] = useState<{ sectorId: number; callSign: string; aircraftIdx: number; totalCount: number }[]>([]);
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -7354,23 +7362,38 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return handleTransfer(stripId, toSectorId);
     }
     try {
+      // Get strip info before deletion for the transfer log
+      const strip = strips.find(s => String(s.id) === String(stripId));
+      const callSign = strip?.callSign || strip?.callsign || '?';
+      const totalBefore = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+
       const res = await fetch(`${API_URL}/strip-aircraft/${stripId}/${aircraftIdx}`, { method: 'DELETE' });
       const data = await res.json();
       const remaining: number = data.numberOfFormation ?? 0;
-      // Remove aircraft from local groundStripAircraft state
+
+      // Renumber groundStripAircraft: remove the deleted idx, shift higher indices down
       setGroundStripAircraft(prev => {
-        const rows = (prev[String(stripId)] || []).filter(r => r.idx !== aircraftIdx);
+        const rows = (prev[String(stripId)] || [])
+          .filter(r => r.idx !== aircraftIdx)
+          .map(r => r.idx > aircraftIdx ? { ...r, idx: r.idx - 1 } : r);
         return { ...prev, [String(stripId)]: rows };
       });
-      // Update local strips state
+
+      // Update local strips state with server response (renumbered aircraft_positions)
       setStrips(prev => prev.map(s => {
         if (String(s.id) !== String(stripId)) return s;
         return { ...s, numberOfFormation: String(remaining), aircraft_positions: data.aircraftPositions || [] };
       }));
+
       if (remaining <= 0) {
         // Last aircraft — transfer the whole strip
         await handleTransfer(stripId, toSectorId);
       } else {
+        // Record single-aircraft transfer for display in the sector panel
+        setGroundSingleTransfers(prev => [
+          ...prev,
+          { sectorId: toSectorId, callSign, aircraftIdx, totalCount: totalBefore }
+        ]);
         loadData();
       }
     } catch (err) {
@@ -8869,6 +8892,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onCreateStrip={handleCreateGroundStrip}
                 currentPresetId={session?.presetId}
                 currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
+                singleTransfers={groundSingleTransfers}
               />
             );
           })()}
