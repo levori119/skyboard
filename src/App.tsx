@@ -1343,6 +1343,7 @@ const DraggableNeighborPanel = ({
   dragStripId,
   onStripDrop,
   conflictAltDelta,
+  crossSectorConflictIds,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -1358,6 +1359,7 @@ const DraggableNeighborPanel = ({
   dragStripId?: string | null;
   onStripDrop?: (stripId: string, sectorId: number) => void;
   conflictAltDelta?: number;
+  crossSectorConflictIds?: Set<string>;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -1389,6 +1391,13 @@ const DraggableNeighborPanel = ({
         }
       }
     }
+  }
+  // Merge cross-sector conflicts
+  if (crossSectorConflictIds) {
+    const sectorTransferIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
+    crossSectorConflictIds.forEach(id => {
+      if (sectorTransferIds.has(id)) conflictingTransferIds.add(id);
+    });
   }
   const hasConflict = conflictingTransferIds.size > 0;
 
@@ -1875,7 +1884,8 @@ const DraggableMapMarker = ({
   notes,
   onUpdateNotes,
   zoom = 1,
-  conflictAltDelta = 0
+  conflictAltDelta = 0,
+  crossSectorConflictIds,
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -1893,6 +1903,7 @@ const DraggableMapMarker = ({
   onUpdateNotes?: (sectorId: number, notes: string) => void;
   zoom?: number;
   conflictAltDelta?: number;
+  crossSectorConflictIds?: Set<string>;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -2017,6 +2028,13 @@ const DraggableMapMarker = ({
         }
       }
     }
+  }
+  // Merge cross-sector conflicts
+  if (crossSectorConflictIds) {
+    const markerTransferIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
+    crossSectorConflictIds.forEach(id => {
+      if (markerTransferIds.has(id)) markerConflictIds.add(id);
+    });
   }
   const markerHasConflict = markerConflictIds.size > 0;
 
@@ -6946,6 +6964,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground';
+
+  // Cross-sector altitude conflict detection: compare ALL transfers (outgoing + incoming)
+  // against each other across all sectors. Any pair within conflict_alt_delta → both flagged.
+  const crossSectorConflictIds = React.useMemo(() => {
+    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const result = new Set<string>();
+    if (delta <= 0) return result;
+    const parseAltVal = (alt: string | null | undefined): number | null => {
+      if (!alt) return null;
+      const m = alt.match(/\d+/);
+      return m ? parseInt(m[0]) : null;
+    };
+    const allTransfers = [...outgoingTransfers, ...incomingTransfers];
+    for (let i = 0; i < allTransfers.length; i++) {
+      const a = allTransfers[i];
+      const altA = parseAltVal(a.alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < allTransfers.length; j++) {
+        const b = allTransfers[j];
+        const altB = parseAltVal(b.alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= delta) {
+          result.add(String(a.id));
+          result.add(String(b.id));
+        }
+      }
+    }
+    return result;
+  }, [outgoingTransfers, incomingTransfers, myPresetConfig?.conflict_alt_delta]);
   const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
@@ -8986,6 +9033,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
                     onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
+                    crossSectorConflictIds={crossSectorConflictIds}
                   />
                 ))}
               </div>
@@ -10392,6 +10440,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateNotes={handleUpdateSectorNotes}
                 zoom={mapZoom}
                 conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
+                crossSectorConflictIds={crossSectorConflictIds}
               />
             ))}
             
