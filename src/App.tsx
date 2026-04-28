@@ -4305,6 +4305,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               — מדגיש דת"ק ≥ {datkFilter}
             </span>
           )}
+          {(datkFilter !== null || statusFilter.length > 0) && (
+            <button
+              onClick={() => { setDatkFilter(null); setStatusFilter([]); setFilterMode('AND'); }}
+              title="נקה את כל הסינונים"
+              style={{
+                padding: '2px 10px',
+                borderRadius: '12px',
+                border: '1px solid #ef4444',
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+                marginRight: 'auto',
+              }}
+            >
+              נקה סינונים
+            </button>
+          )}
         </div>
 
         {/* status filter bar */}
