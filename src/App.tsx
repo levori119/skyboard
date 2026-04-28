@@ -7383,21 +7383,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const callSign = strip?.callSign || strip?.callsign || '?';
       const totalBefore = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
 
-      const res = await fetch(`${API_URL}/strip-aircraft/${stripId}/${aircraftIdx}`, { method: 'DELETE' });
+      const sid = parseInt(String(stripId));
+      const aidx = parseInt(String(aircraftIdx));
+      if (isNaN(sid) || isNaN(aidx) || aidx < 1) {
+        console.error('handleGroundTransfer: invalid stripId or aircraftIdx', stripId, aircraftIdx);
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${aidx}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error('Failed to remove aircraft:', errData);
+        return; // Do NOT fall through to full-strip transfer on error
+      }
       const data = await res.json();
-      const remaining: number = data.numberOfFormation ?? 0;
+      const remaining: number = typeof data.numberOfFormation === 'number' ? data.numberOfFormation : parseInt(String(data.numberOfFormation || '0')) || 0;
 
       // Renumber groundStripAircraft: remove the deleted idx, shift higher indices down
       setGroundStripAircraft(prev => {
-        const rows = (prev[String(stripId)] || [])
-          .filter(r => r.idx !== aircraftIdx)
-          .map(r => r.idx > aircraftIdx ? { ...r, idx: r.idx - 1 } : r);
-        return { ...prev, [String(stripId)]: rows };
+        const rows = (prev[String(sid)] || [])
+          .filter(r => r.idx !== aidx)
+          .map(r => r.idx > aidx ? { ...r, idx: r.idx - 1 } : r);
+        return { ...prev, [String(sid)]: rows };
       });
 
       // Update local strips state with server response (renumbered aircraft_positions)
       setStrips(prev => prev.map(s => {
-        if (String(s.id) !== String(stripId)) return s;
+        if (String(s.id) !== String(sid)) return s;
         return { ...s, numberOfFormation: String(remaining), aircraft_positions: data.aircraftPositions || [] };
       }));
 

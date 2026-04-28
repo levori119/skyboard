@@ -2407,6 +2407,9 @@ app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   try {
     const stripId = parseInt(req.params.stripId);
     const idx = parseInt(req.params.idx);
+    if (isNaN(stripId) || isNaN(idx) || idx < 1) {
+      return res.status(400).json({ error: 'Invalid stripId or idx' });
+    }
 
     // Remove the aircraft row
     await pool.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
