@@ -3826,6 +3826,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [showNewStripModal, setShowNewStripModal] = useState(false);
   const [newStripForm, setNewStripForm] = useState<{ callSign: string; sq: string; count: number; sectorId: number | null }>({ callSign: '', sq: '', count: 1, sectorId: null });
   const [newStripSaving, setNewStripSaving] = useState(false);
+  const [datkFilter, setDatkFilter] = useState<number | null>(null); // minimum datk to highlight; null = no filter
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -4080,6 +4081,40 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       {/* CENTER — Airfield map */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
+
+        {/* datk filter bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
+          <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>סינון דת"ק:</span>
+          {([null, 1, 2, 3, 4, 5, 6, 7, 8, 9] as (number | null)[]).map(val => {
+            const active = datkFilter === val;
+            return (
+              <button
+                key={val ?? 'all'}
+                onClick={() => setDatkFilter(val)}
+                style={{
+                  padding: '2px 9px',
+                  borderRadius: '12px',
+                  border: active ? '2px solid #3b82f6' : `1px solid ${border}`,
+                  background: active ? '#3b82f6' : (lightMode ? '#f8fafc' : '#1e293b'),
+                  color: active ? '#fff' : headerColor,
+                  fontSize: '11px',
+                  fontWeight: active ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {val === null ? 'הכל' : `${val}+`}
+              </button>
+            );
+          })}
+          {datkFilter !== null && (
+            <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '4px' }}>
+              — מדגיש דת"ק ≥ {datkFilter}
+            </span>
+          )}
+        </div>
+
         <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
@@ -4198,27 +4233,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const pos = ptPos(pt.x_pct, pt.y_pct);
                 const slot = slotIndex(pid, `${strip.id}|all`);
                 const stackOffset = slot * SLOT_GAP;
+                const mergedRows = stripAircraftData[String(strip.id)] || [];
+                const mergedDatkValues = acsAtPoint.map(a => mergedRows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
+                const mergedMatchesFilter = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
+                const mergedFilterOpacity = isDragging ? 0.4 : (datkFilter !== null && !mergedMatchesFilter ? 0.2 : 1);
+                const mergedHighlight = datkFilter !== null && mergedMatchesFilter;
                 return (
                   <div key={`${strip.id}-all-${pid}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 30 + slot, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 30 + slot, cursor: 'grab', opacity: mergedFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2.5px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      style={{ background: st.bg, border: `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
                         <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
                       {(() => {
-                        const rows = stripAircraftData[String(strip.id)] || [];
-                        const datkValues = acsAtPoint.map(a => rows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
-                        if (datkValues.length === 0) return null;
-                        const summary = datkValues.length === 1 ? `דת"ק ${datkValues[0]}` : `דת"ק ${datkValues.join(',')}`;
-                        return <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{summary}</span>;
+                        if (mergedDatkValues.length === 0) return null;
+                        const summary = mergedDatkValues.length === 1 ? `דת"ק ${mergedDatkValues[0]}` : `דת"ק ${mergedDatkValues.join(',')}`;
+                        return <span style={{ color: mergedHighlight ? '#93c5fd' : '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{summary}</span>;
                       })()}
                     </div>
                     {isMenuOpen && (
@@ -4244,28 +4282,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const slot = slotIndex(pid, `${strip.id}|${ac.idx}`);
                 const stackOffset = slot * SLOT_GAP;
                 const pos = ptPos(pt.x_pct, pt.y_pct);
+                const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
+                const acMatchesFilter = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
+                const acFilterOpacity = isDragging ? 0.4 : (datkFilter !== null && !acMatchesFilter ? 0.2 : 1);
+                const acHighlight = datkFilter !== null && acMatchesFilter;
                 return (
                   <div key={`${strip.id}-${ac.idx}`}
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + slot + acMapIdx, cursor: 'grab', opacity: isDragging ? 0.4 : 1, pointerEvents: 'all', userSelect: 'none' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + slot + acMapIdx, cursor: 'grab', opacity: acFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      style={{ background: st.bg, border: `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
                         <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
                       {(() => {
-                        const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
                         if (acRow?.datk == null && !acRow?.kipa) return null;
                         const parts: string[] = [];
                         if (acRow.datk != null) parts.push(`דת"ק ${acRow.datk}`);
                         if (acRow.kipa) parts.push(acRow.kipa);
-                        return <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{parts.join(' | ')}</span>;
+                        return <span style={{ color: acHighlight ? '#93c5fd' : '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{parts.join(' | ')}</span>;
                       })()}
                     </div>
                     {isMenuOpen && (
