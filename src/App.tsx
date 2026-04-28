@@ -151,8 +151,6 @@ const clearSession = () => {
 // --- רכיב כניסה לעמדה ---
 const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
-  const [selectedSector, setSelectedSector] = useState<number | null>(null);
-  const [workstationName, setWorkstationName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showWorkstationSelect, setShowWorkstationSelect] = useState(false);
@@ -161,7 +159,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMember | null>(null);
   const [crewSearchQuery, setCrewSearchQuery] = useState('');
   const [showCrewDropdown, setShowCrewDropdown] = useState(false);
-  const [showCrewSelect, setShowCrewSelect] = useState(false);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
 
   useEffect(() => {
@@ -230,48 +227,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setLoading(false);
   };
 
-  const handleLogin = async () => {
-    if (!selectedCrewMember) {
-      setError('נא לבחור איש צוות');
-      return;
-    }
-    if (!selectedSector || !workstationName.trim()) {
-      setError('נא למלא את כל השדות');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const selectedSectorObj = sectors.find(s => s.id === selectedSector);
-      
-      const res = await fetch(`${API_URL}/workstations/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: workstationName })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const session: WorkstationSession = {
-          workstationId: data.workstation.id,
-          workstationName: data.workstation.name,
-          relevantSectors: selectedSectorObj ? [selectedSectorObj] : [],
-          authToken: data.authToken,
-          crewMember: selectedCrewMember
-        };
-        saveSession(session);
-        onLogin(session);
-      } else {
-        setError('שגיאה בכניסה');
-      }
-    } catch (err) {
-      setError('שגיאת חיבור');
-    }
-
-    setLoading(false);
-  };
 
   return (
     <div className="bt-login-bg" style={{ 
@@ -615,77 +570,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               );
             })()}
             
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>או הגדר עמדה חדשה:</label>
-              
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', color: '#64748b' }}>שם עמדה:</label>
-                <input
-                  type="text"
-                  value={workstationName}
-                  onChange={(e) => setWorkstationName(e.target.value)}
-                  placeholder="לדוגמה: עמדה 1"
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    border: '2px solid #e2e8f0', 
-                    borderRadius: '8px', 
-                    fontSize: '16px',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-              
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', color: '#64748b' }}>נקודת העברה:</label>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {sectors.map((s: any) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelectedSector(s.id)}
-                      style={{
-                        flex: 1,
-                        minWidth: '100px',
-                        padding: '12px',
-                        border: selectedSector === s.id ? '3px solid #2563eb' : '2px solid #e2e8f0',
-                        borderRadius: '8px',
-                        background: selectedSector === s.id ? '#dbeafe' : 'white',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        color: selectedSector === s.id ? '#1d4ed8' : '#334155'
-                      }}
-                    >
-                      {s.label_he || s.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {error && (
-                <div style={{ padding: '10px', background: '#fee2e2', color: '#dc2626', borderRadius: '8px', marginBottom: '15px', textAlign: 'center' }}>
-                  {error}
-                </div>
-              )}
-              
-              <button
-                onClick={handleLogin}
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '15px',
-                  background: loading ? '#94a3b8' : '#0f172a',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  cursor: loading ? 'default' : 'pointer'
-                }}
-              >
-                {loading ? 'מתחבר...' : 'כניסה'}
-              </button>
-            </div>
           </div>
         </div>
       )}
