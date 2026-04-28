@@ -3888,12 +3888,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: sid, idx: -1 }); }}
                     onDragEnd={() => setDragging(null)}
                     title='גרור להעברת כל הפמ"מ'
-                    style={{ padding: '6px 6px 6px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', flex: 1, gap: '5px', minWidth: 0 }}>
-                    <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
-                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{callSign}</span>
-                    <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
-                    </span>
+                    style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
+                      <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{callSign}</span>
+                      <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
+                      </span>
+                    </div>
+                    {/* Per-aircraft datk/kipa badges shown in collapsed view */}
+                    {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', paddingLeft: '18px' }}>
+                        {aircraft.map(ac => {
+                          const r = getAcRow(ac.idx);
+                          if (r.datk == null && !r.kipa) return null;
+                          const parts: string[] = [];
+                          if (r.datk != null) parts.push(`דת"ק ${r.datk}`);
+                          if (r.kipa) parts.push(r.kipa);
+                          return (
+                            <span key={ac.idx} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '9px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              #{ac.idx} {parts.join(' · ')}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
