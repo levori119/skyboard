@@ -3742,6 +3742,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       // ignore storage errors
     }
   }, [statusFilter]);
+  const [filterMode, setFilterMode] = useState<'AND' | 'OR'>(() => {
+    try {
+      const stored = localStorage.getItem('groundFilterMode');
+      return stored === 'OR' ? 'OR' : 'AND';
+    } catch {
+      return 'AND';
+    }
+  });
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('groundFilterMode', filterMode);
+    } catch {
+      // ignore storage errors
+    }
+  }, [filterMode]);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -4049,6 +4064,40 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
         </div>
 
+        {/* AND / OR combination toggle — only shown when both filters are active */}
+        {datkFilter !== null && statusFilter !== null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: lightMode ? '#f0f4f8' : '#060d18', borderBottom: `1px solid ${border}`, flexShrink: 0, direction: 'rtl' }}>
+            <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>שילוב סינונים:</span>
+            {(['AND', 'OR'] as const).map(mode => {
+              const active = filterMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setFilterMode(mode)}
+                  title={mode === 'AND' ? 'הצג רק מטוסים שעומדים בשני הסינונים' : 'הצג מטוסים שעומדים בלפחות אחד מהסינונים'}
+                  style={{
+                    padding: '2px 10px',
+                    borderRadius: '12px',
+                    border: active ? '2px solid #8b5cf6' : `1px solid ${border}`,
+                    background: active ? '#8b5cf6' : (lightMode ? '#f8fafc' : '#1e293b'),
+                    color: active ? '#fff' : headerColor,
+                    fontSize: '11px',
+                    fontWeight: active ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    flexShrink: 0,
+                  }}
+                >
+                  {mode}
+                </button>
+              );
+            })}
+            <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '2px' }}>
+              {filterMode === 'AND' ? '— חייב לעמוד בשני הסינונים' : '— מספיק לעמוד באחד מהסינונים'}
+            </span>
+          </div>
+        )}
+
         <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
@@ -4171,7 +4220,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const mergedDatkValues = acsAtPoint.map(a => mergedRows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
                 const mergedMatchesDatk = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
                 const mergedMatchesStatus = statusFilter === null || acsAtPoint[0].status === statusFilter;
-                const mergedMatchesFilter = mergedMatchesDatk && mergedMatchesStatus;
+                const mergedMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter !== null)
+                  ? mergedMatchesDatk || mergedMatchesStatus
+                  : mergedMatchesDatk && mergedMatchesStatus;
                 const anyFilterActive = datkFilter !== null || statusFilter !== null;
                 const mergedFilterOpacity = isDragging ? 0.4 : (anyFilterActive && !mergedMatchesFilter ? 0.2 : 1);
                 const mergedHighlight = anyFilterActive && mergedMatchesFilter;
@@ -4222,7 +4273,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
                 const acMatchesDatk = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
                 const acMatchesStatus = statusFilter === null || ac.status === statusFilter;
-                const acMatchesFilter = acMatchesDatk && acMatchesStatus;
+                const acMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter !== null)
+                  ? acMatchesDatk || acMatchesStatus
+                  : acMatchesDatk && acMatchesStatus;
                 const anyFilterActiveAc = datkFilter !== null || statusFilter !== null;
                 const acFilterOpacity = isDragging ? 0.4 : (anyFilterActiveAc && !acMatchesFilter ? 0.2 : 1);
                 const acHighlight = anyFilterActiveAc && acMatchesFilter;
