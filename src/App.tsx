@@ -3819,7 +3819,9 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
   });
 };
 
-const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onAcceptQueued }: {
+interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
+
+const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onAcceptQueued, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId }: {
   strips: any[];
   queuedStrips?: any[];
   incomingTransfers: any[];
@@ -3833,6 +3835,11 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
   onTransfer: (stripId: string, toSectorId: number, aircraftIdx?: number) => void;
   onAcceptTransfer: (transferId: string) => void;
   onAcceptQueued?: (stripId: string) => void;
+  stripAircraftData: Record<string, GroundAircraftRow[]>;
+  onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
+  onCreateStrip: (callSign: string, sq: string, count: number) => Promise<void>;
+  currentPresetId?: number | null;
+  currentSectorId?: number | null;
 }) => {
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -3840,6 +3847,10 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
+  const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
+  const [showNewStripModal, setShowNewStripModal] = useState(false);
+  const [newStripForm, setNewStripForm] = useState({ callSign: '', sq: '', count: 1 });
+  const [newStripSaving, setNewStripSaving] = useState(false);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -3910,17 +3921,63 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: '220px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
-        <div style={HDR}>✈️ פמ"מים ({strips.length})</div>
-        {/* Queued strips zone — distributed but not yet accepted */}
+      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
+        {/* Header + new strip button */}
+        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
+          <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
+          <button onClick={() => { setNewStripForm({ callSign: '', sq: '', count: 1 }); setShowNewStripModal(true); }}
+            style={{ padding: '3px 9px', borderRadius: '6px', border: 'none', background: '#0ea5e9', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+            + פמ"מ
+          </button>
+        </div>
+
+        {/* New strip modal */}
+        {showNewStripModal && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
+            onClick={() => setShowNewStripModal(false)}>
+            <div style={{ background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '10px', padding: '20px', width: '260px', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0', marginBottom: '14px', textAlign: 'center' }}>📋 פמ"מ חדש</div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>או"ק (קריאה)</label>
+                <input value={newStripForm.callSign} onChange={e => setNewStripForm(f => ({ ...f, callSign: e.target.value }))}
+                  autoFocus placeholder='לדוגמה: באטמן'
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>טייסת</label>
+                <input value={newStripForm.sq} onChange={e => setNewStripForm(f => ({ ...f, sq: e.target.value }))}
+                  placeholder='לדוגמה: 119'
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>כמות מטוסים</label>
+                <input type="number" min={1} max={16} value={newStripForm.count} onChange={e => setNewStripForm(f => ({ ...f, count: Math.max(1, Math.min(16, parseInt(e.target.value) || 1)) }))}
+                  style={{ width: '80px', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button disabled={newStripSaving || !newStripForm.callSign.trim()}
+                  onClick={async () => { setNewStripSaving(true); try { await onCreateStrip(newStripForm.callSign.trim(), newStripForm.sq.trim(), newStripForm.count); setShowNewStripModal(false); } finally { setNewStripSaving(false); } }}
+                  style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 'bold', fontSize: '13px', cursor: newStripSaving ? 'wait' : 'pointer', opacity: !newStripForm.callSign.trim() ? 0.5 : 1 }}>
+                  {newStripSaving ? '...' : 'צור פמ"מ'}
+                </button>
+                <button onClick={() => setShowNewStripModal(false)}
+                  style={{ padding: '7px 14px', borderRadius: '7px', border: `1px solid ${border}`, background: 'transparent', color: headerColor, fontSize: '13px', cursor: 'pointer' }}>
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Queued strips zone */}
         {(queuedStrips || []).length > 0 && (
-          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#fefce8' : '#1a1a0a' }}>
+          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#fefce8' : '#1a1a0a', flexShrink: 0 }}>
             <div style={{ fontSize: '11px', color: '#eab308', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📨 ממחלק ({(queuedStrips || []).length})</div>
             {(queuedStrips || []).map((s: any) => (
-              <div key={s.id}
-                onClick={() => onAcceptQueued && onAcceptQueued(String(s.id))}
+              <div key={s.id} onClick={() => onAcceptQueued && onAcceptQueued(String(s.id))}
                 style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#fef9c3' : '#2a2800', color: lightMode ? '#713f12' : '#fde047', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 'bold' }}>{s.callSign || s.callsign || '?'}</span>
                 <span style={{ fontSize: '10px', opacity: 0.7 }}>לחץ לקבל</span>
@@ -3928,9 +3985,10 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
             ))}
           </div>
         )}
+
         {/* Incoming transfers zone */}
         {incomingTransfers.length > 0 && (
-          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a' }}>
+          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a', flexShrink: 0 }}>
             <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📥 מחכים לקבלה ({incomingTransfers.length})</div>
             {incomingTransfers.map(t => (
               <div key={t.id} draggable onDragStart={() => setDraggingTransferId(String(t.id))} onDragEnd={() => setDraggingTransferId(null)}
@@ -3942,48 +4000,104 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
             ))}
           </div>
         )}
+
+        {/* Strip cards list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
           {strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
             const isWholeDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
+            const isExpanded = expandedStrips.has(String(strip.id));
+            const toggleExpand = () => setExpandedStrips(prev => {
+              const next = new Set(prev);
+              next.has(String(strip.id)) ? next.delete(String(strip.id)) : next.add(String(strip.id));
+              return next;
+            });
+            const sid = String(strip.id);
+            const acRows = stripAircraftData[sid] || [];
+            const getAcRow = (idx: number): GroundAircraftRow => acRows.find(r => r.idx === idx) || { idx, datk: null, kipa: null };
+            const sq = strip.sq || strip.squadron || '';
+            const callSign = strip.callSign || strip.callsign || '—';
+            const count = aircraft.length;
+
             return (
               <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a', opacity: isWholeDragging ? 0.4 : 1 }}>
-                {/* Strip header — draggable to assign / transfer the WHOLE formation */}
-                <div
-                  draggable
-                  onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); }}
-                  onDragEnd={() => setDragging(null)}
-                  title='גרור להעברת כל הפמ"מ'
-                  style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab', userSelect: 'none' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ opacity: 0.55, fontSize: '11px' }}>≡</span>
-                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{strip.callSign || strip.callsign || '—'}</span>
-                  </span>
-                  <span style={{ fontSize: '11px', color: headerColor }}>{strip.sq || strip.squadron || ''}{aircraft.length > 1 ? ` ×${aircraft.length}` : ''}</span>
+                {/* Collapsed header: "callSign - N / squadron" */}
+                <div style={{ display: 'flex', alignItems: 'center', background: lightMode ? '#e2e8f0' : '#1e293b' }}>
+                  {/* Drag handle (whole strip) */}
+                  <div
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: sid, idx: -1 }); }}
+                    onDragEnd={() => setDragging(null)}
+                    title='גרור להעברת כל הפמ"מ'
+                    style={{ padding: '6px 6px 6px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', flex: 1, gap: '5px', minWidth: 0 }}>
+                    <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
+                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{callSign}</span>
+                    <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
+                    </span>
+                  </div>
+                  {/* Expand toggle */}
+                  <button onClick={toggleExpand}
+                    style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
+                    {isExpanded ? '▲' : '▼'}
+                  </button>
                 </div>
-                {/* Per-aircraft cards */}
-                {aircraft.map(ac => {
-                  const pt = points.find(p => p.id === ac.point_id);
-                  const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
-                  return (
-                    <div key={ac.idx}
-                      draggable
-                      onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); }}
-                      onDragEnd={() => setDragging(null)}
-                      style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, cursor: 'grab', display: 'flex', alignItems: 'center', gap: '6px', background: st.bg + '40', userSelect: 'none' }}>
-                      <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0', minWidth: '16px' }}>{ac.idx}</span>
-                      <div style={{ flex: 1, fontSize: '11px', color: headerColor }}>
-                        <div>{pt?.name || <span style={{ opacity: 0.4 }}>ללא נקודה</span>}</div>
-                      </div>
-                      <button onClick={() => handleAircraftStatusCycle(strip, ac.idx)}
-                        title={st.label}
-                        style={{ padding: '2px 6px', borderRadius: '10px', border: 'none', background: st.bg, color: st.color, fontSize: '10px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                        {st.label.split(' ').slice(-2).join(' ')}
-                      </button>
+
+                {/* Expanded aircraft rows */}
+                {isExpanded && (
+                  <div>
+                    {/* Formation header row */}
+                    <div style={{ padding: '3px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, display: 'flex', gap: '6px' }}>
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{callSign} {count}</span>
+                      {sq && <span>- {sq}</span>}
                     </div>
-                  );
-                })}
+                    {aircraft.map(ac => {
+                      const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
+                      const acRow = getAcRow(ac.idx);
+                      const acCallSign = `${callSign}${ac.idx}`;
+                      return (
+                        <div key={ac.idx}
+                          draggable
+                          onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: sid, idx: ac.idx }); }}
+                          onDragEnd={() => setDragging(null)}
+                          style={{ padding: '4px 8px', borderTop: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '5px', background: st.bg + '30', userSelect: 'none', cursor: 'grab' }}>
+                          <span style={{ opacity: 0.35, fontSize: '10px', flexShrink: 0 }}>⠿</span>
+                          {/* Call sign + datk */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap' }}>{acCallSign}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                              <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>דת"ק</span>
+                              <input type="number" min={1} max={9}
+                                value={acRow.datk ?? ''}
+                                onPointerDown={e => e.stopPropagation()}
+                                onDragStart={e => e.stopPropagation()}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => { const v = e.target.value === '' ? null : parseInt(e.target.value); onUpdateStripAircraft(sid, ac.idx, v, acRow.kipa); }}
+                                placeholder='—'
+                                style={{ width: '36px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', textAlign: 'center' }} />
+                              <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>כיפה</span>
+                              <input type="text"
+                                value={acRow.kipa ?? ''}
+                                onPointerDown={e => e.stopPropagation()}
+                                onDragStart={e => e.stopPropagation()}
+                                onClick={e => e.stopPropagation()}
+                                onChange={e => { onUpdateStripAircraft(sid, ac.idx, acRow.datk, e.target.value || null); }}
+                                placeholder='—'
+                                style={{ width: '44px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
+                            </div>
+                          </div>
+                          {/* Status button */}
+                          <button onClick={e => { e.stopPropagation(); handleAircraftStatusCycle(strip, ac.idx); }}
+                            title={st.label}
+                            style={{ padding: '2px 5px', borderRadius: '8px', border: 'none', background: st.bg, color: st.color, fontSize: '10px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {st.label.split(' ').slice(-2).join(' ')}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -6418,6 +6532,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
+  const [groundStripAircraft, setGroundStripAircraft] = useState<Record<string, GroundAircraftRow[]>>({});
   const neighbors = allSectors.slice(1);
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
@@ -7573,6 +7688,71 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     try {
       await fetch(`${API_URL}/strips/${stripId}/aircraft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aircraft_positions: aircraft }) });
       setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, aircraft_positions: aircraft } : s));
+    } catch (e) { console.error(e); }
+  };
+
+  // Load strip_aircraft for ground workstation strips
+  React.useEffect(() => {
+    if (!isGroundMode) return;
+    const groundStrips = strips.filter(s => s.workstation_preset_id === session?.presetId || myTableStrips.some((ms: any) => ms.id === s.id));
+    const ids = groundStrips.map((s: any) => s.id).filter(Boolean);
+    if (ids.length === 0) { setGroundStripAircraft({}); return; }
+    fetch(`${API_URL}/strip-aircraft?strip_ids=${ids.join(',')}`)
+      .then(r => r.json())
+      .then((rows: any[]) => {
+        const byStrip: Record<string, GroundAircraftRow[]> = {};
+        rows.forEach(r => {
+          const sid = String(r.strip_id);
+          if (!byStrip[sid]) byStrip[sid] = [];
+          byStrip[sid].push({ idx: r.idx, datk: r.datk, kipa: r.kipa });
+        });
+        setGroundStripAircraft(byStrip);
+      })
+      .catch(console.error);
+  }, [isGroundMode, strips.length, session?.presetId]);
+
+  // Debounce map for strip aircraft updates
+  const groundAircraftDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const handleUpdateStripAircraft = (stripId: string, idx: number, datk: number | null, kipa: string | null) => {
+    // Optimistic update
+    setGroundStripAircraft(prev => {
+      const rows = [...(prev[stripId] || [])];
+      const i = rows.findIndex(r => r.idx === idx);
+      if (i >= 0) rows[i] = { ...rows[i], datk, kipa };
+      else rows.push({ idx, datk, kipa });
+      return { ...prev, [stripId]: rows };
+    });
+    // Debounced persist
+    const key = `${stripId}|${idx}`;
+    if (groundAircraftDebounceRef.current[key]) clearTimeout(groundAircraftDebounceRef.current[key]);
+    groundAircraftDebounceRef.current[key] = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/strip-aircraft/${stripId}/${idx}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ datk, kipa })
+        });
+      } catch (e) { console.error(e); }
+    }, 600);
+  };
+
+  const handleCreateGroundStrip = async (callSign: string, sq: string, count: number) => {
+    try {
+      const body = {
+        callSign,
+        sq,
+        number_of_formation: count,
+        workstation_preset_id: session?.presetId || null,
+        sector_id: myPresetConfig?.relevant_sectors?.[0] || null
+      };
+      const res = await fetch(`${API_URL}/strips/ground-create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const newStrip = await res.json();
+      if (newStrip?.id) {
+        setStrips(prev => [...prev, newStrip]);
+        // Also init groundStripAircraft for the new strip with empty rows
+        const rows: GroundAircraftRow[] = Array.from({ length: count }, (_, i) => ({ idx: i + 1, datk: null, kipa: null }));
+        setGroundStripAircraft(prev => ({ ...prev, [String(newStrip.id)]: rows }));
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -8796,6 +8976,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onAcceptTransfer={handleAcceptTransfer}
                 onAcceptQueued={handleAcceptQueuedGround}
+                stripAircraftData={groundStripAircraft}
+                onUpdateStripAircraft={handleUpdateStripAircraft}
+                onCreateStrip={handleCreateGroundStrip}
+                currentPresetId={session?.presetId}
+                currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
               />
             );
           })()}

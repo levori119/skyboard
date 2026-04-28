@@ -613,6 +613,18 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips DROP CONSTRAINT IF EXISTS strips_workstation_preset_id_fkey`);
   await pool.query(`ALTER TABLE strips ADD CONSTRAINT strips_workstation_preset_id_fkey FOREIGN KEY (workstation_preset_id) REFERENCES workstation_presets(id) ON DELETE SET NULL`);
 
+  // strip_aircraft — per-aircraft datk/kipa data for ground workstation
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_aircraft (
+      id SERIAL PRIMARY KEY,
+      strip_id INTEGER REFERENCES strips(id) ON DELETE CASCADE,
+      idx INTEGER NOT NULL,
+      datk INTEGER,
+      kipa VARCHAR(100),
+      UNIQUE(strip_id, idx)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -2304,6 +2316,88 @@ app.put('/api/strips/:id/aircraft', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update strip aircraft data' });
+  }
+});
+
+// GET strip_aircraft for multiple strips: ?strip_ids=1,2,3
+app.get('/api/strip-aircraft', async (req, res) => {
+  try {
+    const ids = String(req.query.strip_ids || '').split(',').map(Number).filter(n => n > 0);
+    if (ids.length === 0) return res.json([]);
+    const result = await pool.query(
+      `SELECT * FROM strip_aircraft WHERE strip_id = ANY($1) ORDER BY strip_id, idx`,
+      [ids]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to get strip aircraft' });
+  }
+});
+
+// PUT single aircraft row datk/kipa
+app.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
+  try {
+    const stripId = parseInt(req.params.stripId);
+    const idx = parseInt(req.params.idx);
+    const { datk, kipa } = req.body;
+    await pool.query(
+      `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (strip_id, idx) DO UPDATE SET datk = EXCLUDED.datk, kipa = EXCLUDED.kipa`,
+      [stripId, idx, datk ?? null, kipa ?? null]
+    );
+    const result = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to update strip aircraft' });
+  }
+});
+
+// POST create a new strip directly from ground workstation
+app.post('/api/strips/ground-create', async (req, res) => {
+  try {
+    const { callSign, sq, number_of_formation, workstation_preset_id, sector_id } = req.body;
+    const count = Math.max(1, Math.min(parseInt(number_of_formation) || 1, 16));
+    const defaultPositions = Array.from({ length: count }, (_, i) => ({ idx: i + 1, point_id: null, status: 'none' }));
+    const result = await pool.query(
+      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, sector_id, status, in_table)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', true) RETURNING *`,
+      [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null]
+    );
+    const strip = result.rows[0];
+    // Auto-create strip_aircraft rows
+    for (let i = 1; i <= count; i++) {
+      await pool.query(
+        `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [strip.id, i]
+      );
+    }
+    res.json(strip);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create strip' });
+  }
+});
+
+// POST ensure strip_aircraft rows exist for a strip (idempotent)
+app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
+  try {
+    const stripId = parseInt(req.params.stripId);
+    const { count } = req.body;
+    const n = Math.max(1, Math.min(parseInt(count) || 1, 16));
+    for (let i = 1; i <= n; i++) {
+      await pool.query(
+        `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [stripId, i]
+      );
+    }
+    const result = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 ORDER BY idx', [stripId]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to ensure strip aircraft' });
   }
 });
 
