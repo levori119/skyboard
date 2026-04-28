@@ -4200,7 +4200,7 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
               const i = arr.indexOf(key);
               return i < 0 ? 0 : i;
             };
-            const SLOT_GAP = 24; // px between stacked chips (chip height ~22px + 2px gap)
+            const SLOT_GAP = 34; // px between stacked chips (~22px single-line, ~34px when sub-label present + 2px gap)
             return strips.map(strip => {
             const aircraft = getAircraftPositions(strip);
             const placed = aircraft.filter(ac => ac.point_id);
@@ -4234,10 +4234,19 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2.5px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
-                      <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
-                      <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
-                      {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
+                      style={{ background: st.bg, border: `2.5px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                        <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
+                        {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
+                      </div>
+                      {(() => {
+                        const rows = stripAircraftData[String(strip.id)] || [];
+                        const datkValues = acsAtPoint.map(a => rows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
+                        if (datkValues.length === 0) return null;
+                        const summary = datkValues.length === 1 ? `דת"ק ${datkValues[0]}` : `דת"ק ${datkValues.join(',')}`;
+                        return <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{summary}</span>;
+                      })()}
                     </div>
                     {isMenuOpen && (
                       <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
@@ -4271,10 +4280,20 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', gap: '5px', alignItems: 'center', cursor: 'pointer' }}>
-                      <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
-                      <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
-                      {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
+                      style={{ background: st.bg, border: `2px solid ${st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                        <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
+                        {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
+                      </div>
+                      {(() => {
+                        const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
+                        if (acRow?.datk == null && !acRow?.kipa) return null;
+                        const parts: string[] = [];
+                        if (acRow.datk != null) parts.push(`דת"ק ${acRow.datk}`);
+                        if (acRow.kipa) parts.push(acRow.kipa);
+                        return <span style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{parts.join(' | ')}</span>;
+                      })()}
                     </div>
                     {isMenuOpen && (
                       <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
