@@ -4968,7 +4968,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
   const recvPts: any[] = presetForm.classic_receive_points || [];
   const xferPts: any[] = presetForm.classic_transfer_points || [];
 
-  const otherClassic = presets.filter((wp: any) => wp.id !== editingPresetId && wp.preset_type === 'classic');
+  const otherClassic = presets.filter((wp: any) => wp.id !== editingPresetId && wp.preset_type !== 'ground');
   const presetById = (id: number) => presets.find((p: any) => Number(p.id) === Number(id));
   const sectorById = (id: number) => sectors.find((s: any) => Number(s.id) === Number(id));
 
@@ -5201,11 +5201,11 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
       {/* Section: directional partner stations */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-          <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות סטריפים שותפות (העברה ישירה):</label>
+          <label style={{ color: '#86efac', fontSize: '13px', fontWeight: 'bold' }}>📋 עמדות שותפות (העברה ישירה):</label>
           <button type="button" onClick={onShowHelp} title="עזרה: איך עובדות העברות בעמדת סטריפים?"
             style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #334155', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</button>
         </div>
-        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר.</p>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>סמן בנפרד מי שותפת קבלה (אני מקבל ממנה) ומי שותפת העברה (אני מעביר אליה). השינוי משתקף אוטומטית גם בהגדרות העמדה השנייה. גרור ≡ לשינוי סדר. רלוונטי לתצוגת סטריפים קלאסית.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <PartnerList ids={incomingIds} reorderApi={incomingReorder}
             onRemove={(pid: number) => setIncoming(incomingIds.filter(x => x !== pid))}
@@ -13938,56 +13938,33 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     ))}
                   </div>
                   {presetForm.display_mode === 'classic' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>תבנית עיצוב סטריפ:</label>
-                        <select value={presetForm.classic_strip_table_id}
-                          onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id: e.target.value }))}
-                          style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
-                          <option value="">— ללא תבנית —</option>
-                          {classicTables.map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
-                        </select>
-                        {classicTables.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#ef4444' }}>צור תבנית בלשונית "תצוגת סטריפים קלאסית"</p>}
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>נקודות קבלה (ממי מקבל):</label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                          {sectors.map((sec: any) => {
-                            const existing = presetForm.classic_receive_points.find(p => p.sector_id === sec.id);
-                            return (
-                              <button key={sec.id} onClick={() => setPresetForm(p => ({
-                                ...p, classic_receive_points: existing
-                                  ? p.classic_receive_points.filter(x => x.sector_id !== sec.id)
-                                  : [...p.classic_receive_points, { sector_id: sec.id, label: sec.label_he || sec.name }]
-                              }))}
-                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#22c55e' : '#334155'}`, background: existing ? '#14532d' : '#1e293b', color: existing ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                                {sec.label_he || sec.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>נקודות העברה (למי מעביר):</label>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                          {sectors.map((sec: any) => {
-                            const existing = presetForm.classic_transfer_points.find(p => p.sector_id === sec.id);
-                            return (
-                              <button key={sec.id} onClick={() => setPresetForm(p => ({
-                                ...p, classic_transfer_points: existing
-                                  ? p.classic_transfer_points.filter(x => x.sector_id !== sec.id)
-                                  : [...p.classic_transfer_points, { sector_id: sec.id, label: sec.label_he || sec.name }]
-                              }))}
-                                style={{ padding: '3px 10px', borderRadius: '4px', border: `1px solid ${existing ? '#f59e0b' : '#334155'}`, background: existing ? '#422006' : '#1e293b', color: existing ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                                {sec.label_he || sec.name}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#94a3b8', fontSize: '13px' }}>תבנית עיצוב סטריפ:</label>
+                      <select value={presetForm.classic_strip_table_id}
+                        onChange={e => setPresetForm(p => ({ ...p, classic_strip_table_id: e.target.value }))}
+                        style={{ padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', width: '100%' }}>
+                        <option value="">— ללא תבנית —</option>
+                        {classicTables.map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                      </select>
+                      {classicTables.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#ef4444' }}>צור תבנית בלשונית "תצוגת סטריפים קלאסית"</p>}
                     </div>
                   )}
                 </div>}
+
+                {/* Partners & transfer points — available for all non-ground preset types */}
+                {presetForm.preset_type !== 'classic' && presetForm.preset_type !== 'ground' && (
+                  <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <label style={{ color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🔀 עמדות שותפות ונקודות העברה</label>
+                    <ClassicPartnersAndPointsEditor
+                      presetForm={presetForm}
+                      setPresetForm={setPresetForm}
+                      presets={presets}
+                      sectors={sectors}
+                      editingPresetId={editingPreset?.id}
+                      onShowHelp={() => setShowClassicTransferHelp(true)}
+                    />
+                  </div>
+                )}
 
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
