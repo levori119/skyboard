@@ -4062,6 +4062,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       // ignore storage errors
     }
   }, [filterMode]);
+  const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
+  const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
+  }, []);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -4315,7 +4320,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
           {(datkFilter !== null || statusFilter.length > 0) && (
             <button
-              onClick={() => { setDatkFilter(null); setStatusFilter([]); setFilterMode('AND'); }}
+              onClick={() => {
+                setClearSnapshot({ datkFilter, statusFilter, filterMode });
+                setDatkFilter(null);
+                setStatusFilter([]);
+                setFilterMode('AND');
+                if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                undoTimerRef.current = setTimeout(() => {
+                  setClearSnapshot(null);
+                  undoTimerRef.current = null;
+                }, 6000);
+              }}
               title="נקה את כל הסינונים"
               style={{
                 padding: '2px 10px',
@@ -4332,6 +4347,34 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
             >
               נקה סינונים
+            </button>
+          )}
+          {clearSnapshot !== null && (
+            <button
+              onClick={() => {
+                if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+                setDatkFilter(clearSnapshot.datkFilter);
+                setStatusFilter(clearSnapshot.statusFilter);
+                setFilterMode(clearSnapshot.filterMode);
+                setClearSnapshot(null);
+              }}
+              title="בטל את ניקוי הסינונים"
+              style={{
+                padding: '2px 10px',
+                borderRadius: '12px',
+                border: '1px solid #f59e0b',
+                background: '#f59e0b',
+                color: '#fff',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                flexShrink: 0,
+                marginRight: 'auto',
+                animation: 'fadeIn 0.2s ease',
+              }}
+            >
+              בטל
             </button>
           )}
         </div>
