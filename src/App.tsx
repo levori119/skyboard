@@ -3725,6 +3725,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       // ignore storage errors
     }
   }, [datkFilter]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem('groundStatusFilter');
+      if (stored === null || stored === 'null') return null;
+      const validKeys = GROUND_STATUSES.map(s => s.key) as readonly string[];
+      return validKeys.includes(stored) ? stored : null;
+    } catch {
+      return null;
+    }
+  }); // status key to highlight; null = no filter
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('groundStatusFilter', String(statusFilter));
+    } catch {
+      // ignore storage errors
+    }
+  }, [statusFilter]);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -3978,6 +3995,60 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
         </div>
 
+        {/* status filter bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#dde4ed' : '#0a0f1a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
+          <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>סינון סטטוס:</span>
+          <button
+            onClick={() => setStatusFilter(null)}
+            style={{
+              padding: '2px 9px',
+              borderRadius: '12px',
+              border: statusFilter === null ? '2px solid #3b82f6' : `1px solid ${border}`,
+              background: statusFilter === null ? '#3b82f6' : (lightMode ? '#f8fafc' : '#1e293b'),
+              color: statusFilter === null ? '#fff' : headerColor,
+              fontSize: '11px',
+              fontWeight: statusFilter === null ? 'bold' : 'normal',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+          >
+            הכל
+          </button>
+          {GROUND_STATUSES.map(s => {
+            const active = statusFilter === s.key;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setStatusFilter(active ? null : s.key)}
+                style={{
+                  padding: '2px 9px',
+                  borderRadius: '12px',
+                  border: active ? `2px solid ${s.dot}` : `1px solid ${border}`,
+                  background: active ? s.bg : (lightMode ? '#f8fafc' : '#1e293b'),
+                  color: active ? s.color : headerColor,
+                  fontSize: '11px',
+                  fontWeight: active ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+              >
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: active ? s.dot : '#475569', display: 'inline-block', flexShrink: 0 }} />
+                {s.label.split('—')[0].trim()}
+              </button>
+            );
+          })}
+          {statusFilter !== null && (
+            <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '4px' }}>
+              — מדגיש סטטוס: {GROUND_STATUSES.find(s => s.key === statusFilter)?.label.split('—')[0].trim()}
+            </span>
+          )}
+        </div>
+
         <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
@@ -4098,9 +4169,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const stackOffset = slot * SLOT_GAP;
                 const mergedRows = stripAircraftData[String(strip.id)] || [];
                 const mergedDatkValues = acsAtPoint.map(a => mergedRows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
-                const mergedMatchesFilter = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
-                const mergedFilterOpacity = isDragging ? 0.4 : (datkFilter !== null && !mergedMatchesFilter ? 0.2 : 1);
-                const mergedHighlight = datkFilter !== null && mergedMatchesFilter;
+                const mergedMatchesDatk = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
+                const mergedMatchesStatus = statusFilter === null || acsAtPoint[0].status === statusFilter;
+                const mergedMatchesFilter = mergedMatchesDatk && mergedMatchesStatus;
+                const anyFilterActive = datkFilter !== null || statusFilter !== null;
+                const mergedFilterOpacity = isDragging ? 0.4 : (anyFilterActive && !mergedMatchesFilter ? 0.2 : 1);
+                const mergedHighlight = anyFilterActive && mergedMatchesFilter;
                 return (
                   <div key={`${strip.id}-all-${pid}`}
                     draggable
@@ -4146,9 +4220,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const stackOffset = slot * SLOT_GAP;
                 const pos = ptPos(pt.x_pct, pt.y_pct);
                 const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
-                const acMatchesFilter = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
-                const acFilterOpacity = isDragging ? 0.4 : (datkFilter !== null && !acMatchesFilter ? 0.2 : 1);
-                const acHighlight = datkFilter !== null && acMatchesFilter;
+                const acMatchesDatk = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
+                const acMatchesStatus = statusFilter === null || ac.status === statusFilter;
+                const acMatchesFilter = acMatchesDatk && acMatchesStatus;
+                const anyFilterActiveAc = datkFilter !== null || statusFilter !== null;
+                const acFilterOpacity = isDragging ? 0.4 : (anyFilterActiveAc && !acMatchesFilter ? 0.2 : 1);
+                const acHighlight = anyFilterActiveAc && acMatchesFilter;
                 return (
                   <div key={`${strip.id}-${ac.idx}`}
                     draggable
