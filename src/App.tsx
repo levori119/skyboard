@@ -7349,6 +7349,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
   handleTransferRef.current = handleTransfer;
 
+  const handleGroundTransfer = async (stripId: string, toSectorId: number, aircraftIdx?: number) => {
+    if (aircraftIdx === undefined) {
+      return handleTransfer(stripId, toSectorId);
+    }
+    try {
+      const res = await fetch(`${API_URL}/strip-aircraft/${stripId}/${aircraftIdx}`, { method: 'DELETE' });
+      const data = await res.json();
+      const remaining: number = data.numberOfFormation ?? 0;
+      // Remove aircraft from local groundStripAircraft state
+      setGroundStripAircraft(prev => {
+        const rows = (prev[String(stripId)] || []).filter(r => r.idx !== aircraftIdx);
+        return { ...prev, [String(stripId)]: rows };
+      });
+      // Update local strips state
+      setStrips(prev => prev.map(s => {
+        if (String(s.id) !== String(stripId)) return s;
+        return { ...s, numberOfFormation: String(remaining), aircraft_positions: data.aircraftPositions || [] };
+      }));
+      if (remaining <= 0) {
+        // Last aircraft — transfer the whole strip
+        await handleTransfer(stripId, toSectorId);
+      } else {
+        loadData();
+      }
+    } catch (err) {
+      console.error('Failed to remove single aircraft:', err);
+    }
+  };
+
   const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
@@ -8833,7 +8862,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 allSectors={allSectors}
                 presetSectors={presetSectors}
                 onUpdateAircraft={handleUpdateAircraft}
-                onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
+                onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}
                 stripAircraftData={groundStripAircraft}
                 onUpdateStripAircraft={handleUpdateStripAircraft}

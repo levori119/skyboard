@@ -2401,6 +2401,38 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   }
 });
 
+// DELETE single aircraft from a strip (ground mode single-aircraft transfer)
+app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
+  try {
+    const stripId = parseInt(req.params.stripId);
+    const idx = parseInt(req.params.idx);
+    // Remove the aircraft row
+    await pool.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [stripId, idx]);
+    // Remove this idx from aircraft_positions JSON array and decrement number_of_formation
+    const updated = await pool.query(
+      `UPDATE strips SET
+        aircraft_positions = (
+          SELECT COALESCE(jsonb_agg(elem ORDER BY (elem->>'idx')::int), '[]'::jsonb)
+          FROM jsonb_array_elements(COALESCE(aircraft_positions, '[]'::jsonb)) elem
+          WHERE (elem->>'idx')::int != $2
+        ),
+        number_of_formation = GREATEST(0, COALESCE(number_of_formation::int, 1) - 1)::text
+       WHERE id=$1
+       RETURNING id, number_of_formation, aircraft_positions`,
+      [stripId, idx]
+    );
+    const row = updated.rows[0];
+    res.json({
+      id: row.id,
+      numberOfFormation: parseInt(row.number_of_formation || '0') || 0,
+      aircraftPositions: row.aircraft_positions || []
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to remove aircraft' });
+  }
+});
+
 // Personal filters CRUD API
 app.get('/api/workstation-personal-filters', async (req, res) => {
   try {
