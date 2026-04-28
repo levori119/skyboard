@@ -3708,7 +3708,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
-  const [datkFilter, setDatkFilter] = useState<number | null>(null); // minimum datk to highlight; null = no filter
+  const [datkFilter, setDatkFilter] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem('datkFilter');
+      if (stored === null || stored === 'null') return null;
+      const parsed = Number(stored);
+      return isNaN(parsed) ? null : parsed;
+    } catch {
+      return null;
+    }
+  }); // minimum datk to highlight; null = no filter
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('datkFilter', String(datkFilter));
+    } catch {
+      // ignore storage errors
+    }
+  }, [datkFilter]);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
