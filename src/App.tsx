@@ -2775,7 +2775,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2846,6 +2846,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   // Block deviation detection (uses shared helper)
   const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId),
     [s.alt, s.workstation_preset_id, allBlocks, activeBlockTableId]);
+
+  // Altitude conflict with another map strip
+  const isAltConflict = mapConflictIds != null && mapConflictIds.has(String(s.id));
 
   // Sync local blockDeviation state when prop changes (e.g. after polling)
   useEffect(() => {
@@ -2986,7 +2989,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
+    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
       <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
         <button
@@ -3036,9 +3039,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         {/* שורה 3: גובה (גדול יותר) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
           <div ref={altRef} onClick={handleEditClick}
-            style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+            style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
             {s.alt ? `גובה: ${s.alt}` : '-'}
             {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
+            {isAltConflict && <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
           </div>
           {isBlockDeviation && !blockDeviation && (
             <button
@@ -3463,10 +3467,14 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       ? undefined
       : blockDeviation
         ? 'rgba(234, 88, 12, 0.15)'
-        : s.airborne ? '#dbeafe' : 'white',
+        : isAltConflict
+          ? 'rgba(127, 29, 29, 0.15)'
+          : s.airborne ? '#dbeafe' : 'white',
     border: (isBlockDeviation || blockDeviation)
       ? '2px solid #f97316'
-      : s.airborne ? '2px solid #3b82f6' : '2px solid black',
+      : isAltConflict
+        ? '2px solid #ef4444'
+        : s.airborne ? '2px solid #3b82f6' : '2px solid black',
     display: 'flex', flexDirection: 'row-reverse',
     marginBottom: '6px', touchAction: 'none'
   };
@@ -7295,6 +7303,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
     return result;
   }, [outgoingTransfers, incomingTransfers, myPresetConfig?.conflict_alt_delta]);
+  // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
+  // Any two strips within conflict_alt_delta of each other → both flagged.
+  const mapStripConflictIds = React.useMemo(() => {
+    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const result = new Set<string>();
+    if (delta <= 0) return result;
+    const parseAltVal = (alt: string | null | undefined): number | null => {
+      if (!alt) return null;
+      const m = alt.match(/\d+/);
+      return m ? parseInt(m[0]) : null;
+    };
+    const onMapStrips = strips.filter((s: any) => s.onMap && s.status === 'active');
+    for (let i = 0; i < onMapStrips.length; i++) {
+      const a = onMapStrips[i];
+      const altA = parseAltVal(a.alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < onMapStrips.length; j++) {
+        const b = onMapStrips[j];
+        const altB = parseAltVal(b.alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= delta) {
+          result.add(String(a.id));
+          result.add(String(b.id));
+        }
+      }
+    }
+    return result;
+  }, [strips, myPresetConfig?.conflict_alt_delta]);
+
   const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
@@ -10760,6 +10797,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 allBlocks={dashboardBlocks}
                 allWorkstationPresets={workstationPresets}
                 activeBlockTableId={activeBlockTableId}
+                mapConflictIds={mapStripConflictIds}
               />
             ))}
             
