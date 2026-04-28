@@ -1648,6 +1648,7 @@ const DraggableNeighborPanel = ({
   const delta = (neighbor as any).conflict_alt_delta ?? conflictAltDelta ?? 0;
   const conflictingTransferIds = new Set<string>();
   if (delta > 0) {
+    // Compare outgoing × incoming (cross-direction)
     for (const out of sectorOutgoing) {
       const outAlt = parseAlt(out.alt);
       if (outAlt == null) continue;
@@ -1657,6 +1658,32 @@ const DraggableNeighborPanel = ({
         if (Math.abs(outAlt - incAlt) * 100 <= delta) {
           conflictingTransferIds.add(String(out.id));
           conflictingTransferIds.add(String(inc.id));
+        }
+      }
+    }
+    // Compare outgoing × outgoing (same-direction — two strips going to same sector at similar altitude)
+    for (let i = 0; i < sectorOutgoing.length; i++) {
+      const altA = parseAlt(sectorOutgoing[i].alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < sectorOutgoing.length; j++) {
+        const altB = parseAlt(sectorOutgoing[j].alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= delta) {
+          conflictingTransferIds.add(String(sectorOutgoing[i].id));
+          conflictingTransferIds.add(String(sectorOutgoing[j].id));
+        }
+      }
+    }
+    // Compare incoming × incoming (same-direction)
+    for (let i = 0; i < sectorIncoming.length; i++) {
+      const altA = parseAlt(sectorIncoming[i].alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < sectorIncoming.length; j++) {
+        const altB = parseAlt(sectorIncoming[j].alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= delta) {
+          conflictingTransferIds.add(String(sectorIncoming[i].id));
+          conflictingTransferIds.add(String(sectorIncoming[j].id));
         }
       }
     }
@@ -2285,6 +2312,7 @@ const DraggableMapMarker = ({
   const markerConflictIds = new Set<string>();
   // conflictAltDelta is in feet; altitudes are in hundreds → multiply diff by 100
   if (conflictAltDelta > 0) {
+    // Compare outgoing × incoming (cross-direction)
     for (const out of markerOutgoing) {
       const outAlt = parseAlt(out.alt);
       if (outAlt == null) continue;
@@ -2294,6 +2322,32 @@ const DraggableMapMarker = ({
         if (Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(out.id));
           markerConflictIds.add(String(inc.id));
+        }
+      }
+    }
+    // Compare outgoing × outgoing (same-direction — two strips going to same marker at similar altitude)
+    for (let i = 0; i < markerOutgoing.length; i++) {
+      const altA = parseAlt(markerOutgoing[i].alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < markerOutgoing.length; j++) {
+        const altB = parseAlt(markerOutgoing[j].alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+          markerConflictIds.add(String(markerOutgoing[i].id));
+          markerConflictIds.add(String(markerOutgoing[j].id));
+        }
+      }
+    }
+    // Compare incoming × incoming (same-direction)
+    for (let i = 0; i < markerIncoming.length; i++) {
+      const altA = parseAlt(markerIncoming[i].alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < markerIncoming.length; j++) {
+        const altB = parseAlt(markerIncoming[j].alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+          markerConflictIds.add(String(markerIncoming[i].id));
+          markerConflictIds.add(String(markerIncoming[j].id));
         }
       }
     }
