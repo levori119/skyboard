@@ -5,6 +5,22 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
+@keyframes undoTimerBar {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+.undo-timer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 0 0 12px 12px;
+  animation: undoTimerBar linear forwards;
+  pointer-events: none;
+}
+
 @keyframes groundTakeoffFlash {
   0%, 100% { box-shadow: 0 0 6px 2px #ef444488, 0 2px 6px rgba(0,0,0,0.5); border-color: #ef4444; }
   50% { box-shadow: 0 0 16px 6px #ef4444cc, 0 2px 10px rgba(0,0,0,0.7); border-color: #ff6b6b; }

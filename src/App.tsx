@@ -4032,6 +4032,8 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
+const UNDO_CLEAR_TIMEOUT_MS = 6000;
+
 const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
   strips: any[];
   incomingTransfers: any[];
@@ -4383,7 +4385,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 undoTimerRef.current = setTimeout(() => {
                   setClearSnapshot(null);
                   undoTimerRef.current = null;
-                }, 6000);
+                }, UNDO_CLEAR_TIMEOUT_MS);
               }}
               title="נקה את כל הסינונים"
               style={{
@@ -4414,6 +4416,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
               title="בטל את ניקוי הסינונים"
               style={{
+                position: 'relative',
+                overflow: 'hidden',
                 padding: '2px 10px',
                 borderRadius: '12px',
                 border: '1px solid #f59e0b',
@@ -4429,6 +4433,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
             >
               בטל
+              <div className="undo-timer-bar" style={{ animationDuration: `${UNDO_CLEAR_TIMEOUT_MS}ms` }} />
             </button>
           )}
         </div>
