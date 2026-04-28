@@ -10486,7 +10486,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
           {!sidebarPinned && (() => {
-            const closedCount = tableMode
+            const closedCount = (!isGroundMode && tableMode)
               ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
               : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
@@ -10515,7 +10515,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             ) : null;
           })()}
-          {sidebarPinned && (tableMode ? (
+          {sidebarPinned && (!isGroundMode && tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
