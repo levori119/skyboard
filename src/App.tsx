@@ -3812,7 +3812,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onAcceptTransfer: (transferId: string) => void;
   stripAircraftData: Record<string, GroundAircraftRow[]>;
   onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
-  onCreateStrip: (callSign: string, sq: string, count: number) => Promise<void>;
+  onCreateStrip: (callSign: string, sq: string, count: number, sectorId: number | null) => Promise<void>;
   currentPresetId?: number | null;
   currentSectorId?: number | null;
 }) => {
@@ -3824,7 +3824,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [showNewStripModal, setShowNewStripModal] = useState(false);
-  const [newStripForm, setNewStripForm] = useState({ callSign: '', sq: '', count: 1 });
+  const [newStripForm, setNewStripForm] = useState<{ callSign: string; sq: string; count: number; sectorId: number | null }>({ callSign: '', sq: '', count: 1, sectorId: null });
   const [newStripSaving, setNewStripSaving] = useState(false);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
@@ -3902,7 +3902,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         {/* Header + new strip button */}
         <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
           <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
-          <button onClick={() => { setNewStripForm({ callSign: '', sq: '', count: 1 }); setShowNewStripModal(true); }}
+          <button onClick={() => { setNewStripForm({ callSign: '', sq: '', count: 1, sectorId: presetSectors[0] ?? null }); setShowNewStripModal(true); }}
             style={{ padding: '3px 9px', borderRadius: '6px', border: 'none', background: '#0ea5e9', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
             + פמ"מ
           </button>
@@ -3927,14 +3927,25 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   placeholder='לדוגמה: 119'
                   style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
               </div>
-              <div style={{ marginBottom: '16px' }}>
+              <div style={{ marginBottom: presetSectors.length > 1 ? '10px' : '16px' }}>
                 <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>כמות מטוסים</label>
                 <input type="number" min={1} max={16} value={newStripForm.count} onChange={e => setNewStripForm(f => ({ ...f, count: Math.max(1, Math.min(16, parseInt(e.target.value) || 1)) }))}
                   style={{ width: '80px', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px' }} />
               </div>
+              {presetSectors.length > 1 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>סקטור</label>
+                  <select value={newStripForm.sectorId ?? ''} onChange={e => setNewStripForm(f => ({ ...f, sectorId: e.target.value ? Number(e.target.value) : null }))}
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }}>
+                    {allSectors.filter(s => presetSectors.includes(s.id)).map(s => (
+                      <option key={s.id} value={s.id}>{s.name || s.id}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                 <button disabled={newStripSaving || !newStripForm.callSign.trim()}
-                  onClick={async () => { setNewStripSaving(true); try { await onCreateStrip(newStripForm.callSign.trim(), newStripForm.sq.trim(), newStripForm.count); setShowNewStripModal(false); } finally { setNewStripSaving(false); } }}
+                  onClick={async () => { setNewStripSaving(true); try { await onCreateStrip(newStripForm.callSign.trim(), newStripForm.sq.trim(), newStripForm.count, newStripForm.sectorId); setShowNewStripModal(false); } finally { setNewStripSaving(false); } }}
                   style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 'bold', fontSize: '13px', cursor: newStripSaving ? 'wait' : 'pointer', opacity: !newStripForm.callSign.trim() ? 0.5 : 1 }}>
                   {newStripSaving ? '...' : 'צור פמ"מ'}
                 </button>
@@ -7712,14 +7723,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 600);
   };
 
-  const handleCreateGroundStrip = async (callSign: string, sq: string, count: number) => {
+  const handleCreateGroundStrip = async (callSign: string, sq: string, count: number, sectorId: number | null) => {
     try {
       const body = {
         callSign,
         sq,
         number_of_formation: count,
         workstation_preset_id: session?.presetId || null,
-        sector_id: myPresetConfig?.relevant_sectors?.[0] || null
+        sector_id: sectorId ?? myPresetConfig?.relevant_sectors?.[0] ?? null
       };
       const res = await fetch(`${API_URL}/strips/ground-create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const newStrip = await res.json();
