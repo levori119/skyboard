@@ -3743,19 +3743,28 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       // ignore storage errors
     }
   }, [datkFilter]);
-  const [statusFilter, setStatusFilter] = useState<string | null>(() => {
+  const [statusFilter, setStatusFilter] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('groundStatusFilter');
-      if (stored === null || stored === 'null') return null;
+      if (!stored || stored === 'null') return [];
       const validKeys = GROUND_STATUSES.map(s => s.key) as readonly string[];
-      return validKeys.includes(stored) ? stored : null;
+      // Legacy format: plain string key stored without JSON encoding
+      if (!stored.startsWith('[') && !stored.startsWith('"')) {
+        return validKeys.includes(stored) ? [stored] : [];
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return [...new Set(parsed.filter((k: unknown) => typeof k === 'string' && validKeys.includes(k as string)))] as string[];
+      }
+      if (typeof parsed === 'string' && validKeys.includes(parsed)) return [parsed];
+      return [];
     } catch {
-      return null;
+      return [];
     }
-  }); // status key to highlight; null = no filter
+  }); // set of status keys to highlight; empty = no filter
   React.useEffect(() => {
     try {
-      localStorage.setItem('groundStatusFilter', String(statusFilter));
+      localStorage.setItem('groundStatusFilter', JSON.stringify(statusFilter));
     } catch {
       // ignore storage errors
     }
@@ -4032,15 +4041,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#dde4ed' : '#0a0f1a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
           <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>סינון סטטוס:</span>
           <button
-            onClick={() => setStatusFilter(null)}
+            onClick={() => setStatusFilter([])}
             style={{
               padding: '2px 9px',
               borderRadius: '12px',
-              border: statusFilter === null ? '2px solid #3b82f6' : `1px solid ${border}`,
-              background: statusFilter === null ? '#3b82f6' : (lightMode ? '#f8fafc' : '#1e293b'),
-              color: statusFilter === null ? '#fff' : headerColor,
+              border: statusFilter.length === 0 ? '2px solid #3b82f6' : `1px solid ${border}`,
+              background: statusFilter.length === 0 ? '#3b82f6' : (lightMode ? '#f8fafc' : '#1e293b'),
+              color: statusFilter.length === 0 ? '#fff' : headerColor,
               fontSize: '11px',
-              fontWeight: statusFilter === null ? 'bold' : 'normal',
+              fontWeight: statusFilter.length === 0 ? 'bold' : 'normal',
               cursor: 'pointer',
               transition: 'all 0.15s',
               flexShrink: 0,
@@ -4049,11 +4058,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             הכל
           </button>
           {GROUND_STATUSES.map(s => {
-            const active = statusFilter === s.key;
+            const active = statusFilter.includes(s.key);
             return (
               <button
                 key={s.key}
-                onClick={() => setStatusFilter(active ? null : s.key)}
+                onClick={() => setStatusFilter(prev => active ? prev.filter(k => k !== s.key) : [...prev, s.key])}
                 style={{
                   padding: '2px 9px',
                   borderRadius: '12px',
@@ -4075,15 +4084,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               </button>
             );
           })}
-          {statusFilter !== null && (
+          {statusFilter.length > 0 && (
             <span style={{ fontSize: '10px', color: '#94a3b8', marginRight: '4px' }}>
-              — מדגיש סטטוס: {GROUND_STATUSES.find(s => s.key === statusFilter)?.label.split('—')[0].trim()}
+              — מדגיש סטטוס: {statusFilter.map(k => GROUND_STATUSES.find(s => s.key === k)?.label.split('—')[0].trim()).join(', ')}
             </span>
           )}
         </div>
 
         {/* AND / OR combination toggle — only shown when both filters are active */}
-        {datkFilter !== null && statusFilter !== null && (
+        {datkFilter !== null && statusFilter.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: lightMode ? '#f0f4f8' : '#060d18', borderBottom: `1px solid ${border}`, flexShrink: 0, direction: 'rtl' }}>
             <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>שילוב סינונים:</span>
             {(['AND', 'OR'] as const).map(mode => {
@@ -4237,11 +4246,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const mergedRows = stripAircraftData[String(strip.id)] || [];
                 const mergedDatkValues = acsAtPoint.map(a => mergedRows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
                 const mergedMatchesDatk = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
-                const mergedMatchesStatus = statusFilter === null || acsAtPoint[0].status === statusFilter;
-                const mergedMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter !== null)
+                const mergedMatchesStatus = statusFilter.length === 0 || statusFilter.includes(acsAtPoint[0].status);
+                const mergedMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter.length > 0)
                   ? mergedMatchesDatk || mergedMatchesStatus
                   : mergedMatchesDatk && mergedMatchesStatus;
-                const anyFilterActive = datkFilter !== null || statusFilter !== null;
+                const anyFilterActive = datkFilter !== null || statusFilter.length > 0;
                 const mergedFilterOpacity = isDragging ? 0.4 : (anyFilterActive && !mergedMatchesFilter ? 0.2 : 1);
                 const mergedHighlight = anyFilterActive && mergedMatchesFilter;
                 return (
@@ -4290,11 +4299,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const pos = ptPos(pt.x_pct, pt.y_pct);
                 const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
                 const acMatchesDatk = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
-                const acMatchesStatus = statusFilter === null || ac.status === statusFilter;
-                const acMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter !== null)
+                const acMatchesStatus = statusFilter.length === 0 || statusFilter.includes(ac.status);
+                const acMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter.length > 0)
                   ? acMatchesDatk || acMatchesStatus
                   : acMatchesDatk && acMatchesStatus;
-                const anyFilterActiveAc = datkFilter !== null || statusFilter !== null;
+                const anyFilterActiveAc = datkFilter !== null || statusFilter.length > 0;
                 const acFilterOpacity = isDragging ? 0.4 : (anyFilterActiveAc && !acMatchesFilter ? 0.2 : 1);
                 const acHighlight = anyFilterActiveAc && acMatchesFilter;
                 return (
