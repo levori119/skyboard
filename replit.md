@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 - **Session Management**: Client-side storage for workstation and crew context.
 - **UI/UX Enhancements**: Light/dark mode, dynamic table views with grouping and sorting, battle zone visualization with polygon overlays.
 - **Workstation Load Management**: Visual indicators and thresholds for workstation load.
-- **Query-Based Filtering**: Tree-based visual query builder for both admin and personal configurations.
+- **Query-Based Filtering**: Tree-based visual query builder for both admin and personal configurations. Strips appear in workstations based on transfer logic or preset filter queries — there is no central "distribution" screen. Admin filter queries are pre-populated in the personal filter panel; edits can be applied session-only (not persisted) via the "⚡ החל לסשן" button.
 - **Collaborative Tools**: Work groups with shared sticky notes and configurable workstation aids.
 - **Serials Management**: Import, display, and association of serials with strips, including outdated serial detection.
 - **Altitude Conflict Detection**: Flags potential altitude conflicts between transfers with visual indicators.

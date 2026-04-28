@@ -149,7 +149,7 @@ const clearSession = () => {
 };
 
 // --- רכיב כניסה לעמדה ---
-const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void; onDistribution?: () => void }) => {
+const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: WorkstationSession) => void; onManagement?: (cm: CrewMember, mode: 'admin' | 'team_lead') => void }) => {
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedSector, setSelectedSector] = useState<number | null>(null);
   const [workstationName, setWorkstationName] = useState('');
@@ -518,29 +518,6 @@ const WorkstationLogin = ({ onLogin, onManagement, onDistribution }: { onLogin: 
                 התאמת כתב יד
               </button>
               
-              {selectedCrewMember.is_admin && onDistribution && (
-                <button
-                  onClick={onDistribution}
-                  style={{
-                    padding: '20px',
-                    background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '12px',
-                    fontSize: '18px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.4)'
-                  }}
-                >
-                  <span style={{ fontSize: '24px' }}>📋</span>
-                  חלוקה כללית
-                </button>
-              )}
               
               {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && onManagement && (
                 <button
@@ -3821,9 +3798,8 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 
-const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onAcceptQueued, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId }: {
   strips: any[];
-  queuedStrips?: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
   airfield: any | null;
@@ -3834,7 +3810,6 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
   onUpdateAircraft: (stripId: string, aircraft: AircraftPos[]) => void;
   onTransfer: (stripId: string, toSectorId: number, aircraftIdx?: number) => void;
   onAcceptTransfer: (transferId: string) => void;
-  onAcceptQueued?: (stripId: string) => void;
   stripAircraftData: Record<string, GroundAircraftRow[]>;
   onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
   onCreateStrip: (callSign: string, sq: string, count: number) => Promise<void>;
@@ -3972,19 +3947,6 @@ const GroundView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers
           </div>
         )}
 
-        {/* Queued strips zone */}
-        {(queuedStrips || []).length > 0 && (
-          <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#fefce8' : '#1a1a0a', flexShrink: 0 }}>
-            <div style={{ fontSize: '11px', color: '#eab308', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📨 ממחלק ({(queuedStrips || []).length})</div>
-            {(queuedStrips || []).map((s: any) => (
-              <div key={s.id} onClick={() => onAcceptQueued && onAcceptQueued(String(s.id))}
-                style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#fef9c3' : '#2a2800', color: lightMode ? '#713f12' : '#fde047', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold' }}>{s.callSign || s.callsign || '?'}</span>
-                <span style={{ fontSize: '10px', opacity: 0.7 }}>לחץ לקבל</span>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Incoming transfers zone */}
         {incomingTransfers.length > 0 && (
@@ -4908,8 +4870,8 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
   );
 };
 
-const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onAcceptQueued, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
-  strips: any[]; queuedStrips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
+  strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
   allSectors: any[]; lightMode: boolean;
@@ -4917,7 +4879,6 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   onTransfer: (stripId: string, toSectorId: number) => void;
   onTransferToPreset?: (stripId: string, toPresetId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
-  onAcceptQueued: (stripId: string) => void;
   onUpdateStripField: (stripId: string, field: string, value: string) => void;
   onCancelTransfer?: (transferId: string) => void;
   onMoveTransfer?: (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => void;
@@ -4926,7 +4887,6 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
   const [draggingStripId, setDraggingStripId] = useState<string | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
-  const [draggingQueuedId, setDraggingQueuedId] = useState<string | null>(null);
   // For dragging an already-transferred outgoing strip between transfer points / partner stations.
   const [draggingTransferMoveId, setDraggingTransferMoveId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'mine' | number | string | null>(null);
@@ -5171,11 +5131,10 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
         onDrop={e => {
           e.preventDefault(); setDropTarget(null);
           if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); }
-          else if (draggingQueuedId) { onAcceptQueued(draggingQueuedId); setDraggingQueuedId(null); }
         }}
       >
         <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' && (draggingTransferId || draggingQueuedId) ? '← שחרר לקבל' : ''}
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' && draggingTransferId ? '← שחרר לקבל' : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {!classicStripTable && (
@@ -5197,37 +5156,22 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
 
       {/* LEFT panel — Receive (ממי מקבל) */}
       <div style={PANEL_STYLE}>
-        <div style={PANEL_HDR}>📥 ממי מקבל ({queuedStrips.length + incomingTransfers.length})</div>
+        <div style={PANEL_HDR}>📥 ממי מקבל ({incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
             const partners = isPresetMode ? (partnerPresets || []) : [];
             const sectorPts = receivePoints || [];
             const showPartners = partners.length > 0;
             const showSectorPts = sectorPts.length > 0;
-            const showQueued = queuedStrips.length > 0;
-            const nothing = !showPartners && !showSectorPts && !showQueued;
+            const nothing = !showPartners && !showSectorPts;
             if (nothing) {
               return <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>לא הוגדרו מקורות קבלה</div>;
             }
             return (
               <>
-                {showQueued && (
-                  <div style={{ marginBottom: '6px' }}>
-                    <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', borderBottom: `1px solid ${border}` }}>
-                      📨 מחלק ({queuedStrips.length})
-                    </div>
-                    <div style={{ padding: '3px' }}>
-                      {queuedStrips.map((s: any) => (
-                        <div key={s.id} draggable onDragStart={() => setDraggingQueuedId(String(s.id))} onDragEnd={() => setDraggingQueuedId(null)}>
-                          <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingQueuedId === String(s.id)} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 {showPartners && (
                   <>
-                    {(showSectorPts || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
+                    {showSectorPts && <div style={{ ...SEC_HDR, background: lightMode ? '#dcfce7' : '#14532d', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', marginBottom: '4px' }}>📋 עמדות סטריפים</div>}
                     {applyOrder(partners, (p: any) => Number(p.id), savedOrder.leftPartners).map((pp: any) => {
                       const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'partner';
@@ -5267,7 +5211,7 @@ const ClassicView = ({ strips, queuedStrips, incomingTransfers, outgoingTransfer
                 )}
                 {showSectorPts && (
                   <>
-                    {(showPartners || showQueued) && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות קבלה</div>}
+                    {showPartners && <div style={{ ...SEC_HDR, background: lightMode ? '#fef3c7' : '#451a03', color: lightMode ? '#92400e' : '#fcd34d', fontSize: '10px', marginTop: '8px', marginBottom: '4px' }}>📍 נקודות קבלה</div>}
                     {applyOrder(sectorPts, (s: any) => Number(s.sector_id), savedOrder.leftPoints).map((pt: any) => {
                       const ptT = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.from_preset_id);
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'point';
@@ -8990,19 +8934,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
-            const groundQueuedStrips = strips.filter(s =>
-              Number(s.workstation_preset_id) === Number(session.presetId) &&
-              s.status === 'queued' &&
-              !s.inTable && !s.onMap
-            );
-            const handleAcceptQueuedGround = async (stripId: string) => {
-              await fetch(`${API_URL}/strips/${stripId}/accept-queued`, { method: 'POST' });
-              loadData();
-            };
             return (
               <GroundView
                 strips={myGroundStrips}
-                queuedStrips={groundQueuedStrips}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}
                 airfield={activeAirfield}
@@ -9013,7 +8947,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateAircraft={handleUpdateAircraft}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onAcceptTransfer={handleAcceptTransfer}
-                onAcceptQueued={handleAcceptQueuedGround}
                 stripAircraftData={groundStripAircraft}
                 onUpdateStripAircraft={handleUpdateStripAircraft}
                 onCreateStrip={handleCreateGroundStrip}
@@ -9048,21 +8981,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             // Center panel strips: if new classic mode, ALL strips filtered by query; otherwise workstation-assigned
             const classicCenterStrips = isNewClassic
               ? allStripsForClassic.filter((s: any) => s.status !== 'pending_transfer' && (!effectiveFilter || evaluateQuery(s, effectiveFilter)))
-              : myTableStrips.filter((s: any) => s.status !== 'queued' && s.status !== 'pending_transfer');
-            // Queued strips for receive panel (distribution-based, non-new-classic only)
-            const classicQueued = isNewClassic ? [] : strips.filter((s: any) =>
-              Number(s.workstation_preset_id) === Number(session.presetId) &&
-              s.status === 'queued' &&
-              !s.inTable && !s.onMap
-            );
-            const handleAcceptQueued = async (stripId: string) => {
-              await fetch(`${API_URL}/strips/${stripId}/accept-queued`, { method: 'POST' });
-              loadData();
-            };
+              : myTableStrips.filter((s: any) => s.status !== 'pending_transfer');
             return (
               <ClassicView
                 strips={classicCenterStrips}
-                queuedStrips={classicQueued}
                 incomingTransfers={isNewClassic ? classicIncomingTransfers : incomingTransfers}
                 outgoingTransfers={isNewClassic ? classicOutgoingTransfers : outgoingTransfers}
                 classicStripTable={classicTable}
@@ -9075,7 +8997,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
-                onAcceptQueued={handleAcceptQueued}
                 onUpdateStripField={handleUpdateStripField}
                 onCancelTransfer={handleCancelTransfer}
                 onMoveTransfer={handleMoveTransfer}
@@ -11457,747 +11378,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   );
 };
 
-// --- מסך חלוקה כללית ---
-const StripDistribution = ({ onBack }: { onBack: () => void }) => {
-  const [strips, setStrips] = useState<any[]>([]);
-  const [presets, setPresets] = useState<any[]>([]);
-  const [newStrip, setNewStrip] = useState({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '', block_space_id: '' as string | number });
-  const [newStripSerials, setNewStripSerials] = useState<Record<string, number | null>>({});
-  const [allSerials, setAllSerials] = useState<any[]>([]);
-  const [expandedStripId, setExpandedStripId] = useState<string | null>(null);
-  const [stripDetails, setStripDetails] = useState<Record<string, { weapons: {type:string;quantity:string}[]; targets: {name:string;aim_point:string}[]; systems: {name:string}[]; shkadia: string }>>({});
-  const [savingStripId, setSavingStripId] = useState<string | null>(null);
-  const [savedStripId, setSavedStripId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [allBlockSpaces, setAllBlockSpaces] = useState<any[]>([]);
-  const [allBlockTables, setAllBlockTables] = useState<any[]>([]);
-  const [allBlocks, setAllBlocks] = useState<any[]>([]);
-
-  const loadData = async () => {
-    try {
-      const [stripsRes, presetsRes, serialsRes, blockSpacesRes, blockTablesRes, blocksRes] = await Promise.all([
-        fetch(`${API_URL}/strips/all`),
-        fetch(`${API_URL}/workstation-presets`),
-        fetch(`${API_URL}/serials`),
-        fetch(`${API_URL}/block-spaces`),
-        fetch(`${API_URL}/block-tables`),
-        fetch(`${API_URL}/blocks`)
-      ]);
-      if (stripsRes.ok) setStrips(await stripsRes.json());
-      if (presetsRes.ok) setPresets(await presetsRes.json());
-      if (serialsRes.ok) setAllSerials(await serialsRes.json());
-      if (blockSpacesRes.ok) setAllBlockSpaces(await blockSpacesRes.json());
-      if (blockTablesRes.ok) setAllBlockTables(await blockTablesRes.json());
-      if (blocksRes.ok) setAllBlocks(await blocksRes.json());
-    } catch (err) {
-      console.error('Failed to load:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const assignStripToWorkstation = async (stripId: string, workstationPresetId: number | null) => {
-    try {
-      await fetch(`${API_URL}/strips/${stripId}/assign-workstation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workstationPresetId })
-      });
-      await loadData();
-    } catch (err) {
-      console.error('Failed to assign strip:', err);
-    }
-  };
-
-  const createStrip = async () => {
-    if (!newStrip.callSign.trim()) return;
-    try {
-      const res = await fetch(`${API_URL}/strips`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newStrip,
-          sectorId: null,
-          takeoff_time: newStrip.takeoff_time || null
-        })
-      });
-      if (res.ok) {
-        const { id: newId } = await res.json();
-        // Apply serial selections
-        for (const [controlStation, serialId] of Object.entries(newStripSerials)) {
-          if (serialId) {
-            await fetch(`${API_URL}/strip-serial-selections`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ strip_id: newId, control_station: controlStation, serial_id: serialId, dismissed: false })
-            });
-          }
-        }
-      }
-      setNewStrip({ callSign: '', sq: '', alt: '', task: '', squadron: '', takeoff_time: '', numberOfFormation: '', erka: '', koteret: '', mivtza: '', block_space_id: '' });
-      setNewStripSerials({});
-      loadData();
-    } catch (err) {
-      console.error('Failed to create strip:', err);
-    }
-  };
-
-  const deleteStrip = async (stripId: string) => {
-    try {
-      await fetch(`${API_URL}/strips/${stripId}`, { method: 'DELETE' });
-      loadData();
-    } catch (err) {
-      console.error('Failed to delete strip:', err);
-    }
-  };
-
-  const updateStripInline = async (stripId: string, fields: Record<string, any>) => {
-    setStrips(prev => prev.map(s => s.id === stripId ? { ...s, ...fields } : s));
-    try {
-      await fetch(`${API_URL}/strips/${stripId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(fields)
-      });
-    } catch (err) {
-      console.error('Failed to update strip:', err);
-      loadData();
-    }
-  };
-
-  const [editingTakeoffId, setEditingTakeoffId] = useState<string | null>(null);
-
-  const toggleExpandStrip = (strip: any) => {
-    if (expandedStripId === strip.id) {
-      setExpandedStripId(null);
-    } else {
-      setExpandedStripId(strip.id);
-      if (!stripDetails[strip.id]) {
-        setStripDetails(prev => ({
-          ...prev,
-          [strip.id]: {
-            weapons: strip.weapons || [],
-            targets: strip.targets || [],
-            systems: strip.systems || [],
-            shkadia: strip.shkadia || ''
-          }
-        }));
-      }
-    }
-  };
-
-  const updateDetail = (stripId: string, field: string, value: any) => {
-    setStripDetails(prev => ({ ...prev, [stripId]: { ...prev[stripId], [field]: value } }));
-  };
-
-  const saveStripDetails = async (stripId: string) => {
-    const details = stripDetails[stripId];
-    if (!details) return;
-    setSavingStripId(stripId);
-    setSavedStripId(null);
-    setSaveError(null);
-    try {
-      const res = await fetch(`${API_URL}/strips/${stripId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(details)
-      });
-      if (!res.ok) throw new Error('Server error');
-      setSavedStripId(stripId);
-      setTimeout(() => setSavedStripId(null), 2500);
-      await loadData();
-    } catch (err) {
-      console.error('Failed to save strip details:', err);
-      setSaveError(stripId);
-      setTimeout(() => setSaveError(null), 3000);
-    } finally {
-      setSavingStripId(null);
-    }
-  };
-
-  const unassignedStrips = strips.filter(s => !s.workstation_preset_id || s.workstation_preset_id === null);
-
-  const [randomizing, setRandomizing] = useState(false);
-  const [randomizingTimes, setRandomizingTimes] = useState(false);
-  const [distributingAll, setDistributingAll] = useState(false);
-
-  const randomizeTakeoffTimes = async () => {
-    if (strips.length === 0) return;
-    setRandomizingTimes(true);
-    try {
-      const now = Date.now();
-      await Promise.all(
-        strips.map(strip => {
-          const randomMs = Math.floor(Math.random() * 60 * 60 * 1000);
-          const takeoffTime = new Date(now + randomMs).toISOString();
-          return fetch(`${API_URL}/strips/${strip.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ takeoff_time: takeoffTime })
-          });
-        })
-      );
-      await loadData();
-    } catch (err) {
-      console.error('Failed to randomize takeoff times:', err);
-    } finally {
-      setRandomizingTimes(false);
-    }
-  };
-
-  const randomDistribute = async () => {
-    if (unassignedStrips.length === 0 || presets.length === 0) return;
-    setRandomizing(true);
-    try {
-      const shuffled = [...unassignedStrips].sort(() => Math.random() - 0.5);
-      const assignments: { stripId: string; presetId: number }[] = shuffled.map((strip, idx) => ({
-        stripId: strip.id,
-        presetId: presets[idx % presets.length].id
-      }));
-      await Promise.all(
-        assignments.map(({ stripId, presetId }) =>
-          fetch(`${API_URL}/strips/${stripId}/assign-workstation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workstationPresetId: presetId })
-          })
-        )
-      );
-      await loadData();
-    } catch (err) {
-      console.error('Failed to randomly distribute:', err);
-    } finally {
-      setRandomizing(false);
-    }
-  };
-
-  const distributeAllEqually = async () => {
-    if (strips.length === 0 || presets.length === 0) return;
-    if (!confirm(`לחלק את כל ${strips.length} הפמ"מים בשווה בין ${presets.length} עמדות?`)) return;
-    setDistributingAll(true);
-    try {
-      const shuffled = [...strips].sort(() => Math.random() - 0.5);
-      await Promise.all(
-        shuffled.map((strip, idx) =>
-          fetch(`${API_URL}/strips/${strip.id}/assign-workstation`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workstationPresetId: presets[idx % presets.length].id })
-          })
-        )
-      );
-      await loadData();
-    } catch (err) {
-      console.error('Failed to distribute all:', err);
-    } finally {
-      setDistributingAll(false);
-    }
-  };
-
-  return (
-    <div style={{ height: '100vh', background: '#0f172a', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-      <header style={{ padding: '15px 30px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <h1 style={{ margin: 0, color: 'white', fontSize: '24px' }}>חלוקה כללית</h1>
-          <span style={{ color: '#94a3b8', fontSize: '14px' }}>סה"כ {strips.length} פממים</span>
-          {strips.length > 0 && presets.length > 0 && (
-            <button
-              onClick={distributeAllEqually}
-              disabled={distributingAll}
-              style={{
-                padding: '8px 18px',
-                background: distributingAll ? '#475569' : '#059669',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: distributingAll ? 'default' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'background 0.2s'
-              }}
-            >
-              ⚖️ {distributingAll ? 'מחלק...' : `חלוקה שווה לכל (${strips.length})`}
-            </button>
-          )}
-          {unassignedStrips.length > 0 && presets.length > 0 && (
-            <button
-              onClick={randomDistribute}
-              disabled={randomizing}
-              style={{
-                padding: '8px 18px',
-                background: randomizing ? '#475569' : '#7c3aed',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: randomizing ? 'default' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'background 0.2s'
-              }}
-            >
-              🎲 {randomizing ? 'מחלק...' : `חלוקה רנדומלית (${unassignedStrips.length})`}
-            </button>
-          )}
-          {strips.length > 0 && (
-            <button
-              onClick={randomizeTakeoffTimes}
-              disabled={randomizingTimes}
-              style={{
-                padding: '8px 18px',
-                background: randomizingTimes ? '#475569' : '#0891b2',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: randomizingTimes ? 'default' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'background 0.2s'
-              }}
-            >
-              🕐 {randomizingTimes ? 'מגריל...' : 'הגרלת זמני המראה'}
-            </button>
-          )}
-        </div>
-        <button
-          onClick={onBack}
-          style={{ padding: '10px 20px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
-        >
-          חזרה למסך ראשי
-        </button>
-      </header>
-
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left Panel - Create New Strip */}
-        <div style={{ width: '300px', background: '#1e293b', padding: '20px', borderLeft: '1px solid #334155', overflowY: 'auto' }}>
-          <h3 style={{ color: 'white', margin: '0 0 20px', fontSize: '16px' }}>הוספת פמם חדש</h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input
-              type="text"
-              placeholder="או״ק (Call Sign)"
-              value={newStrip.callSign}
-              onChange={e => setNewStrip({ ...newStrip, callSign: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="טייסת"
-              value={newStrip.sq}
-              onChange={e => setNewStrip({ ...newStrip, sq: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="גובה"
-              value={newStrip.alt}
-              onChange={e => setNewStrip({ ...newStrip, alt: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="מספר מערך (numberOfFormation)"
-              value={newStrip.numberOfFormation}
-              onChange={e => setNewStrip({ ...newStrip, numberOfFormation: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="משימה"
-              value={newStrip.task}
-              onChange={e => setNewStrip({ ...newStrip, task: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <input
-              type="text"
-              placeholder="כותרת"
-              value={newStrip.koteret}
-              onChange={e => setNewStrip({ ...newStrip, koteret: e.target.value })}
-              style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px' }}
-            />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="ערכה"
-                value={newStrip.erka}
-                onChange={e => setNewStrip({ ...newStrip, erka: e.target.value })}
-                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
-              />
-              <input
-                type="text"
-                placeholder="מבצע"
-                value={newStrip.mivtza}
-                onChange={e => setNewStrip({ ...newStrip, mivtza: e.target.value })}
-                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', flex: 1 }}
-              />
-            </div>
-            {allBlockSpaces.length > 0 && (
-              <div>
-                <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>מרחב בלוקים</label>
-                <select value={newStrip.block_space_id} onChange={e => setNewStrip({ ...newStrip, block_space_id: e.target.value })}
-                  style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '14px', width: '100%', background: '#0f172a', color: 'white' }}>
-                  <option value="">ללא מרחב בלוקים</option>
-                  {allBlockSpaces.map((bs: any) => <option key={bs.id} value={bs.id}>{bs.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div>
-              <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'block' }}>זמן המראה</label>
-              <input
-                type="datetime-local"
-                value={newStrip.takeoff_time}
-                onChange={e => setNewStrip({ ...newStrip, takeoff_time: e.target.value })}
-                style={{ padding: '10px', borderRadius: '6px', border: 'none', fontSize: '13px', width: '100%', background: '#0f172a', color: 'white', boxSizing: 'border-box' }}
-              />
-            </div>
-            {(() => {
-              const stations = Array.from(new Set(allSerials.map((s: any) => s.control_station))).sort() as string[];
-              if (stations.length === 0) return null;
-              return (
-                <div style={{ background: '#0f172a', borderRadius: '8px', padding: '10px', border: '1px solid #1e3a5f' }}>
-                  <label style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px', display: 'block', fontWeight: 'bold' }}>📡 ספרורים</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {stations.map(station => {
-                      const stationSerials = allSerials
-                        .filter((s: any) => s.control_station === station)
-                        .sort((a: any, b: any) => b.serial_number - a.serial_number);
-                      const selected = newStripSerials[station] ?? null;
-                      return (
-                        <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ color: '#cbd5e1', fontSize: '12px', minWidth: '80px', textAlign: 'right' }}>{station}</span>
-                          <select
-                            value={selected ?? ''}
-                            onChange={e => setNewStripSerials(prev => ({ ...prev, [station]: e.target.value ? Number(e.target.value) : null }))}
-                            style={{ flex: 1, padding: '5px 8px', borderRadius: '5px', border: 'none', background: '#1e293b', color: 'white', fontSize: '12px' }}
-                          >
-                            <option value="">— ללא —</option>
-                            {stationSerials.map((sr: any) => (
-                              <option key={sr.id} value={sr.id}>
-                                #{sr.serial_number}{sr.essence ? ` — ${sr.essence}` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })()}
-            <button
-              onClick={createStrip}
-              style={{ padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
-            >
-              הוסף פמם
-            </button>
-          </div>
-
-          <div style={{ marginTop: '30px', borderTop: '1px solid #334155', paddingTop: '20px' }}>
-            <h3 style={{ color: 'white', margin: '0 0 15px', fontSize: '16px' }}>פממים לא משויכים ({unassignedStrips.length})</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {unassignedStrips.map(strip => (
-                <div
-                  key={strip.id}
-                  style={{ background: '#334155', padding: '10px', borderRadius: '6px', color: 'white', fontSize: '13px' }}
-                >
-                  <div style={{ fontWeight: 'bold' }}>{strip.call_sign}{strip.number_of_formation ? ` / ${strip.number_of_formation}` : ''}</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{(strip.sq || strip.squadron) && `${strip.sq || strip.squadron} | `}גובה: {strip.alt}</div>
-                  <select
-                    onChange={e => {
-                      if (e.target.value) {
-                        assignStripToWorkstation(strip.id, parseInt(e.target.value));
-                      }
-                    }}
-                    defaultValue=""
-                    style={{ marginTop: '6px', width: '100%', padding: '6px', borderRadius: '4px', border: 'none', fontSize: '11px', background: '#1e293b', color: 'white' }}
-                  >
-                    <option value="" disabled>שייך לעמדה...</option>
-                    {presets.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
-              {unassignedStrips.length === 0 && (
-                <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center' }}>כל הפממים משויכים</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Main Area - Strips by Workstation */}
-        <div style={{ flex: 1, padding: '20px', overflowY: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
-            {presets.map(preset => {
-              const now = new Date();
-              const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-
-              const formatTakeoffTime = (t: string | null): string => {
-                if (!t) return '';
-                const d = new Date(t);
-                if (isNaN(d.getTime())) return t;
-                const stripDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-                const hh = d.getUTCHours().toString().padStart(2, '0');
-                const mm = d.getUTCMinutes().toString().padStart(2, '0');
-                const timeStr = `${hh}:${mm}`;
-                if (stripDate.getTime() !== today.getTime()) {
-                  const dd = d.getUTCDate().toString().padStart(2, '0');
-                  const mo = (d.getUTCMonth() + 1).toString().padStart(2, '0');
-                  return `${dd}/${mo} ${timeStr}`;
-                }
-                return timeStr;
-              };
-
-              const isTakeoffPast = (t: string | null, airborne?: boolean): boolean => {
-                if (!t || airborne) return false;
-                const d = new Date(t);
-                return !isNaN(d.getTime()) && d < now;
-              };
-
-              const workstationStrips = strips
-                .filter(s => Number(s.workstation_preset_id) === Number(preset.id))
-                .sort((a, b) => {
-                  if (a.airborne && !b.airborne) return -1;
-                  if (!a.airborne && b.airborne) return 1;
-                  const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
-                  const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
-                  return ta - tb;
-                });
-              
-              return (
-                <div key={preset.id} style={{ background: '#1e293b', borderRadius: '12px', overflow: 'hidden' }}>
-                  <div style={{ background: '#334155', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>{preset.name}</h3>
-                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>{workstationStrips.length} פממים</span>
-                  </div>
-                  
-                  <div style={{ padding: '15px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {workstationStrips.map(strip => {
-                        const isExpanded = expandedStripId === strip.id;
-                        const det = stripDetails[strip.id];
-                        const hasDetails = (strip.weapons?.length > 0) || (strip.targets?.length > 0) || (strip.systems?.length > 0) || strip.shkadia;
-                        const past = isTakeoffPast(strip.takeoff_time, strip.airborne);
-                        const takeoffDisplay = formatTakeoffTime(strip.takeoff_time);
-                        return (
-                        <div key={strip.id} style={{ background: '#0f172a', borderRadius: '6px', overflow: 'hidden', border: isExpanded ? '1px solid #3b82f6' : '1px solid transparent' }}>
-                          <div style={{ padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ color: 'white', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                {strip.call_sign}{strip.number_of_formation ? ` / ${strip.number_of_formation}` : ''}
-                                {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontWeight: 'normal', fontSize: '12px' }}>{strip.sq || strip.squadron}</span>}
-                                {hasDetails && <span style={{ width: '6px', height: '6px', background: '#22c55e', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} title="יש נתוני חימוש/מטרות" />}
-                                {past && (
-                                  <span
-                                    style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }}
-                                    title="זמן ההמראה חלף"
-                                  />
-                                )}
-                              </div>
-                              {strip.koteret && <div style={{ color: '#a78bfa', fontSize: '11px', fontStyle: 'italic', marginTop: '2px' }}>{strip.koteret}</div>}
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px', alignItems: 'center' }}>
-                                {strip.task && <span style={{ color: '#60a5fa', fontSize: '11px', background: '#1e3a5f', padding: '1px 5px', borderRadius: '3px' }}>{strip.task}</span>}
-                                {strip.alt && <span style={{ color: '#94a3b8', fontSize: '11px' }}>↑{strip.alt}</span>}
-                                {strip.erka && <span style={{ color: '#f59e0b', fontSize: '11px', background: '#292524', padding: '1px 5px', borderRadius: '3px' }}>ערכה: {strip.erka}</span>}
-                                {strip.mivtza && <span style={{ color: '#34d399', fontSize: '11px', background: '#022c22', padding: '1px 5px', borderRadius: '3px' }}>מבצע: {strip.mivtza}</span>}
-                                {strip.block_space_id && (() => {
-                                  const bs = allBlockSpaces.find((b: any) => String(b.id) === String(strip.block_space_id));
-                                  return bs ? <span style={{ color: '#fb923c', fontSize: '11px', background: '#431407', padding: '1px 5px', borderRadius: '3px' }}>🔲 {bs.name}</span> : null;
-                                })()}
-                                {/* Airborne toggle */}
-                                <button
-                                  onClick={() => updateStripInline(strip.id, { airborne: !strip.airborne })}
-                                  title={strip.airborne ? 'לחץ להחזיר לקרקע' : 'לחץ לסמן כ"באוויר"'}
-                                  style={{
-                                    background: strip.airborne ? '#064e3b' : '#422006',
-                                    border: `1px solid ${strip.airborne ? '#34d399' : '#f59e0b'}`,
-                                    color: strip.airborne ? '#34d399' : '#f59e0b',
-                                    borderRadius: '4px', padding: '2px 8px', fontSize: '11px',
-                                    cursor: 'pointer', fontWeight: 'bold'
-                                  }}
-                                >{strip.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
-                                {/* Takeoff time */}
-                                {editingTakeoffId === strip.id ? (
-                                  <input
-                                    type="datetime-local"
-                                    autoFocus
-                                    defaultValue={strip.takeoff_time ? new Date(strip.takeoff_time).toISOString().slice(0,16) : ''}
-                                    onBlur={e => { updateStripInline(strip.id, { takeoff_time: e.target.value || null }); setEditingTakeoffId(null); }}
-                                    onChange={e => e.stopPropagation()}
-                                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #3b82f6', background: '#0f172a', color: 'white', fontSize: '11px' }}
-                                  />
-                                ) : (
-                                  <span
-                                    onClick={() => setEditingTakeoffId(strip.id)}
-                                    title="לחץ לעריכת זמן המראה"
-                                    style={{ color: past ? '#ef4444' : takeoffDisplay ? '#e2e8f0' : '#475569', fontSize: '11px', cursor: 'pointer', borderBottom: '1px dashed #475569', paddingBottom: '1px' }}
-                                  >
-                                    🕐 {takeoffDisplay || 'הגדר המראה'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                              <button
-                                onClick={() => toggleExpandStrip(strip)}
-                                style={{ padding: '4px 8px', background: isExpanded ? '#3b82f6' : '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                              >
-                                {isExpanded ? '▲ סגור' : '▼ פרטים'}
-                              </button>
-                              <button
-                                onClick={() => assignStripToWorkstation(strip.id, null)}
-                                style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                              >
-                                הסר
-                              </button>
-                              <button
-                                onClick={() => deleteStrip(strip.id)}
-                                style={{ padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-                              >
-                                מחק
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Expandable Detail Panel */}
-                          {isExpanded && det && (
-                            <div style={{ background: '#1e293b', padding: '12px', borderTop: '1px solid #334155', direction: 'rtl' }}>
-                              
-                              {/* חימושים */}
-                              <div style={{ marginBottom: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>חימושים</span>
-                                  <button onClick={() => updateDetail(strip.id, 'weapons', [...det.weapons, { type: '', quantity: '' }])}
-                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
-                                </div>
-                                {det.weapons.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין חימושים מוגדרים</div>}
-                                {det.weapons.map((w, i) => (
-                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
-                                    <input value={w.type} placeholder="סוג חימוש"
-                                      onChange={e => { const arr = det.weapons.map((x, idx) => idx === i ? {...x, type: e.target.value} : x); updateDetail(strip.id, 'weapons', arr); }}
-                                      style={{ flex: 2, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                                    <input value={w.quantity} placeholder="כמות"
-                                      onChange={e => { const arr = det.weapons.map((x, idx) => idx === i ? {...x, quantity: e.target.value} : x); updateDetail(strip.id, 'weapons', arr); }}
-                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                                    <button onClick={() => updateDetail(strip.id, 'weapons', det.weapons.filter((_, idx) => idx !== i))}
-                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* מטרות */}
-                              <div style={{ marginBottom: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>מטרות לתקיפה</span>
-                                  <button onClick={() => updateDetail(strip.id, 'targets', [...det.targets, { name: '', aim_point: '' }])}
-                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
-                                </div>
-                                {det.targets.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין מטרות מוגדרות</div>}
-                                {det.targets.map((t, i) => (
-                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
-                                    <input value={t.name} placeholder="שם מטרה"
-                                      onChange={e => { const arr = det.targets.map((x, idx) => idx === i ? {...x, name: e.target.value} : x); updateDetail(strip.id, 'targets', arr); }}
-                                      style={{ flex: 2, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                                    <input value={t.aim_point} placeholder="נקודת מכוון"
-                                      onChange={e => { const arr = det.targets.map((x, idx) => idx === i ? {...x, aim_point: e.target.value} : x); updateDetail(strip.id, 'targets', arr); }}
-                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                                    <button onClick={() => updateDetail(strip.id, 'targets', det.targets.filter((_, idx) => idx !== i))}
-                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* מערכות */}
-                              <div style={{ marginBottom: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>מערכות</span>
-                                  <button onClick={() => updateDetail(strip.id, 'systems', [...det.systems, { name: '' }])}
-                                    style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>+ הוסף</button>
-                                </div>
-                                {det.systems.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>אין מערכות מוגדרות</div>}
-                                {det.systems.map((sys, i) => (
-                                  <div key={i} style={{ display: 'flex', gap: '6px', marginBottom: '5px', alignItems: 'center' }}>
-                                    <input value={sys.name} placeholder="שם מערכת"
-                                      onChange={e => { const arr = det.systems.map((x, idx) => idx === i ? { name: e.target.value } : x); updateDetail(strip.id, 'systems', arr); }}
-                                      style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                                    <button onClick={() => updateDetail(strip.id, 'systems', det.systems.filter((_, idx) => idx !== i))}
-                                      style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 7px', fontSize: '11px', cursor: 'pointer' }}>✕</button>
-                                  </div>
-                                ))}
-                              </div>
-
-                              {/* שקדיה */}
-                              <div style={{ marginBottom: '12px' }}>
-                                <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>שקדיה</div>
-                                <input value={det.shkadia} placeholder="מי מפסר המבנה יש שקדיה"
-                                  onChange={e => updateDetail(strip.id, 'shkadia', e.target.value)}
-                                  style={{ width: '100%', padding: '6px 10px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px', boxSizing: 'border-box' }} />
-                              </div>
-
-                              <button
-                                onClick={() => saveStripDetails(strip.id)}
-                                disabled={savingStripId === strip.id}
-                                style={{ 
-                                  width: '100%', padding: '8px', 
-                                  background: saveError === strip.id ? '#dc2626' : savedStripId === strip.id ? '#16a34a' : '#22c55e', 
-                                  color: 'white', border: 'none', borderRadius: '6px', 
-                                  cursor: savingStripId === strip.id ? 'wait' : 'pointer', 
-                                  fontSize: '13px', fontWeight: 'bold',
-                                  opacity: savingStripId === strip.id ? 0.7 : 1
-                                }}
-                              >
-                                {savingStripId === strip.id ? 'שומר...' : saveError === strip.id ? 'שגיאה בשמירה ✕' : savedStripId === strip.id ? 'נשמר בהצלחה ✓' : 'שמור שינויים'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        );
-                      })}
-                      {workstationStrips.length === 0 && (
-                        <div style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>
-                          אין פממים משויכים
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Add strip to workstation */}
-                    {unassignedStrips.length > 0 && (
-                      <select
-                        onChange={e => {
-                          if (e.target.value) {
-                            assignStripToWorkstation(e.target.value, preset.id);
-                            e.target.value = '';
-                          }
-                        }}
-                        defaultValue=""
-                        style={{ marginTop: '12px', width: '100%', padding: '8px', borderRadius: '4px', border: 'none', fontSize: '12px', background: '#334155', color: 'white' }}
-                      >
-                        <option value="" disabled>+ הוסף פמם לעמדה</option>
-                        {unassignedStrips.map(s => (
-                          <option key={s.id} value={s.id}>{s.call_sign}{s.number_of_formation ? ` / ${s.number_of_formation}` : ''}{(s.sq || s.squadron) ? ` (${s.sq || s.squadron})` : ''}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // --- הגדרת שדות פמם ---
 const STRIP_FIELD_DEFS = [
@@ -16144,7 +15324,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
 export default function App() {
   const [session, setSession] = useState<WorkstationSession | null>(getSession());
-  const [page, setPage] = useState<'login' | 'dashboard' | 'management' | 'distribution'>('login');
+  const [page, setPage] = useState<'login' | 'dashboard' | 'management'>('login');
   const [managementCrewMember, setManagementCrewMember] = useState<CrewMember | null>(null);
   const [managementMode, setManagementMode] = useState<'admin' | 'team_lead'>('admin');
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
@@ -16186,12 +15366,8 @@ export default function App() {
     return <ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} />;
   }
 
-  if (page === 'distribution') {
-    return <StripDistribution onBack={() => setPage('login')} />;
-  }
-
   if (!session || page === 'login') {
-    return <WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} onDistribution={() => setPage('distribution')} />;
+    return <WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} />;
   }
 
   return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} />;
