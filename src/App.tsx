@@ -3671,7 +3671,7 @@ type AircraftPos = {
 };
 
 const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
-  const count = Math.max(1, parseInt(strip.number_of_formation) || 1);
+  const count = Math.max(1, parseInt(strip.numberOfFormation ?? strip.number_of_formation) || 1);
   const existing: AircraftPos[] = Array.isArray(strip.aircraft_positions) ? strip.aircraft_positions : [];
   return Array.from({ length: count }, (_, i) => {
     const idx = i + 1;
@@ -3707,9 +3707,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
-  const [showNewStripModal, setShowNewStripModal] = useState(false);
-  const [newStripForm, setNewStripForm] = useState<{ callSign: string; sq: string; count: number; sectorId: number | null }>({ callSign: '', sq: '', count: 1, sectorId: null });
-  const [newStripSaving, setNewStripSaving] = useState(false);
   const [datkFilter, setDatkFilter] = useState<number | null>(null); // minimum datk to highlight; null = no filter
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
@@ -3784,64 +3781,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
       <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
-        {/* Header + new strip button */}
-        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
+        {/* Header */}
+        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px' }}>
           <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
-          <button onClick={() => { setNewStripForm({ callSign: '', sq: '', count: 1, sectorId: presetSectors[0] ?? null }); setShowNewStripModal(true); }}
-            style={{ padding: '3px 9px', borderRadius: '6px', border: 'none', background: '#0ea5e9', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-            + פמ"מ
-          </button>
         </div>
-
-        {/* New strip modal */}
-        {showNewStripModal && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
-            onClick={() => setShowNewStripModal(false)}>
-            <div style={{ background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '10px', padding: '20px', width: '260px', direction: 'rtl' }}
-              onClick={e => e.stopPropagation()}>
-              <div style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0', marginBottom: '14px', textAlign: 'center' }}>📋 פמ"מ חדש</div>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>או"ק (קריאה)</label>
-                <input value={newStripForm.callSign} onChange={e => setNewStripForm(f => ({ ...f, callSign: e.target.value }))}
-                  autoFocus placeholder='לדוגמה: באטמן'
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>טייסת</label>
-                <input value={newStripForm.sq} onChange={e => setNewStripForm(f => ({ ...f, sq: e.target.value }))}
-                  placeholder='לדוגמה: 119'
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ marginBottom: presetSectors.length > 1 ? '10px' : '16px' }}>
-                <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>כמות מטוסים</label>
-                <input type="number" min={1} max={16} value={newStripForm.count} onChange={e => setNewStripForm(f => ({ ...f, count: Math.max(1, Math.min(16, parseInt(e.target.value) || 1)) }))}
-                  style={{ width: '80px', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px' }} />
-              </div>
-              {presetSectors.length > 1 && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '11px', color: headerColor, display: 'block', marginBottom: '3px' }}>סקטור</label>
-                  <select value={newStripForm.sectorId ?? ''} onChange={e => setNewStripForm(f => ({ ...f, sectorId: e.target.value ? Number(e.target.value) : null }))}
-                    style={{ width: '100%', padding: '6px 8px', borderRadius: '5px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', boxSizing: 'border-box' }}>
-                    {allSectors.filter(s => presetSectors.includes(s.id)).map(s => (
-                      <option key={s.id} value={s.id}>{s.name || s.id}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                <button disabled={newStripSaving || !newStripForm.callSign.trim()}
-                  onClick={async () => { setNewStripSaving(true); try { await onCreateStrip(newStripForm.callSign.trim(), newStripForm.sq.trim(), newStripForm.count, newStripForm.sectorId); setShowNewStripModal(false); } finally { setNewStripSaving(false); } }}
-                  style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: '#0ea5e9', color: '#fff', fontWeight: 'bold', fontSize: '13px', cursor: newStripSaving ? 'wait' : 'pointer', opacity: !newStripForm.callSign.trim() ? 0.5 : 1 }}>
-                  {newStripSaving ? '...' : 'צור פמ"מ'}
-                </button>
-                <button onClick={() => setShowNewStripModal(false)}
-                  style={{ padding: '7px 14px', borderRadius: '7px', border: `1px solid ${border}`, background: 'transparent', color: headerColor, fontSize: '13px', cursor: 'pointer' }}>
-                  ביטול
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
 
         {/* Incoming transfers zone */}
@@ -10504,8 +10447,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
             )}
           </div>
-          {!sidebarPinned && (() => {
-            const closedCount = (!isGroundMode && tableMode)
+          {!sidebarPinned && !isGroundMode && (() => {
+            const closedCount = tableMode
               ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
               : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
@@ -10534,7 +10477,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             ) : null;
           })()}
-          {sidebarPinned && (!isGroundMode && tableMode ? (
+          {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
