@@ -7067,7 +7067,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .then(r => r.ok ? r.json() : [])
           .then(data => setAllStripsForClassic(data))
           .catch(() => {});
-        fetch(`${API_URL}/workstations/${session.presetId}/strips`)
+        fetch(`${API_URL}/strips/global`)
           .then(r => r.ok ? r.json() : [])
           .then(data => setStrips(data))
           .catch(() => {});
@@ -7109,10 +7109,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           : fetch(`${API_URL}/sectors/${primarySectorId}/outgoing-transfers`)
       ];
       
-      // Use workstation-scoped strips endpoint if presetId exists (filters by held_by_workstation)
-      // Otherwise fall back to per-sector fetching
+      // Query-driven: always load all strips globally and let client-side filter handle it.
+      // Previously used workstation-scoped endpoint, but that only returns preset-assigned strips.
       if (hasPreset) {
-        requests.push(fetch(`${API_URL}/workstations/${session.presetId}/strips`));
+        requests.push(fetch(`${API_URL}/strips/global`));
         requests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
       } else {
         // Fallback: fetch strips from all relevant sectors (for ad-hoc sessions)
