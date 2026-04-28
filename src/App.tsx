@@ -6572,13 +6572,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Personal filter state
   const [personalFilter, setPersonalFilter] = useState<QGroup | null>(null);
+  const [sessionFilter, setSessionFilter] = useState<QGroup | null>(null);
   const [showPersonalFilter, setShowPersonalFilter] = useState(false);
   const [personalFilterDraft, setPersonalFilterDraft] = useState<QGroup | null>(null);
 
-  // Load personal filter on mount
+  // Load personal filter on mount / preset change; clear session filter on preset change
   useEffect(() => {
     const presetId = session.presetId;
     const crewId = session.crewMember?.id;
+    setSessionFilter(null);
+    setPersonalFilter(null);
+    setPersonalFilterDraft(null);
     if (!presetId || !crewId) return;
     fetch(`${API_URL}/workstation-personal-filters?preset_id=${presetId}&crew_member_id=${crewId}`)
       .then(r => r.json())
@@ -6961,7 +6965,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // While the panel is open, apply the draft filter live for real-time preview
   const _rawFilter: QGroup | null = (showPersonalFilter && personalFilterDraft)
     ? personalFilterDraft
-    : (personalFilter || adminFilterQuery);
+    : (sessionFilter || personalFilter || adminFilterQuery);
   const effectiveFilter: QGroup | null = hasConditions(_rawFilter) ? _rawFilter : null;
 
   // Only show strips that belong to this workstation (always restrict by preset, then optionally by filter)
@@ -6977,6 +6981,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     (tableOnBoard.has(s.id) || s.onMap || s.inTable) &&
     (!session.presetId || Number(s.workstation_preset_id) === Number(session.presetId)) &&
     (!effectiveFilter || evaluateQuery(s, effectiveFilter))
+  );
+
+  // Ground workstation strips: query-driven (show all strips matching the filter, regardless of
+  // preset assignment or inTable status). Falls back to preset-assigned strips when no query is set.
+  const myGroundStrips = !isGroundMode ? [] : strips.filter(s =>
+    s.status !== 'pending_transfer' &&
+    (effectiveFilter
+      ? evaluateQuery(s, effectiveFilter)
+      : (session.presetId ? Number(s.workstation_preset_id) === Number(session.presetId) : false))
   );
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
@@ -8686,38 +8699,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         );
       })()}
 
-      {/* Personal Filter Overlay */}
+      {/* Personal / Session Filter Overlay */}
       {showPersonalFilter && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) { savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); } }}>
+          onClick={e => { if (e.target === e.currentTarget) setShowPersonalFilter(false); }}>
           <div style={{ background: '#0f172a', border: '2px solid #2563eb', borderRadius: '12px', padding: '20px 24px', width: '680px', maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', direction: 'rtl', boxShadow: '0 25px 60px rgba(0,0,0,0.7)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div>
-                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>🔍 סינון אישי</span>
-                {adminFilterQuery && !personalFilter && (
-                  <span style={{ marginRight: '12px', color: '#4ade80', fontSize: '12px' }}>⬆ מופעל סינון עמדה (מנהל)</span>
+                <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '16px' }}>🔍 סינון עמדה</span>
+                {sessionFilter && <span style={{ marginRight: '10px', color: '#fb923c', fontSize: '12px', fontWeight: 'bold' }}>⚡ פעיל לסשן</span>}
+                {!sessionFilter && adminFilterQuery && !personalFilter && (
+                  <span style={{ marginRight: '12px', color: '#4ade80', fontSize: '12px' }}>🔒 סינון מנהל</span>
                 )}
-                {adminFilterQuery && personalFilter && (
-                  <span style={{ marginRight: '12px', color: '#fbbf24', fontSize: '12px' }}>⚠ דריסת סינון עמדה בסינון אישי</span>
-                )}
+                {personalFilter && <span style={{ marginRight: '10px', color: '#60a5fa', fontSize: '12px' }}>✓ סינון אישי שמור</span>}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {(personalFilter || hasConditions(personalFilterDraft)) && (
+                {(personalFilter || sessionFilter || hasConditions(personalFilterDraft)) && (
                   <button
-                    onClick={async () => { await savePersonalFilter(null); setPersonalFilter(null); setPersonalFilterDraft(null); }}
+                    onClick={async () => { await savePersonalFilter(null); setPersonalFilter(null); setSessionFilter(null); setPersonalFilterDraft(adminFilterQuery || null); }}
                     style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
                   >
-                    🗑 נקה סינון
+                    🗑 אפס הכל
                   </button>
                 )}
+                <button
+                  onClick={() => { setSessionFilter(hasConditions(personalFilterDraft) ? personalFilterDraft : null); setShowPersonalFilter(false); }}
+                  style={{ padding: '5px 14px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                  title="החל לסשן הנוכחי בלבד — לא נשמר ל-DB"
+                >
+                  ⚡ החל לסשן
+                </button>
                 <button
                   onClick={async () => { await savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); }}
                   style={{ padding: '5px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
                 >
-                  ✓ שמור וסגור
+                  💾 שמור אישית
                 </button>
                 <button
-                  onClick={async () => { await savePersonalFilter(personalFilterDraft); setShowPersonalFilter(false); }}
+                  onClick={() => setShowPersonalFilter(false)}
                   style={{ padding: '5px 12px', background: '#334155', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}
                 >
                   ✕
@@ -8727,14 +8746,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             {adminFilterQuery && (
               <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#1e293b', borderRadius: '6px', border: '1px solid #16a34a', color: '#4ade80', fontSize: '12px' }}>
-                🔒 סינון עמדה (מנהל, {adminFilterQuery.children.length} תנאים) — {personalFilter ? 'מוחלף ע"י הסינון האישי שלך' : 'פעיל כרגע'}
+                🔒 סינון עמדה (מנהל, {adminFilterQuery.children.length} תנאים){personalFilter ? ' — מוחלף ע"י הסינון האישי שלך' : sessionFilter ? ' — מוחלף ע"י סינון סשן' : ' — בסיס הסינון הנוכחי'}
               </div>
             )}
 
             <QueryBuilder
               value={personalFilterDraft}
               onChange={q => setPersonalFilterDraft(q)}
-              label='סינון אישי (דריסת סינון עמדה)'
+              label='עריכת תנאי סינון'
             />
           </div>
         </div>
@@ -8963,7 +8982,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             };
             return (
               <GroundView
-                strips={myTableStrips}
+                strips={myGroundStrips}
                 queuedStrips={groundQueuedStrips}
                 incomingTransfers={incomingTransfers}
                 outgoingTransfers={outgoingTransfers}
@@ -10585,15 +10604,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             >📌</button>
             {sidebarPinned && (
               <button
-                onClick={() => { setPersonalFilterDraft(personalFilter); setShowPersonalFilter(v => !v); }}
-                title="סינון אישי"
-                style={{
-                  background: personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
-                  border: personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #cbd5e1',
-                  borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px', color: personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#475569',
-                  fontWeight: personalFilter ? 'bold' : 'normal'
+                onClick={() => {
+                  setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null);
+                  setShowPersonalFilter(v => !v);
                 }}
-              >{personalFilter ? '🔍✓' : '🔍'}</button>
+                title={sessionFilter ? 'סינון סשן פעיל — לחץ לעריכה' : personalFilter ? 'סינון אישי שמור — לחץ לעריכה' : adminFilterQuery ? 'סינון עמדה (מנהל) — לחץ לעריכה/דריסה' : 'פתח סינון'}
+                style={{
+                  background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
+                  border: sessionFilter ? '1px solid #fb923c' : personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #cbd5e1',
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px',
+                  color: sessionFilter ? '#fed7aa' : personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#475569',
+                  fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal'
+                }}
+              >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
             )}
           </div>
           {!sidebarPinned && (() => {
