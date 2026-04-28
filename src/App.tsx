@@ -650,12 +650,262 @@ const compareImages = (img1Data: ImageData, img2Data: ImageData): number => {
   return total > 0 ? matches / total : 0;
 };
 
+// --- עורך אזורי מפה ---
+const ZONE_COLORS = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#06b6d4','#f97316','#ec4899'];
+
+const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: string; onClose: () => void }) => {
+  const [zones, setZones] = useState<MapZone[]>([]);
+  const [draftPoints, setDraftPoints] = useState<{x: number; y: number}[]>([]);
+  const [draftName, setDraftName] = useState('');
+  const [draftColor, setDraftColor] = useState(ZONE_COLORS[0]);
+  const [editingZone, setEditingZone] = useState<MapZone | null>(null);
+  const [saving, setSaving] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const loadZones = async () => {
+    try {
+      const res = await fetch(`${API_URL}/map-zones?map_id=${mapId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon })));
+      }
+    } catch {}
+  };
+
+  useEffect(() => { loadZones(); }, [mapId]);
+
+  const getRelativePoint = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
+  };
+
+  const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (editingZone) return;
+    const pt = getRelativePoint(e);
+    if (draftPoints.length >= 2) {
+      const first = draftPoints[0];
+      const dist = Math.hypot(pt.x - first.x, pt.y - first.y);
+      if (dist < 3) { return; }
+    }
+    setDraftPoints(prev => [...prev, pt]);
+  };
+
+  const handleSvgDblClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    if (draftPoints.length >= 3) closeDraft();
+  };
+
+  const closeDraft = () => {
+    if (draftPoints.length < 3) { alert('יש לסמן לפחות 3 נקודות'); return; }
+    if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; }
+  };
+
+  const saveDraft = async (pts: {x:number;y:number}[]) => {
+    if (pts.length < 3 || !draftName.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/map-zones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ map_id: mapId, name: draftName.trim(), color: draftColor, polygon: pts })
+      });
+      if (res.ok) { await loadZones(); setDraftPoints([]); setDraftName(''); }
+    } catch {}
+    setSaving(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editingZone) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_URL}/map-zones/${editingZone.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editingZone.name, color: editingZone.color, polygon: editingZone.polygon })
+      });
+      if (res.ok) { await loadZones(); setEditingZone(null); }
+    } catch {}
+    setSaving(false);
+  };
+
+  const deleteZone = async (id: number) => {
+    if (!confirm('למחוק אזור זה?')) return;
+    try {
+      await fetch(`${API_URL}/map-zones/${id}`, { method: 'DELETE' });
+      await loadZones();
+    } catch {}
+  };
+
+  const polygonToSvgPoints = (pts: {x:number;y:number}[]) =>
+    pts.map(p => `${p.x},${p.y}`).join(' ');
+
+  const activeZone = editingZone;
+  const activePoly = activeZone ? activeZone.polygon : draftPoints;
+
+  return (
+    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginTop: '8px', direction: 'rtl' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>עריכת אזורים</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>×</button>
+      </div>
+
+      {/* Map with SVG overlay */}
+      <div ref={containerRef} style={{ position: 'relative', width: '100%', paddingBottom: '56%', background: '#1e293b', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
+        <img src={mapSrc} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: editingZone ? 'default' : 'crosshair' }}
+          onClick={handleSvgClick}
+          onDoubleClick={handleSvgDblClick}
+        >
+          {/* Existing zones */}
+          {zones.map(z => (
+            <g key={z.id}>
+              <polygon
+                points={polygonToSvgPoints(z.polygon)}
+                fill={z.color + '33'}
+                stroke={z.color}
+                strokeWidth="0.5"
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); setEditingZone(z); setDraftPoints([]); }}
+              />
+              {z.polygon.length > 0 && (
+                <text
+                  x={z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length}
+                  y={z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={z.color}
+                  fontSize="3"
+                  fontWeight="bold"
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                >
+                  {z.name}
+                </text>
+              )}
+            </g>
+          ))}
+          {/* Draft / editing polygon */}
+          {activePoly.length >= 2 && (
+            <polyline
+              points={polygonToSvgPoints(activePoly)}
+              fill="none"
+              stroke={editingZone ? editingZone.color : draftColor}
+              strokeWidth="0.5"
+              strokeDasharray="2,1"
+            />
+          )}
+          {activePoly.length >= 3 && (
+            <polygon
+              points={polygonToSvgPoints(activePoly)}
+              fill={(editingZone ? editingZone.color : draftColor) + '33'}
+              stroke={editingZone ? editingZone.color : draftColor}
+              strokeWidth="0.5"
+            />
+          )}
+          {activePoly.map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.5 : 1} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
+          ))}
+        </svg>
+      </div>
+
+      {/* Editing existing zone */}
+      {editingZone && (
+        <div style={{ background: '#1e293b', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>עריכת אזור "{editingZone.name}"</div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              value={editingZone.name}
+              onChange={e => setEditingZone(z => z ? { ...z, name: e.target.value } : z)}
+              placeholder="שם אזור"
+              style={{ flex: 1, minWidth: '120px', padding: '6px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '13px' }}
+            />
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {ZONE_COLORS.map(c => (
+                <div key={c} onClick={() => setEditingZone(z => z ? { ...z, color: c } : z)}
+                  style={{ width: '18px', height: '18px', borderRadius: '50%', background: c, cursor: 'pointer', border: editingZone.color === c ? '2px solid white' : '2px solid transparent' }} />
+              ))}
+            </div>
+            <button onClick={saveEdit} disabled={saving} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
+              {saving ? '...' : 'שמור'}
+            </button>
+            <button onClick={() => { deleteZone(editingZone.id); setEditingZone(null); }} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
+              מחק
+            </button>
+            <button onClick={() => setEditingZone(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add new zone */}
+      {!editingZone && (
+        <div style={{ background: '#1e293b', borderRadius: '6px', padding: '12px' }}>
+          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>
+            {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות פוליגון' : `${draftPoints.length} נקודות — לחץ שוב ליד הנקודה הראשונה לסגירה, או לחץ פעמיים`}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              value={draftName}
+              onChange={e => setDraftName(e.target.value)}
+              placeholder="שם האזור"
+              style={{ flex: 1, minWidth: '120px', padding: '6px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '13px' }}
+            />
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {ZONE_COLORS.map(c => (
+                <div key={c} onClick={() => setDraftColor(c)}
+                  style={{ width: '18px', height: '18px', borderRadius: '50%', background: c, cursor: 'pointer', border: draftColor === c ? '2px solid white' : '2px solid transparent' }} />
+              ))}
+            </div>
+            {draftPoints.length >= 3 && (
+              <button
+                onClick={() => { if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; } saveDraft(draftPoints); }}
+                disabled={saving}
+                style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '12px' }}
+              >
+                {saving ? '...' : 'שמור אזור'}
+              </button>
+            )}
+            {draftPoints.length > 0 && (
+              <button onClick={() => setDraftPoints([])} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px' }}>
+                נקה
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Existing zones list */}
+      {zones.length > 0 && (
+        <div style={{ marginTop: '12px' }}>
+          <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>אזורים שמורים ({zones.length})</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {zones.map(z => (
+              <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#1e293b', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', border: `1px solid ${z.color}66` }}
+                onClick={() => { setEditingZone(z); setDraftPoints([]); }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: z.color }} />
+                <span style={{ color: '#e2e8f0', fontSize: '12px' }}>{z.name}</span>
+                <span style={{ color: '#64748b', fontSize: '11px' }}>({z.polygon.length} נק')</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- ניהול מפות ---
 const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: () => void; onMapsUpdated: () => void; isEmbedded?: boolean }) => {
   const [maps, setMaps] = useState<{id: number; name: string; created_at: string}[]>([]);
   const [newMapName, setNewMapName] = useState('');
   const [newMapData, setNewMapData] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [zoneEditorMapId, setZoneEditorMapId] = useState<number | null>(null);
+  const [zoneEditorMapSrc, setZoneEditorMapSrc] = useState<string | null>(null);
 
   const loadMaps = async () => {
     try {
@@ -765,17 +1015,36 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {maps.map(map => (
-            <div key={map.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: isEmbedded ? '#475569' : '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-              <div>
-                <div style={{ fontWeight: 'bold', color: isEmbedded ? 'white' : '#1e293b' }}>{map.name}</div>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
+            <div key={map.id}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: isEmbedded ? '#475569' : '#f8fafc', border: zoneEditorMapId === map.id ? '1px solid #3b82f6' : '1px solid #e2e8f0', borderRadius: zoneEditorMapId === map.id ? '8px 8px 0 0' : '8px' }}>
+                <div>
+                  <div style={{ fontWeight: 'bold', color: isEmbedded ? 'white' : '#1e293b' }}>{map.name}</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(map.created_at).toLocaleDateString('he-IL')}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={async () => {
+                      if (zoneEditorMapId === map.id) { setZoneEditorMapId(null); setZoneEditorMapSrc(null); return; }
+                      try {
+                        const res = await fetch(`${API_URL}/maps/${map.id}`);
+                        if (res.ok) { const data = await res.json(); setZoneEditorMapSrc(data.image_data); setZoneEditorMapId(map.id); }
+                      } catch {}
+                    }}
+                    style={{ background: zoneEditorMapId === map.id ? '#3b82f6' : (isEmbedded ? '#334155' : '#e2e8f0'), color: zoneEditorMapId === map.id ? 'white' : (isEmbedded ? 'white' : '#1e293b'), padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    🗺 אזורים
+                  </button>
+                  <button
+                    onClick={() => handleDelete(map.id)}
+                    style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    מחק
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => handleDelete(map.id)}
-                style={{ background: '#ef4444', color: 'white', padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                מחק
-              </button>
+              {zoneEditorMapId === map.id && zoneEditorMapSrc && (
+                <MapZoneEditor mapId={map.id} mapSrc={zoneEditorMapSrc} onClose={() => { setZoneEditorMapId(null); setZoneEditorMapSrc(null); }} />
+              )}
             </div>
           ))}
         </div>
@@ -3699,6 +3968,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 };
 
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
+interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
 const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
   strips: any[];
@@ -6583,6 +6853,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [classicOutgoingTransfers, setClassicOutgoingTransfers] = useState<any[]>([]);
   const [allStripsForClassic, setAllStripsForClassic] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
+  const [currentMapId, setCurrentMapId] = useState<number | null>(null);
+  const [mapZones, setMapZones] = useState<MapZone[]>([]);
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [showLearn, setShowLearn] = useState(false);
@@ -7331,6 +7603,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const loadMapZones = async (mapId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/map-zones?map_id=${mapId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMapZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon })));
+      }
+    } catch {}
+  };
+
   const loadDefaultMap = async () => {
     try {
       if (session.mapId) {
@@ -7338,6 +7620,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         if (mapRes.ok) {
           const map = await mapRes.json();
           setMapImg(map.image_data);
+          setCurrentMapId(map.id);
+          loadMapZones(map.id);
           return;
         }
       }
@@ -7349,6 +7633,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           if (mapRes.ok) {
             const map = await mapRes.json();
             setMapImg(map.image_data);
+            setCurrentMapId(map.id);
+            loadMapZones(map.id);
           }
         }
       }
@@ -7425,6 +7711,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (res.ok) {
         const map = await res.json();
         setMapImg(map.image_data);
+        setCurrentMapId(map.id);
+        loadMapZones(map.id);
       }
     } catch (err) {
       console.error('Failed to load map:', err);
@@ -10395,6 +10683,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
             ) : (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>נא לטעון מפה</div>
+            )}
+
+            {/* Map Zones Overlay */}
+            {mapZones.length > 0 && (
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                {mapZones.map(zone => (
+                  <g key={zone.id}>
+                    {zone.polygon.length >= 3 && (
+                      <polygon
+                        points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill={zone.color + '2a'}
+                        stroke={zone.color}
+                        strokeWidth="0.4"
+                        strokeDasharray="2,1"
+                      />
+                    )}
+                    {zone.polygon.length >= 3 && (
+                      <text
+                        x={zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length}
+                        y={zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={zone.color}
+                        fontSize="2.5"
+                        fontWeight="bold"
+                        style={{ userSelect: 'none' }}
+                      >
+                        {zone.name}
+                      </text>
+                    )}
+                  </g>
+                ))}
+              </svg>
             )}
             
             {/* Strips Layer */}

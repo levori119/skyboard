@@ -625,6 +625,18 @@ async function initDb() {
     )
   `);
 
+  // map_zones — named polygon zones on any map
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS map_zones (
+      id SERIAL PRIMARY KEY,
+      map_id INTEGER REFERENCES maps(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(20) NOT NULL DEFAULT '#3b82f6',
+      polygon TEXT NOT NULL DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -1714,6 +1726,61 @@ app.delete('/api/maps/:id', async (req, res) => {
   } catch (err) {
     console.error('Error deleting map:', err);
     res.status(500).json({ error: 'Failed to delete map' });
+  }
+});
+
+// Map Zones API
+app.get('/api/map-zones', async (req, res) => {
+  try {
+    const { map_id } = req.query;
+    if (!map_id) return res.status(400).json({ error: 'map_id required' });
+    const result = await pool.query(
+      'SELECT * FROM map_zones WHERE map_id = $1 ORDER BY id',
+      [map_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching map zones:', err);
+    res.status(500).json({ error: 'Failed to fetch map zones' });
+  }
+});
+
+app.post('/api/map-zones', async (req, res) => {
+  try {
+    const { map_id, name, color, polygon } = req.body;
+    const result = await pool.query(
+      'INSERT INTO map_zones (map_id, name, color, polygon) VALUES ($1, $2, $3, $4) RETURNING *',
+      [map_id, name, color || '#3b82f6', JSON.stringify(polygon || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating map zone:', err);
+    res.status(500).json({ error: 'Failed to create map zone' });
+  }
+});
+
+app.put('/api/map-zones/:id', async (req, res) => {
+  try {
+    const { name, color, polygon } = req.body;
+    const result = await pool.query(
+      'UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4 RETURNING *',
+      [name, color, JSON.stringify(polygon || []), req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating map zone:', err);
+    res.status(500).json({ error: 'Failed to update map zone' });
+  }
+});
+
+app.delete('/api/map-zones/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM map_zones WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting map zone:', err);
+    res.status(500).json({ error: 'Failed to delete map zone' });
   }
 });
 
