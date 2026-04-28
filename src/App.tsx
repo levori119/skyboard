@@ -6942,29 +6942,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     : (sessionFilter || personalFilter || adminFilterQuery);
   const effectiveFilter: QGroup | null = hasConditions(_rawFilter) ? _rawFilter : null;
 
-  // Only show strips that belong to this workstation (always restrict by preset, then optionally by filter)
+  // Query-driven strip list: empty query = all strips, with query = only matching.
+  // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
   const myStrips = strips.filter(s =>
     s.status !== 'pending_transfer' &&
-    (!session.presetId || Number(s.workstation_preset_id) === Number(session.presetId)) &&
     (!effectiveFilter || evaluateQuery(s, effectiveFilter))
   );
 
-  // Table strips: strips manually placed on board OR placed on map OR received via transfer (inTable=true)
-  // Filter applies to table as well
-  const myTableStrips = strips.filter(s =>
-    (tableOnBoard.has(s.id) || s.onMap || s.inTable) &&
-    (!session.presetId || Number(s.workstation_preset_id) === Number(session.presetId)) &&
-    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
-  );
+  // myTableStrips: same logic — query-driven, no inTable/preset restriction.
+  // Every strip visible in the workstation is determined solely by the filter query.
+  const myTableStrips = myStrips;
 
-  // Ground workstation strips: query-driven (show all strips matching the filter, regardless of
-  // preset assignment or inTable status). Falls back to preset-assigned strips when no query is set.
-  const myGroundStrips = !isGroundMode ? [] : strips.filter(s =>
-    s.status !== 'pending_transfer' &&
-    (effectiveFilter
-      ? evaluateQuery(s, effectiveFilter)
-      : (session.presetId ? Number(s.workstation_preset_id) === Number(session.presetId) : false))
-  );
+  // Ground workstation: same unified query-driven list.
+  const myGroundStrips = isGroundMode ? myStrips : [];
   const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
   const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
 
@@ -7681,7 +7671,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Load strip_aircraft for ground workstation strips
   React.useEffect(() => {
     if (!isGroundMode) return;
-    const groundStrips = strips.filter(s => s.workstation_preset_id === session?.presetId || myTableStrips.some((ms: any) => ms.id === s.id));
+    const groundStrips = myTableStrips;
     const ids = groundStrips.map((s: any) => s.id).filter(Boolean);
     if (ids.length === 0) { setGroundStripAircraft({}); return; }
     fetch(`${API_URL}/strip-aircraft?strip_ids=${ids.join(',')}`)
@@ -10572,7 +10562,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {!sidebarPinned && (() => {
             const closedCount = tableMode
-              ? myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer').length
+              ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
               : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
               <div
@@ -10602,9 +10592,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {sidebarPinned && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable).length}):</h4>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
               <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
-              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer')].sort((a,b) => {
+              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
                 const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
@@ -10677,7 +10667,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </div>
                 </div>
               );})}
-              {myStrips.filter(s => !tableOnBoard.has(s.id) && !s.inTable && s.status !== 'pending_transfer').length === 0 && (
+              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
                 <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בטבלה</div>
               )}
             </>
