@@ -2829,7 +2829,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -2898,7 +2898,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const hasDetails = (s.weapons && s.weapons.length > 0) || (s.targets && s.targets.length > 0) || (s.systems && s.systems.length > 0) || s.shkadia;
 
   // Block deviation detection (uses shared helper)
-  const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId),
+  const isBlockDeviation = React.useMemo(() => computeBlockDeviation(s, allBlocks, allBlockTables, activeBlockTableId, viewerPresetId),
     [s.alt, s.workstation_preset_id, allBlocks, activeBlockTableId]);
 
   // Altitude conflict with another map strip
@@ -5776,7 +5776,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
@@ -6222,7 +6222,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       {placed.map(s => {
         const isDragging = altDrag?.stripId === s.id;
         const sq = s.sq || s.squadron || '';
-        const isDeviation = computeBlockDeviation(s, allBlocks, blockTables, activeBlockTableId);
+        const isDeviation = computeBlockDeviation(s, allBlocks, blockTables, activeBlockTableId, viewerPresetId);
         const isDeviationAcknowledged = !!s.block_deviation;
         const effectiveDeviation = isDeviation && !muteBlockAlerts;
         const effectiveDeviationAck = isDeviationAcknowledged && !muteBlockAlerts;
@@ -6253,7 +6253,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
             : isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (isConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
+              className={isConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
@@ -6308,7 +6308,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
             : ntConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? 'rgba(255,255,255,0.95)' : 'rgba(15,23,42,0.95)');
           return (
             <div key={s.id}
-              className={(effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : (ntConflict && !effectiveDeviation ? 'alt-conflict-flash' : '')}
+              className={ntConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
               title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
@@ -6650,16 +6650,19 @@ const parseAltToFeet = (raw: string): number | null => {
   return null;
 };
 
-const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], activeBlockTableId?: number | null): boolean => {
+const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], activeBlockTableId?: number | null, viewerPresetId?: number | null): boolean => {
   // No active block table → no alerts at all
   if (!activeBlockTableId) return false;
-  if (!s.alt || !s.workstation_preset_id) return false;
+  if (!s.alt) return false;
+  // Use the strip's own workstation, or fall back to the viewer's workstation
+  const effectivePresetId = s.workstation_preset_id ? Number(s.workstation_preset_id) : (viewerPresetId ? Number(viewerPresetId) : null);
+  if (!effectivePresetId) return false;
 
   // Parse altitude using FL-aware parser (returns feet)
   const altFt = parseAltToFeet(String(s.alt));
   if (altFt === null) return false;
 
-  const presetId = Number(s.workstation_preset_id);
+  const presetId = effectivePresetId;
 
   // All blocks in the active table
   const tableBlocks = allBlocks.filter((b: any) => b.block_table_id === activeBlockTableId);
@@ -7981,7 +7984,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Auto-clear acknowledged block deviations whenever the computed deviation is no longer true.
   // Triggers: strip altitude changed, block altitude changed, active block table changed (incl. null = cleared).
   useEffect(() => {
-    const toClear = strips.filter(s => s.block_deviation && !computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId));
+    const toClear = strips.filter(s => s.block_deviation && !computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null));
     if (toClear.length === 0) return;
     setStrips(prev => prev.map(s => toClear.find((tc: any) => tc.id === s.id) ? { ...s, block_deviation: false } : s));
     toClear.forEach((s: any) => {
@@ -10544,7 +10547,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isEven = idx % 2 === 0;
                     const isDragOver = tableDragOverRow === s.id;
                     const isPendingTransfer = s.status === 'pending_transfer';
-                    const isRowDeviationRaw = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId);
+                    const isRowDeviationRaw = computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null);
                     const isRowDeviationAck = !!s.block_deviation;
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
@@ -10711,7 +10714,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })()}
               {(() => {
                 const ctxStrip = myTableStrips.find((s: any) => s.id === tableRowCtxMenu.stripId);
-                const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId) : false;
+                const ctxDev = ctxStrip ? computeBlockDeviation(ctxStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
                 const ctxAck = ctxStrip ? !!ctxStrip.block_deviation : false;
                 if (!ctxDev && !ctxAck) return null;
                 return (<>
@@ -10766,7 +10769,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Vertical view strip context menu */}
           {verticalCtxMenu && (() => {
             const ctxS = myTableStrips.find((s: any) => s.id === verticalCtxMenu.stripId);
-            const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId) : false;
+            const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
             const ctxAck = ctxS ? !!ctxS.block_deviation : false;
             if (!ctxDev && !ctxAck) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
@@ -10950,6 +10953,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 allWorkstationPresets={workstationPresets}
                 activeBlockTableId={effectiveBlockTableId}
                 mapConflictIds={mapStripConflictIds}
+                viewerPresetId={session.presetId ? Number(session.presetId) : null}
               />
             ))}
             
@@ -11995,7 +11999,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id)) : myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id)) : myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -12012,7 +12016,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id)) : myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id)) : myTableStrips} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} />
         </div>
       ))}
 
