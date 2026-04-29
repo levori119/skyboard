@@ -4032,8 +4032,6 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
-const UNDO_CLEAR_TIMEOUT_MS = 6000;
-
 const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
   strips: any[];
   incomingTransfers: any[];
@@ -4123,6 +4121,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   React.useEffect(() => {
     return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
   }, []);
+  const UNDO_DURATION_OPTIONS = [3000, 6000, 10000] as const;
+  const [undoDurationMs, setUndoDurationMs] = React.useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('groundUndoDurationMs');
+      if (stored) {
+        const parsed = Number(stored);
+        if ((UNDO_DURATION_OPTIONS as readonly number[]).includes(parsed)) return parsed;
+      }
+    } catch { /* ignore */ }
+    return 6000;
+  });
+  React.useEffect(() => {
+    try { localStorage.setItem('groundUndoDurationMs', String(undoDurationMs)); } catch { /* ignore */ }
+  }, [undoDurationMs]);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
@@ -4385,7 +4397,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 undoTimerRef.current = setTimeout(() => {
                   setClearSnapshot(null);
                   undoTimerRef.current = null;
-                }, UNDO_CLEAR_TIMEOUT_MS);
+                }, undoDurationMs);
               }}
               title="נקה את כל הסינונים"
               style={{
@@ -4433,9 +4445,34 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
             >
               בטל
-              <div className="undo-timer-bar" style={{ animationDuration: `${UNDO_CLEAR_TIMEOUT_MS}ms` }} />
+              <div className="undo-timer-bar" style={{ animationDuration: `${undoDurationMs}ms` }} />
             </button>
           )}
+          <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0, marginRight: clearSnapshot !== null ? '0' : 'auto' }}>זמן ביטול:</span>
+          {UNDO_DURATION_OPTIONS.map(opt => {
+            const active = undoDurationMs === opt;
+            return (
+              <button
+                key={opt}
+                onClick={() => setUndoDurationMs(opt)}
+                title={`זמן ביטול: ${opt / 1000} שניות`}
+                style={{
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  border: active ? '2px solid #8b5cf6' : `1px solid ${border}`,
+                  background: active ? '#8b5cf6' : (lightMode ? '#f8fafc' : '#1e293b'),
+                  color: active ? '#fff' : headerColor,
+                  fontSize: '10px',
+                  fontWeight: active ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  flexShrink: 0,
+                }}
+              >
+                {opt / 1000}ש׳
+              </button>
+            );
+          })}
         </div>
 
         {/* status filter bar */}
