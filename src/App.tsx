@@ -3423,7 +3423,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                     const val = e.target.value;
                     setLocalBlockSpaceId(val);
                     blockSpaceSavingRef.current = true;
-                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) }); } catch {}
+                    try {
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_space_id: val || null }) });
+                      const bsName = val ? (allBlockSpaces.find((b: any) => String(b.id) === val)?.name || val) : null;
+                      fetch(`${API_URL}/activity-log`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: 'block_assigned', severity: 'normal', strip_id: String(s.id), strip_callsign: s.callsign || s.callSign || '', details: { blockSpaceName: bsName, blockSpaceId: val || null } }) }).catch(() => {});
+                    } catch {}
                     setTimeout(() => { blockSpaceSavingRef.current = false; }, 5000);
                   }}
                   style={{ width: '100%', padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', background: 'white', color: '#1e293b' }}
@@ -8852,6 +8856,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes })
       });
+      const strip = strips.find(s => String(s.id) === String(id));
+      logActivity('strip_notes_edited', { stripId: String(id), stripCallsign: strip?.callsign || strip?.callSign || '', details: { notesLength: notes.length } });
     } catch (err) {
       console.error('Failed to update strip notes:', err);
     }
@@ -11942,6 +11948,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                                     <button onClick={async () => {
                                       await fetch(`${API_URL}/work-groups/${gid}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newWgNote.title, content: newWgNote.content, updated_by_name: session.crewMember?.name || '' }) });
+                                      logActivity('wg_note_created', { details: { title: newWgNote.title, groupId: gid } });
                                       setShowAddWgNote(null);
                                       loadAidsData();
                                     }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>שמור</button>
@@ -11972,6 +11979,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                                               <button onClick={async () => {
                                                 await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: wgNoteForm.title, content: wgNoteForm.content, updated_by_name: session.crewMember?.name || '' }) });
+                                                logActivity('wg_note_edited', { details: { title: wgNoteForm.title, noteId: note.id } });
                                                 setEditingWgNote(null);
                                                 loadAidsData();
                                               }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>שמור</button>
@@ -12499,6 +12507,12 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...changes, preset_id: presetId, preset_name: presetName, crew_name: crewName }),
       });
+      if ('content' in changes || 'title' in changes) {
+        fetch(`${API_URL}/activity-log`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_type: 'note_edited', severity: 'normal', workstation_preset_id: presetId, workstation_name: presetName, crew_member_name: crewName, details: { noteId: id } }),
+        }).catch(() => {});
+      }
     }
   };
 
@@ -13745,10 +13759,15 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   overload_reached:  'עומס מלא',
   strip_created:     'פמ"מ נוצר',
   strip_deleted:     'פמ"מ נמחק',
+  strip_notes_edited:'עריכת הערות פמ"מ',
+  note_edited:       'עריכת פתקית',
+  wg_note_edited:    'עריכת הערת קבוצה',
+  wg_note_created:   'הערת קבוצה נוצרה',
+  block_assigned:    'שיוך מרחב בלוקים',
 };
 const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
-  critical: { background: '#450a0a', color: '#fca5a5', borderRight: '4px solid #ef4444' },
-  warning:  { background: '#431407', color: '#fdba74', borderRight: '4px solid #f97316' },
+  critical: { background: '#450a0a', color: '#fca5a5', firstCellBorder: '4px solid #ef4444' } as any,
+  warning:  { background: '#431407', color: '#fdba74', firstCellBorder: '4px solid #f97316' } as any,
   normal:   {},
 };
 
@@ -13878,10 +13897,14 @@ const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; cr
                 details.fromPresetId ? `← עמדה ${details.fromPresetId}` : null,
                 details.altitude ? `גובה ${details.altitude}` : null,
                 details.loadCount != null ? `עומס ${details.loadCount}/${details.fullLoadThreshold}` : null,
+                details.blockSpaceName ? `מרחב: ${details.blockSpaceName}` : (details.blockSpaceId === null && row.event_type === 'block_assigned' ? 'הוסר מרחב' : null),
+                details.title ? `כותרת: ${details.title}` : null,
+                details.notesLength != null ? `${details.notesLength} תווים` : null,
               ].filter(Boolean).join(' | ');
+              const firstCellBorder = (sevStyle as any).firstCellBorder;
               return (
-                <tr key={row.id} style={{ background: rowBg, ...(sevStyle.borderRight ? { borderRight: sevStyle.borderRight } : {}), color: sevStyle.color || text }}>
-                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', borderBottom: `1px solid ${border}` }}>{formatTime(row.timestamp)}</td>
+                <tr key={row.id} style={{ background: rowBg, color: sevStyle.color || text }}>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', borderBottom: `1px solid ${border}`, ...(firstCellBorder ? { borderRight: firstCellBorder } : {}) }}>{formatTime(row.timestamp)}</td>
                   <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontWeight: row.severity !== 'normal' ? 700 : 400, borderBottom: `1px solid ${border}` }}>{EVENT_TYPE_LABELS[row.event_type] || row.event_type}</td>
                   <td style={{ padding: '7px 10px', borderBottom: `1px solid ${border}` }}>{row.workstation_name || '—'}</td>
                   <td style={{ padding: '7px 10px', borderBottom: `1px solid ${border}` }}>{row.crew_member_name || '—'}</td>
