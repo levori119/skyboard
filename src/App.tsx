@@ -1623,6 +1623,7 @@ const DraggableNeighborPanel = ({
   onStripDrop,
   conflictAltDelta,
   crossSectorConflictIds,
+  onUpdateStripField,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -1639,6 +1640,7 @@ const DraggableNeighborPanel = ({
   onStripDrop?: (stripId: string, sectorId: number) => void;
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -1906,6 +1908,7 @@ const DraggableNeighborPanel = ({
                       onReject={onRejectTransfer}
                       onAcceptToMap={onAcceptToMap}
                       isConflict={conflictingTransferIds.has(String(t.id))}
+                      onUpdateStripField={onUpdateStripField}
                     />
                   ))}
                   {sectorIncoming.length === 0 && (
@@ -1949,16 +1952,20 @@ const DraggableIncomingTransferMini = ({
   onAccept,
   onReject,
   onAcceptToMap,
-  isConflict = false
+  isConflict = false,
+  onUpdateStripField,
 }: {
   transfer: any;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   isConflict?: boolean;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [editingAlt, setEditingAlt] = useState(false);
+  const [altVal, setAltVal] = useState(transfer.alt || '');
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -2032,7 +2039,26 @@ const DraggableIncomingTransferMini = ({
         <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>
           {isConflict && '⚠️ '}{transfer.callsign}
         </div>
-        <div style={{ color: isConflict ? '#fca5a5' : '#15803d' }}>גובה: {transfer.alt}</div>
+        <div style={{ color: isConflict ? '#fca5a5' : '#15803d', display: 'flex', alignItems: 'center', gap: '2px' }}>
+          גובה:&nbsp;
+          {editingAlt ? (
+            <input
+              autoFocus
+              value={altVal}
+              onChange={e => setAltVal(e.target.value)}
+              onPointerDown={e => e.stopPropagation()}
+              onBlur={() => { setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', altVal); }}
+              onKeyDown={e => { if (e.key === 'Enter') { setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', altVal); } if (e.key === 'Escape') { setAltVal(transfer.alt || ''); setEditingAlt(false); } }}
+              style={{ width: '44px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '9px', padding: '1px 3px', outline: 'none' }}
+            />
+          ) : (
+            <span
+              title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+              onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setAltVal(transfer.alt || ''); setEditingAlt(true); } }}
+              style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
+            >{transfer.alt || '—'}</span>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
           <button
             onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }}
@@ -2211,6 +2237,7 @@ const DraggableMapMarker = ({
   zoom?: number;
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -2219,6 +2246,8 @@ const DraggableMapMarker = ({
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempName, setTempName] = useState(marker.subLabel || '');
   const [tempNotes, setTempNotes] = useState(notes || '');
+  const [editingAltId, setEditingAltId] = useState<string | null>(null);
+  const [editingAltVal, setEditingAltVal] = useState('');
   const startPosRef = useRef({ x: 0, y: 0 });
 
   // Sync tempNotes when notes prop changes
@@ -2521,7 +2550,26 @@ const DraggableMapMarker = ({
                 <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>{t.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
-              <div style={{ color: isConflict ? '#fca5a5' : '#15803d', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <div style={{ color: isConflict ? '#fca5a5' : '#15803d', fontSize: '8px', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                גובה:&nbsp;
+                {editingAltId === String(t.id) ? (
+                  <input
+                    autoFocus
+                    value={editingAltVal}
+                    onChange={e => setEditingAltVal(e.target.value)}
+                    onPointerDown={e => e.stopPropagation()}
+                    onBlur={() => { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); } if (e.key === 'Escape') setEditingAltId(null); }}
+                    style={{ width: '40px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '8px', padding: '1px 3px', outline: 'none' }}
+                  />
+                ) : (
+                  <span
+                    title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+                    onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); } }}
+                    style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
+                  >{t.alt || '—'}</span>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); onAcceptTransfer(t.id); }}
@@ -9661,6 +9709,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     dragStripId={tableMode ? tableDragRow : null}
                     onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
+                    onUpdateStripField={handleUpdateStripField}
                   />
                 ))}
               </div>
@@ -11119,6 +11168,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 zoom={mapZoom}
                 conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
                 crossSectorConflictIds={crossSectorConflictIds}
+                onUpdateStripField={handleUpdateStripField}
               />
             ))}
             
