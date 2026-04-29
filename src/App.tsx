@@ -8058,6 +8058,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           targetY: targetY || 0,
           subSectorLabel,
           fromWorkstationId: session.presetId,
+          fromPresetId: session.presetId ?? null,
           toWorkstationId: toWorkstationId || null
         })
       });
