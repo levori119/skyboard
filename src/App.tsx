@@ -4178,11 +4178,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   // When a transfer is dragged to a map point, accept it then auto-assign aircraft to that point
   React.useEffect(() => {
     if (!pendingPointAssign) return;
-    const strip = strips.find(s => String(s.id) === pendingPointAssign.stripId);
+    // Transfer strip_ids are plain integers; strips array uses 's'-prefixed IDs — match either form
+    const raw = String(pendingPointAssign.stripId).replace(/^s/, '');
+    const strip = strips.find(s => String(s.id).replace(/^s/, '') === raw);
     if (!strip) return;
     const positions = getAircraftPositions(strip);
     const updated = positions.map(x => ({ ...x, point_id: pendingPointAssign.pointId }));
-    onUpdateAircraft(pendingPointAssign.stripId, updated);
+    onUpdateAircraft(String(strip.id), updated);
     setPendingPointAssign(null);
   }, [strips, pendingPointAssign]);
 
