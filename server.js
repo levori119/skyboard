@@ -1279,7 +1279,7 @@ app.delete('/api/sub-sectors/:id', async (req, res) => {
 app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(req.params.id.replace('s', ''));
-    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, fromPresetId, toWorkstationId } = req.body;
+    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId } = req.body;
     
     const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
     if (strip.rows.length === 0) {
@@ -1330,9 +1330,9 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     );
     
     const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id, from_preset_id) 
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, fromPresetId || null]
+      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id) 
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9) RETURNING *`,
+      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null]
     );
     
     res.json({ transfer: result.rows[0] });
@@ -1480,7 +1480,7 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
         AND (
           (t.to_preset_id = $1 AND (cardinality($3::int[]) = 0 OR t.from_preset_id = ANY($3::int[])))
           OR (
-            t.to_preset_id IS NULL AND t.from_preset_id IS NULL
+            t.to_preset_id IS NULL
             AND t.to_sector_id = ANY($2::int[])
             AND (t.from_workstation_id IS NULL OR t.from_workstation_id <> $1)
           )
