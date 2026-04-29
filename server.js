@@ -941,6 +941,9 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.mivtza !== undefined) { updates.push(`mivtza = $${paramIndex++}`); values.push(req.body.mivtza || null); }
     if (req.body.block_space_id !== undefined) { updates.push(`block_space_id = $${paramIndex++}`); values.push(req.body.block_space_id ? parseInt(req.body.block_space_id) : null); }
     if (req.body.block_deviation !== undefined) { updates.push(`block_deviation = $${paramIndex++}`); values.push(!!req.body.block_deviation); }
+    if (req.body.callSign !== undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callSign); }
+    if (req.body.callsign !== undefined && req.body.callSign === undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callsign); }
+    if (req.body.task !== undefined) { updates.push(`task = $${paramIndex++}`); values.push(req.body.task); }
     
     if (updates.length > 0) {
       values.push(id);

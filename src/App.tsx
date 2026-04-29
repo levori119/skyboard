@@ -13356,6 +13356,43 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
+  const [globalStrips, setGlobalStrips] = useState<any[]>([]);
+  const [stripsLoading, setStripsLoading] = useState(false);
+  const [stripsSearch, setStripsSearch] = useState('');
+  const [editingStripId, setEditingStripId] = useState<string | null>(null);
+  const [editingStripForm, setEditingStripForm] = useState<any>({});
+  const [showNewStripForm, setShowNewStripForm] = useState(false);
+  const [newStripForm, setNewStripForm] = useState({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '' });
+
+  const loadGlobalStrips = async () => {
+    setStripsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/strips/global`);
+      const data = await res.json();
+      setGlobalStrips(Array.isArray(data) ? data : []);
+    } catch { setGlobalStrips([]); }
+    setStripsLoading(false);
+  };
+
+  const formatTakeoffForInput = (iso: string | null): string => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    } catch { return ''; }
+  };
+
+  const formatTakeoffDisplay = (iso: string | null): string => {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '—';
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth()+1)} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    } catch { return '—'; }
+  };
   const [sectors, setSectors] = useState<any[]>([]);
   const [maps, setMaps] = useState<{id: number; name: string}[]>([]);
   const [presets, setPresets] = useState<any[]>([]);
@@ -13558,6 +13595,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'strips') loadGlobalStrips();
+  }, [activeTab]);
 
   // Sector management
   const saveSector = async () => {
@@ -14471,6 +14512,180 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {/* Strips Tab */}
           {activeTab === 'strips' && (
             <div>
+              {/* ── Strip List ── */}
+              <div style={{ marginBottom: '28px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>רשימת פ"ממ ({globalStrips.length})</h2>
+                  <button
+                    onClick={() => { setShowNewStripForm(true); setEditingStripId(null); setNewStripForm({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '' }); }}
+                    style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                  >+ פמם חדש</button>
+                  <button onClick={loadGlobalStrips} style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⟳ רענן</button>
+                  <input
+                    value={stripsSearch}
+                    onChange={e => setStripsSearch(e.target.value)}
+                    placeholder="חיפוש לפי קריאה / טייסת / משימה..."
+                    style={{ flex: 1, minWidth: '200px', padding: '6px 12px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '13px', direction: 'rtl' }}
+                  />
+                </div>
+
+                {/* New strip form */}
+                {showNewStripForm && (
+                  <div style={{ background: '#0f172a', border: '1px solid #22c55e', borderRadius: '8px', padding: '16px', marginBottom: '14px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#22c55e', fontSize: '14px' }}>פמם חדש</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
+                      {[
+                        { label: 'קריאה *', key: 'callSign' },
+                        { label: 'טייסת', key: 'sq' },
+                        { label: "מ' מערך", key: 'numberOfFormation' },
+                        { label: 'גובה', key: 'alt' },
+                        { label: 'משימה', key: 'task' },
+                        { label: 'כותרת', key: 'koteret' },
+                        { label: 'מבצע', key: 'mivtza' },
+                      ].map(({ label, key }) => (
+                        <div key={key}>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{label}</div>
+                          <input
+                            value={(newStripForm as any)[key]}
+                            onChange={e => setNewStripForm(prev => ({ ...prev, [key]: e.target.value }))}
+                            style={{ width: '100%', padding: '5px 8px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      ))}
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>זמן המראה</div>
+                        <input
+                          type="datetime-local"
+                          value={newStripForm.takeoff_time}
+                          onChange={e => setNewStripForm(prev => ({ ...prev, takeoff_time: e.target.value }))}
+                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                      <button
+                        onClick={async () => {
+                          if (!newStripForm.callSign.trim()) { alert('קריאה חובה'); return; }
+                          const takeoff_time = newStripForm.takeoff_time ? new Date(newStripForm.takeoff_time).toISOString() : null;
+                          const res = await fetch(`${API_URL}/strips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newStripForm, takeoff_time }) });
+                          if (res.ok) { setShowNewStripForm(false); await loadGlobalStrips(); }
+                          else alert('שגיאה ביצירת פמם');
+                        }}
+                        style={{ padding: '6px 18px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+                      >שמור</button>
+                      <button onClick={() => setShowNewStripForm(false)} style={{ padding: '6px 14px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                    </div>
+                  </div>
+                )}
+
+                {stripsLoading ? (
+                  <div style={{ color: '#94a3b8', padding: '20px', textAlign: 'center' }}>טוען...</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
+                      <thead>
+                        <tr style={{ background: '#1e293b', color: '#94a3b8', textAlign: 'right' }}>
+                          {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', ''].map((h, i) => (
+                            <th key={i} style={{ padding: '8px 10px', fontWeight: '600', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {globalStrips
+                          .filter(s => {
+                            if (!stripsSearch.trim()) return true;
+                            const q = stripsSearch.toLowerCase();
+                            return (s.callSign || '').toLowerCase().includes(q) || (s.sq || '').toLowerCase().includes(q) || (s.task || '').toLowerCase().includes(q) || (s.koteret || '').toLowerCase().includes(q);
+                          })
+                          .map((s, idx) => {
+                            const isEditing = editingStripId === s.id;
+                            const rowBg = idx % 2 === 0 ? '#0f172a' : '#111827';
+                            if (isEditing) {
+                              return (
+                                <tr key={s.id} style={{ background: '#1e3a5f' }}>
+                                  {['callSign', 'numberOfFormation', 'sq', 'alt', 'task', 'koteret'].map(field => (
+                                    <td key={field} style={{ padding: '6px 8px' }}>
+                                      <input
+                                        value={editingStripForm[field] ?? ''}
+                                        onChange={e => setEditingStripForm((p: any) => ({ ...p, [field]: e.target.value }))}
+                                        style={{ width: '100%', padding: '4px 6px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', minWidth: '70px' }}
+                                      />
+                                    </td>
+                                  ))}
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <input
+                                      type="datetime-local"
+                                      value={editingStripForm.takeoff_time ?? ''}
+                                      onChange={e => setEditingStripForm((p: any) => ({ ...p, takeoff_time: e.target.value }))}
+                                      style={{ padding: '4px 6px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
+                                    />
+                                  </td>
+                                  <td style={{ padding: '6px 8px', color: '#94a3b8', fontSize: '12px' }}>{s.status}</td>
+                                  <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                                    <button
+                                      onClick={async () => {
+                                        const takeoff_time = editingStripForm.takeoff_time ? new Date(editingStripForm.takeoff_time).toISOString() : null;
+                                        const res = await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editingStripForm, takeoff_time }) });
+                                        if (res.ok) { setEditingStripId(null); await loadGlobalStrips(); }
+                                        else alert('שגיאה בשמירה');
+                                      }}
+                                      style={{ padding: '4px 10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}
+                                    >שמור</button>
+                                    <button onClick={() => setEditingStripId(null)} style={{ padding: '4px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            return (
+                              <tr key={s.id} style={{ background: rowBg }}>
+                                <td style={{ padding: '7px 10px', color: '#e2e8f0', fontWeight: '600' }}>{s.callSign || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.numberOfFormation || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.sq || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.alt || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.task || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.koteret || '—'}</td>
+                                <td style={{ padding: '7px 10px', color: '#60a5fa', whiteSpace: 'nowrap' }}>{formatTakeoffDisplay(s.takeoff_time)}</td>
+                                <td style={{ padding: '7px 10px', color: s.status === 'active' ? '#22c55e' : '#94a3b8', fontSize: '12px' }}>{s.status || '—'}</td>
+                                <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                                  <button
+                                    onClick={() => {
+                                      setEditingStripId(s.id);
+                                      setEditingStripForm({
+                                        callSign: s.callSign || '',
+                                        numberOfFormation: s.numberOfFormation || '',
+                                        sq: s.sq || '',
+                                        alt: s.alt || '',
+                                        task: s.task || '',
+                                        koteret: s.koteret || '',
+                                        takeoff_time: formatTakeoffForInput(s.takeoff_time),
+                                      });
+                                      setShowNewStripForm(false);
+                                    }}
+                                    style={{ padding: '3px 10px', background: '#1e40af', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}
+                                  >עריכה</button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`למחוק פמם "${s.callSign}"?`)) return;
+                                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'DELETE' });
+                                      await loadGlobalStrips();
+                                    }}
+                                    style={{ padding: '3px 10px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                  >מחק</button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        {globalStrips.filter(s => { if (!stripsSearch.trim()) return true; const q = stripsSearch.toLowerCase(); return (s.callSign||'').toLowerCase().includes(q)||(s.sq||'').toLowerCase().includes(q)||(s.task||'').toLowerCase().includes(q)||(s.koteret||'').toLowerCase().includes(q); }).length === 0 && (
+                          <tr><td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#475569' }}>{stripsSearch ? 'לא נמצאו תוצאות' : 'אין פממים במערכת'}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid #1e293b', margin: '0 0 24px' }} />
+
               <h2 style={{ margin: '0 0 20px 0', fontSize: '18px' }}>טעינת פממים מקובץ</h2>
               
               <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '20px' }}>
