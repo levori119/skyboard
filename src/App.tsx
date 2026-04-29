@@ -7152,6 +7152,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const tableSidebarDragId = useRef<string | null>(null);
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
+  const [sidebarHtmlDragOver, setSidebarHtmlDragOver] = useState(false);
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
@@ -7524,17 +7525,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     loadCount >= fullLoadThreshold ? 'full' :
     loadCount >= partialLoadThreshold ? 'partial' : 'none';
 
-  // Computed strips order for table display
+  // Computed strips order for table display (tableOnBoard = strips REMOVED from table)
   const tableDisplayStrips = (() => {
+    const visStrips = myTableStrips.filter(s => !tableOnBoard.has(s.id));
     if (tableSortBySector) {
-      return [...myTableStrips].sort((a, b) => {
+      return [...visStrips].sort((a, b) => {
         const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
         const sB = allSectors.find(sec => sec.id === b.sectorId)?.name || '';
         return sA.localeCompare(sB, 'he');
       });
     }
-    const ordered = tableRowOrder.map(id => myTableStrips.find(s => s.id === id)).filter(Boolean) as any[];
-    const extra = myTableStrips.filter(s => !tableRowOrder.includes(s.id));
+    const ordered = tableRowOrder.map(id => visStrips.find(s => s.id === id)).filter(Boolean) as any[];
+    const extra = visStrips.filter(s => !tableRowOrder.includes(s.id));
     return [...ordered, ...extra];
   })();
 
@@ -7573,9 +7575,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const tableDisplayItems: any[] = (() => {
+    const visStrips = myTableStrips.filter(s => !tableOnBoard.has(s.id));
     if (!tableGroupByKey) {
       if (tableSortKey) {
-        return [...myTableStrips].sort((a, b) => {
+        return [...visStrips].sort((a, b) => {
           const av = getStripFieldValue(a, tableSortKey);
           const bv = getStripFieldValue(b, tableSortKey);
           const cmp = av.localeCompare(bv, 'he');
@@ -7585,7 +7588,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return tableDisplayStrips;
     }
     const grouped: Record<string, any[]> = {};
-    myTableStrips.forEach(s => {
+    visStrips.forEach(s => {
       const val = getStripFieldValue(s, tableGroupByKey);
       if (!grouped[val]) grouped[val] = [];
       grouped[val].push(s);
@@ -7894,8 +7897,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
     setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
     if (toMap) {
-      // When placed on map, ensure strip appears in table too
-      setTableOnBoard(prev => new Set([...prev, String(id)]));
+      // When placed on map, ensure strip remains visible in table
+      setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
     }
     try {
       await fetch(`${API_URL}/strips/${id}`, {
@@ -8128,8 +8131,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
           if (tableModeRef.current) {
-            // Table mode: add to table board
-            setTableOnBoard(prev => new Set([...prev, String(id)]));
+            // Table mode: ensure strip stays visible in table
+            setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
             handleMoveRef.current(String(id), 0, 0, false);
           } else {
             // Map mode: place strip on map at drop coordinates (accounting for zoom/pan)
@@ -8209,9 +8212,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setTableDragRow(null);
       setTableDragOverRow(null);
       clearHighlights();
-      // Dropped on sidebar → remove from table
+      // Dropped on sidebar → remove from table (add to removed-set)
       if (isOverSidebar(e.clientX, e.clientY)) {
-        setTableOnBoard(prev => { const next = new Set(prev); next.delete(String(id)); return next; });
+        setTableOnBoard(prev => new Set([...prev, String(id)]));
         handleMoveRef.current(String(id), 0, 0, false);
         return;
       }
@@ -9532,7 +9535,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
             const sid = rawId ? Number(rawId) : null;
             if (sid) {
-              setTableOnBoard(prev => new Set([...prev, String(sid)]));
+              // Restore to table (remove from the "removed" set)
+              setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(sid)); return n; });
               tableSidebarDragId.current = null;
             }
           } : undefined}
@@ -10527,7 +10531,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
                           const droppedFromSidebar = rawId ? Number(rawId) : null;
                           if (droppedFromSidebar) {
-                            setTableOnBoard(prev => new Set([...prev, String(droppedFromSidebar)]));
+                            // Restore to table (remove from the "removed" set)
+                            setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(droppedFromSidebar)); return n; });
                             tableSidebarDragId.current = null;
                             setTableDragRow(null); setTableDragOverRow(null);
                             return;
@@ -10701,7 +10706,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
-                  setTableOnBoard(prev => { const next = new Set(prev); next.delete(tableRowCtxMenu.stripId); return next; });
+                  setTableOnBoard(prev => new Set([...prev, tableRowCtxMenu.stripId]));
                   setTableRowCtxMenu(null);
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
@@ -11176,8 +11181,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         )}
 
-        {/* Sidebar - Right Side - Shows active strips */}
-        <div id="sidebar-area" style={{ width: sidebarPinned ? 240 : 36, background: tablePointerGhost?.overSidebar ? '#450a0a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: tablePointerGhost?.overSidebar ? '2px solid #f87171' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}>
+        {/* Sidebar - Right Side - Shows strips removed from table */}
+        <div
+          id="sidebar-area"
+          style={{ width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#450a0a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #f87171' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
+          onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
+          onDrop={tableMode ? e => {
+            e.preventDefault();
+            setSidebarHtmlDragOver(false);
+            const sid = e.dataTransfer.getData('text/strip-id-for-transfer');
+            if (sid) {
+              setTableOnBoard(prev => new Set([...prev, sid]));
+              if (!sidebarPinned) setSidebarPinned(true);
+            }
+          } : undefined}
+        >
           {/* Pin toggle button + filter button */}
           <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? 4 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
             <button
@@ -11204,7 +11223,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           {!sidebarPinned && !isGroundMode && (() => {
             const closedCount = tableMode
-              ? myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
+              ? myStrips.filter(s => tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length
               : myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length;
             return closedCount > 0 ? (
               <div
@@ -11234,9 +11253,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
-              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להוספה</div>
-              {[...myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ מוסרים ({myStrips.filter(s => tableOnBoard.has(s.id)).length}):</h4>
+              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם לטבלה להחזרה</div>
+              {[...myStrips.filter(s => tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
                 const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
@@ -11309,8 +11328,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </div>
                 </div>
               );})}
-              {myStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בטבלה</div>
+              {myStrips.filter(s => tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>אין פממים מוסרים</div>
               )}
             </>
           ) : (
