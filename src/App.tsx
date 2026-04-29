@@ -4954,11 +4954,12 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'notes', label: 'הערות' },
 ];
 
-const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging }: {
+const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit }: {
   strip: any; rows: any[]; lightMode: boolean;
   onUpdateField?: (field: string, value: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   isDragging?: boolean;
+  singleClickEdit?: boolean;
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -5019,7 +5020,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               cursor: (editableField && onUpdateField) ? 'text' : 'grab',
               borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
             }}
-            onDoubleClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
+            onClick={() => { if (singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
+            onDoubleClick={() => { if (!singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
           >
             {isEditing ? (
               <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
@@ -5620,7 +5622,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode}
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
@@ -5685,7 +5687,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode}
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
