@@ -7190,6 +7190,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Whether the right sidebar is pinned (visible)
   const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarHtmlDragOver, setSidebarHtmlDragOver] = useState(false);
+  const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
@@ -11295,8 +11296,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פממים זמינים ({myTableStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
-              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם ללוח הטבלה</div>
-              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer')].sort((a,b) => {
+              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '6px' }}>גרור פמם ללוח הטבלה</div>
+              <input
+                value={sidebarAvailableSearch}
+                onChange={e => setSidebarAvailableSearch(e.target.value)}
+                placeholder="חיפוש..."
+                style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
+              />
+              {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer' && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
                 const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
@@ -11369,8 +11376,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </div>
                 </div>
               );})}
-              {myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer').length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים בלוח</div>
+              {myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer' && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()))).length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>{sidebarAvailableSearch.trim() ? 'לא נמצאו תוצאות' : 'כל הפממים בלוח'}</div>
               )}
             </>
           ) : (
