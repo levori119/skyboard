@@ -321,8 +321,8 @@ body.light-mode .table-header-menu button:hover {
 }
 
 @keyframes block-deviation-flash {
-  0%, 100% { background-color: rgba(234, 88, 12, 0.3); }
-  50% { background-color: rgba(234, 88, 12, 0.75); }
+  0%, 100% { background-color: rgba(234, 88, 12, 0.7); }
+  50% { background-color: rgba(234, 88, 12, 0.95); }
 }
 @keyframes block-deviation-flash-solid {
   0%, 100% { background-color: #4a1c07; }

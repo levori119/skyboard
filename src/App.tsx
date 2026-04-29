@@ -2919,13 +2919,15 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     setBlockDeviation(s.block_deviation || false);
   }, [s.block_deviation]);
 
-  // Auto-clear acknowledged deviation when altitude is fixed (no more deviation)
+  // Auto-clear acknowledged deviation when altitude is fixed (no more deviation).
+  // Depends on both isBlockDeviation AND blockDeviation so it re-fires when DB sync
+  // sets blockDeviation=true while isBlockDeviation is already false.
   useEffect(() => {
     if (!isBlockDeviation && blockDeviation) {
       setBlockDeviation(false);
       fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }).catch(() => {});
     }
-  }, [isBlockDeviation]);
+  }, [isBlockDeviation, blockDeviation]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -4042,7 +4044,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4054,6 +4056,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdateAircraft: (stripId: string, aircraft: AircraftPos[]) => void;
   onTransfer: (stripId: string, toSectorId: number, aircraftIdx?: number) => void;
   onAcceptTransfer: (transferId: string) => void;
+  onUpdateStripField?: (stripId: string, field: string, val: string) => void;
   stripAircraftData: Record<string, GroundAircraftRow[]>;
   onUpdateStripAircraft: (stripId: string, idx: number, datk: number | null, kipa: string | null) => void;
   onCreateStrip: (callSign: string, sq: string, count: number, sectorId: number | null) => Promise<void>;
@@ -4065,6 +4068,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
+  const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
@@ -4171,6 +4175,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     return () => ro.disconnect();
   }, [updateImgBounds, airfieldMapSrc]);
 
+  // When a transfer is dragged to a map point, accept it then auto-assign aircraft to that point
+  React.useEffect(() => {
+    if (!pendingPointAssign) return;
+    const strip = strips.find(s => String(s.id) === pendingPointAssign.stripId);
+    if (!strip) return;
+    const positions = getAircraftPositions(strip);
+    const updated = positions.map(x => ({ ...x, point_id: pendingPointAssign.pointId }));
+    onUpdateAircraft(pendingPointAssign.stripId, updated);
+    setPendingPointAssign(null);
+  }, [strips, pendingPointAssign]);
+
   // Convert % coordinates to absolute px within the rendered image area
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
@@ -4229,11 +4244,39 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a', flexShrink: 0 }}>
             <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>📥 מחכים לקבלה ({incomingTransfers.length})</div>
             {incomingTransfers.map(t => (
-              <div key={t.id} draggable onDragStart={() => setDraggingTransferId(String(t.id))} onDragEnd={() => setDraggingTransferId(null)}
-                onClick={() => onAcceptTransfer(String(t.id))}
-                style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1e40af' : '#93c5fd', cursor: 'pointer', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold' }}>{t.callsign || '?'}</span>
-                <span style={{ fontSize: '10px', opacity: 0.7 }}>{t.from_sector_name || ''} ← לחץ לקבל</span>
+              <div key={t.id} draggable
+                onDragStart={() => setDraggingTransferId(String(t.id))}
+                onDragEnd={() => setDraggingTransferId(null)}
+                style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#dbeafe' : '#1e3a5f', cursor: 'grab', fontSize: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                  <span style={{ fontWeight: 'bold', color: lightMode ? '#1e40af' : '#93c5fd' }}>{t.callsign || '?'}</span>
+                  <span style={{ fontSize: '10px', color: lightMode ? '#3b82f6' : '#60a5fa', opacity: 0.8 }}>{t.from_sector_name || ''}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '10px', color: lightMode ? '#374151' : '#94a3b8' }}>גובה:</span>
+                  <input
+                    type="text"
+                    defaultValue={t.alt || ''}
+                    onClick={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
+                    onDragStart={e => e.stopPropagation()}
+                    onBlur={e => {
+                      const val = e.target.value.trim();
+                      if (onUpdateStripField && val !== (t.alt || '')) {
+                        onUpdateStripField(String(t.strip_id), 'alt', val);
+                      }
+                    }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+                    style={{ flex: 1, padding: '1px 4px', fontSize: '11px', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '3px', background: lightMode ? '#fff' : '#0f172a', color: lightMode ? '#1e40af' : '#93c5fd', minWidth: 0 }}
+                  />
+                  <button
+                    onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
+                    title="קבל העברה"
+                    style={{ padding: '2px 6px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '3px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
+                    ✓
+                  </button>
+                </div>
+                <div style={{ fontSize: '9px', color: lightMode ? '#3b82f6' : '#60a5fa', opacity: 0.6, marginTop: '2px', textAlign: 'center' }}>גרור לנקודה במפה לקבלה ומיקום</div>
               </div>
             ))}
           </div>
@@ -4594,6 +4637,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 onDrop={e => {
                   e.preventDefault();
                   setMapDragOver(null);
+                  // Handle incoming transfer dragged to a map point: accept + place
+                  if (draggingTransferId) {
+                    const t = incomingTransfers.find(tr => String(tr.id) === draggingTransferId);
+                    if (t) {
+                      setPendingPointAssign({ stripId: String(t.strip_id), pointId: pt.id });
+                      onAcceptTransfer(draggingTransferId);
+                    }
+                    setDraggingTransferId(null);
+                    return;
+                  }
                   try {
                     const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                     if (!data.stripId) return;
@@ -9655,6 +9708,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateAircraft={handleUpdateAircraft}
                 onTransfer={(stripId, toSectorId, aircraftIdx) => handleGroundTransfer(stripId, toSectorId, aircraftIdx)}
                 onAcceptTransfer={handleAcceptTransfer}
+                onUpdateStripField={handleUpdateStripField}
                 stripAircraftData={groundStripAircraft}
                 onUpdateStripAircraft={handleUpdateStripAircraft}
                 onCreateStrip={handleCreateGroundStrip}
