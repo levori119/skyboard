@@ -227,6 +227,16 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           crewMember: selectedCrewMember
         };
         saveSession(session);
+        fetch(`${API_URL}/activity-log`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: 'workstation_login', severity: 'normal',
+            workstation_preset_id: preset.id, workstation_name: preset.name,
+            crew_member_id: selectedCrewMember?.id ?? null,
+            crew_member_name: selectedCrewMember?.name ?? null,
+            details: { role: selectedCrewMember?.is_admin ? 'admin' : selectedCrewMember?.is_team_lead ? 'team_lead' : 'operator' }
+          })
+        }).catch(() => {});
         onLogin(session);
       } else {
         setError('שגיאה בכניסה');
@@ -13764,6 +13774,9 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   wg_note_edited:    'עריכת הערת קבוצה',
   wg_note_created:   'הערת קבוצה נוצרה',
   block_assigned:    'שיוך מרחב בלוקים',
+  workstation_login: 'כניסה לעמדה',
+  workstation_logout:'יציאה מעמדה',
+  crew_swap:         'החלפת משתמש',
 };
 const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
   critical: { background: '#450a0a', color: '#fca5a5', firstCellBorder: '4px solid #ef4444' } as any,
@@ -13900,6 +13913,9 @@ const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; cr
                 details.blockSpaceName ? `מרחב: ${details.blockSpaceName}` : (details.blockSpaceId === null && row.event_type === 'block_assigned' ? 'הוסר מרחב' : null),
                 details.title ? `כותרת: ${details.title}` : null,
                 details.notesLength != null ? `${details.notesLength} תווים` : null,
+                details.prevCrewMemberName ? `החליף: ${details.prevCrewMemberName}` : null,
+                details.role ? `תפקיד: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.role as string] || details.role}` : null,
+                details.newRole && row.event_type === 'crew_swap' ? `תפקיד חדש: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.newRole as string] || details.newRole}` : null,
               ].filter(Boolean).join(' | ');
               const firstCellBorder = (sevStyle as any).firstCellBorder;
               return (
@@ -16791,6 +16807,19 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (session) {
+      fetch(`${API_URL}/activity-log`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: 'workstation_logout', severity: 'normal',
+          workstation_preset_id: session.presetId ?? null,
+          workstation_name: session.workstationName ?? null,
+          crew_member_id: session.crewMember?.id ?? null,
+          crew_member_name: session.crewMember?.name ?? null,
+          details: {}
+        })
+      }).catch(() => {});
+    }
     clearSession();
     setSession(null);
     setPage('login');
@@ -16798,6 +16827,21 @@ export default function App() {
 
   const handleCrewChange = (newCrewMember: CrewMember) => {
     if (session) {
+      fetch(`${API_URL}/activity-log`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: 'crew_swap', severity: 'normal',
+          workstation_preset_id: session.presetId ?? null,
+          workstation_name: session.workstationName ?? null,
+          crew_member_id: newCrewMember.id,
+          crew_member_name: newCrewMember.name,
+          details: {
+            prevCrewMemberId: session.crewMember?.id ?? null,
+            prevCrewMemberName: session.crewMember?.name ?? null,
+            newRole: newCrewMember.is_admin ? 'admin' : newCrewMember.is_team_lead ? 'team_lead' : 'operator'
+          }
+        })
+      }).catch(() => {});
       const updatedSession = { ...session, crewMember: newCrewMember };
       saveSession(updatedSession);
       setSession(updatedSession);
