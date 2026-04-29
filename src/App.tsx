@@ -1658,11 +1658,12 @@ const DraggableNeighborPanel = ({
   const delta = (neighbor as any).conflict_alt_delta ?? conflictAltDelta ?? 0;
   const conflictingTransferIds = new Set<string>();
   if (delta > 0) {
-    // Compare outgoing × incoming (cross-direction)
+    // Compare outgoing × incoming (cross-direction); skip if same transfer appears in both
     for (const out of sectorOutgoing) {
       const outAlt = parseAlt(out.alt);
       if (outAlt == null) continue;
       for (const inc of sectorIncoming) {
+        if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
         if (Math.abs(outAlt - incAlt) * 100 <= delta) {
@@ -2322,11 +2323,12 @@ const DraggableMapMarker = ({
   const markerConflictIds = new Set<string>();
   // conflictAltDelta is in feet; altitudes are in hundreds → multiply diff by 100
   if (conflictAltDelta > 0) {
-    // Compare outgoing × incoming (cross-direction)
+    // Compare outgoing × incoming (cross-direction); skip if same transfer appears in both
     for (const out of markerOutgoing) {
       const outAlt = parseAlt(out.alt);
       if (outAlt == null) continue;
       for (const inc of markerIncoming) {
+        if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
         if (Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
@@ -7504,7 +7506,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const m = alt.match(/\d+/);
       return m ? parseInt(m[0]) : null;
     };
-    const allTransfers = [...outgoingTransfers, ...incomingTransfers];
+    // Deduplicate: a transfer that matches both outgoing and incoming conditions
+    // would appear twice and falsely conflict with itself.
+    const seenIds = new Set<string>();
+    const allTransfers: any[] = [];
+    for (const t of [...outgoingTransfers, ...incomingTransfers]) {
+      const tid = String(t.id);
+      if (!seenIds.has(tid)) { seenIds.add(tid); allTransfers.push(t); }
+    }
     for (let i = 0; i < allTransfers.length; i++) {
       const a = allTransfers[i];
       const altA = parseAltVal(a.alt);
