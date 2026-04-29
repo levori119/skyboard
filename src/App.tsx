@@ -8723,8 +8723,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
 
-          {/* תפריט תצוגה — מוסתר בעמדת סטריפים, וגם כשהעמדה נעולה לתצוגה אחת */}
-          {!isClassicMode && (myPresetConfig?.allow_view_switching !== false) && (
+          {/* תפריט תצוגה — מוסתר בעמדת סטריפים קלאסית בלבד */}
+          {!isClassicMode && (
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { setShowViewMenu(v => !v); setShowAlertsMenu(false); setShowUserMenu(false); }}
@@ -8738,6 +8738,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '200px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>מצב תצוגה</div>
+                  {/* Map and Table options — only when view switching is allowed */}
+                  {(myPresetConfig?.allow_view_switching !== false) && (<>
                   {/* Map option */}
                   <div style={{ borderBottom: '1px solid #1e3a5f' }}>
                     <div
@@ -8797,7 +8799,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </div>
                     )}
                   </div>
-                  {/* Vertical view toggle */}
+                  </>)}
+                  {/* Vertical view toggle — always available */}
                   <div
                     onClick={() => { setShowVerticalView(v => !v); setShowViewMenu(false); }}
                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: showVerticalView ? '#c084fc' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: showVerticalView ? 'bold' : 'normal' }}
@@ -10645,7 +10648,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Table row right-click context menu */}
           {tableRowCtxMenu && (
             <div
-              style={{ position: 'fixed', top: tableRowCtxMenu.y, left: tableRowCtxMenu.x, background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '150px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+              style={{ position: 'fixed', top: Math.min(tableRowCtxMenu.y, window.innerHeight - 260), right: Math.max(window.innerWidth - tableRowCtxMenu.x, 8), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}
             >
               {(() => {
