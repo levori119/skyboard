@@ -9690,15 +9690,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const tfrPts: any[] = (myPresetConfig?.classic_transfer_points || []).length > 0
               ? myPresetConfig.classic_transfer_points
               : sectorFallback;
-            // Center panel strips: if new classic mode, use filter when configured;
-            // when no filter is set, show only strips explicitly assigned to this workstation
-            // (i.e. strips that arrived via accepted transfer or direct assignment).
+            // Center panel "שלי": always show only strips explicitly assigned to this
+            // workstation (workstation_preset_id). The query/filter NEVER applies here —
+            // it applies only to the right sidebar ("כל הפממים"). Using `strips` (not
+            // allStripsForClassic) ensures optimistic updates from drag/accept are instant.
             const classicCenterStrips = isNewClassic
-              ? allStripsForClassic.filter((s: any) => {
-                  if (s.status === 'pending_transfer') return false;
-                  if (effectiveFilter) return evaluateQuery(s, effectiveFilter);
-                  return Number(s.workstation_preset_id) === Number(session.presetId);
-                })
+              ? strips.filter((s: any) =>
+                  s.status !== 'pending_transfer' &&
+                  Number(s.workstation_preset_id) === Number(session.presetId)
+                )
               : myTableStrips.filter((s: any) => s.status !== 'pending_transfer');
             return (
               <ClassicView
@@ -11448,9 +11448,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </>
           ) : (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פ"מ עמדה ({myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length}):</h4>
-              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>גרור פמם למפה להוספה</div>
-              {[...myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap)].sort((a,b) => {
+              {(() => {
+                const sidebarStripList = myStrips.filter(s =>
+                  s.status !== 'pending_transfer' &&
+                  !s.onMap &&
+                  // In classic mode, don't show strips already assigned to "שלי"
+                  (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
+                );
+                return (<>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length}):</h4>
+              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
+              {[...sidebarStripList].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
                 const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
@@ -11524,9 +11532,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </div>
                 </div>
               );})}
-              {myStrips.filter(s => s.status !== 'pending_transfer' && !s.onMap).length === 0 && (
-                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>כל הפממים על המפה</div>
+              {sidebarStripList.length === 0 && (
+                <div style={{ color: '#94a3b8', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>{isClassicMode ? 'אין פממים זמינים' : 'כל הפממים על המפה'}</div>
               )}
+              </> );})()}
             </>
           ))}
 
