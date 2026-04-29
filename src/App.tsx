@@ -1741,8 +1741,13 @@ const DraggableNeighborPanel = ({
         const rect = mapArea.getBoundingClientRect();
         if (clientX >= rect.left && clientX <= rect.right &&
             clientY >= rect.top && clientY <= rect.bottom) {
-          const rawX = clientX - rect.left;
-          const rawY = clientY - rect.top;
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const z = mapZoom || 1;
+          const px = mapPan?.x ?? 0;
+          const py = mapPan?.y ?? 0;
+          const rawX = (clientX - cx - px) / z + rect.width / 2;
+          const rawY = (clientY - cy - py) / z + rect.height / 2;
           const x = Math.max(100, Math.min(rect.width - 100, rawX));
           const y = Math.max(40, Math.min(rect.height - 50, rawY));
           onDropOnMap(neighbor.id, x, y, dragLabel || undefined);
@@ -1762,7 +1767,7 @@ const DraggableNeighborPanel = ({
       window.removeEventListener('pointerup', handleUp);
       window.removeEventListener('pointercancel', handleCancel);
     };
-  }, [isDragging, neighbor.id, onDropOnMap, dragLabel]);
+  }, [isDragging, neighbor.id, onDropOnMap, dragLabel, mapZoom, mapPan]);
 
   const neighborSubSectors = subSectors.filter(ss => ss.neighbor_id === neighbor.id);
   const hasSubSectors = neighborSubSectors.length > 0;
@@ -2242,6 +2247,7 @@ const DraggableMapMarker = ({
   pan,
   conflictAltDelta = 0,
   crossSectorConflictIds,
+  onUpdateStripField,
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
