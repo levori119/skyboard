@@ -197,7 +197,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setError('');
     try {
       const relevantSectorIds: number[] = preset.relevant_sectors || [];
-      const relevantSectorsList = sectors.filter(s => relevantSectorIds.includes(s.id));
+      const transferPtIds = (preset.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+      const receivePtIds = (preset.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+      const allRelevantIds = [...new Set([...relevantSectorIds, ...transferPtIds, ...receivePtIds])];
+      const relevantSectorsList = sectors.filter(s => allRelevantIds.includes(s.id));
       
       const res = await fetch(`${API_URL}/workstations/login`, {
         method: 'POST',

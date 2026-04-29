@@ -1302,16 +1302,19 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     // Auto-resolve target workstation if not provided
     let resolvedToWorkstationId = toWorkstationId;
     if (!resolvedToWorkstationId && fromWorkstationId) {
-      // Find workstations that have the target sector in their relevant_sectors
+      // Find workstations that have the target sector in their relevant_sectors OR classic_receive_points
       const presetsResult = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
       const presetsWithSector = presetsResult.rows
-        .map(row => ({
-          ...row,
-          relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : 
-            (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : [])
-        }))
-        .filter(preset => 
-          preset.relevant_sectors.includes(toSectorId) && 
+        .map(row => {
+          const relevant = Array.isArray(row.relevant_sectors) ? row.relevant_sectors :
+            (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : []);
+          const recvPts = Array.isArray(row.classic_receive_points) ? row.classic_receive_points :
+            (typeof row.classic_receive_points === 'string' ? JSON.parse(row.classic_receive_points) : []);
+          const recvSectorIds = recvPts.map(p => Number(p.sector_id)).filter(Number.isFinite);
+          return { ...row, relevant_sectors: relevant, recv_sector_ids: recvSectorIds };
+        })
+        .filter(preset =>
+          (preset.relevant_sectors.includes(toSectorId) || preset.recv_sector_ids.includes(Number(toSectorId))) &&
           preset.id !== fromWorkstationId
         );
       
