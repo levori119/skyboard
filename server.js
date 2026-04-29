@@ -1446,7 +1446,7 @@ app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
 app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
-    const presetRow = await pool.query('SELECT classic_receive_points, classic_incoming_partner_preset_ids FROM workstation_presets WHERE id = $1', [presetId]);
+    const presetRow = await pool.query('SELECT classic_receive_points, classic_incoming_partner_preset_ids, relevant_sectors FROM workstation_presets WHERE id = $1', [presetId]);
     let recvPoints = [];
     let incomingPartnerIds = [];
     if (presetRow.rows.length > 0) {
@@ -1456,9 +1456,15 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
       incomingPartnerIds = (Array.isArray(rawIn) ? rawIn : (typeof rawIn === 'string' ? JSON.parse(rawIn) : []))
         .map(Number).filter(Number.isFinite);
     }
-    const recvSectorIds = recvPoints
+    let recvSectorIds = recvPoints
       .map(p => Number(p.sector_id))
       .filter(n => Number.isFinite(n));
+    // Fall back to relevant_sectors when no explicit receive-points are configured
+    if (recvSectorIds.length === 0 && presetRow.rows.length > 0) {
+      const rawRel = presetRow.rows[0].relevant_sectors;
+      const relSectors = Array.isArray(rawRel) ? rawRel : (typeof rawRel === 'string' ? JSON.parse(rawRel) : []);
+      recvSectorIds = relSectors.map(Number).filter(Number.isFinite);
+    }
     const result = await pool.query(`
       SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
              p.name as from_preset_name,
