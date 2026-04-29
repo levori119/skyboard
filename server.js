@@ -944,6 +944,7 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.callSign !== undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callSign); }
     if (req.body.callsign !== undefined && req.body.callSign === undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callsign); }
     if (req.body.task !== undefined) { updates.push(`task = $${paramIndex++}`); values.push(req.body.task); }
+    if (req.body.workstation_preset_id !== undefined) { updates.push(`workstation_preset_id = $${paramIndex++}`); values.push(req.body.workstation_preset_id ? parseInt(req.body.workstation_preset_id) : null); }
     
     if (updates.length > 0) {
       values.push(id);
@@ -1535,8 +1536,8 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
     const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
     
     if (to_preset_id) {
-      // Classic preset-to-preset transfer: just reset strip status, no sector move
-      await pool.query('UPDATE strips SET status = $1 WHERE id = $2', ['queued', strip_id]);
+      // Classic preset-to-preset transfer: assign strip to receiving workstation
+      await pool.query('UPDATE strips SET status = $1, workstation_preset_id = $2, in_table = true WHERE id = $3', ['active', to_preset_id, strip_id]);
     } else {
       // Standard sector-based transfer: move strip to target sector and assign to receiving workstation
       await pool.query(
