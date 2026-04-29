@@ -2217,6 +2217,7 @@ const DraggableMapMarker = ({
   notes,
   onUpdateNotes,
   zoom = 1,
+  pan,
   conflictAltDelta = 0,
   crossSectorConflictIds,
 }: { 
@@ -2235,6 +2236,7 @@ const DraggableMapMarker = ({
   notes?: string;
   onUpdateNotes?: (sectorId: number, notes: string) => void;
   zoom?: number;
+  pan?: { x: number; y: number };
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
@@ -2269,15 +2271,25 @@ const DraggableMapMarker = ({
 
     const lastPos = { x: marker.x, y: marker.y };
 
+    const screenToMap = (clientX: number, clientY: number, rect: DOMRect) => {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const px = (pan?.x ?? 0);
+      const py = (pan?.y ?? 0);
+      const z = zoom || 1;
+      const rawX = (clientX - cx - px) / z + rect.width / 2;
+      const rawY = (clientY - cy - py) / z + rect.height / 2;
+      return { rawX, rawY };
+    };
+
     const handleMoveEvent = (e: PointerEvent) => {
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        lastPos.x = x;
-        lastPos.y = y;
-        setDragPos({ x, y });
+        const { rawX, rawY } = screenToMap(e.clientX, e.clientY, rect);
+        lastPos.x = rawX;
+        lastPos.y = rawY;
+        setDragPos({ x: rawX, y: rawY });
       }
     };
 
@@ -2286,8 +2298,7 @@ const DraggableMapMarker = ({
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
-        const rawX = clientX - rect.left;
-        const rawY = clientY - rect.top;
+        const { rawX, rawY } = screenToMap(clientX, clientY, rect);
         const x = Math.max(100, Math.min(rect.width - 100, rawX));
         const y = Math.max(40, Math.min(rect.height - 50, rawY));
         onMove(x, y);
@@ -11166,6 +11177,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 notes={allSectors.find(s => s.id === marker.sectorId)?.notes}
                 onUpdateNotes={handleUpdateSectorNotes}
                 zoom={mapZoom}
+                pan={mapPan}
                 conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
                 crossSectorConflictIds={crossSectorConflictIds}
                 onUpdateStripField={handleUpdateStripField}
