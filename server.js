@@ -1534,15 +1534,18 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
     }
     
     const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
+    // receivingPresetId is sent by the client (session.presetId) so we always know which workstation is accepting
+    const { receivingPresetId } = req.body || {};
+    const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
     
     if (to_preset_id) {
       // Classic preset-to-preset transfer: assign strip to receiving workstation
-      await pool.query('UPDATE strips SET status = $1, workstation_preset_id = $2, in_table = true WHERE id = $3', ['active', to_preset_id, strip_id]);
+      await pool.query('UPDATE strips SET status = $1, workstation_preset_id = $2, in_table = true WHERE id = $3', ['active', assignedPresetId, strip_id]);
     } else {
       // Standard sector-based transfer: move strip to target sector and assign to receiving workstation
       await pool.query(
         'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
-        [to_sector_id, 'queued', false, target_x || 0, target_y || 0, to_workstation_id, to_workstation_id, strip_id]
+        [to_sector_id, 'queued', false, target_x || 0, target_y || 0, assignedPresetId, assignedPresetId, strip_id]
       );
     }
     

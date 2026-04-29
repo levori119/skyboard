@@ -8339,7 +8339,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleAcceptTransfer = async (transferId: string) => {
     try {
-      await fetch(`${API_URL}/transfers/${transferId}/accept`, { method: 'POST' });
+      await fetch(`${API_URL}/transfers/${transferId}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receivingPresetId: session?.presetId ?? null })
+      });
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer:', err);
