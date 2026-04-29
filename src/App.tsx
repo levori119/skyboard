@@ -7761,6 +7761,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (!prev.has(id)) {
         const t = allT.find((x: any) => String(x.id) === id);
         if (t) {
+          // find the other transfer it conflicts with
+          const others = allT.filter((x: any) => {
+            if (String(x.id) === id) return false;
+            const parseA = (s: string | null | undefined) => { if (!s) return null; const m = s.match(/\d+/); return m ? parseInt(m[0]) : null; };
+            const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+            const altT = parseA(t.alt), altX = parseA(x.alt);
+            return altT != null && altX != null && Math.abs(altT - altX) * 100 <= delta;
+          });
+          const otherCallsigns = others.map((x: any) => x.callsign || x.callSign).filter(Boolean);
+          const sectorLabel = t.from_sector_label || t.from_sector_name || t.to_sector_label || t.to_sector_name || null;
           fetch(`${API_URL}/activity-log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -7773,9 +7783,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               crew_member_name: session?.crewMember?.name ?? null,
               strip_id: t.strip_id ? String(t.strip_id) : null,
               strip_callsign: t.callsign || t.callSign || null,
-              details: { altitude: t.alt, fromPresetId: t.from_workstation_id, conflictTransferId: id },
+              details: {
+                altitude: t.alt,
+                fromSectorLabel: t.from_sector_label || t.from_sector_name || null,
+                toSectorLabel: t.to_sector_label || t.to_sector_name || null,
+                sectorLabel,
+                conflictWith: otherCallsigns.join(', ') || null,
+                fromPresetId: t.from_workstation_id,
+              },
               related_preset_id: t.from_workstation_id || null,
-              related_preset_name: t.from_sector_name || null,
+              related_preset_name: sectorLabel,
             })
           }).catch(() => {});
         }
@@ -8867,7 +8884,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ notes })
       });
       const strip = strips.find(s => String(s.id) === String(id));
-      logActivity('strip_notes_edited', { stripId: String(id), stripCallsign: strip?.callsign || strip?.callSign || '', details: { notesLength: notes.length } });
+      logActivity('strip_notes_edited', { stripId: String(id), stripCallsign: strip?.callsign || strip?.callSign || '', details: { oldNotes: strip?.notes ?? '', newNotes: notes } });
     } catch (err) {
       console.error('Failed to update strip notes:', err);
     }
@@ -12511,6 +12528,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   const canEdit = (note: any) => note.allow_all_edit || note.creator_preset_id === presetId;
 
   const updateNote = async (id: number, changes: any, saveToServer = true) => {
+    const currentNote = notes.find(n => n.id === id);
     setNotes(prev => prev.map(n => n.id === id ? { ...n, ...changes } : n));
     if (saveToServer) {
       await fetch(`${API_URL}/sticky-notes/${id}`, {
@@ -12518,9 +12536,18 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
         body: JSON.stringify({ ...changes, preset_id: presetId, preset_name: presetName, crew_name: crewName }),
       });
       if ('content' in changes || 'title' in changes) {
+        const logDetails: Record<string, any> = { noteId: id };
+        if ('content' in changes) {
+          logDetails.oldContent = currentNote?.content ?? '';
+          logDetails.newContent = changes.content ?? '';
+        }
+        if ('title' in changes) {
+          logDetails.oldTitle = currentNote?.title ?? '';
+          logDetails.newTitle = changes.title ?? '';
+        }
         fetch(`${API_URL}/activity-log`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event_type: 'note_edited', severity: 'normal', workstation_preset_id: presetId, workstation_name: presetName, crew_member_name: crewName, details: { noteId: id } }),
+          body: JSON.stringify({ event_type: 'note_edited', severity: 'normal', workstation_preset_id: presetId, workstation_name: presetName, crew_member_name: crewName, details: logDetails }),
         }).catch(() => {});
       }
     }
@@ -13905,14 +13932,27 @@ const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; cr
               const rowBg = sevStyle.background || (i % 2 === 0 ? cardBg : (lightMode ? '#f1f5f9' : '#162032'));
               const details = typeof row.details === 'string' ? (() => { try { return JSON.parse(row.details); } catch { return {}; } })() : (row.details || {});
               const detailStr = [
-                details.toSectorId ? `→ סקטור ${details.toSectorId}` : null,
-                details.toWorkstationId ? `→ עמדה ${details.toWorkstationId}` : null,
-                details.fromPresetId ? `← עמדה ${details.fromPresetId}` : null,
+                // conflict: show sector/transfer point label
+                row.event_type === 'conflict_detected' && details.sectorLabel ? `נקודה: ${details.sectorLabel}` : null,
+                row.event_type === 'conflict_detected' && details.conflictWith ? `קונפליקט עם: ${details.conflictWith}` : null,
+                row.event_type !== 'conflict_detected' && details.toSectorId ? `→ סקטור ${details.toSectorId}` : null,
+                row.event_type !== 'conflict_detected' && details.toWorkstationId ? `→ עמדה ${details.toWorkstationId}` : null,
+                row.event_type !== 'conflict_detected' && details.fromPresetId ? `← עמדה ${details.fromPresetId}` : null,
                 details.altitude ? `גובה ${details.altitude}` : null,
                 details.loadCount != null ? `עומס ${details.loadCount}/${details.fullLoadThreshold}` : null,
                 details.blockSpaceName ? `מרחב: ${details.blockSpaceName}` : (details.blockSpaceId === null && row.event_type === 'block_assigned' ? 'הוסר מרחב' : null),
                 details.title ? `כותרת: ${details.title}` : null,
-                details.notesLength != null ? `${details.notesLength} תווים` : null,
+                // sticky note / strip notes diff
+                details.oldContent != null && details.newContent != null
+                  ? `${details.oldContent ? `הוסר: "${details.oldContent.slice(0,30)}${details.oldContent.length > 30 ? '…' : ''}"` : ''} ${details.newContent ? `→ "${details.newContent.slice(0,30)}${details.newContent.length > 30 ? '…' : ''}"` : '(נמחק)'}`.trim()
+                  : null,
+                details.oldTitle != null && details.newTitle != null
+                  ? `כותרת: "${details.oldTitle || '—'}" → "${details.newTitle || '—'}"`
+                  : null,
+                details.notesLength != null && details.oldNotes == null ? `${details.notesLength} תווים` : null,
+                details.oldNotes != null
+                  ? `${details.oldNotes ? `"${details.oldNotes.slice(0,25)}${details.oldNotes.length > 25 ? '…' : ''}"` : '(ריק)'} → ${details.newNotes ? `"${details.newNotes.slice(0,25)}${details.newNotes.length > 25 ? '…' : ''}"` : '(נמחק)'}`
+                  : null,
                 details.prevCrewMemberName ? `החליף: ${details.prevCrewMemberName}` : null,
                 details.role ? `תפקיד: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.role as string] || details.role}` : null,
                 details.newRole && row.event_type === 'crew_swap' ? `תפקיד חדש: ${{ admin: 'מנהל', team_lead: 'ראש צוות', operator: 'מפעיל' }[details.newRole as string] || details.newRole}` : null,
