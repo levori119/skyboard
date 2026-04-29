@@ -4230,7 +4230,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               return next;
             });
             const sid = String(strip.id);
-            const acRows = stripAircraftData[sid] || [];
+            const acRows = stripAircraftData[sid.replace(/^s/, '')] || [];
             const getAcRow = (idx: number): GroundAircraftRow => acRows.find(r => r.idx === idx) || { idx, datk: null, kipa: null };
             const sq = strip.sq || strip.squadron || '';
             const callSign = strip.callSign || strip.callsign || '—';
@@ -4698,7 +4698,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const slot = slotIndex(pid, `${strip.id}|${ac.idx}`);
                 const stackOffset = slot * SLOT_GAP;
                 const pos = ptPos(pt.x_pct, pt.y_pct);
-                const acRow = (stripAircraftData[String(strip.id)] || []).find(r => r.idx === ac.idx);
+                const acRow = (stripAircraftData[String(strip.id).replace(/^s/, '')] || []).find(r => r.idx === ac.idx);
                 const acMatchesDatk = datkFilter === null || (acRow?.datk != null && acRow.datk >= datkFilter);
                 const acMatchesStatus = statusFilter.length === 0 || statusFilter.includes(ac.status);
                 const acMatchesFilter = (filterMode === 'OR' && datkFilter !== null && statusFilter.length > 0)
@@ -8017,7 +8017,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const callSign = strip?.callSign || strip?.callsign || '?';
       const totalBefore = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
 
-      const sid = parseInt(String(stripId));
+      const sid = parseInt(String(stripId).replace(/^s/, ''));
       const aidx = parseInt(String(aircraftIdx));
       if (isNaN(sid) || isNaN(aidx) || aidx < 1) {
         console.error('handleGroundTransfer: invalid stripId or aircraftIdx', stripId, aircraftIdx);
@@ -8043,7 +8043,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
       // Update local strips state with server response (renumbered aircraft_positions)
       setStrips(prev => prev.map(s => {
-        if (String(s.id) !== String(sid)) return s;
+        if (parseInt(String(s.id).replace(/^s/, '')) !== sid) return s;
         return { ...s, numberOfFormation: String(remaining), aircraft_positions: data.aircraftPositions || [] };
       }));
 
@@ -8293,20 +8293,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const groundAircraftDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const handleUpdateStripAircraft = (stripId: string, idx: number, datk: number | null, kipa: string | null) => {
+    const normalizedId = String(stripId).replace(/^s/, '');
     // Optimistic update
     setGroundStripAircraft(prev => {
-      const rows = [...(prev[stripId] || [])];
+      const rows = [...(prev[normalizedId] || [])];
       const i = rows.findIndex(r => r.idx === idx);
       if (i >= 0) rows[i] = { ...rows[i], datk, kipa };
       else rows.push({ idx, datk, kipa });
-      return { ...prev, [stripId]: rows };
+      return { ...prev, [normalizedId]: rows };
     });
     // Debounced persist
-    const key = `${stripId}|${idx}`;
+    const key = `${normalizedId}|${idx}`;
     if (groundAircraftDebounceRef.current[key]) clearTimeout(groundAircraftDebounceRef.current[key]);
     groundAircraftDebounceRef.current[key] = setTimeout(async () => {
       try {
-        await fetch(`${API_URL}/strip-aircraft/${stripId}/${idx}`, {
+        await fetch(`${API_URL}/strip-aircraft/${normalizedId}/${idx}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ datk, kipa })
         });

@@ -2386,10 +2386,10 @@ app.put('/api/strips/:id/aircraft', async (req, res) => {
   }
 });
 
-// GET strip_aircraft for multiple strips: ?strip_ids=1,2,3
+// GET strip_aircraft for multiple strips: ?strip_ids=1,2,3 (also handles 's'-prefixed IDs like 's416')
 app.get('/api/strip-aircraft', async (req, res) => {
   try {
-    const ids = String(req.query.strip_ids || '').split(',').map(Number).filter(n => n > 0);
+    const ids = String(req.query.strip_ids || '').split(',').map(s => parseInt(s.replace(/^s/, ''))).filter(n => !isNaN(n) && n > 0);
     if (ids.length === 0) return res.json([]);
     const result = await pool.query(
       `SELECT * FROM strip_aircraft WHERE strip_id = ANY($1) ORDER BY strip_id, idx`,
@@ -2405,8 +2405,11 @@ app.get('/api/strip-aircraft', async (req, res) => {
 // PUT single aircraft row datk/kipa
 app.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   try {
-    const stripId = parseInt(req.params.stripId);
+    const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
     const idx = parseInt(req.params.idx);
+    if (isNaN(stripId) || isNaN(idx) || idx < 1) {
+      return res.status(400).json({ error: 'Invalid stripId or idx' });
+    }
     const { datk, kipa } = req.body;
     await pool.query(
       `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa)
@@ -2451,7 +2454,7 @@ app.post('/api/strips/ground-create', async (req, res) => {
 // POST ensure strip_aircraft rows exist for a strip (idempotent)
 app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   try {
-    const stripId = parseInt(req.params.stripId);
+    const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
     const { count } = req.body;
     const n = Math.max(1, Math.min(parseInt(count) || 1, 16));
     for (let i = 1; i <= n; i++) {
@@ -2472,7 +2475,7 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
 // Renumbers the remaining aircraft so indices stay sequential (1, 2, 3, ...)
 app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   try {
-    const stripId = parseInt(req.params.stripId);
+    const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
     const idx = parseInt(req.params.idx);
     if (isNaN(stripId) || isNaN(idx) || idx < 1) {
       return res.status(400).json({ error: 'Invalid stripId or idx' });
