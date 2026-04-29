@@ -5651,16 +5651,21 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       </div>
 
       {/* CENTER panel — My Strips (שלי) — same as before */}
-      <div style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
+      <div id="classic-mine-panel" style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
         onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
         onDrop={e => {
           e.preventDefault(); setDropTarget(null);
-          if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); }
+          if (draggingTransferId) { onAcceptTransfer(draggingTransferId); setDraggingTransferId(null); return; }
+          // Accept strips dragged in from the sidebar
+          const extId = e.dataTransfer.getData('text/strip-id');
+          if (extId && presetId) {
+            onUpdateStripField(String(extId), 'workstation_preset_id', String(presetId));
+          }
         }}
       >
         <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' && draggingTransferId ? '← שחרר לקבל' : ''}
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {!classicStripTable && (
@@ -7214,6 +7219,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Pointer-events drag from sidebar to table
   const sidebarPointerDragRef = useRef<{ id: number; label: string } | null>(null);
   const [sidebarPointerGhost, setSidebarPointerGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  // Handler ref for dropping sidebar strips onto the ClassicView center panel (updated per render)
+  const classicMinePanelDropRef = useRef<((stripId: string) => void) | null>(null);
   // Pointer-events drag from table row to neighbor transfer panel or back to sidebar
   const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
   const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
@@ -8172,6 +8179,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const r = mapArea.getBoundingClientRect();
         setTableDragOver(e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom);
       }
+      // Visual feedback for classic mine panel hover
+      const classicMine = document.getElementById('classic-mine-panel');
+      if (classicMine) {
+        const r = classicMine.getBoundingClientRect();
+        const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+        classicMine.style.outline = over ? '3px solid #3b82f6' : 'none';
+      }
       setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
     const onUp = (e: PointerEvent) => {
@@ -8180,6 +8194,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      const classicMineEl = document.getElementById('classic-mine-panel');
+      if (classicMineEl) classicMineEl.style.outline = 'none';
+      // Check if dropped on ClassicView "שלי" center panel
+      const classicMine = document.getElementById('classic-mine-panel');
+      if (classicMine) {
+        const r = classicMine.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          classicMinePanelDropRef.current?.(String(id));
+          return;
+        }
+      }
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
@@ -8207,6 +8232,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      const el = document.getElementById('classic-mine-panel');
+      if (el) el.style.outline = 'none';
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -8402,6 +8429,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, [field]: value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) } : s));
     } catch (e) { console.error(e); }
   };
+
+  // Keep classicMinePanelDropRef current so the global pointer-up handler can assign strips
+  // to this workstation when they are dropped onto the ClassicView center "שלי" panel.
+  React.useEffect(() => {
+    if (session?.presetId) {
+      classicMinePanelDropRef.current = (stripId: string) => {
+        handleUpdateStripField(stripId, 'workstation_preset_id', String(session.presetId));
+      };
+    } else {
+      classicMinePanelDropRef.current = null;
+    }
+  });
 
   const handleRejectTransfer = async (transferId: string) => {
     try {
@@ -9642,8 +9681,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     .filter(Boolean);
                 })()
               : [];
-            const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
-            const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
+            // If no classic_receive/transfer_points are configured, fall back to allSectors
+            // so workstations that only configure relevant_sectors still get transfer panels.
+            const sectorFallback = allSectors.map((s: any) => ({ sector_id: s.id, label: s.label_he || s.name }));
+            const rcvPts: any[] = (myPresetConfig?.classic_receive_points || []).length > 0
+              ? myPresetConfig.classic_receive_points
+              : sectorFallback;
+            const tfrPts: any[] = (myPresetConfig?.classic_transfer_points || []).length > 0
+              ? myPresetConfig.classic_transfer_points
+              : sectorFallback;
             // Center panel strips: if new classic mode, use filter when configured;
             // when no filter is set, show only strips explicitly assigned to this workstation
             // (i.e. strips that arrived via accepted transfer or direct assignment).
