@@ -14623,7 +14623,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
                       <thead>
                         <tr style={{ background: '#1e293b', color: '#94a3b8', textAlign: 'right' }}>
-                          {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', ''].map((h, i) => (
+                          {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
                             <th key={i} style={{ padding: '8px 10px', fontWeight: '600', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -14659,6 +14659,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                     />
                                   </td>
                                   <td style={{ padding: '6px 8px', color: '#94a3b8', fontSize: '12px' }}>{s.status}</td>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <button
+                                      onClick={() => setEditingStripForm((p: any) => ({ ...p, airborne: !p.airborne }))}
+                                      style={{ padding: '4px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', background: editingStripForm.airborne ? '#1d4ed8' : '#334155', color: editingStripForm.airborne ? '#bfdbfe' : '#94a3b8' }}
+                                    >{editingStripForm.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
+                                  </td>
                                   <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                                     <button
                                       onClick={async () => {
@@ -14684,6 +14690,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                 <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{s.koteret || '—'}</td>
                                 <td style={{ padding: '7px 10px', color: '#60a5fa', whiteSpace: 'nowrap' }}>{formatTakeoffDisplay(s.takeoff_time)}</td>
                                 <td style={{ padding: '7px 10px', color: s.status === 'active' ? '#22c55e' : '#94a3b8', fontSize: '12px' }}>{s.status || '—'}</td>
+                                <td style={{ padding: '7px 10px' }}>
+                                  <button
+                                    onClick={async () => {
+                                      const newVal = !s.airborne;
+                                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airborne: newVal }) });
+                                      await loadGlobalStrips();
+                                    }}
+                                    style={{ padding: '3px 10px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', background: s.airborne ? '#1d4ed8' : '#1e293b', color: s.airborne ? '#bfdbfe' : '#64748b' }}
+                                  >{s.airborne ? '✈ באוויר' : '⬛ קרקע'}</button>
+                                </td>
                                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
                                   <button
                                     onClick={() => {
@@ -14696,6 +14712,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                         task: s.task || '',
                                         koteret: s.koteret || '',
                                         takeoff_time: formatTakeoffForInput(s.takeoff_time),
+                                        airborne: !!s.airborne,
                                       });
                                       setShowNewStripForm(false);
                                     }}
@@ -14714,7 +14731,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                             );
                           })}
                         {globalStrips.filter(s => { if (!stripsSearch.trim()) return true; const q = stripsSearch.toLowerCase(); return (s.callSign||'').toLowerCase().includes(q)||(s.sq||'').toLowerCase().includes(q)||(s.task||'').toLowerCase().includes(q)||(s.koteret||'').toLowerCase().includes(q); }).length === 0 && (
-                          <tr><td colSpan={9} style={{ padding: '20px', textAlign: 'center', color: '#475569' }}>{stripsSearch ? 'לא נמצאו תוצאות' : 'אין פממים במערכת'}</td></tr>
+                          <tr><td colSpan={10} style={{ padding: '20px', textAlign: 'center', color: '#475569' }}>{stripsSearch ? 'לא נמצאו תוצאות' : 'אין פממים במערכת'}</td></tr>
                         )}
                       </tbody>
                     </table>
