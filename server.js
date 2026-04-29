@@ -1564,7 +1564,7 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
 app.post('/api/transfers/:id/accept-to-map', async (req, res) => {
   try {
     const transferId = req.params.id;
-    const { x, y } = req.body;
+    const { x, y, receivingPresetId } = req.body;
     
     const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
     if (transfer.rows.length === 0) {
@@ -1572,11 +1572,13 @@ app.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     }
     
     const { strip_id, to_sector_id, to_workstation_id } = transfer.rows[0];
+    // Prefer the receiving workstation sent by the client; fall back to transfer record
+    const assignedPresetId = receivingPresetId || to_workstation_id || null;
     
-    // Update strip: move to target sector AND assign to receiving workstation
+    // Update strip: move to target sector AND assign to receiving workstation, place on map
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7 WHERE id = $8',
-      [to_sector_id, 'queued', true, x, y, to_workstation_id, to_workstation_id, strip_id]
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
+      [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, strip_id]
     );
     
     await pool.query(

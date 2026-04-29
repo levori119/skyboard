@@ -1624,6 +1624,8 @@ const DraggableNeighborPanel = ({
   conflictAltDelta,
   crossSectorConflictIds,
   onUpdateStripField,
+  mapZoom,
+  mapPan,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -1641,6 +1643,8 @@ const DraggableNeighborPanel = ({
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  mapZoom?: number;
+  mapPan?: { x: number; y: number };
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -1909,6 +1913,8 @@ const DraggableNeighborPanel = ({
                       onAcceptToMap={onAcceptToMap}
                       isConflict={conflictingTransferIds.has(String(t.id))}
                       onUpdateStripField={onUpdateStripField}
+                      zoom={mapZoom}
+                      pan={mapPan}
                     />
                   ))}
                   {sectorIncoming.length === 0 && (
@@ -1954,6 +1960,8 @@ const DraggableIncomingTransferMini = ({
   onAcceptToMap,
   isConflict = false,
   onUpdateStripField,
+  zoom = 1,
+  pan,
 }: {
   transfer: any;
   onAccept: (id: string) => void;
@@ -1961,6 +1969,8 @@ const DraggableIncomingTransferMini = ({
   onAcceptToMap: (id: string, x: number, y: number) => void;
   isConflict?: boolean;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  zoom?: number;
+  pan?: { x: number; y: number };
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
@@ -1986,6 +1996,17 @@ const DraggableIncomingTransferMini = ({
       setDragPos({ x: e.clientX - 40, y: e.clientY - 20 });
     };
 
+    const screenToMapCoords = (clientX: number, clientY: number, rect: DOMRect) => {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const z = zoom || 1;
+      const px = pan?.x ?? 0;
+      const py = pan?.y ?? 0;
+      const rawX = (clientX - cx - px) / z + rect.width / 2;
+      const rawY = (clientY - cy - py) / z + rect.height / 2;
+      return { rawX, rawY };
+    };
+
     const dropAt = (clientX: number, clientY: number) => {
       setIsDragging(false);
       const sidebarArea = document.getElementById('sidebar-area');
@@ -2002,8 +2023,9 @@ const DraggableIncomingTransferMini = ({
         const rect = mapArea.getBoundingClientRect();
         if (clientX >= rect.left && clientX <= rect.right &&
             clientY >= rect.top && clientY <= rect.bottom) {
-          const x = Math.max(100, Math.min(rect.width - 100, clientX - rect.left));
-          const y = Math.max(40, Math.min(rect.height - 50, clientY - rect.top));
+          const { rawX, rawY } = screenToMapCoords(clientX, clientY, rect);
+          const x = Math.max(100, Math.min(rect.width - 100, rawX));
+          const y = Math.max(40, Math.min(rect.height - 50, rawY));
           onAcceptToMap(transfer.id, x, y);
         }
       }
@@ -2020,7 +2042,7 @@ const DraggableIncomingTransferMini = ({
       window.removeEventListener('pointerup', handleUp);
       window.removeEventListener('pointercancel', handleCancel);
     };
-  }, [isDragging, transfer.id, onAcceptToMap]);
+  }, [isDragging, transfer.id, onAcceptToMap, zoom, pan]);
 
   return (
     <>
@@ -8585,7 +8607,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x, y })
+        body: JSON.stringify({ x, y, receivingPresetId: session?.presetId ?? null })
       });
       loadData();
     } catch (err) {
@@ -9721,6 +9743,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     onUpdateStripField={handleUpdateStripField}
+                    mapZoom={mapZoom}
+                    mapPan={mapPan}
                   />
                 ))}
               </div>
