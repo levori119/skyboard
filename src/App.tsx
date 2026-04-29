@@ -197,9 +197,16 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     setError('');
     try {
       const relevantSectorIds: number[] = preset.relevant_sectors || [];
-      const transferPtIds = (preset.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-      const receivePtIds = (preset.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-      const allRelevantIds = [...new Set([...relevantSectorIds, ...transferPtIds, ...receivePtIds])];
+      // For non-classic presets: also merge sectors from transfer/receive points so the
+      // map-mode neighbor panel shows them.  Classic presets must NOT get this expansion
+      // because they rely on relevantSectors being empty to use the correct loadData branch.
+      const isClassicPreset = preset.preset_type === 'classic' || preset.display_mode === 'classic';
+      let allRelevantIds: number[] = relevantSectorIds;
+      if (!isClassicPreset) {
+        const transferPtIds = (preset.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+        const receivePtIds = (preset.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+        allRelevantIds = [...new Set([...relevantSectorIds, ...transferPtIds, ...receivePtIds])];
+      }
       const relevantSectorsList = sectors.filter(s => allRelevantIds.includes(s.id));
       
       const res = await fetch(`${API_URL}/workstations/login`, {
@@ -9637,9 +9644,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               : [];
             const rcvPts: any[] = myPresetConfig?.classic_receive_points || [];
             const tfrPts: any[] = myPresetConfig?.classic_transfer_points || [];
-            // Center panel strips: if new classic mode, ALL strips filtered by query; otherwise workstation-assigned
+            // Center panel strips: if new classic mode, use filter when configured;
+            // when no filter is set, show only strips explicitly assigned to this workstation
+            // (i.e. strips that arrived via accepted transfer or direct assignment).
             const classicCenterStrips = isNewClassic
-              ? allStripsForClassic.filter((s: any) => s.status !== 'pending_transfer' && (!effectiveFilter || evaluateQuery(s, effectiveFilter)))
+              ? allStripsForClassic.filter((s: any) => {
+                  if (s.status === 'pending_transfer') return false;
+                  if (effectiveFilter) return evaluateQuery(s, effectiveFilter);
+                  return Number(s.workstation_preset_id) === Number(session.presetId);
+                })
               : myTableStrips.filter((s: any) => s.status !== 'pending_transfer');
             return (
               <ClassicView
