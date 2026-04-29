@@ -7739,6 +7739,57 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     loadCount >= fullLoadThreshold ? 'full' :
     loadCount >= partialLoadThreshold ? 'partial' : 'none';
 
+  const prevConflictIdsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    const prev = prevConflictIdsRef.current;
+    const allT = [...outgoingTransfers, ...incomingTransfers];
+    crossSectorConflictIds.forEach(id => {
+      if (!prev.has(id)) {
+        const t = allT.find((x: any) => String(x.id) === id);
+        if (t) {
+          fetch(`${API_URL}/activity-log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_type: 'conflict_detected',
+              severity: 'critical',
+              workstation_preset_id: session?.presetId ?? null,
+              workstation_name: session?.workstationName ?? null,
+              crew_member_id: session?.crewMember?.id ?? null,
+              crew_member_name: session?.crewMember?.name ?? null,
+              strip_id: t.strip_id ? String(t.strip_id) : null,
+              strip_callsign: t.callsign || t.callSign || null,
+              details: { altitude: t.alt, fromPresetId: t.from_workstation_id, conflictTransferId: id },
+              related_preset_id: t.from_workstation_id || null,
+              related_preset_name: t.from_sector_name || null,
+            })
+          }).catch(() => {});
+        }
+      }
+    });
+    prevConflictIdsRef.current = new Set(crossSectorConflictIds);
+  }, [crossSectorConflictIds]);
+
+  const prevLoadLevelRef = React.useRef<string>('none');
+  React.useEffect(() => {
+    if (loadLevel === 'full' && prevLoadLevelRef.current !== 'full') {
+      fetch(`${API_URL}/activity-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_type: 'overload_reached',
+          severity: 'warning',
+          workstation_preset_id: session?.presetId ?? null,
+          workstation_name: session?.workstationName ?? null,
+          crew_member_id: session?.crewMember?.id ?? null,
+          crew_member_name: session?.crewMember?.name ?? null,
+          details: { loadCount, fullLoadThreshold },
+        })
+      }).catch(() => {});
+    }
+    prevLoadLevelRef.current = loadLevel;
+  }, [loadLevel]);
+
   // Computed strips order for table display (tableOnBoard = strips ON the board / center table)
   const tableDisplayStrips = (() => {
     const visStrips = myTableStrips.filter(s => tableOnBoard.has(s.id));
@@ -8199,6 +8250,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const logActivity = React.useCallback((eventType: string, options: {
+    severity?: 'normal' | 'warning' | 'critical';
+    stripId?: string;
+    stripCallsign?: string;
+    details?: Record<string, any>;
+    relatedPresetId?: number;
+    relatedPresetName?: string;
+  } = {}) => {
+    fetch(`${API_URL}/activity-log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_type: eventType,
+        severity: options.severity || 'normal',
+        workstation_preset_id: session?.presetId ?? null,
+        workstation_name: session?.workstationName ?? null,
+        crew_member_id: session?.crewMember?.id ?? null,
+        crew_member_name: session?.crewMember?.name ?? null,
+        strip_id: options.stripId ?? null,
+        strip_callsign: options.stripCallsign ?? null,
+        details: options.details ?? {},
+        related_preset_id: options.relatedPresetId ?? null,
+        related_preset_name: options.relatedPresetName ?? null,
+      })
+    }).catch(() => {});
+  }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
+
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
@@ -8217,6 +8295,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       // Optimistic update: immediately mark the strip as pending_transfer in local state
       // so the load count drops right away without waiting for the next poll cycle
       setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+      const strip = strips.find((s: any) => String(s.id) === String(stripId));
+      logActivity('transfer_sent', {
+        stripId: String(stripId),
+        stripCallsign: strip?.callSign || strip?.callsign,
+        details: { toSectorId, toWorkstationId: toWorkstationId || null }
+      });
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
@@ -8491,11 +8575,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, []);
 
   const handleAcceptTransfer = async (transferId: string) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
       await fetch(`${API_URL}/transfers/${transferId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receivingPresetId: session?.presetId ?? null })
+      });
+      logActivity('transfer_accepted', {
+        stripId: t?.strip_id ? String(t.strip_id) : undefined,
+        stripCallsign: t?.callsign || t?.callSign,
+        details: { fromPresetId: t?.from_workstation_id }
       });
       loadData();
     } catch (err) {
@@ -8569,9 +8659,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const newStrip = await res.json();
       if (newStrip?.id) {
         setStrips(prev => [...prev, newStrip]);
-        // Also init groundStripAircraft for the new strip with empty rows
         const rows: GroundAircraftRow[] = Array.from({ length: count }, (_, i) => ({ idx: i + 1, datk: null, kipa: null }));
         setGroundStripAircraft(prev => ({ ...prev, [String(newStrip.id)]: rows }));
+        logActivity('strip_created', { stripId: String(newStrip.id), stripCallsign: callSign, details: { sq, count } });
       }
     } catch (e) { console.error(e); }
   };
@@ -8600,8 +8690,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   });
 
   const handleRejectTransfer = async (transferId: string) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
       await fetch(`${API_URL}/transfers/${transferId}/reject`, { method: 'POST' });
+      logActivity('transfer_rejected', {
+        stripId: t?.strip_id ? String(t.strip_id) : undefined,
+        stripCallsign: t?.callsign || t?.callSign,
+        details: { fromPresetId: t?.from_workstation_id }
+      });
       loadData();
     } catch (err) {
       console.error('Failed to reject transfer:', err);
@@ -8609,11 +8705,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const handleAcceptToMap = async (transferId: string, x: number, y: number) => {
+    const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
       await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ x, y, receivingPresetId: session?.presetId ?? null })
+      });
+      logActivity('accept_to_map', {
+        stripId: t?.strip_id ? String(t.strip_id) : undefined,
+        stripCallsign: t?.callsign || t?.callSign,
+        details: { fromPresetId: t?.from_workstation_id, x, y }
       });
       loadData();
     } catch (err) {
@@ -8716,8 +8818,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const deleteStrip = async (stripId: string) => {
+    const strip = strips.find((s: any) => String(s.id) === String(stripId));
     try {
       await fetch(`${API_URL}/strips/${stripId}`, { method: 'DELETE' });
+      logActivity('strip_deleted', {
+        stripId: String(stripId),
+        stripCallsign: strip?.callSign || strip?.callsign,
+      });
       loadData();
     } catch (err) {
       console.error('Failed to delete strip:', err);
@@ -13628,14 +13735,185 @@ const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; on
   );
 };
 
+// --- תחקיר / Activity Log ---
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  transfer_sent:     'העברה נשלחה',
+  transfer_accepted: 'העברה התקבלה',
+  transfer_rejected: 'העברה נדחתה',
+  accept_to_map:     'קיבול למפה',
+  conflict_detected: 'קונפליקט גובה',
+  overload_reached:  'עומס מלא',
+  strip_created:     'פמ"מ נוצר',
+  strip_deleted:     'פמ"מ נמחק',
+};
+const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
+  critical: { background: '#450a0a', color: '#fca5a5', borderRight: '4px solid #ef4444' },
+  warning:  { background: '#431407', color: '#fdba74', borderRight: '4px solid #f97316' },
+  normal:   {},
+};
+
+const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; crewMembers: any[]; lightMode: boolean }) => {
+  const bg = lightMode ? '#f8fafc' : '#0f172a';
+  const cardBg = lightMode ? '#fff' : '#1e293b';
+  const border = lightMode ? '#e2e8f0' : '#334155';
+  const text = lightMode ? '#0f172a' : '#e2e8f0';
+  const muted = lightMode ? '#64748b' : '#94a3b8';
+  const inputStyle: React.CSSProperties = { background: lightMode ? '#fff' : '#0f172a', color: text, border: `1px solid ${border}`, borderRadius: '6px', padding: '5px 8px', fontSize: '13px', direction: 'rtl' };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [filterEventType, setFilterEventType] = React.useState('');
+  const [filterDateFrom, setFilterDateFrom] = React.useState(today);
+  const [filterDateTo, setFilterDateTo] = React.useState(today);
+  const [filterPresetId, setFilterPresetId] = React.useState('');
+  const [filterCrewId, setFilterCrewId] = React.useState('');
+  const [rows, setRows] = React.useState<any[]>([]);
+  const [total, setTotal] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+  const [page, setPage] = React.useState(0);
+  const pageSize = 100;
+
+  const fetchLog = React.useCallback(async (pg = 0) => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(pg * pageSize) });
+    if (filterEventType) params.set('event_type', filterEventType);
+    if (filterDateFrom) params.set('date_from', filterDateFrom);
+    if (filterDateTo) params.set('date_to', filterDateTo);
+    if (filterPresetId) params.set('workstation_preset_id', filterPresetId);
+    if (filterCrewId) params.set('crew_member_id', filterCrewId);
+    try {
+      const res = await fetch(`${API_URL}/activity-log?${params}`);
+      const data = await res.json();
+      setRows(data.rows || []);
+      setTotal(data.total || 0);
+    } catch { setRows([]); setTotal(0); }
+    setLoading(false);
+  }, [filterEventType, filterDateFrom, filterDateTo, filterPresetId, filterCrewId]);
+
+  React.useEffect(() => { setPage(0); fetchLog(0); }, [filterEventType, filterDateFrom, filterDateTo, filterPresetId, filterCrewId]);
+
+  const formatTime = (ts: string) => {
+    const d = new Date(ts);
+    return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  };
+
+  const clearLog = async () => {
+    if (!confirm('למחוק את כל יומן הפעילות? לא ניתן לבטל פעולה זו.')) return;
+    await fetch(`${API_URL}/activity-log`, { method: 'DELETE' });
+    fetchLog(0);
+  };
+
+  const totalPages = Math.ceil(total / pageSize);
+
+  return (
+    <div style={{ padding: '16px', direction: 'rtl', color: text, background: bg, minHeight: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+        <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>תחקיר — יומן פעילות</h2>
+        <button onClick={clearLog} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>נקה יומן</button>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px', padding: '10px 12px', background: cardBg, borderRadius: '8px', border: `1px solid ${border}` }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <span style={{ fontSize: '11px', color: muted }}>סוג ארוע</span>
+          <select value={filterEventType} onChange={e => setFilterEventType(e.target.value)} style={inputStyle}>
+            <option value=''>הכל</option>
+            {Object.entries(EVENT_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <span style={{ fontSize: '11px', color: muted }}>מתאריך</span>
+          <input type='date' value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <span style={{ fontSize: '11px', color: muted }}>עד תאריך</span>
+          <input type='date' value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <span style={{ fontSize: '11px', color: muted }}>עמדה</span>
+          <select value={filterPresetId} onChange={e => setFilterPresetId(e.target.value)} style={inputStyle}>
+            <option value=''>כל העמדות</option>
+            {presets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <span style={{ fontSize: '11px', color: muted }}>משתמש</span>
+          <select value={filterCrewId} onChange={e => setFilterCrewId(e.target.value)} style={inputStyle}>
+            <option value=''>כל המשתמשים</option>
+            {crewMembers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button onClick={() => { setFilterEventType(''); setFilterDateFrom(today); setFilterDateTo(today); setFilterPresetId(''); setFilterCrewId(''); }} style={{ ...inputStyle, background: lightMode ? '#f1f5f9' : '#334155', cursor: 'pointer' }}>איפוס</button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '10px', fontSize: '11px', flexWrap: 'wrap' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#450a0a', border: '2px solid #ef4444', display: 'inline-block' }} />קונפליקט / קריטי</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ width: '12px', height: '12px', borderRadius: '2px', background: '#431407', border: '2px solid #f97316', display: 'inline-block' }} />אזהרה / עומס</span>
+        <span style={{ color: muted }}>{loading ? 'טוען...' : `${total} רשומות`}</span>
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${border}` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
+          <thead>
+            <tr style={{ background: lightMode ? '#1e293b' : '#0f172a', color: '#e2e8f0' }}>
+              {['זמן', 'סוג ארוע', 'עמדה', 'משתמש', 'פמ"מ', 'פרטים'].map(h => (
+                <th key={h} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: `1px solid ${border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && !loading && (
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px', color: muted }}>אין רשומות</td></tr>
+            )}
+            {rows.map((row, i) => {
+              const sevStyle = SEVERITY_STYLES[row.severity] || SEVERITY_STYLES.normal;
+              const rowBg = sevStyle.background || (i % 2 === 0 ? cardBg : (lightMode ? '#f1f5f9' : '#162032'));
+              const details = typeof row.details === 'string' ? (() => { try { return JSON.parse(row.details); } catch { return {}; } })() : (row.details || {});
+              const detailStr = [
+                details.toSectorId ? `→ סקטור ${details.toSectorId}` : null,
+                details.toWorkstationId ? `→ עמדה ${details.toWorkstationId}` : null,
+                details.fromPresetId ? `← עמדה ${details.fromPresetId}` : null,
+                details.altitude ? `גובה ${details.altitude}` : null,
+                details.loadCount != null ? `עומס ${details.loadCount}/${details.fullLoadThreshold}` : null,
+              ].filter(Boolean).join(' | ');
+              return (
+                <tr key={row.id} style={{ background: rowBg, ...(sevStyle.borderRight ? { borderRight: sevStyle.borderRight } : {}), color: sevStyle.color || text }}>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', borderBottom: `1px solid ${border}` }}>{formatTime(row.timestamp)}</td>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontWeight: row.severity !== 'normal' ? 700 : 400, borderBottom: `1px solid ${border}` }}>{EVENT_TYPE_LABELS[row.event_type] || row.event_type}</td>
+                  <td style={{ padding: '7px 10px', borderBottom: `1px solid ${border}` }}>{row.workstation_name || '—'}</td>
+                  <td style={{ padding: '7px 10px', borderBottom: `1px solid ${border}` }}>{row.crew_member_name || '—'}</td>
+                  <td style={{ padding: '7px 10px', fontFamily: 'monospace', borderBottom: `1px solid ${border}` }}>{row.strip_callsign || '—'}</td>
+                  <td style={{ padding: '7px 10px', color: muted, maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: `1px solid ${border}` }} title={detailStr}>{detailStr || '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', gap: '6px', marginTop: '10px', justifyContent: 'center', alignItems: 'center' }}>
+          <button onClick={() => { const p = Math.max(0, page - 1); setPage(p); fetchLog(p); }} disabled={page === 0} style={{ ...inputStyle, cursor: page === 0 ? 'default' : 'pointer', opacity: page === 0 ? 0.4 : 1, padding: '4px 10px' }}>◀</button>
+          <span style={{ color: muted, fontSize: '12px' }}>{page + 1} / {totalPages}</span>
+          <button onClick={() => { const p = Math.min(totalPages - 1, page + 1); setPage(p); fetchLog(p); }} disabled={page >= totalPages - 1} style={{ ...inputStyle, cursor: page >= totalPages - 1 ? 'default' : 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1, padding: '4px 10px' }}>▶</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields';
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'debriefing';
   const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
+  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'debriefing'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
@@ -14089,6 +14367,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
         {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
+        {availableTabs.includes('debriefing') && <button onClick={() => setActiveTab('debriefing')} style={{ ...tabStyle(activeTab === 'debriefing'), ...(activeTab !== 'debriefing' ? { borderBottom: '2px solid #f97316', color: '#fb923c' } : { background: '#431407', color: '#fdba74', borderBottom: '2px solid #f97316' }) }}>📋 תחקיר</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -16450,6 +16729,11 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             </div>
           );
         })()}
+
+        {/* Debriefing Tab */}
+        {activeTab === 'debriefing' && (
+          <DebriefingTab presets={presets} crewMembers={crewMembers} lightMode={false} />
+        )}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}

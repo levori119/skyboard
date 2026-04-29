@@ -637,6 +637,24 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id SERIAL PRIMARY KEY,
+      timestamp TIMESTAMPTZ DEFAULT NOW(),
+      event_type VARCHAR(64) NOT NULL,
+      severity VARCHAR(16) DEFAULT 'normal',
+      workstation_preset_id INTEGER,
+      workstation_name VARCHAR(255),
+      crew_member_id INTEGER,
+      crew_member_name VARCHAR(255),
+      strip_id VARCHAR(64),
+      strip_callsign VARCHAR(64),
+      details JSONB DEFAULT '{}',
+      related_preset_id INTEGER,
+      related_preset_name VARCHAR(255)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -2990,6 +3008,68 @@ app.post('/api/sticky-notes/:id/distribute', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to distribute sticky note' });
+  }
+});
+
+// --- Activity Log API ---
+app.post('/api/activity-log', async (req, res) => {
+  try {
+    const { event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name } = req.body;
+    const result = await pool.query(`
+      INSERT INTO activity_log (event_type, severity, workstation_preset_id, workstation_name, crew_member_id, crew_member_name, strip_id, strip_callsign, details, related_preset_id, related_preset_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
+    `, [
+      event_type,
+      severity || 'normal',
+      workstation_preset_id || null,
+      workstation_name || null,
+      crew_member_id || null,
+      crew_member_name || null,
+      strip_id || null,
+      strip_callsign || null,
+      JSON.stringify(details || {}),
+      related_preset_id || null,
+      related_preset_name || null
+    ]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating activity log entry:', err);
+    res.status(500).json({ error: 'Failed to create activity log entry' });
+  }
+});
+
+app.get('/api/activity-log', async (req, res) => {
+  try {
+    const { event_type, date_from, date_to, workstation_preset_id, crew_member_id, severity } = req.query;
+    const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+    if (event_type) { conditions.push(`event_type = $${idx++}`); params.push(event_type); }
+    if (severity) { conditions.push(`severity = $${idx++}`); params.push(severity); }
+    if (date_from) { conditions.push(`timestamp >= $${idx++}`); params.push(date_from); }
+    if (date_to) { conditions.push(`timestamp <= $${idx++}`); params.push(new Date(date_to + 'T23:59:59')); }
+    if (workstation_preset_id) { conditions.push(`workstation_preset_id = $${idx++}`); params.push(parseInt(workstation_preset_id)); }
+    if (crew_member_id) { conditions.push(`crew_member_id = $${idx++}`); params.push(parseInt(crew_member_id)); }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [rows, count] = await Promise.all([
+      pool.query(`SELECT * FROM activity_log ${where} ORDER BY timestamp DESC LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]),
+      pool.query(`SELECT COUNT(*) FROM activity_log ${where}`, params)
+    ]);
+    res.json({ rows: rows.rows, total: parseInt(count.rows[0].count) });
+  } catch (err) {
+    console.error('Error fetching activity log:', err);
+    res.status(500).json({ error: 'Failed to fetch activity log' });
+  }
+});
+
+app.delete('/api/activity-log', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM activity_log');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear activity log' });
   }
 });
 
