@@ -13959,14 +13959,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         </select>
                       </div>
                     </div>
-                    <ClassicPartnersAndPointsEditor
-                      presetForm={presetForm}
-                      setPresetForm={setPresetForm}
-                      presets={presets}
-                      sectors={sectors}
-                      editingPresetId={editingPreset?.id}
-                      onShowHelp={() => setShowClassicTransferHelp(true)}
-                    />
                   </div>
                 ) : (
                   <div style={{ marginBottom: '15px' }}>
@@ -14223,20 +14215,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   )}
                 </div>}
 
-                {/* Partners & transfer points — available for all non-ground preset types */}
-                {presetForm.preset_type !== 'classic' && presetForm.preset_type !== 'ground' && (
-                  <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <label style={{ color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🔀 עמדות שותפות ונקודות העברה</label>
-                    <ClassicPartnersAndPointsEditor
-                      presetForm={presetForm}
-                      setPresetForm={setPresetForm}
-                      presets={presets}
-                      sectors={sectors}
-                      editingPresetId={editingPreset?.id}
-                      onShowHelp={() => setShowClassicTransferHelp(true)}
-                    />
-                  </div>
-                )}
 
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
