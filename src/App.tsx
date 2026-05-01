@@ -257,20 +257,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       direction: 'rtl',
       overflow: 'hidden',
     }}>
-      {/* Left (larger) panel: Debriefing log */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
-        {/* Debrief panel header */}
-        <div style={{ background: '#1e293b', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
-          <span style={{ fontSize: '18px' }}>📋</span>
-          <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '16px' }}>תחקיר — יומן פעילות</span>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: '#f1f5f9' }}>
-          <DebriefingTab lightMode={true} />
-        </div>
-      </div>
-
-      {/* Right (narrow) panel: Login form */}
-      <div style={{ width: '400px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative' }}>
+      {/* Right panel: Login form — always visible */}
+      <div style={{ width: (selectedCrewMember?.is_admin || selectedCrewMember?.is_team_lead) ? '400px' : '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative', transition: 'width 0.3s' }}>
         {/* Light/dark toggle */}
         <button
           onClick={() => {
@@ -286,6 +274,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           padding: '32px 28px', 
           borderRadius: '16px', 
           width: '100%',
+          maxWidth: '480px',
           boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
           maxHeight: '90vh',
           overflowY: 'auto',
@@ -533,8 +522,24 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
         </div>{/* end login card */}
-      </div>{/* end right panel */}
-      
+      </div>{/* end login panel */}
+
+      {/* Left (larger) panel: Debriefing log — admin / team-lead only */}
+      {(selectedCrewMember?.is_admin || selectedCrewMember?.is_team_lead) && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ background: '#1e293b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
+            <span style={{ fontSize: '18px' }}>📋</span>
+            <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '16px' }}>תחקיר — יומן פעילות</span>
+            <span style={{ marginRight: 'auto', fontSize: '11px', color: '#94a3b8' }}>
+              {selectedCrewMember.is_admin ? 'מנהל' : 'ראש צוות'}
+            </span>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', background: '#f1f5f9' }}>
+            <DebriefingTab lightMode={true} />
+          </div>
+        </div>
+      )}
+
       {/* Workstation Selection Modal */}
       {showWorkstationSelect && (
         <div style={{
