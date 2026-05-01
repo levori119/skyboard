@@ -655,6 +655,22 @@ async function initDb() {
     )
   `);
 
+  // Base statuses
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS base_statuses (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      code VARCHAR(20),
+      relevant_to VARCHAR(50) DEFAULT 'כולם',
+      air_defense_status VARCHAR(100),
+      absorption_status VARCHAR(100),
+      bird_status VARCHAR(100),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
+
   console.log('Database initialized');
 }
 
@@ -3637,6 +3653,45 @@ app.get('/api/bdh-preset-assignments', async (req, res) => {
     }
     res.json(map);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch BDH assignments' }); }
+});
+
+// --- Base Statuses API ---
+app.get('/api/base-statuses', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM base_statuses ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch base statuses' }); }
+});
+
+app.post('/api/base-statuses', async (req, res) => {
+  try {
+    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status } = req.body;
+    const result = await pool.query(
+      `INSERT INTO base_statuses (name, code, relevant_to, air_defense_status, absorption_status, bird_status, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW()) RETURNING *`,
+      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create base status' }); }
+});
+
+app.put('/api/base-statuses/:id', async (req, res) => {
+  try {
+    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status } = req.body;
+    const result = await pool.query(
+      `UPDATE base_statuses SET name=$1, code=$2, relevant_to=$3, air_defense_status=$4, absorption_status=$5, bird_status=$6, updated_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update base status' }); }
+});
+
+app.delete('/api/base-statuses/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM base_statuses WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete base status' }); }
 });
 
 const PORT = process.env.PORT || 3001;

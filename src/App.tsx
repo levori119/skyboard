@@ -7355,6 +7355,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [pressureInHg, setPressureInHg] = useState('');
+  const [pressureEditing, setPressureEditing] = useState(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -7544,6 +7546,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Aids panel data
   const [workGroupNotes, setWorkGroupNotes] = useState<any[]>([]);
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
+  const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
+  const [basePanelOpen, setBasePanelOpen] = useState(true);
   const [editingWgNote, setEditingWgNote] = useState<any | null>(null);
   const [wgNoteForm, setWgNoteForm] = useState({ title: '', content: '' });
   const [showAddWgNote, setShowAddWgNote] = useState<number | null>(null);
@@ -7567,6 +7571,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       .then(r => r.ok ? r.json() : [])
       .then(data => setPresetLinks(data))
       .catch(() => {});
+    // Load base statuses relevant to this preset
+    const presetCfg = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId));
+    if (presetCfg?.show_base_statuses) {
+      fetch(`${API_URL}/base-statuses`)
+        .then(r => r.ok ? r.json() : [])
+        .then((all: any[]) => {
+          const ids: number[] = presetCfg.base_status_ids || [];
+          setBaseStatuses(ids.length > 0 ? all.filter((b: any) => ids.includes(Number(b.id))) : all);
+        })
+        .catch(() => {});
+    } else {
+      setBaseStatuses([]);
+    }
   };
 
   useEffect(() => {
@@ -9092,6 +9109,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <span style={{ background: '#10b981', padding: '3px 10px', borderRadius: '4px', fontSize: '12px' }}>
               {session.crewMember.name}
             </span>
+          )}
+          {/* Pressure field */}
+          {pressureEditing ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', border: '1px solid #60a5fa', borderRadius: '6px', padding: '2px 6px' }}>
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>לחץ:</span>
+              <input
+                autoFocus
+                type="text"
+                value={pressureInHg}
+                onChange={e => setPressureInHg(e.target.value)}
+                onBlur={() => setPressureEditing(false)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setPressureEditing(false); }}
+                placeholder='29.92'
+                style={{ width: '52px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '12px', fontFamily: 'monospace', textAlign: 'center' }}
+              />
+              <span style={{ fontSize: '10px', color: '#94a3b8' }}>inHg</span>
+              {pressureInHg && !isNaN(parseFloat(pressureInHg)) && (
+                <span style={{ fontSize: '10px', color: '#c084fc', fontFamily: 'monospace' }}>
+                  {(parseFloat(pressureInHg) * 33.8639).toFixed(1)} mb
+                </span>
+              )}
+            </div>
+          ) : (
+            <div
+              onClick={() => setPressureEditing(true)}
+              title="לחץ אטמוספרי — לחץ לעריכה"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', background: pressureInHg ? '#0c1f3a' : '#1e293b', border: `1px solid ${pressureInHg ? '#2563eb' : '#334155'}`, borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: '10px', color: '#64748b' }}>🌡</span>
+              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (
+                <span style={{ fontSize: '11px', color: '#7dd3fc', fontFamily: 'monospace', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                  {parseFloat(pressureInHg).toFixed(2)}&quot;
+                  <span style={{ color: '#c084fc' }}>{(parseFloat(pressureInHg) * 33.8639).toFixed(1)} mb</span>
+                </span>
+              ) : (
+                <span style={{ fontSize: '10px', color: '#475569' }}>לחץ אטמ&#39;</span>
+              )}
+            </div>
           )}
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
@@ -12120,6 +12175,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })()}
 
+                  {/* Base Status Panel */}
+                  {baseStatuses.length > 0 && (() => {
+                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
+                    return (
+                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                        <div
+                          onClick={() => setBasePanelOpen(v => !v)}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#fef3c7' : '#1c1a07', marginBottom: basePanelOpen ? '4px' : 0 }}
+                        >
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d' }}>🏛 סטטוס בסיסים</span>
+                          <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{basePanelOpen ? '▲' : '▼'}</span>
+                        </div>
+                        {basePanelOpen && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            {baseStatuses.map((bs: any) => (
+                              <div key={bs.id} style={{ background: lightMode ? '#fffbeb' : '#1a1600', border: `1px solid ${lightMode ? '#fde68a' : '#3a3000'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '11px', direction: 'rtl' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                                  <span style={{ fontWeight: 'bold', color: lightMode ? '#78350f' : '#fde68a' }}>{bs.name}</span>
+                                  {bs.code && <span style={{ fontSize: '9px', background: lightMode ? '#fde68a' : '#292300', color: lightMode ? '#78350f' : '#fbbf24', borderRadius: '3px', padding: '1px 5px', fontFamily: 'monospace' }}>{bs.code}</span>}
+                                </div>
+                                {bs.relevant_to && bs.relevant_to !== 'כולם' && (
+                                  <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', marginBottom: '2px' }}>✈ {bs.relevant_to}</div>
+                                )}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px' }}>
+                                  {bs.air_defense_status && (
+                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>מז"א: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.air_defense_status}</span></div>
+                                  )}
+                                  {bs.absorption_status && (
+                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ספיגה: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.absorption_status}</span></div>
+                                  )}
+                                  {bs.bird_status && (
+                                    <div style={{ gridColumn: '1 / -1' }}><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ציפורי: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.bird_status}</span></div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* BDH Section */}
                   {workstationBdhDocs.length > 0 && (
                     <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
@@ -14060,8 +14157,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -14159,6 +14256,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     airfield_id: '' as string | number,
     show_serials: true as boolean,
     allow_view_switching: true as boolean,
+    show_base_statuses: false as boolean,
+    base_status_ids: [] as number[],
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -14209,6 +14308,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
   ]);
 
+  // Base Statuses admin state
+  const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
+  const [editingBaseStatus, setEditingBaseStatus] = useState<any | null>(null);
+  const [showBaseStatusForm, setShowBaseStatusForm] = useState(false);
+  const [baseStatusForm, setBaseStatusForm] = useState({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' });
+  const loadAdminBaseStatuses = () => fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
+
   // BDH state
   const [bdhDocs, setBdhDocs] = useState<any[]>([]);
   const [bdhForm, setBdhForm] = useState({ name: '', category: '', title: '' });
@@ -14246,6 +14352,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       if (bdhRes.ok) setBdhDocs(await bdhRes.json());
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
+      fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -14393,6 +14500,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           classic_outgoing_partner_preset_ids: presetForm.classic_outgoing_partner_preset_ids || [],
           show_serials: presetForm.show_serials !== false,
           allow_view_switching: presetForm.allow_view_switching !== false,
+          show_base_statuses: presetForm.show_base_statuses === true,
+          base_status_ids: presetForm.base_status_ids || [],
         })
       });
       if (!res.ok) {
@@ -14406,7 +14515,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -14444,6 +14553,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       classic_outgoing_partner_preset_ids: Array.isArray(preset.classic_outgoing_partner_preset_ids) ? preset.classic_outgoing_partner_preset_ids.map(Number) : (Array.isArray(preset.classic_partner_preset_ids) ? preset.classic_partner_preset_ids.map(Number) : []),
       show_serials: preset.show_serials !== false,
       allow_view_switching: preset.allow_view_switching !== false,
+      show_base_statuses: preset.show_base_statuses === true,
+      base_status_ids: Array.isArray(preset.base_status_ids) ? preset.base_status_ids.map(Number) : [],
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -14524,6 +14635,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
         {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
+        {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -14535,7 +14647,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -14545,7 +14657,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -14798,6 +14910,38 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </p>
                 </div>
 
+                {/* Base statuses toggle */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🏛 הצג סטטוס בסיסים בפאנל הצד:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl', marginBottom: '8px' }}>
+                    {[{ val: true, label: '✅ כן — הצג' }, { val: false, label: '🔒 לא — הסתר' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, show_base_statuses: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${presetForm.show_base_statuses === opt.val ? '#f59e0b' : '#334155'}`, background: presetForm.show_base_statuses === opt.val ? '#1c1107' : '#1e293b', color: presetForm.show_base_statuses === opt.val ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.show_base_statuses === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {presetForm.show_base_statuses && (
+                    <div style={{ direction: 'rtl' }}>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>בחר בסיסים להצגה (ריק = כל הבסיסים):</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto', background: '#0f172a', borderRadius: '6px', padding: '8px', border: '1px solid #334155' }}>
+                        {adminBaseStatuses.length === 0 ? (
+                          <div style={{ fontSize: '11px', color: '#475569' }}>אין בסיסים מוגדרים — הוסף בלשונית "סטטוס בסיסים"</div>
+                        ) : adminBaseStatuses.map((bs: any) => {
+                          const checked = presetForm.base_status_ids.includes(Number(bs.id));
+                          return (
+                            <label key={bs.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '3px 4px', borderRadius: '4px', background: checked ? '#1c1107' : 'transparent' }}>
+                              <input type="checkbox" checked={checked} onChange={() => setPresetForm(p => ({ ...p, base_status_ids: checked ? p.base_status_ids.filter(id => id !== Number(bs.id)) : [...p.base_status_ids, Number(bs.id)] }))} />
+                              <span style={{ fontSize: '12px', color: checked ? '#fcd34d' : '#94a3b8' }}>{bs.name}{bs.code ? ` (${bs.code})` : ''}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
@@ -15032,7 +15176,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
@@ -16886,6 +17030,128 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           );
         })()}
 
+        {activeTab === 'base_statuses' && (() => {
+          const RELEVANT_TO_OPTIONS = ['כולם', 'קרב/תובלה', 'מסוקים/כטמ"מ'];
+          const saveBaseStatus = async () => {
+            if (!baseStatusForm.name.trim()) { alert('חובה להזין שם בסיס'); return; }
+            const url = editingBaseStatus ? `${API_URL}/base-statuses/${editingBaseStatus.id}` : `${API_URL}/base-statuses`;
+            const method = editingBaseStatus ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(baseStatusForm) });
+            if (!res.ok) { alert('שגיאה בשמירה'); return; }
+            setEditingBaseStatus(null); setShowBaseStatusForm(false);
+            setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' });
+            loadAdminBaseStatuses();
+          };
+          const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+              const text = ev.target?.result as string;
+              const lines = text.split('\n').filter(l => l.trim());
+              if (lines.length < 2) { alert('הקובץ ריק או לא תקין'); return; }
+              const header = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+              const idx = (name: string) => header.findIndex(h => h === name);
+              const nameIdx = idx('name') >= 0 ? idx('name') : idx('שם בסיס');
+              const codeIdx = idx('code') >= 0 ? idx('code') : idx('קוד בסיס');
+              const relIdx = idx('relevant_to') >= 0 ? idx('relevant_to') : idx('רלוונטי ל');
+              const adIdx = idx('air_defense_status') >= 0 ? idx('air_defense_status') : idx('מצב מז"א');
+              const absIdx = idx('absorption_status') >= 0 ? idx('absorption_status') : idx('מצב ספיגה');
+              const birdIdx = idx('bird_status') >= 0 ? idx('bird_status') : idx('סטטוס ציפורי');
+              let count = 0;
+              for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
+                const name = nameIdx >= 0 ? cols[nameIdx] : '';
+                if (!name) continue;
+                await fetch(`${API_URL}/base-statuses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code: codeIdx >= 0 ? cols[codeIdx] : '', relevant_to: relIdx >= 0 ? cols[relIdx] : 'כולם', air_defense_status: adIdx >= 0 ? cols[adIdx] : '', absorption_status: absIdx >= 0 ? cols[absIdx] : '', bird_status: birdIdx >= 0 ? cols[birdIdx] : '' }) }).catch(() => {});
+                count++;
+              }
+              alert(`יובאו ${count} בסיסים`); loadAdminBaseStatuses();
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+          };
+          return (
+            <div style={{ direction: 'rtl' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0, fontSize: '18px' }}>סטטוס בסיסים</h2>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <label style={{ padding: '8px 16px', background: '#064e3b', color: '#6ee7b7', border: '1px solid #065f46', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    📥 ייבוא CSV/Excel
+                    <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleExcelImport} />
+                  </label>
+                  <button onClick={() => { setEditingBaseStatus(null); setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' }); setShowBaseStatusForm(true); }} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>+ חדש</button>
+                </div>
+              </div>
+
+              {showBaseStatusForm && (
+                <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '18px', marginBottom: '20px', direction: 'rtl' }}>
+                  <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#fcd34d' }}>{editingBaseStatus ? '✎ עריכת בסיס' : '+ בסיס חדש'}</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>שם בסיס *</label>
+                      <input value={baseStatusForm.name} onChange={e => setBaseStatusForm(p => ({ ...p, name: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>קוד בסיס</label>
+                      <input value={baseStatusForm.code} onChange={e => setBaseStatusForm(p => ({ ...p, code: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>רלוונטי ל</label>
+                      <select value={baseStatusForm.relevant_to} onChange={e => setBaseStatusForm(p => ({ ...p, relevant_to: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }}>
+                        {RELEVANT_TO_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>מצב מז"א</label>
+                      <input value={baseStatusForm.air_defense_status} onChange={e => setBaseStatusForm(p => ({ ...p, air_defense_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>מצב ספיגה</label>
+                      <input value={baseStatusForm.absorption_status} onChange={e => setBaseStatusForm(p => ({ ...p, absorption_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>סטטוס ציפורי</label>
+                      <input value={baseStatusForm.bird_status} onChange={e => setBaseStatusForm(p => ({ ...p, bird_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setShowBaseStatusForm(false); setEditingBaseStatus(null); }} style={{ padding: '7px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                    <button onClick={saveBaseStatus} style={{ padding: '7px 18px', background: '#d97706', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>💾 שמור</button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
+                💡 ייבוא CSV: עמודות — name, code, relevant_to, air_defense_status, absorption_status, bird_status (או בעברית: שם בסיס, קוד בסיס, רלוונטי ל, מצב מז"א, מצב ספיגה, סטטוס ציפורי)
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {adminBaseStatuses.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#475569', padding: '40px', fontSize: '14px' }}>אין בסיסים — לחץ + חדש להוספה</div>
+                ) : adminBaseStatuses.map((bs: any) => (
+                  <div key={bs.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ flex: 1, direction: 'rtl' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#fcd34d', fontSize: '14px' }}>{bs.name}</span>
+                        {bs.code && <span style={{ fontSize: '11px', background: '#292300', color: '#fbbf24', borderRadius: '4px', padding: '1px 7px', fontFamily: 'monospace' }}>{bs.code}</span>}
+                        {bs.relevant_to && bs.relevant_to !== 'כולם' && <span style={{ fontSize: '10px', color: '#94a3b8', background: '#1e293b', borderRadius: '4px', padding: '1px 6px' }}>✈ {bs.relevant_to}</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#94a3b8' }}>
+                        {bs.air_defense_status && <span><span style={{ color: '#64748b' }}>מז"א: </span><span style={{ color: '#e2e8f0' }}>{bs.air_defense_status}</span></span>}
+                        {bs.absorption_status && <span><span style={{ color: '#64748b' }}>ספיגה: </span><span style={{ color: '#e2e8f0' }}>{bs.absorption_status}</span></span>}
+                        {bs.bird_status && <span><span style={{ color: '#64748b' }}>ציפורי: </span><span style={{ color: '#e2e8f0' }}>{bs.bird_status}</span></span>}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <button onClick={() => { setEditingBaseStatus(bs); setBaseStatusForm({ name: bs.name, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #2563eb', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✎ עריכה</button>
+                      <button onClick={async () => { if (!confirm(`למחוק את "${bs.name}"?`)) return; await fetch(`${API_URL}/base-statuses/${bs.id}`, { method: 'DELETE' }); loadAdminBaseStatuses(); }} style={{ padding: '5px 12px', background: '#450a0a', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 מחק</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
