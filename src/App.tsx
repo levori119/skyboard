@@ -13953,6 +13953,9 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
             {crewMembers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button onClick={() => { setFilterEventType(''); setFilterDateFrom(today); setFilterDateTo(today); setFilterPresetId(''); setFilterCrewId(''); }} style={{ ...inputStyle, background: lightMode ? '#f1f5f9' : '#334155', cursor: 'pointer' }}>איפוס</button>
+        </div>
       </div>
 
       {/* Legend */}
