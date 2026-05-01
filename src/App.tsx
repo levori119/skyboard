@@ -252,29 +252,44 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     <div className="bt-login-bg" style={{ 
       height: '100vh', 
       display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
+      flexDirection: 'row',
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
       direction: 'rtl',
-      position: 'relative'
+      overflow: 'hidden',
     }}>
-      {/* Light/dark toggle — top left corner on login */}
-      <button
-        onClick={() => {
-          const next = !document.body.classList.contains('light-mode');
-          document.body.classList.toggle('light-mode', next);
-          localStorage.setItem('bt-lightMode', String(next));
-        }}
-        style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '18px', lineHeight: 1, color: 'white' }}
-        title="החלף מצב תצוגה"
-      >☀️ / 🌙</button>
-      <div style={{ 
-        background: 'white', 
-        padding: '40px', 
-        borderRadius: '16px', 
-        minWidth: '450px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
-      }}>
+      {/* Left (larger) panel: Debriefing log */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* Debrief panel header */}
+        <div style={{ background: '#1e293b', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
+          <span style={{ fontSize: '18px' }}>📋</span>
+          <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '16px' }}>תחקיר — יומן פעילות</span>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', background: '#f1f5f9' }}>
+          <DebriefingTab lightMode={true} />
+        </div>
+      </div>
+
+      {/* Right (narrow) panel: Login form */}
+      <div style={{ width: '400px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative' }}>
+        {/* Light/dark toggle */}
+        <button
+          onClick={() => {
+            const next = !document.body.classList.contains('light-mode');
+            document.body.classList.toggle('light-mode', next);
+            localStorage.setItem('bt-lightMode', String(next));
+          }}
+          style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1, color: 'white' }}
+          title="החלף מצב תצוגה"
+        >☀️ / 🌙</button>
+        <div style={{ 
+          background: 'white', 
+          padding: '32px 28px', 
+          borderRadius: '16px', 
+          width: '100%',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
           {/* Animated radar + orbiting airplane logo */}
@@ -517,7 +532,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         )}
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
-      </div>
+        </div>{/* end login card */}
+      </div>{/* end right panel */}
       
       {/* Workstation Selection Modal */}
       {showWorkstationSelect && (
@@ -13811,7 +13827,7 @@ const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
   normal:   {},
 };
 
-const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; crewMembers: any[]; lightMode: boolean }) => {
+const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lightMode }: { presets?: any[]; crewMembers?: any[]; lightMode: boolean }) => {
   const bg = lightMode ? '#f8fafc' : '#0f172a';
   const cardBg = lightMode ? '#fff' : '#1e293b';
   const border = lightMode ? '#e2e8f0' : '#334155';
@@ -13830,6 +13846,30 @@ const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; cr
   const [loading, setLoading] = React.useState(false);
   const [page, setPage] = React.useState(0);
   const pageSize = 100;
+
+  // Self-fetch reference data if not provided by parent
+  const [internalPresets, setInternalPresets] = React.useState<any[]>([]);
+  const [internalCrewMembers, setInternalCrewMembers] = React.useState<any[]>([]);
+  const [sectors, setSectors] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    if (!presetsProp) fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : []).then(setInternalPresets).catch(() => {});
+    if (!crewMembersProp) fetch(`${API_URL}/crew-members`).then(r => r.ok ? r.json() : []).then(setInternalCrewMembers).catch(() => {});
+    fetch(`${API_URL}/sectors`).then(r => r.ok ? r.json() : []).then(setSectors).catch(() => {});
+  }, []);
+  const presets = presetsProp ?? internalPresets;
+  const crewMembers = crewMembersProp ?? internalCrewMembers;
+
+  // Lookup helpers
+  const presetName = React.useCallback((id: any) => {
+    if (!id) return null;
+    const p = presets.find((x: any) => String(x.id) === String(id));
+    return p?.name || null;
+  }, [presets]);
+  const sectorName = React.useCallback((id: any) => {
+    if (!id) return null;
+    const s = sectors.find((x: any) => String(x.id) === String(id));
+    return s?.label_he || s?.name || null;
+  }, [sectors]);
 
   const fetchLog = React.useCallback(async (pg = 0) => {
     setLoading(true);
@@ -13935,9 +13975,9 @@ const DebriefingTab = ({ presets, crewMembers, lightMode }: { presets: any[]; cr
                 // conflict: show sector/transfer point label
                 row.event_type === 'conflict_detected' && details.sectorLabel ? `נקודה: ${details.sectorLabel}` : null,
                 row.event_type === 'conflict_detected' && details.conflictWith ? `קונפליקט עם: ${details.conflictWith}` : null,
-                row.event_type !== 'conflict_detected' && details.toSectorId ? `→ סקטור ${details.toSectorId}` : null,
-                row.event_type !== 'conflict_detected' && details.toWorkstationId ? `→ עמדה ${details.toWorkstationId}` : null,
-                row.event_type !== 'conflict_detected' && details.fromPresetId ? `← עמדה ${details.fromPresetId}` : null,
+                row.event_type !== 'conflict_detected' && details.toSectorId ? `→ ${sectorName(details.toSectorId) || `סקטור ${details.toSectorId}`}` : null,
+                row.event_type !== 'conflict_detected' && details.toWorkstationId ? `→ ${presetName(details.toWorkstationId) || `עמדה ${details.toWorkstationId}`}` : null,
+                row.event_type !== 'conflict_detected' && details.fromPresetId ? `← ${presetName(details.fromPresetId) || `עמדה ${details.fromPresetId}`}` : null,
                 details.altitude ? `גובה ${details.altitude}` : null,
                 details.loadCount != null ? `עומס ${details.loadCount}/${details.fullLoadThreshold}` : null,
                 details.blockSpaceName ? `מרחב: ${details.blockSpaceName}` : (details.blockSpaceId === null && row.event_type === 'block_assigned' ? 'הוסר מרחב' : null),
