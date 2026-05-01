@@ -14155,7 +14155,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
-  const [showDebriefPanel, setShowDebriefPanel] = useState(false);
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
@@ -14602,11 +14601,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {effectiveMode === 'admin' && crewMember && <span style={{ background: '#eab308', color: '#1e293b', fontSize: '12px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '12px' }}>מנהל</span>}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {isAdmin && (
-            <button onClick={() => setShowDebriefPanel(v => !v)} style={{ background: showDebriefPanel ? '#f97316' : '#431407', color: showDebriefPanel ? '#fff' : '#fb923c', border: '1px solid #f97316', padding: '10px 18px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-              📋 תחקיר
-            </button>
-          )}
           <button onClick={onBack} style={{ background: '#475569', color: 'white', padding: '10px 25px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
             חזרה
           </button>
@@ -17149,49 +17143,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
 
-      {/* Debriefing right-side panel */}
-      {showDebriefPanel && (
-        <div style={{
-          position: 'fixed', top: 0, right: 0, bottom: 0,
-          width: 'min(680px, 90vw)',
-          background: '#f1f5f9',
-          boxShadow: '-6px 0 32px rgba(0,0,0,0.35)',
-          zIndex: 1000,
-          display: 'flex', flexDirection: 'column',
-          direction: 'rtl',
-          fontFamily: 'inherit',
-        }}>
-          {/* Panel header */}
-          <div style={{
-            background: '#1e293b',
-            padding: '14px 18px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            borderBottom: '3px solid #f97316',
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '18px' }}>📋</span>
-              <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '16px' }}>תחקיר — יומן פעילות</span>
-            </div>
-            <button onClick={() => setShowDebriefPanel(false)} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              color: '#94a3b8', fontSize: '22px', lineHeight: 1, padding: '0 4px',
-            }}>✕</button>
-          </div>
-          {/* Panel body — scrollable */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 0 }}>
-            <DebriefingTab presets={presets} crewMembers={crewMembers} lightMode={true} />
-          </div>
-        </div>
-      )}
-
-      {/* Overlay when panel is open */}
-      {showDebriefPanel && (
-        <div onClick={() => setShowDebriefPanel(false)} style={{
-          position: 'fixed', inset: 0, zIndex: 999,
-          background: 'rgba(0,0,0,0.25)',
-        }} />
-      )}
     </div>
   );
 };
