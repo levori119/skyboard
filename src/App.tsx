@@ -1919,7 +1919,7 @@ const DraggableNeighborPanel = ({
                       <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#92400e' }}>
                         {conflictingTransferIds.has(String(t.id)) && '⚠️ '}{t.callsign}
                       </div>
-                      <div style={{ color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#b45309' }}>גובה: {t.alt}</div>
+                      <div style={{ color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#b45309' }}>גובה: {normalizeAlt(t.alt || '')}</div>
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
                         style={{
@@ -2113,8 +2113,8 @@ const DraggableIncomingTransferMini = ({
               value={altVal}
               onChange={e => setAltVal(e.target.value)}
               onPointerDown={e => e.stopPropagation()}
-              onBlur={() => { setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', altVal); }}
-              onKeyDown={e => { if (e.key === 'Enter') { setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', altVal); } if (e.key === 'Escape') { setAltVal(transfer.alt || ''); setEditingAlt(false); } }}
+              onBlur={() => { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', n); }}
+              onKeyDown={e => { if (e.key === 'Enter') { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', n); } if (e.key === 'Escape') { setAltVal(transfer.alt || ''); setEditingAlt(false); } }}
               style={{ width: '44px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '9px', padding: '1px 3px', outline: 'none' }}
             />
           ) : (
@@ -2587,7 +2587,7 @@ const DraggableMapMarker = ({
                 <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#92400e' }}>{t.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
-              <div style={{ color: isConflict ? '#fca5a5' : '#b45309', fontSize: '8px' }}>גובה: {t.alt}</div>
+              <div style={{ color: isConflict ? '#fca5a5' : '#b45309', fontSize: '8px' }}>גובה: {normalizeAlt(t.alt || '')}</div>
               <button
                 onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
                 style={{
@@ -2786,7 +2786,7 @@ const DraggableMapMarker = ({
                 <span>{s.callsign}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 4px', borderRadius: '3px', fontSize: '9px' }}>{s.sq}</span>
               </div>
-              <div style={{ fontSize: '9px', color: '#64748b' }}>גובה: {s.alt}</div>
+              <div style={{ fontSize: '9px', color: '#64748b' }}>גובה: {normalizeAlt(s.alt || '')}</div>
             </button>
           ))}
         </div>
@@ -3234,7 +3234,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
           <div ref={altRef} onClick={handleEditClick}
             style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-            {s.alt ? `גובה: ${s.alt}` : '-'}
+            {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : '-'}
             {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
             {isAltConflict && <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
           </div>
@@ -3703,7 +3703,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               </div>
               {(!s.sq && s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>{s.squadron}</div>}
               <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
-                <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {s.alt}</div>
+                <div style={{ fontSize: '10px', border: '1px solid #e2e8f0', flex: 1, padding: '2px', background: '#f1f5f9' }}>גובה: {normalizeAlt(s.alt || '')}</div>
                 <div style={{ fontSize: '10px', flex: 1, color: '#64748b' }}>{s.task}</div>
               </div>
             </div>
@@ -4010,7 +4010,7 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
       const relY = e.clientY - rect.top;
       const newAltFt = Math.round(fromY(relY) / 500) * 500;
       const fl = Math.round(newAltFt / 100);
-      if (onUpdateStripAlt) onUpdateStripAlt(dragRef.current.stripId, `FL${fl}`);
+      if (onUpdateStripAlt) onUpdateStripAlt(dragRef.current.stripId, String(fl));
       dragRef.current = null;
       setDragAlt(null);
     };
@@ -6199,7 +6199,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     const commitAlt = (currentAlt: number) => {
       const newAlt = Math.round(currentAlt);
       const fl = Math.round(newAlt / 100);
-      const altStr = newAlt >= 10000 ? `FL${fl}` : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
+      const altStr = newAlt >= 10000 ? String(fl) : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
       onUpdateStripAlt?.(altDragRef.current!.stripId, altStr);
       setAltDrag(null);
     };
@@ -6458,7 +6458,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           return (
             <div key={s.id}
               className={isConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
@@ -6481,7 +6481,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
                 </div>
               </div>
             </div>
@@ -6513,7 +6513,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           return (
             <div key={s.id}
               className={ntConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${s.alt}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
+              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
@@ -6536,7 +6536,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
-                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {s.alt}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
+                  {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
                 </div>
               </div>
             </div>
@@ -6840,6 +6840,23 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
  *  - WS has no blocks in the table  →  always alert (table is active but WS has no range)
  *  - WS has blocks in the table     →  alert when strip altitude is NOT in any of them
  */
+// Normalize an altitude string: strip FL prefix, collapse spaces around dash
+// e.g. "FL340" → "340", "FL340 - FL360" → "340-360", "340  -  360" → "340-360"
+const normalizeAlt = (raw: string): string => {
+  if (!raw) return raw;
+  const s = raw.trim();
+  // Range? (handle optional FL prefix on both sides, flexible spaces around dash)
+  const rangeMatch = s.match(/^[Ff][Ll]?\s*(\d+)\s*[-–]\s*[Ff]?[Ll]?\s*(\d+)$/) ||
+                     s.match(/^(\d+)\s*[-–]\s*[Ff]?[Ll]?\s*(\d+)$/) ||
+                     s.match(/^[Ff][Ll]?\s*(\d+)\s*[-–]\s*(\d+)$/) ||
+                     s.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  if (rangeMatch) return `${rangeMatch[1]}-${rangeMatch[2]}`;
+  // Single value — strip FL prefix
+  const singleMatch = s.match(/^[Ff][Ll]?\s*(\d+)$/);
+  if (singleMatch) return singleMatch[1];
+  return s;
+};
+
 // Parse an altitude string into feet (same logic as VerticalView's parseAltSingle)
 const parseAltToFeet = (raw: string): number | null => {
   if (!raw) return null;
@@ -10242,7 +10259,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {s.alt}</div>}
+                      {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
                     </td>
                   );
                 }
@@ -10286,8 +10303,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const altEditing = tableEditingCell === altCellKey;
                   if (col.editable === 'keyboard' || col.editable === 'both') {
                     const saveField = async (val: string) => {
-                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, alt: val } : st));
-                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val }) });
+                      const norm = normalizeAlt(val);
+                      setStrips(prev => prev.map(st => st.id === s.id ? { ...st, alt: norm } : st));
+                      await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: norm }) });
                     };
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
@@ -11214,7 +11232,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onChange={e => setAltUpdateValue(e.target.value)}
                 onKeyDown={async e => {
                   if (e.key === 'Enter') {
-                    const val = altUpdateValue.trim();
+                    const val = normalizeAlt(altUpdateValue.trim());
                     if (val) {
                       try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
                     }
@@ -11229,7 +11247,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
                 <button
                   onClick={async () => {
-                    const val = altUpdateValue.trim();
+                    const val = normalizeAlt(altUpdateValue.trim());
                     if (val) {
                       try { await fetch(`${API_URL}/strips/${altUpdateForm.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: val, block_deviation: false }) }); } catch {}
                     }
@@ -11750,7 +11768,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
+                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {normalizeAlt(s.alt)}</span>}
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
@@ -11840,7 +11858,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {s.alt}</span>}
+                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {normalizeAlt(s.alt)}</span>}
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
@@ -12469,7 +12487,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
                     <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{s.sq}</div>
                   </div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {s.alt} | {s.task}</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {normalizeAlt(s.alt || '')} | {s.task}</div>
                 </button>
               ))}
             </div>
@@ -13990,7 +14008,7 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
                 row.event_type !== 'conflict_detected' && details.toSectorId ? `→ ${sectorName(details.toSectorId) || `סקטור ${details.toSectorId}`}` : null,
                 row.event_type !== 'conflict_detected' && details.toWorkstationId ? `→ ${presetName(details.toWorkstationId) || `עמדה ${details.toWorkstationId}`}` : null,
                 row.event_type !== 'conflict_detected' && details.fromPresetId ? `← ${presetName(details.fromPresetId) || `עמדה ${details.fromPresetId}`}` : null,
-                details.altitude ? `גובה ${details.altitude}` : null,
+                details.altitude ? `גובה ${normalizeAlt(String(details.altitude))}` : null,
                 details.loadCount != null ? `עומס ${details.loadCount}/${details.fullLoadThreshold}` : null,
                 details.blockSpaceName ? `מרחב: ${details.blockSpaceName}` : (details.blockSpaceId === null && row.event_type === 'block_assigned' ? 'הוסר מרחב' : null),
                 details.title ? `כותרת: ${details.title}` : null,
