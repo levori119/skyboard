@@ -160,6 +160,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [crewSearchQuery, setCrewSearchQuery] = useState('');
   const [showCrewDropdown, setShowCrewDropdown] = useState(false);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
+  const [showLoginDebrief, setShowLoginDebrief] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -512,6 +513,15 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   ניהול מערכת
                 </button>
               )}
+              {(selectedCrewMember.is_admin || selectedCrewMember.is_team_lead) && (
+                <button
+                  onClick={() => setShowLoginDebrief(true)}
+                  style={{ padding: '20px', background: 'linear-gradient(135deg, #431407 0%, #7c2d12 100%)', color: '#fdba74', border: '1px solid #f97316', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(249, 115, 22, 0.3)' }}
+                >
+                  <span style={{ fontSize: '24px' }}>📋</span>
+                  תחקיר
+                </button>
+              )}
             </div>
           </>
         )}
@@ -601,6 +611,25 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           crewMemberId={selectedCrewMember.id}
           crewMemberName={selectedCrewMember.name}
         />
+      )}
+
+      {/* Debriefing full-screen overlay — admin / team-lead only */}
+      {showLoginDebrief && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', flexDirection: 'column', background: '#f1f5f9' }}>
+          {/* Header */}
+          <div style={{ background: '#1e293b', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
+            <span style={{ fontSize: '20px' }}>📋</span>
+            <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '17px', flex: 1 }}>תחקיר — יומן פעילות</span>
+            <button
+              onClick={() => setShowLoginDebrief(false)}
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: 'white', padding: '6px 14px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+            >✕ סגור</button>
+          </div>
+          {/* Content */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <DebriefingTab lightMode={true} />
+          </div>
+        </div>
       )}
     </div>
   );
