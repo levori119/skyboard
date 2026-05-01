@@ -9111,43 +9111,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </span>
           )}
           {/* Pressure field */}
-          {pressureEditing ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#1e293b', border: '1px solid #60a5fa', borderRadius: '6px', padding: '2px 6px' }}>
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>לחץ:</span>
+          <div
+            onClick={() => !pressureEditing && setPressureEditing(true)}
+            title="לחץ אטמוספרי — לחץ לעריכה"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#0c1a30' : '#1e293b', border: `2px solid ${pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : 'pointer', minWidth: '130px' }}
+          >
+            <span style={{ fontSize: '12px' }}>🌡</span>
+            <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
+            {pressureEditing ? (
               <input
                 autoFocus
                 type="text"
                 value={pressureInHg}
                 onChange={e => setPressureInHg(e.target.value)}
                 onBlur={() => setPressureEditing(false)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setPressureEditing(false); }}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setPressureEditing(false); } }}
                 placeholder='29.92'
-                style={{ width: '52px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '12px', fontFamily: 'monospace', textAlign: 'center' }}
+                style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
               />
-              <span style={{ fontSize: '10px', color: '#94a3b8' }}>inHg</span>
-              {pressureInHg && !isNaN(parseFloat(pressureInHg)) && (
-                <span style={{ fontSize: '10px', color: '#c084fc', fontFamily: 'monospace' }}>
-                  {(parseFloat(pressureInHg) * 33.8639).toFixed(1)} mb
-                </span>
-              )}
-            </div>
-          ) : (
-            <div
-              onClick={() => setPressureEditing(true)}
-              title="לחץ אטמוספרי — לחץ לעריכה"
-              style={{ display: 'flex', alignItems: 'center', gap: '4px', background: pressureInHg ? '#0c1f3a' : '#1e293b', border: `1px solid ${pressureInHg ? '#2563eb' : '#334155'}`, borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}
-            >
-              <span style={{ fontSize: '10px', color: '#64748b' }}>🌡</span>
-              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (
-                <span style={{ fontSize: '11px', color: '#7dd3fc', fontFamily: 'monospace', display: 'flex', gap: '5px', alignItems: 'center' }}>
-                  {parseFloat(pressureInHg).toFixed(2)}&quot;
-                  <span style={{ color: '#c084fc' }}>{(parseFloat(pressureInHg) * 33.8639).toFixed(1)} mb</span>
-                </span>
-              ) : (
-                <span style={{ fontSize: '10px', color: '#475569' }}>לחץ אטמ&#39;</span>
-              )}
-            </div>
-          )}
+            ) : (
+              <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? parseFloat(pressureInHg).toFixed(2) : '—'}
+              </span>
+            )}
+            <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
+            <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
+            <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
+            </span>
+            <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+          </div>
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
