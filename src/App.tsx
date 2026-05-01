@@ -6879,9 +6879,13 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
   const effectivePresetId = s.workstation_preset_id ? Number(s.workstation_preset_id) : (viewerPresetId ? Number(viewerPresetId) : null);
   if (!effectivePresetId) return false;
 
-  // Parse altitude using FL-aware parser (returns feet)
-  const altFt = parseAltToFeet(String(s.alt));
-  if (altFt === null) return false;
+  // Parse strip altitude to FL units (same units as block alt_from / alt_to).
+  // Works for: "270", "FL270", "050", "FL050", "270-280", "FL270-FL280".
+  const rawAlt = String(s.alt).trim().toUpperCase().replace(/,/g, '');
+  const flMatch = rawAlt.match(/^F[L]?(\d+)/);
+  const numMatch = rawAlt.match(/^(\d+)/); // also handles ranges — takes the lower bound
+  const altFL = flMatch ? parseInt(flMatch[1]) : (numMatch ? parseInt(numMatch[1]) : null);
+  if (altFL === null) return false;
 
   const presetId = effectivePresetId;
 
@@ -6900,9 +6904,8 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
   // Table has blocks but none for this WS → always alert (strip has no defined range)
   if (myBlocks.length === 0) return true;
 
-  // Alert if the strip's altitude in feet is NOT inside any of my blocks
-  // Block alt_from/alt_to are stored as FL values → multiply by 100 to get feet
-  return !myBlocks.some((b: any) => altFt >= b.alt_from * 100 && altFt <= b.alt_to * 100);
+  // Compare directly in FL units — block alt_from/alt_to are stored as FL integers
+  return !myBlocks.some((b: any) => altFL >= Number(b.alt_from) && altFL <= Number(b.alt_to));
 };
 
 // --- פלטת צבעים ובחירה אוטומטית לבלוקים ---
