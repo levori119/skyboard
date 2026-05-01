@@ -7571,19 +7571,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       .then(r => r.ok ? r.json() : [])
       .then(data => setPresetLinks(data))
       .catch(() => {});
-    // Load base statuses relevant to this preset
-    const presetCfg = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId));
-    if (presetCfg?.show_base_statuses) {
-      fetch(`${API_URL}/base-statuses`)
-        .then(r => r.ok ? r.json() : [])
-        .then((all: any[]) => {
-          const ids: number[] = presetCfg.base_status_ids || [];
-          setBaseStatuses(ids.length > 0 ? all.filter((b: any) => ids.includes(Number(b.id))) : all);
-        })
-        .catch(() => {});
-    } else {
-      setBaseStatuses([]);
-    }
+    // Load base statuses relevant to this preset — fetch fresh config to avoid stale prop
+    fetch(`${API_URL}/workstation-presets`)
+      .then(r => r.ok ? r.json() : [])
+      .then((allPresets: any[]) => {
+        const presetCfg = allPresets.find((p: any) => Number(p.id) === Number(session.presetId));
+        if (presetCfg?.show_base_statuses) {
+          return fetch(`${API_URL}/base-statuses`)
+            .then(r => r.ok ? r.json() : [])
+            .then((all: any[]) => {
+              const ids: number[] = Array.isArray(presetCfg.base_status_ids) ? presetCfg.base_status_ids.map(Number) : [];
+              setBaseStatuses(ids.length > 0 ? all.filter((b: any) => ids.includes(Number(b.id))) : all);
+            });
+        } else {
+          setBaseStatuses([]);
+        }
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
