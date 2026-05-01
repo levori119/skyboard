@@ -252,33 +252,29 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     <div className="bt-login-bg" style={{ 
       height: '100vh', 
       display: 'flex', 
-      flexDirection: 'row',
+      alignItems: 'center', 
+      justifyContent: 'center', 
       background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
       direction: 'rtl',
-      overflow: 'hidden',
+      position: 'relative'
     }}>
-      {/* Right panel: Login form — always visible */}
-      <div style={{ width: (selectedCrewMember?.is_admin || selectedCrewMember?.is_team_lead) ? '400px' : '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', position: 'relative', transition: 'width 0.3s' }}>
-        {/* Light/dark toggle */}
-        <button
-          onClick={() => {
-            const next = !document.body.classList.contains('light-mode');
-            document.body.classList.toggle('light-mode', next);
-            localStorage.setItem('bt-lightMode', String(next));
-          }}
-          style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '16px', lineHeight: 1, color: 'white' }}
-          title="החלף מצב תצוגה"
-        >☀️ / 🌙</button>
-        <div style={{ 
-          background: 'white', 
-          padding: '32px 28px', 
-          borderRadius: '16px', 
-          width: '100%',
-          maxWidth: '480px',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-        }}>
+      {/* Light/dark toggle — top left corner on login */}
+      <button
+        onClick={() => {
+          const next = !document.body.classList.contains('light-mode');
+          document.body.classList.toggle('light-mode', next);
+          localStorage.setItem('bt-lightMode', String(next));
+        }}
+        style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '18px', lineHeight: 1, color: 'white' }}
+        title="החלף מצב תצוגה"
+      >☀️ / 🌙</button>
+      <div style={{ 
+        background: 'white', 
+        padding: '40px', 
+        borderRadius: '16px', 
+        minWidth: '450px',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+      }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
           {/* Animated radar + orbiting airplane logo */}
@@ -521,25 +517,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         )}
         
         {error && <p style={{ color: '#ef4444', textAlign: 'center', marginTop: '15px' }}>{error}</p>}
-        </div>{/* end login card */}
-      </div>{/* end login panel */}
-
-      {/* Left (larger) panel: Debriefing log — admin / team-lead only */}
-      {(selectedCrewMember?.is_admin || selectedCrewMember?.is_team_lead) && (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid rgba(255,255,255,0.12)' }}>
-          <div style={{ background: '#1e293b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '3px solid #f97316', flexShrink: 0 }}>
-            <span style={{ fontSize: '18px' }}>📋</span>
-            <span style={{ color: '#fdba74', fontWeight: 700, fontSize: '16px' }}>תחקיר — יומן פעילות</span>
-            <span style={{ marginRight: 'auto', fontSize: '11px', color: '#94a3b8' }}>
-              {selectedCrewMember.is_admin ? 'מנהל' : 'ראש צוות'}
-            </span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', background: '#f1f5f9' }}>
-            <DebriefingTab lightMode={true} />
-          </div>
-        </div>
-      )}
-
+      </div>
+      
       {/* Workstation Selection Modal */}
       {showWorkstationSelect && (
         <div style={{
