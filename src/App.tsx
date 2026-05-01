@@ -13920,7 +13920,6 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
     <div style={{ padding: '16px', direction: 'rtl', color: text, background: bg, minHeight: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>תחקיר — יומן פעילות</h2>
-        <button onClick={clearLog} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', padding: '5px 12px', cursor: 'pointer', fontSize: '12px' }}>נקה יומן</button>
       </div>
 
       {/* Filters */}
@@ -13953,9 +13952,6 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
             <option value=''>כל המשתמשים</option>
             {crewMembers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button onClick={() => { setFilterEventType(''); setFilterDateFrom(today); setFilterDateTo(today); setFilterPresetId(''); setFilterCrewId(''); }} style={{ ...inputStyle, background: lightMode ? '#f1f5f9' : '#334155', cursor: 'pointer' }}>איפוס</button>
         </div>
       </div>
 
