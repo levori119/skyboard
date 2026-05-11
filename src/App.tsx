@@ -14645,8 +14645,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -15160,6 +15160,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
         {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
         {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={tabStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
+        {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={tabStyle(activeTab === 'value_lists')}>📋 רשימות ערכים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -17420,71 +17421,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               {/* LEFT panel: list + editor controls */}
               <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
 
-                {/* Element Types (global) */}
-                <div style={{ border: `1px solid ${showElementTypeSection ? '#7c3aed' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                  <div onClick={() => setShowElementTypeSection(p => !p)} style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: showElementTypeSection ? '#c4b5fd' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>⚙️ סוגי אלמנטים</span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminElementTypes.length} {showElementTypeSection ? '▲' : '▼'}</span>
-                  </div>
-                  {showElementTypeSection && (
-                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      {adminElementTypes.map(et => (
-                        <div key={et.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #1e3a5f' }}>
-                          <span style={{ fontSize: '13px' }}>{et.icon}</span>
-                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: et.color, flexShrink: 0 }} />
-                          <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{et.name}</span>
-                          <button onClick={() => { setElementTypeForm({ name: et.name, color: et.color, icon: et.icon }); setEditingElementType(et); }} style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏</button>
-                          <button onClick={async () => { if (!confirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
-                        </div>
-                      ))}
-                      {(() => {
-                        const ELEM_ICONS = [
-                          { icon: '🌐', label: 'רשת' },
-                          { icon: '🔌', label: 'כבל' },
-                          { icon: '🚒', label: 'כבאית' },
-                          { icon: '🔧', label: 'כללי' },
-                          { icon: '💡', label: 'חשמל' },
-                          { icon: '⛽', label: 'דלק' },
-                          { icon: '💧', label: 'מים' },
-                          { icon: '🛡️', label: 'ביטחון' },
-                        ];
-                        const IconPicker = () => (
-                          <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-                            {ELEM_ICONS.map(({ icon, label }) => (
-                              <button key={icon} title={label} onClick={() => setElementTypeForm(p => ({ ...p, icon }))}
-                                style={{ width: '26px', height: '26px', fontSize: '14px', background: elementTypeForm.icon === icon ? '#4c1d95' : '#1e293b', border: `2px solid ${elementTypeForm.icon === icon ? '#7c3aed' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', padding: 0 }}>
-                                {icon}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                        return editingElementType ? (
-                          <div style={{ padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #7c3aed', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם סוג" style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
-                            <IconPicker />
-                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>צבע:</span>
-                              <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))} style={{ width: '32px', height: '24px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
-                              <button onClick={async () => { await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }} style={{ flex: 1, padding: '4px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
-                              <button onClick={() => { setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }} style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #1e3a5f' }}>
-                            <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם סוג חדש (כבל / כבאית...)" style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
-                            <IconPicker />
-                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>צבע:</span>
-                              <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))} style={{ width: '32px', height: '24px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
-                              <button onClick={async () => { if (!elementTypeForm.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף סוג</button>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                </div>
-
                 {/* Airfield list */}
                 <div>
                   <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
@@ -18256,6 +18192,99 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     </div>
                   ))
                 }
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === 'value_lists' && (() => {
+          const ELEM_ICONS = [
+            { icon: '🌐', label: 'רשת' },
+            { icon: '🔌', label: 'כבל' },
+            { icon: '🚒', label: 'כבאית' },
+            { icon: '🔧', label: 'כללי' },
+            { icon: '💡', label: 'חשמל' },
+            { icon: '⛽', label: 'דלק' },
+            { icon: '💧', label: 'מים' },
+            { icon: '🛡️', label: 'ביטחון' },
+          ];
+          const IconPicker = () => (
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              {ELEM_ICONS.map(({ icon, label }) => (
+                <button key={icon} title={label} onClick={() => setElementTypeForm(p => ({ ...p, icon }))}
+                  style={{ width: '32px', height: '32px', fontSize: '16px', background: elementTypeForm.icon === icon ? '#4c1d95' : '#1e293b', border: `2px solid ${elementTypeForm.icon === icon ? '#7c3aed' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', padding: 0 }}>
+                  {icon}
+                </button>
+              ))}
+            </div>
+          );
+          return (
+            <div style={{ padding: '20px', direction: 'rtl', maxWidth: '700px' }}>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: '#c4b5fd' }}>📋 רשימות ערכים</h2>
+
+              {/* Element Types list */}
+              <div style={{ background: '#0f172a', borderRadius: '10px', border: '1px solid #7c3aed', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', background: '#1e1040', borderBottom: '1px solid #7c3aed', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#c4b5fd', fontSize: '15px', fontWeight: 'bold' }}>⚙️ סוגי אלמנט — {adminElementTypes.length}</span>
+                  <span style={{ color: '#64748b', fontSize: '12px' }}>משמשים לסיווג אלמנטים בשדות תעופה</span>
+                </div>
+                <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {adminElementTypes.length === 0 && (
+                    <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>אין סוגים עדיין — הוסף למטה</div>
+                  )}
+                  {adminElementTypes.map(et => (
+                    <div key={et.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f' }}>
+                      <span style={{ fontSize: '20px' }}>{et.icon}</span>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: et.color, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: '14px', color: '#e2e8f0', fontWeight: 500 }}>{et.name}</span>
+                      <button onClick={() => { setElementTypeForm({ name: et.name, color: et.color, icon: et.icon }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
+                      <button onClick={async () => { if (!confirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
+                    </div>
+                  ))}
+
+                  {editingElementType ? (
+                    <div style={{ padding: '12px', background: '#1e1040', borderRadius: '8px', border: '2px solid #7c3aed', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                      <div style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 'bold' }}>עריכת סוג: {editingElementType.name}</div>
+                      <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג"
+                        style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
+                        <IconPicker />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
+                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))}
+                          style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={async () => { await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }}
+                          style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
+                        <button onClick={() => { setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }}
+                          style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px', background: '#0a1628', borderRadius: '8px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                      <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף סוג חדש</div>
+                      <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג (לדוגמה: כבאית, רשת, כבל...)"
+                        style={{ padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
+                      <div>
+                        <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
+                        <IconPicker />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
+                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))}
+                          style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
+                      </div>
+                      <button onClick={async () => { if (!elementTypeForm.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧' }); }}
+                        disabled={!elementTypeForm.name.trim()}
+                        style={{ padding: '8px', background: elementTypeForm.name.trim() ? '#059669' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: elementTypeForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: elementTypeForm.name.trim() ? 1 : 0.5 }}>+ הוסף סוג</button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
