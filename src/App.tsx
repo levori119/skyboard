@@ -3226,10 +3226,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
               const hh = d.getUTCHours().toString().padStart(2, '0');
               const mm = d.getUTCMinutes().toString().padStart(2, '0');
-              let label = `${hh}:${mm}`;
-              if (stripDayUTC.getTime() !== todayUTC.getTime()) {
-                label = `${d.getUTCDate().toString().padStart(2,'0')}/${(d.getUTCMonth()+1).toString().padStart(2,'0')} ${label}`;
-              }
+              const label = `${hh}:${mm}`;
               return (
                 <div title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
                   style={{ fontSize: '9px', color: past ? '#dc2626' : '#64748b', fontWeight: past ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
@@ -11169,11 +11166,51 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 case 'takeoffTime': {
                   const t = s.takeoffTime || s.takeoff_time;
                   let display = '—';
+                  let timeVal = '';
                   if (t) {
                     try {
                       const d = new Date(t);
-                      display = String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+                      const hh = String(d.getUTCHours()).padStart(2, '0');
+                      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                      display = `${hh}:${mm}`;
+                      timeVal = display;
                     } catch { display = String(t); }
+                  }
+                  if (col.editable === 'keyboard') {
+                    const toCellKey = s.id + '__takeoffTime';
+                    const toEditing = tableEditingCell === toCellKey;
+                    const saveTakeoffTime = async (val: string) => {
+                      if (!val) {
+                        setStrips(prev => prev.map(st => st.id === s.id ? { ...st, takeoffTime: null, takeoff_time: null } : st));
+                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoffTime: null }) });
+                      } else {
+                        const [h, m] = val.split(':');
+                        const now = new Date();
+                        const iso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), Number(h), Number(m))).toISOString();
+                        setStrips(prev => prev.map(st => st.id === s.id ? { ...st, takeoffTime: iso, takeoff_time: iso } : st));
+                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoffTime: iso }) });
+                      }
+                    };
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                        {toEditing ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <input type="time" autoFocus defaultValue={timeVal}
+                              onBlur={async e => { await saveTakeoffTime(e.target.value); setTableEditingCell(null); }}
+                              style={{ background: '#0f172a', border: '1px solid #6d28d9', borderRadius: '4px', color: 'white', padding: '5px 7px', fontSize: '13px', fontFamily: 'monospace', direction: 'ltr', width: '100%', boxSizing: 'border-box' }}
+                            />
+                            {timeVal && (
+                              <button onMouseDown={e => e.preventDefault()} onClick={() => { saveTakeoffTime(''); setTableEditingCell(null); }}
+                                style={{ fontSize: '11px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', alignSelf: 'flex-start' }}>🗑 נקה</button>
+                            )}
+                          </div>
+                        ) : (
+                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                            {display !== '—' ? display : <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '11px' }}>HH:MM</span>}
+                          </div>
+                        )}
+                      </td>
+                    );
                   }
                   return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
                 }
@@ -11210,7 +11247,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }
                 default: {
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
-                    task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע'
+                    task: 'משימה', erka: 'ערכה', koteret: 'כותרת', mivtza: 'מבצע', sid: 'SID', star: 'STAR'
                   };
                   if (colKey === 'block_space') {
                     const currentBsId = s.block_space_id ? String(s.block_space_id) : '';
@@ -13041,7 +13078,7 @@ const STRIP_FIELD_DEFS = [
   { key: 'numberOfFormation', label: "מ' מערך",       editableOptions: ['none', 'keyboard'] },
   { key: 'task',              label: 'משימה',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'alt',               label: 'גובה',          editableOptions: ['none', 'keyboard', 'both'] },
-  { key: 'takeoffTime',       label: 'זמן המראה',     editableOptions: ['none'] as string[] },
+  { key: 'takeoffTime',       label: 'זמן המראה',     editableOptions: ['none', 'keyboard'] },
   { key: 'weapons',           label: 'חימושים',       editableOptions: ['none', 'keyboard'] },
   { key: 'targets',           label: 'מטרות',         editableOptions: ['none', 'keyboard'] },
   { key: 'systems',           label: 'מערכות',        editableOptions: ['none', 'keyboard'] },
