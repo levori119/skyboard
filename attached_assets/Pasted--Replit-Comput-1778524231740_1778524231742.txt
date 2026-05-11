@@ -1,0 +1,75 @@
+כדי שרפליט (Replit) יוכל לבצע את הפעולה הזו בצורה אוטומטית, אתה צריך קוד שמשלב ראייה ממוחשבת (Computer Vision) יחד עם לוגיקה גיאומטרית.
+
+ברפליט, הקוד הכי יעיל יהיה כזה שמשתמש ב-OpenCV כדי "לקרוא" את התמונה הפיזית שהעלית, לזהות את המסלולים, ולהמיר אותם לקואורדינטות וקטוריות.
+
+להלן הקוד המלא שאתה יכול להדביק ב-Replit (בקובץ main.py). הקוד הזה עושה את מה שביקשת: הוא "מבין" את התמונה, מחלץ את המסלולים והדת"קים, ומייצר מפה וקטורית חדשה.
+
+1. הקוד ל-Replit (main.py)
+Python
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+def generate_airport_vector_map(input_image):
+    # טעינת התמונה ועיבוד ראשוני
+    img = cv2.imread(input_image)
+    if img is None:
+        return "Error: Image not found"
+        
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # טשטוש להורדת רעשי שדות חקלאיים
+    blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+    
+    # זיהוי קצוות
+    edges = cv2.Canny(blurred, 50, 150)
+
+    # יצירת קנבס וקטורי נקי
+    h, w = img.shape[:2]
+    vector_map = np.ones((h, w, 3), dtype=np.uint8) * 255 # רקע לבן
+
+    # --- זיהוי מסלולים (Lines) ---
+    # נשתמש ב-HoughLinesP כדי למצוא קווים ישרים ארוכים
+    lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=80, minLineLength=100, maxLineGap=20)
+    
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            # ציור מסלול וקטורי באפור כהה
+            cv2.line(vector_map, (x1, y1), (x2, y2), (60, 60, 60), 12)
+
+    # --- זיהוי דת"קים (Contours) ---
+    # נחפש צורות סגורות קטנות
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if 50 < area < 800: # טווח גודל של דת"ק ממוצע בתמונה
+            x, y, w_box, h_box = cv2.boundingRect(cnt)
+            # ציור דת"ק כריבוע אדום וקטורי
+            cv2.rectangle(vector_map, (x, y), (x + w_box, y + h_box), (0, 0, 255), -1)
+
+    # שמירת התוצאה
+    output_filename = "vector_result.png"
+    cv2.imwrite(output_filename, vector_map)
+    return output_filename
+
+# הרצה
+result = generate_airport_vector_map('ramat_david.jpg') # וודא שהשם תואם לקובץ שהעלית לרפליט
+print(f"Vector map generated: {result}")
+2. איך להפעיל את זה ברפליט:
+צור Project חדש מסוג Python.
+
+העלה את התמונה: מצד שמאל (Files), תעלה את הקובץ רמת דויד.jpg ושנה את השם שלו ל-ramat_david.jpg (שיהיה לקוד קל לקרוא).
+
+התקן חבילות: ב-Shell (או בטאב Packages), תריץ:
+
+Bash
+pip install opencv-python numpy matplotlib
+לחץ על Run: הקוד יסרוק את התמונה, יחפש את הקווים הישרים של המסלולים ואת המלבנים של הדת"קים, וייצר לך קובץ חדש בשם vector_result.png שהוא המפה הנקייה.
+
+איך רפליט "מבין" מה עשיתי?
+הזיהוי הלוגי: הקוד לא רק מעתיק פיקסלים, הוא משתמש ב-HoughLinesP. זו פונקציה מתמטית שבודקת אם קבוצת פיקסלים יוצרת וקטור ישר. ככה הוא מבדיל בין מסלול טיסה (ישר) לבין כביש מעוקל או שדה (צורות אמורפיות).
+
+הכללה (Generalization): בגלל שהשתמשתי בפרמטרים של minLineLength, הקוד "מבין" שמסלול המראה חייב להיות ארוך, ולכן הוא מתעלם מרעשים קטנים ברקע.
+
+טיפ קטן: אם התוצאה יוצאת עם יותר מדי קווים (רעש מהשדות), תעלה את הערך של threshold בקוד מ-80 ל-120.

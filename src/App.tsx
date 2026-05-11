@@ -4197,30 +4197,32 @@ async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):P
   return new Promise((resolve,reject)=>{
     const img=new Image();
     img.onload=()=>{
-      onProgress?.('סורק תמונה...');
-      // Scale to max 800px for reasonable performance
-      const MAX=800, scale=Math.min(MAX/img.naturalWidth, MAX/img.naturalHeight, 1);
+      onProgress?.('טוען תמונה...');
+      // Scale to 900px max — bigger = more detail but slower
+      const MAX=900, scale=Math.min(MAX/img.naturalWidth, MAX/img.naturalHeight, 1);
       const W=Math.round(img.naturalWidth*scale), H=Math.round(img.naturalHeight*scale);
       const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
       const ctx=cv.getContext('2d')!; ctx.drawImage(img,0,0,W,H);
       const {data}=ctx.getImageData(0,0,W,H);
 
-      // --- Grayscale ---
+      // 1. Grayscale
       const gray=new Uint8Array(W*H);
       for(let i=0;i<W*H;i++) gray[i]=Math.round(.299*data[i*4]+.587*data[i*4+1]+.114*data[i*4+2]);
 
-      // --- Gaussian blur 5×5 (reduces noise before edge detection) ---
-      const K=[1,4,7,4,1, 4,16,26,16,4, 7,26,41,26,7, 4,16,26,16,4, 1,4,7,4,1]; // sum=273
+      // 2. Gaussian blur 7×7 — matches cv2.GaussianBlur(gray,(7,7),0)
+      onProgress?.('טשטוש רעש...');
+      const K7=[1,6,15,20,15,6,1, 6,36,90,120,90,36,6, 15,90,225,300,225,90,15,
+                20,120,300,400,300,120,20, 15,90,225,300,225,90,15, 6,36,90,120,90,36,6, 1,6,15,20,15,6,1];
+      const K7SUM=4096;
       const blr=new Uint8Array(W*H);
-      for(let y=2;y<H-2;y++) for(let x=2;x<W-2;x++){
+      for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
         let s=0;
-        for(let ky=-2;ky<=2;ky++) for(let kx=-2;kx<=2;kx++) s+=gray[(y+ky)*W+(x+kx)]*K[(ky+2)*5+(kx+2)];
-        blr[y*W+x]=s/273;
+        for(let ky=-3;ky<=3;ky++) for(let kx=-3;kx<=3;kx++) s+=gray[(y+ky)*W+(x+kx)]*K7[(ky+3)*7+(kx+3)];
+        blr[y*W+x]=s/K7SUM;
       }
 
-      onProgress?.('זיהוי קצות...');
-
-      // --- Sobel gradients ---
+      // 3. Sobel + Canny — thresholds 50/150 (as % of max like OpenCV does)
+      onProgress?.('זיהוי קצות (Canny)...');
       const mag=new Float32Array(W*H), dir=new Float32Array(W*H);
       let maxMag=0;
       for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
@@ -4229,9 +4231,8 @@ async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):P
         mag[y*W+x]=Math.sqrt(gx*gx+gy*gy); dir[y*W+x]=Math.atan2(gy,gx);
         if(mag[y*W+x]>maxMag) maxMag=mag[y*W+x];
       }
-
-      // --- Canny: non-maximum suppression + double threshold + hysteresis ---
-      const LOW=maxMag*.08, HIGH=maxMag*.20;
+      // Proportional to OpenCV Canny(img,50,150): low≈5%, high≈15% of max gradient
+      const LOW=maxMag*.05, HIGH=maxMag*.15;
       const edges=new Uint8Array(W*H);
       for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
         const m=mag[y*W+x]; if(m<LOW) continue;
@@ -4250,15 +4251,20 @@ async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):P
         edges[y*W+x]=strong?255:0;
       }
 
-      onProgress?.('Hough Lines...');
+      // 4. HoughLinesP — matches cv2.HoughLinesP(edges,1,π/180,threshold=80,minLineLength=100,maxLineGap=20)
+      //    Parameters scaled proportionally to our working resolution
+      onProgress?.('HoughLinesP...');
+      const THRESH=80;                                         // minimum votes (same as OpenCV)
+      const MIN_LEN=Math.round(100*(Math.min(W,H)/600));      // ~100px at 600px, scales with image
+      const MAX_GAP=Math.round(20*(Math.min(W,H)/600));       // ~20px at 600px
 
-      // --- Standard Hough Transform ---
       const diag=Math.ceil(Math.sqrt(W*W+H*H));
       const NT=180;
       const acc=new Int32Array((2*diag+2)*NT);
       const cosT=new Float32Array(NT), sinT=new Float32Array(NT);
       for(let t=0;t<NT;t++){cosT[t]=Math.cos(t*Math.PI/NT); sinT[t]=Math.sin(t*Math.PI/NT);}
 
+      // Build accumulator
       for(let y=0;y<H;y++) for(let x=0;x<W;x++){
         if(!edges[y*W+x]) continue;
         for(let t=0;t<NT;t++){
@@ -4267,66 +4273,63 @@ async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):P
         }
       }
 
-      onProgress?.('מחלץ קווים...');
-
-      // --- Find peaks with local NMS (5×5 window) ---
-      const minVotes=Math.max(Math.min(W,H)*0.10, 30);
-      const peaks:[number,number][]=[]; // [rho-offset, theta-idx]
-      for(let r=3;r<2*diag-2;r++) for(let t=3;t<NT-3;t++){
-        const v=acc[r*NT+t]; if(v<minVotes) continue;
-        let isMax=true;
-        for(let dr=-3;dr<=3&&isMax;dr++) for(let dt=-3;dt<=3&&isMax;dt++){
-          if(!dr&&!dt) continue;
-          const nt=(t+dt+NT)%NT;
-          if(acc[(r+dr)*NT+nt]>v) isMax=false;
-        }
-        if(isMax) peaks.push([r-diag,t]);
+      // Find ALL (rho,theta) cells above threshold, sorted by votes (highest first)
+      // This is the probabilistic part: process strongest lines first
+      onProgress?.('מחלץ קטעים...');
+      const candidates:[number,number,number][]=[];
+      for(let r=1;r<2*diag+1;r++) for(let t=0;t<NT;t++){
+        if(acc[r*NT+t]>=THRESH) candidates.push([acc[r*NT+t],r-diag,t]);
       }
-      // Sort by votes descending, keep top 80 lines
-      peaks.sort((a,b)=>acc[(b[0]+diag)*NT+b[1]]-acc[(a[0]+diag)*NT+a[1]]);
-      const topPeaks=peaks.slice(0,80);
+      candidates.sort((a,b)=>b[0]-a[0]);
 
-      // --- Convert each peak to a line segment ---
+      // For each candidate line, trace actual segments (HoughLinesP segment extraction)
       const lines:VectorLine[]=[];
-      for(const [rho,tIdx] of topPeaks){
-        const dx=-sinT[tIdx], dy=cosT[tIdx]; // direction along the line
-        const px0=cosT[tIdx]*rho, py0=sinT[tIdx]*rho; // point on line
+      const used=new Uint8Array(W*H);
 
-        // Scan along line direction; collect edge pixel ranges allowing a small gap
-        const GAP=Math.round(Math.max(W,H)*0.03);
-        const MIN_LEN=Math.round(Math.min(W,H)*0.08);
-        let segStart=NaN, lastHit=NaN;
-        let bestStart=NaN, bestEnd=NaN, bestLen=0;
+      for(const [,rho,tIdx] of candidates){
+        const cos=cosT[tIdx], sin=sinT[tIdx];
+        const dx=-sin, dy=cos;            // direction along line
+        const px0=cos*rho, py0=sin*rho;   // reference point on line
+
+        // Scan parameter p from -diag to +diag
+        // Track segments: start/end of runs of edge pixels (with gap tolerance)
+        let segStart=NaN, lastHit=NaN, gap=0;
+
+        const flushSeg=(end:number)=>{
+          if(isNaN(segStart)||isNaN(lastHit)) return;
+          const len=lastHit-segStart;
+          if(len>=MIN_LEN){
+            const x1=Math.max(0,Math.min(W-1,Math.round(px0+dx*segStart)));
+            const y1=Math.max(0,Math.min(H-1,Math.round(py0+dy*segStart)));
+            const x2=Math.max(0,Math.min(W-1,Math.round(px0+dx*end)));
+            const y2=Math.max(0,Math.min(H-1,Math.round(py0+dy*end)));
+            lines.push({id:Math.random().toString(36).slice(2),points:[{x:(x1/W)*100,y:(y1/H)*100},{x:(x2/W)*100,y:(y2/H)*100}],color:'#94a3b8',width:2});
+            // Mark pixels as used to avoid duplicate segments
+            for(let pp=segStart;pp<=end+1;pp++){
+              const mx=Math.round(px0+dx*pp), my=Math.round(py0+dy*pp);
+              if(mx>=0&&mx<W&&my>=0&&my<H) used[my*W+mx]=1;
+            }
+          }
+        };
 
         for(let p=-diag;p<=diag;p++){
           const px=Math.round(px0+dx*p), py=Math.round(py0+dy*p);
           if(px<0||px>=W||py<0||py>=H) continue;
-          // Check pixel + ±1 band around line
-          let hit=false;
-          for(let bx=-1;bx<=1&&!hit;bx++) for(let by=-1;by<=1&&!hit;by++){
-            const nx=px+bx, ny=py+by;
-            if(nx>=0&&nx<W&&ny>=0&&ny<H&&edges[ny*W+nx]) hit=true;
-          }
+          const hit=edges[py*W+px]>0 && !used[py*W+px];
           if(hit){
-            if(isNaN(segStart)||p-lastHit>GAP){ segStart=p; }
-            lastHit=p;
-            const len=lastHit-segStart;
-            if(len>bestLen){bestLen=len; bestStart=segStart; bestEnd=lastHit;}
+            if(isNaN(segStart)){ segStart=p; }
+            lastHit=p; gap=0;
+          } else if(!isNaN(segStart)){
+            gap++;
+            if(gap>MAX_GAP){
+              flushSeg(lastHit);
+              segStart=NaN; lastHit=NaN; gap=0;
+            }
           }
         }
-        if(bestLen<MIN_LEN) continue;
+        flushSeg(isNaN(lastHit)?NaN as unknown as number:lastHit);
 
-        const x1=Math.max(0,Math.min(W-1,Math.round(px0+dx*bestStart)));
-        const y1=Math.max(0,Math.min(H-1,Math.round(py0+dy*bestStart)));
-        const x2=Math.max(0,Math.min(W-1,Math.round(px0+dx*bestEnd)));
-        const y2=Math.max(0,Math.min(H-1,Math.round(py0+dy*bestEnd)));
-
-        lines.push({
-          id:Math.random().toString(36).slice(2),
-          points:[{x:(x1/W)*100,y:(y1/H)*100},{x:(x2/W)*100,y:(y2/H)*100}],
-          color:'#94a3b8',
-          width:2,
-        });
+        if(lines.length>=200) break; // cap at 200 segments like OpenCV's maxLines
       }
 
       resolve(lines);
