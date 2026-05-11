@@ -17467,7 +17467,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   {adminAirfields.length === 0
                     ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px 0' }}>אין שדות תעופה</div>
                     : adminAirfields.map(af => (
-                      <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); const vd = af.vector_data; setAdminVectorData(vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null); setVectorEditMode(false); setVectorDrawingActive(false); setVectorDraftPoints([]); }}
+                      <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); setShowElementsSection(true); const vd = af.vector_data; setAdminVectorData(vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null); setVectorEditMode(false); setVectorDrawingActive(false); setVectorDraftPoints([]); }}
                         style={{ padding: '7px 10px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
                         <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>🛬 {af.name}</div>
                         <div style={{ color: '#64748b', fontSize: '10px' }}>{af.map_id ? 'מפה מוגדרת' : 'ללא מפה'}</div>
@@ -17481,10 +17481,10 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
               {/* Airfield Elements section */}
               {selectedAdminAirfieldId && (
-                <div style={{ border: `1px solid ${showElementsSection ? '#ec4899' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                  <div onClick={() => setShowElementsSection(p => !p)} style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ border: `1px solid ${showElementsSection ? '#ec4899' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                  <div onClick={() => setShowElementsSection(p => !p)} style={{ padding: '7px 10px', background: showElementsSection ? '#1a0a2e' : '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: showElementsSection ? '#f9a8d4' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🔧 אלמנטים בסיס</span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminAirfieldElements.length} {showElementsSection ? '▲' : '▼'}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adminAirfieldElements.length} {showElementsSection ? '▲' : '▼'}</span>
                   </div>
                   {showElementsSection && (
                     <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -17552,11 +17552,11 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
               {/* Vector data editor section */}
               {selectedAdminAirfieldId && adminSelMapSrc && (
-                <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
                   <div onClick={() => setVectorEditMode(p => !p)}
-                    style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    style={{ padding: '7px 10px', background: vectorEditMode ? '#0f2a1a' : '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🗺️ וקטורי</span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
                   </div>
                   {vectorEditMode && (
                     <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
