@@ -628,7 +628,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </div>
           {/* Content */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <DebriefingTab lightMode={true} />
+            <DebriefingTab lightMode={true} initialUndoDurationMs={selectedCrewMember?.undo_duration_ms ?? null} />
           </div>
         </div>
       )}
@@ -7608,6 +7608,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
+  const [pendingDeleteStrip, setPendingDeleteStrip] = React.useState<{ stripId: string; callSign: string; durationMs: number } | null>(null);
+  const deleteStripUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => { if (deleteStripUndoTimerRef.current) clearTimeout(deleteStripUndoTimerRef.current); };
+  }, []);
+
   // Personal filter state
   const [personalFilter, setPersonalFilter] = useState<QGroup | null>(null);
   const [sessionFilter, setSessionFilter] = useState<QGroup | null>(null);
@@ -9259,6 +9265,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const getUndoDurationMs = () => {
+    const VALID_DURATIONS = [3000, 6000, 10000];
+    try {
+      const v = localStorage.getItem('groundUndoDurationMs');
+      if (v) { const n = Number(v); if (VALID_DURATIONS.includes(n)) return n; }
+    } catch { /* ignore */ }
+    const cmDur = session?.crewMember?.undo_duration_ms;
+    if (cmDur && VALID_DURATIONS.includes(cmDur)) return cmDur;
+    return 6000;
+  };
+
   const deleteStrip = async (stripId: string) => {
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
     try {
@@ -9271,6 +9288,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (err) {
       console.error('Failed to delete strip:', err);
     }
+  };
+
+  const handleDeleteStripWithUndo = (stripId: string) => {
+    const s = strips.find((strip: any) => String(strip.id) === String(stripId));
+    const dur = getUndoDurationMs();
+    setPendingDeleteStrip({ stripId, callSign: s?.callSign || s?.callsign || '?', durationMs: dur });
+    if (deleteStripUndoTimerRef.current) clearTimeout(deleteStripUndoTimerRef.current);
+    deleteStripUndoTimerRef.current = setTimeout(() => {
+      setPendingDeleteStrip(prev => { if (prev) deleteStrip(prev.stripId); return null; });
+      deleteStripUndoTimerRef.current = null;
+    }, dur);
   };
 
   const handleToggleAirborne = async (id: string, airborne: boolean) => {
@@ -11578,7 +11606,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
-                  if (confirm('למחוק פמם זה?')) deleteStrip(tableRowCtxMenu.stripId);
+                  handleDeleteStripWithUndo(tableRowCtxMenu.stripId);
                   setTableRowCtxMenu(null);
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f87171', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px', fontWeight: 'bold' }}
@@ -12963,6 +12991,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>,
         document.body
       )}
+
+      {/* Pending strip delete undo toast */}
+      {pendingDeleteStrip && (
+        <div style={{
+          position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10000, display: 'flex', alignItems: 'center', gap: '10px',
+          background: '#1e293b', border: '1px solid #f87171', borderRadius: '10px',
+          padding: '8px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl',
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <span style={{ fontSize: '13px', color: '#f87171', fontWeight: 'bold' }}>🗑 מוחק: {pendingDeleteStrip.callSign}</span>
+          <button
+            onClick={() => {
+              if (deleteStripUndoTimerRef.current) { clearTimeout(deleteStripUndoTimerRef.current); deleteStripUndoTimerRef.current = null; }
+              setPendingDeleteStrip(null);
+            }}
+            style={{
+              position: 'relative', overflow: 'hidden',
+              padding: '3px 12px', borderRadius: '8px',
+              border: '1px solid #f59e0b', background: '#f59e0b',
+              color: '#fff', fontSize: '12px', fontWeight: 'bold',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            בטל
+            <div className="undo-timer-bar" style={{ animationDuration: `${pendingDeleteStrip.durationMs}ms` }} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -13996,11 +14053,21 @@ const AidsManager = ({ presets }: { presets: any[] }) => {
 };
 
 // --- ניהול ספרורים (Admin) ---
-const SerialsAdminTab = () => {
+const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDurationMs?: number | null }) => {
   const [serials, setSerials] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [pendingClearSerials, setPendingClearSerials] = useState<{ durationMs: number } | null>(null);
+  const clearSerialsUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => { if (clearSerialsUndoTimerRef.current) clearTimeout(clearSerialsUndoTimerRef.current); };
+  }, []);
+  const getSerialsUndoDurationMs = () => {
+    try { const v = localStorage.getItem('groundUndoDurationMs'); if (v) { const n = Number(v); if ([3000,6000,10000].includes(n)) return n; } } catch { /* ignore */ }
+    if (initialUndoDurationMs && [3000,6000,10000].includes(initialUndoDurationMs)) return initialUndoDurationMs;
+    return 6000;
+  };
 
   const loadSerials = async () => {
     try {
@@ -14104,13 +14171,23 @@ const SerialsAdminTab = () => {
     e.target.value = '';
   };
 
-  const clearAll = async () => {
-    if (!confirm('למחוק את כל הספרורים?')) return;
+  const doClearSerials = async () => {
     setClearing(true);
     await fetch(`${API_URL}/serials/all`, { method: 'DELETE' });
     setSerials([]);
     setClearing(false);
     setImportResult('כל הספרורים נמחקו');
+  };
+
+  const clearAll = () => {
+    const dur = getSerialsUndoDurationMs();
+    setPendingClearSerials({ durationMs: dur });
+    if (clearSerialsUndoTimerRef.current) clearTimeout(clearSerialsUndoTimerRef.current);
+    clearSerialsUndoTimerRef.current = setTimeout(() => {
+      setPendingClearSerials(null);
+      clearSerialsUndoTimerRef.current = null;
+      doClearSerials();
+    }, dur);
   };
 
   const grouped = serials.reduce((acc, s) => {
@@ -14132,9 +14209,22 @@ const SerialsAdminTab = () => {
             {importing ? '⏳ מייבא...' : '📂 בחר קובץ Excel'}
             <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFileImport} disabled={importing} />
           </label>
-          <button onClick={clearAll} disabled={clearing} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-            🗑️ מחק הכל
-          </button>
+          {!pendingClearSerials ? (
+            <button onClick={clearAll} disabled={clearing} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+              🗑️ מחק הכל
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (clearSerialsUndoTimerRef.current) { clearTimeout(clearSerialsUndoTimerRef.current); clearSerialsUndoTimerRef.current = null; }
+                setPendingClearSerials(null);
+              }}
+              style={{ position: 'relative', overflow: 'hidden', background: '#f59e0b', color: 'white', border: '1px solid #f59e0b', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+            >
+              בטל מחיקה
+              <div className="undo-timer-bar" style={{ animationDuration: `${pendingClearSerials.durationMs}ms` }} />
+            </button>
+          )}
         </div>
         {importResult && (
           <div style={{ marginTop: '10px', padding: '8px 12px', background: importResult.includes('שגיאה') ? '#dc2626' : '#10b981', borderRadius: '6px', fontSize: '13px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
@@ -14312,7 +14402,7 @@ const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
   normal:   {},
 };
 
-const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lightMode }: { presets?: any[]; crewMembers?: any[]; lightMode: boolean }) => {
+const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lightMode, initialUndoDurationMs }: { presets?: any[]; crewMembers?: any[]; lightMode: boolean; initialUndoDurationMs?: number | null }) => {
   const bg = lightMode ? '#f8fafc' : '#0f172a';
   const cardBg = lightMode ? '#fff' : '#1e293b';
   const border = lightMode ? '#e2e8f0' : '#334155';
@@ -14331,6 +14421,16 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
   const [loading, setLoading] = React.useState(false);
   const [page, setPage] = React.useState(0);
   const pageSize = 100;
+  const [pendingClearLog, setPendingClearLog] = React.useState<{ durationMs: number } | null>(null);
+  const clearLogUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => { if (clearLogUndoTimerRef.current) clearTimeout(clearLogUndoTimerRef.current); };
+  }, []);
+  const getLogUndoDurationMs = () => {
+    try { const v = localStorage.getItem('groundUndoDurationMs'); if (v) { const n = Number(v); if ([3000,6000,10000].includes(n)) return n; } } catch { /* ignore */ }
+    if (initialUndoDurationMs && [3000,6000,10000].includes(initialUndoDurationMs)) return initialUndoDurationMs;
+    return 6000;
+  };
 
   // Self-fetch reference data if not provided by parent
   const [internalPresets, setInternalPresets] = React.useState<any[]>([]);
@@ -14380,10 +14480,20 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
     return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   };
 
-  const clearLog = async () => {
-    if (!confirm('למחוק את כל יומן הפעילות? לא ניתן לבטל פעולה זו.')) return;
+  const doDeleteLog = async () => {
     await fetch(`${API_URL}/activity-log`, { method: 'DELETE' });
     fetchLog(0);
+  };
+
+  const clearLog = () => {
+    const dur = getLogUndoDurationMs();
+    setPendingClearLog({ durationMs: dur });
+    if (clearLogUndoTimerRef.current) clearTimeout(clearLogUndoTimerRef.current);
+    clearLogUndoTimerRef.current = setTimeout(() => {
+      setPendingClearLog(null);
+      clearLogUndoTimerRef.current = null;
+      doDeleteLog();
+    }, dur);
   };
 
   const totalPages = Math.ceil(total / pageSize);
@@ -14392,6 +14502,27 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
     <div style={{ padding: '16px', direction: 'rtl', color: text, background: bg, minHeight: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
         <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>תחקיר — יומן פעילות</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {!pendingClearLog ? (
+            <button
+              onClick={clearLog}
+              style={{ background: '#dc2626', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+            >
+              🗑 מחק יומן
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (clearLogUndoTimerRef.current) { clearTimeout(clearLogUndoTimerRef.current); clearLogUndoTimerRef.current = null; }
+                setPendingClearLog(null);
+              }}
+              style={{ position: 'relative', overflow: 'hidden', background: '#f59e0b', color: 'white', border: '1px solid #f59e0b', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+            >
+              בטל מחיקת יומן
+              <div className="undo-timer-bar" style={{ animationDuration: `${pendingClearLog.durationMs}ms` }} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -16354,7 +16485,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           {activeTab === 'table_modes' && <TableModesManager />}
           {activeTab === 'work_groups' && <WorkGroupsManager presets={presets} />}
           {activeTab === 'aids' && <AidsManager presets={presets} />}
-          {activeTab === 'serials' && <SerialsAdminTab />}
+          {activeTab === 'serials' && <SerialsAdminTab initialUndoDurationMs={crewMember?.undo_duration_ms ?? null} />}
 
           {/* Blocks Tab */}
           {activeTab === 'blocks' && (() => {
