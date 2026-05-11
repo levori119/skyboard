@@ -707,6 +707,25 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
   // Airfield vector data
   await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  // Airfield element types (global list: כבל, רשת, כבאית, etc.)
+  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_element_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    color VARCHAR(20) DEFAULT '#f59e0b',
+    icon VARCHAR(10) DEFAULT '🔧'
+  )`);
+  // Airfield elements (per-airfield instances)
+  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_elements (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    element_type_id INTEGER REFERENCES airfield_element_types(id) ON DELETE SET NULL,
+    name VARCHAR(200) NOT NULL,
+    status VARCHAR(20) DEFAULT 'תקין',
+    note TEXT,
+    x_pct FLOAT,
+    y_pct FLOAT,
+    created_at TIMESTAMP DEFAULT NOW()
+  )`);
 
   console.log('Database initialized');
 }
@@ -2428,6 +2447,65 @@ app.put('/api/airfields/:id/vector', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to save vector data' });
   }
+});
+
+// --- Airfield Element Types ---
+app.get('/api/airfield-element-types', async (req, res) => {
+  try { res.json((await pool.query('SELECT * FROM airfield_element_types ORDER BY name')).rows); }
+  catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/airfield-element-types', async (req, res) => {
+  try {
+    const { name, color, icon } = req.body;
+    const r = await pool.query('INSERT INTO airfield_element_types (name,color,icon) VALUES ($1,$2,$3) RETURNING *', [name, color || '#f59e0b', icon || '🔧']);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/airfield-element-types/:id', async (req, res) => {
+  try {
+    const { name, color, icon } = req.body;
+    const r = await pool.query('UPDATE airfield_element_types SET name=$1,color=$2,icon=$3 WHERE id=$4 RETURNING *', [name, color || '#f59e0b', icon || '🔧', req.params.id]);
+    res.json(r.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/airfield-element-types/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM airfield_element_types WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// --- Airfield Elements ---
+app.get('/api/airfield-elements', async (req, res) => {
+  try {
+    const q = req.query.airfield_id
+      ? 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id WHERE ae.airfield_id=$1 ORDER BY ae.id'
+      : 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id ORDER BY ae.airfield_id, ae.id';
+    const params = req.query.airfield_id ? [req.query.airfield_id] : [];
+    res.json((await pool.query(q, params)).rows);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/airfield-elements', async (req, res) => {
+  try {
+    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct } = req.body;
+    const r = await pool.query(
+      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/airfield-elements/:id', async (req, res) => {
+  try {
+    const { element_type_id, name, status, note, x_pct, y_pct } = req.body;
+    const r = await pool.query(
+      'UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6 WHERE id=$7 RETURNING *',
+      [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, req.params.id]
+    );
+    res.json(r.rows[0] || {});
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/airfield-elements/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM airfield_elements WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 
 app.get('/api/airfields/:id', async (req, res) => {
