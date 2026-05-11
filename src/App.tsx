@@ -4477,6 +4477,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         })}
                       </div>
                     )}
+                    {/* Taxi instructions badge */}
+                    {(() => {
+                      const pos = getAircraftPositions(strip) as any[];
+                      const taxiAc = pos.filter(x => x.taxi_dest_route_id || (x.taxi_via_route_ids && x.taxi_via_route_ids.length > 0));
+                      if (taxiAc.length === 0) return null;
+                      const destRoute = airfieldRoutes?.find((r: any) => r.id === taxiAc[0].taxi_dest_route_id);
+                      const viaRoutes = (taxiAc[0].taxi_via_route_ids || []).map((id: number) => airfieldRoutes?.find((r: any) => r.id === id)?.name).filter(Boolean);
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '18px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '10px', color: '#f59e0b' }}>🛤️</span>
+                          {destRoute && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '9px', background: '#292524', color: '#fcd34d', fontWeight: 600, whiteSpace: 'nowrap' }}>→ {destRoute.name}</span>}
+                          {viaRoutes.map((v: string, i: number) => <span key={i} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '9px', background: '#1c1400', color: '#f59e0b', whiteSpace: 'nowrap' }}>{v}</span>)}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
@@ -4494,52 +4509,82 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {sq && <span>- {sq}</span>}
                     </div>
                     {/* SID / STAR / Departure / Landing base row */}
-                    {(presetRole === 'tower' || presetRole === 'approach' || (aviationBases && aviationBases.length > 0)) && (
-                      <div style={{ padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0a0f1a', borderTop: `1px solid ${border}`, display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                        {(presetRole === 'tower' || !presetRole) && (
-                          <>
-                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>SID:</label>
-                            <input type="text" defaultValue={strip.sid || ''}
-                              onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
-                              onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.sid || '')) onUpdateStripMeta(String(strip.id), { sid: e.target.value || null }); }}
-                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                              placeholder='—'
-                              style={{ width: '50px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
-                          </>
-                        )}
-                        {(presetRole === 'approach' || !presetRole) && (
-                          <>
-                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>STAR:</label>
-                            <input type="text" defaultValue={strip.star || ''}
-                              onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
-                              onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.star || '')) onUpdateStripMeta(String(strip.id), { star: e.target.value || null }); }}
-                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                              placeholder='—'
-                              style={{ width: '50px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
-                          </>
-                        )}
-                        {(aviationBases && aviationBases.length > 0) && (
-                          <>
-                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>בסיס המראה:</label>
-                            <select value={strip.departure_base_id || ''}
-                              onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
-                              onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { departure_base_id: e.target.value ? Number(e.target.value) : null }); }}
-                              style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
-                              <option value="">—</option>
-                              {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
-                            </select>
-                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>בסיס נחיתה:</label>
-                            <select value={strip.landing_base_id || ''}
-                              onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
-                              onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { landing_base_id: e.target.value ? Number(e.target.value) : null }); }}
-                              style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
-                              <option value="">—</option>
-                              {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
-                            </select>
-                          </>
-                        )}
-                      </div>
-                    )}
+                    {(presetRole === 'tower' || presetRole === 'approach' || (aviationBases && aviationBases.length > 0)) && (() => {
+                      const depBase = aviationBases?.find((b: any) => Number(b.id) === Number(strip.departure_base_id));
+                      const landBase = aviationBases?.find((b: any) => Number(b.id) === Number(strip.landing_base_id));
+                      const depSids: string[] = Array.isArray(depBase?.sids) ? depBase.sids : [];
+                      const landStars: string[] = Array.isArray(landBase?.stars) ? landBase.stars : [];
+                      return (
+                        <div style={{ padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0a0f1a', borderTop: `1px solid ${border}`, display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                          {(aviationBases && aviationBases.length > 0) && (
+                            <>
+                              <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>המראה:</label>
+                              <select value={strip.departure_base_id || ''}
+                                onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { departure_base_id: e.target.value ? Number(e.target.value) : null, sid: null }); }}
+                                style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
+                                <option value="">—</option>
+                                {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
+                              </select>
+                            </>
+                          )}
+                          {(presetRole === 'tower' || !presetRole) && (
+                            <>
+                              <label style={{ fontSize: '10px', color: '#7dd3fc', flexShrink: 0 }}>SID:</label>
+                              {depSids.length > 0 ? (
+                                <select value={strip.sid || ''}
+                                  onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                  onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: e.target.value || null }); }}
+                                  style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: strip.sid ? '#93c5fd' : (lightMode ? '#94a3b8' : '#64748b'), fontSize: '11px', maxWidth: '90px', fontFamily: 'monospace' }}>
+                                  <option value="">—</option>
+                                  {depSids.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                              ) : (
+                                <input type="text" defaultValue={strip.sid || ''}
+                                  onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                  onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.sid || '')) onUpdateStripMeta(String(strip.id), { sid: e.target.value || null }); }}
+                                  onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                  placeholder='—'
+                                  style={{ width: '60px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', fontFamily: 'monospace' }} />
+                              )}
+                            </>
+                          )}
+                          {(aviationBases && aviationBases.length > 0) && (
+                            <>
+                              <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>נחיתה:</label>
+                              <select value={strip.landing_base_id || ''}
+                                onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { landing_base_id: e.target.value ? Number(e.target.value) : null, star: null }); }}
+                                style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
+                                <option value="">—</option>
+                                {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
+                              </select>
+                            </>
+                          )}
+                          {(presetRole === 'approach' || !presetRole) && (
+                            <>
+                              <label style={{ fontSize: '10px', color: '#fbbf24', flexShrink: 0 }}>STAR:</label>
+                              {landStars.length > 0 ? (
+                                <select value={strip.star || ''}
+                                  onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                  onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { star: e.target.value || null }); }}
+                                  style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: strip.star ? '#fcd34d' : (lightMode ? '#94a3b8' : '#64748b'), fontSize: '11px', maxWidth: '90px', fontFamily: 'monospace' }}>
+                                  <option value="">—</option>
+                                  {landStars.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                              ) : (
+                                <input type="text" defaultValue={strip.star || ''}
+                                  onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                  onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.star || '')) onUpdateStripMeta(String(strip.id), { star: e.target.value || null }); }}
+                                  onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                                  placeholder='—'
+                                  style={{ width: '60px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', fontFamily: 'monospace' }} />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {aircraft.map(ac => {
                       const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
                       const acRow = getAcRow(ac.idx);
@@ -10186,7 +10231,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 currentPresetId={session?.presetId}
                 currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
                 singleTransfers={groundSingleTransfers}
-                airfieldRoutes={airfieldRoutes}
+                airfieldRoutes={airfieldRoutes.filter((r: any) => !myPresetConfig?.airfield_id || Number(r.airfield_id) === Number(myPresetConfig.airfield_id))}
                 aviationBases={aviationBases}
                 presetRole={myPresetConfig?.preset_role ?? null}
                 onUpdateStripMeta={async (stripId, fields) => {
@@ -14446,7 +14491,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Aviation Bases admin state
   const [adminAviationBases, setAdminAviationBases] = useState<any[]>([]);
-  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n: '', coord_e: '' });
+  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n: '', coord_e: '', sids: [] as string[], stars: [] as string[], newSid: '', newStar: '' });
   const [editingAviationBase, setEditingAviationBase] = useState<any | null>(null);
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
@@ -17387,18 +17432,20 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               code: aviationBaseForm.code.trim() || null,
               coord_n: aviationBaseForm.coord_n ? Number(aviationBaseForm.coord_n) : null,
               coord_e: aviationBaseForm.coord_e ? Number(aviationBaseForm.coord_e) : null,
+              sids: aviationBaseForm.sids,
+              stars: aviationBaseForm.stars,
             };
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!res.ok) { alert('שגיאה בשמירה'); return; }
             setEditingAviationBase(null); setShowAviationBaseForm(false);
-            setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' });
+            setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' });
             fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
           };
           return (
             <div style={{ padding: '20px', direction: 'rtl', maxWidth: '900px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px', color: '#7dd3fc' }}>✈️ בסיסי תעופה</h2>
-                <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' }); setShowAviationBaseForm(true); }}
+                <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' }); setShowAviationBaseForm(true); }}
                   style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                   + בסיס חדש
                 </button>
@@ -17421,10 +17468,55 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       onChange={e => setAviationBaseForm(p => ({ ...p, coord_e: e.target.value }))}
                       style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr' }} />
                   </div>
+                  {/* SIDs list */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>SID (נהלי יציאה)</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px', minHeight: '28px' }}>
+                        {aviationBaseForm.sids.map((s, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#1e3a5f', borderRadius: '12px', fontSize: '12px', color: '#93c5fd', fontFamily: 'monospace' }}>
+                            {s}
+                            <button onClick={() => setAviationBaseForm(p => ({ ...p, sids: p.sids.filter((_, j) => j !== i) }))}
+                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: '0 2px' }}>×</button>
+                          </span>
+                        ))}
+                        {aviationBaseForm.sids.length === 0 && <span style={{ fontSize: '11px', color: '#475569' }}>אין SIDs</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <input type="text" placeholder="הוסף SID" value={aviationBaseForm.newSid}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, newSid: e.target.value.toUpperCase() }))}
+                          onKeyDown={e => { if (e.key === 'Enter' && aviationBaseForm.newSid.trim()) { setAviationBaseForm(p => ({ ...p, sids: [...p.sids, p.newSid.trim()], newSid: '' })); } }}
+                          style={{ flex: 1, padding: '5px 8px', background: '#0f172a', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', fontFamily: 'monospace', direction: 'ltr' }} />
+                        <button onClick={() => { if (aviationBaseForm.newSid.trim()) setAviationBaseForm(p => ({ ...p, sids: [...p.sids, p.newSid.trim()], newSid: '' })); }}
+                          style={{ padding: '5px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '6px' }}>STAR (נהלי כניסה)</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px', minHeight: '28px' }}>
+                        {aviationBaseForm.stars.map((s, i) => (
+                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#292524', borderRadius: '12px', fontSize: '12px', color: '#fcd34d', fontFamily: 'monospace' }}>
+                            {s}
+                            <button onClick={() => setAviationBaseForm(p => ({ ...p, stars: p.stars.filter((_, j) => j !== i) }))}
+                              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: '0 2px' }}>×</button>
+                          </span>
+                        ))}
+                        {aviationBaseForm.stars.length === 0 && <span style={{ fontSize: '11px', color: '#475569' }}>אין STARs</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <input type="text" placeholder="הוסף STAR" value={aviationBaseForm.newStar}
+                          onChange={e => setAviationBaseForm(p => ({ ...p, newStar: e.target.value.toUpperCase() }))}
+                          onKeyDown={e => { if (e.key === 'Enter' && aviationBaseForm.newStar.trim()) { setAviationBaseForm(p => ({ ...p, stars: [...p.stars, p.newStar.trim()], newStar: '' })); } }}
+                          style={{ flex: 1, padding: '5px 8px', background: '#0f172a', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', fontFamily: 'monospace', direction: 'ltr' }} />
+                        <button onClick={() => { if (aviationBaseForm.newStar.trim()) setAviationBaseForm(p => ({ ...p, stars: [...p.stars, p.newStar.trim()], newStar: '' })); }}
+                          style={{ padding: '5px 10px', background: '#d97706', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+</button>
+                      </div>
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={saveAviationBase}
                       style={{ padding: '7px 18px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
-                    <button onClick={() => { setShowAviationBaseForm(false); setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' }); }}
+                    <button onClick={() => { setShowAviationBaseForm(false); setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '', sids: [], stars: [], newSid: '', newStar: '' }); }}
                       style={{ padding: '7px 14px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                   </div>
                 </div>
@@ -17443,7 +17535,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_n != null ? b.coord_n : '—'}</span>
                       <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_e != null ? b.coord_e : '—'}</span>
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                        <button onClick={() => { setEditingAviationBase(b); setAviationBaseForm({ name: b.name, code: b.code || '', coord_n: b.coord_n != null ? String(b.coord_n) : '', coord_e: b.coord_e != null ? String(b.coord_e) : '' }); setShowAviationBaseForm(true); }}
+                        <button onClick={() => { setEditingAviationBase(b); setAviationBaseForm({ name: b.name, code: b.code || '', coord_n: b.coord_n != null ? String(b.coord_n) : '', coord_e: b.coord_e != null ? String(b.coord_e) : '', sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' }); setShowAviationBaseForm(true); }}
                           style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
                         <button onClick={async () => { if (!confirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
                           style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
