@@ -17532,14 +17532,34 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           };
           const saveEditingPoint = async () => {
             if (!editingPoint || !editingPoint.name.trim()) return;
-            const existing = airfieldPoints.find(p => p.id === editingPoint.id);
+            const existing = airfieldPoints.find((p: any) => p.id === editingPoint.id);
             if (!existing) return;
-            const res = await fetch(`${API_URL}/airfield-points/${editingPoint.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: editingPoint.name, x_pct: existing.x_pct, y_pct: existing.y_pct, display_order: existing.display_order ?? 0, color: editingPoint.color, marker: editingPoint.marker, density_warn: editingPoint.density_warn }),
-            });
-            if (res.ok) { setEditingPoint(null); if (selectedAdminAirfieldId) loadAirfieldPoints(selectedAdminAirfieldId); }
+            const payload = {
+              name: editingPoint.name,
+              x_pct: existing.x_pct,
+              y_pct: existing.y_pct,
+              display_order: existing.display_order ?? 0,
+              color: editingPoint.color,
+              marker: editingPoint.marker,
+              density_warn: Number(editingPoint.density_warn) || 3,
+            };
+            try {
+              const res = await fetch(`${API_URL}/airfield-points/${editingPoint.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (res.ok) {
+                const updated = await res.json();
+                setAirfieldPoints((prev: any[]) => prev.map((p: any) => p.id === updated.id ? updated : p));
+                setEditingPoint(null);
+              } else {
+                const err = await res.json().catch(() => ({ error: 'שגיאה לא ידועה' }));
+                alert('שמירת הנקודה נכשלה: ' + (err.error || res.status));
+              }
+            } catch (e) {
+              alert('שגיאת רשת בשמירת הנקודה');
+            }
           };
           const selAirfield = adminAirfields.find(af => af.id === selectedAdminAirfieldId);
           const selMapSrc = adminSelMapSrc;
