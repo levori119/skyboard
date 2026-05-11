@@ -4343,6 +4343,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [taxiInstModal, setTaxiInstModal] = React.useState<{ stripId: string; idx: number | null } | null>(null);
   const [taxiDestRouteId, setTaxiDestRouteId] = React.useState<number | null>(null);
   const [taxiViaRouteIds, setTaxiViaRouteIds] = React.useState<number[]>([]);
+  const [hoveredDensePtId, setHoveredDensePtId] = React.useState<number | null>(null);
   React.useEffect(() => {
     return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
   }, []);
@@ -5067,11 +5068,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const isDrop = mapDragOver === pt.id;
             const ptColor = pt.color || '#3b82f6';
             const ptCount = pointAircraftCount[pt.id] || 0;
-            const isDense = ptCount >= DENSITY_WARN;
+            const ptDensityWarn = pt.density_warn ?? 3;
+            const isDense = ptCount >= ptDensityWarn;
+            const isHovered = hoveredDensePtId === pt.id;
             const pos = ptPos(pt.x_pct, pt.y_pct);
             return (
               <div key={pt.id}
-                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%, -50%)', zIndex: 10, pointerEvents: 'all' }}
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%, -50%)', zIndex: isHovered ? 50 : 10, pointerEvents: 'all' }}
+                onMouseEnter={() => { if (isDense) setHoveredDensePtId(pt.id); }}
+                onMouseLeave={() => setHoveredDensePtId(null)}
                 onDragOver={e => { e.preventDefault(); setMapDragOver(pt.id); }}
                 onDragLeave={() => { if (mapDragOver === pt.id) setMapDragOver(null); }}
                 onDrop={e => {
@@ -5122,6 +5127,33 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', background: '#000000cc', color: isDense ? '#f59e0b' : ptColor, fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none', border: `1px solid ${isDense ? '#f59e0b' : ptColor}55` }}>
                   {isDense && '⚠️ '}{pt.name}
                 </div>
+                {/* Density warning popup — shown on hover */}
+                {isHovered && isDense && (
+                  <div style={{ position: 'absolute', bottom: '38px', left: '50%', transform: 'translateX(-50%)', zIndex: 100, pointerEvents: 'none', minWidth: '150px', maxWidth: '200px', direction: 'rtl' }}>
+                    <div style={{ background: '#1c1400', border: '2px solid #f59e0b', borderRadius: '8px', padding: '8px 10px', boxShadow: '0 4px 16px rgba(0,0,0,0.8)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
+                        <span style={{ fontSize: '13px' }}>⚠️</span>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#f59e0b' }}>התראת עומס</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#fde68a', marginBottom: '3px' }}>
+                        <span style={{ color: '#94a3b8' }}>נקודה: </span>{pt.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#fde68a', marginBottom: '3px' }}>
+                        <span style={{ color: '#94a3b8' }}>מטוסים כעת: </span>
+                        <span style={{ color: '#ef4444', fontWeight: 'bold' }}>{ptCount}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#fde68a' }}>
+                        <span style={{ color: '#94a3b8' }}>סף: </span>
+                        <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>{ptDensityWarn}</span>
+                      </div>
+                      <div style={{ marginTop: '5px', borderTop: '1px solid #78350f', paddingTop: '4px', fontSize: '10px', color: '#92400e' }}>
+                        הנקודה עמוסה מעבר לסף המוגדר
+                      </div>
+                    </div>
+                    {/* Arrow pointing down */}
+                    <div style={{ width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #f59e0b', margin: '0 auto' }} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -14859,7 +14891,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
-  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle' });
+  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3 });
   const [placingPointMode, setPlacingPointMode] = useState(false);
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
@@ -17490,7 +17522,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
           };
           const addPointAt = async (x_pct: number, y_pct: number) => {
             if (!selectedAdminAirfieldId || !airfieldPointForm.name.trim()) return;
-            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker }) });
+            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn }) });
             if (res.ok) { setAirfieldPointForm(p => ({ ...p, name: '' })); setPlacingPointMode(false); loadAirfieldPoints(selectedAdminAirfieldId); }
           };
           const deletePoint = async (pointId: number) => {
@@ -17721,6 +17753,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>נקודה חדשה:</div>
                           <input value={airfieldPointForm.name} onChange={e => setAirfieldPointForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הנקודה"
                             style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ התראת עומס (מטוסים):</label>
+                            <input type="number" min={1} max={20} value={airfieldPointForm.density_warn}
+                              onChange={e => setAirfieldPointForm(p => ({ ...p, density_warn: Math.max(1, Number(e.target.value)) }))}
+                              style={{ width: '52px', padding: '4px 6px', background: '#0f172a', border: '1px solid #f59e0b', borderRadius: '4px', color: '#fbbf24', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }} />
+                          </div>
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
                             <div>
                               <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>צבע</div>
@@ -17756,11 +17794,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             ? <p style={{ color: '#475569', fontSize: '11px', textAlign: 'center', margin: 0 }}>אין נקודות</p>
                             : airfieldPoints.map(pt => (
                               <div key={pt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 7px', background: '#0f172a', borderRadius: '5px', marginBottom: '3px', border: `1px solid ${pt.color || '#1e293b'}44` }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
                                   <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
-                                  <span style={{ color: '#e2e8f0', fontSize: '11px' }}>{pt.name}</span>
+                                  <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
+                                  <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
                                 </div>
-                                <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 5px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
+                                <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 5px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', marginRight: '4px' }}>מחק</button>
                               </div>
                             ))
                           }
