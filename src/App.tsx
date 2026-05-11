@@ -17,6 +17,7 @@ interface CrewMember {
   is_admin: boolean;
   is_team_lead?: boolean;
   approved_workstations?: number[];
+  undo_duration_ms?: number | null;
 }
 
 interface WorkstationSession {
@@ -4176,7 +4177,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4199,6 +4200,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   aviationBases?: any[];
   presetRole?: string | null;
   onUpdateStripMeta?: (stripId: string, fields: Record<string, any>) => void;
+  crewMemberId?: number | null;
+  initialUndoDurationMs?: number | null;
 }) => {
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -4276,6 +4279,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   }, []);
   const UNDO_DURATION_OPTIONS = [3000, 6000, 10000] as const;
   const [undoDurationMs, setUndoDurationMs] = React.useState<number>(() => {
+    if (initialUndoDurationMs && (UNDO_DURATION_OPTIONS as readonly number[]).includes(initialUndoDurationMs)) {
+      return initialUndoDurationMs;
+    }
     try {
       const stored = localStorage.getItem('groundUndoDurationMs');
       if (stored) {
@@ -4285,8 +4291,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     } catch { /* ignore */ }
     return 6000;
   });
+  const isFirstUndoMount = React.useRef(true);
   React.useEffect(() => {
+    if (isFirstUndoMount.current) { isFirstUndoMount.current = false; return; }
     try { localStorage.setItem('groundUndoDurationMs', String(undoDurationMs)); } catch { /* ignore */ }
+    if (crewMemberId) {
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ undo_duration_ms: undoDurationMs })
+      }).catch(() => {});
+    }
   }, [undoDurationMs]);
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
@@ -10269,6 +10284,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, ...fields } : s));
                   } catch (e) { console.error(e); }
                 }}
+                crewMemberId={session?.crewMember?.id ?? null}
+                initialUndoDurationMs={session?.crewMember?.undo_duration_ms ?? null}
               />
             );
           })()}

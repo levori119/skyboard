@@ -193,6 +193,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS last_name VARCHAR(50)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS personal_id VARCHAR(20)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS is_team_lead BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS undo_duration_ms INTEGER`);
   
   // Junction table for crew member approved workstations
   await pool.query(`
@@ -781,6 +782,20 @@ app.put('/api/crew-members/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating crew member:', err);
     res.status(500).json({ error: 'Failed to update crew member' });
+  }
+});
+
+app.patch('/api/crew-members/:id/preferences', async (req, res) => {
+  try {
+    const { undo_duration_ms } = req.body;
+    await pool.query(
+      'UPDATE crew_members SET undo_duration_ms = $1 WHERE id = $2',
+      [undo_duration_ms ?? null, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating crew member preferences:', err);
+    res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
 
