@@ -17038,8 +17038,17 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>שם שדה התעופה:</label>
-                      <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="לדוגמה: נבטים"
-                        style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                      {adminAviationBases.length > 0 ? (
+                        <select value={airfieldForm.name}
+                          onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))}
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: airfieldForm.name ? 'white' : '#64748b', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}>
+                          <option value="">— בחר בסיס —</option>
+                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.name}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                        </select>
+                      ) : (
+                        <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="לדוגמה: נבטים"
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                      )}
                     </div>
                     <div>
                       <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>מפה קרקעית:</label>
@@ -17135,6 +17144,47 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         ⚠️ בחר מפה קרקעית להנחלת נקודות
                       </div>
                     )}
+
+                    {/* Airfield Routes — shown under selected airfield */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold' }}>🛤️ מסלולי הסעה</div>
+                          <button onClick={() => { setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId) }); setShowAirfieldRouteForm(true); }}
+                            style={{ padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>
+                        </div>
+                        {showAirfieldRouteForm && (
+                          <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '6px', border: '1px solid #1e3a5f' }}>
+                            <input type="text" placeholder="שם מסלול" value={airfieldRouteForm.name}
+                              onChange={e => setAirfieldRouteForm(p => ({ ...p, name: e.target.value }))}
+                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={async () => {
+                                if (!airfieldRouteForm.name.trim()) return;
+                                const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
+                                const method = editingAirfieldRoute ? 'PUT' : 'POST';
+                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId) }) });
+                                if (res.ok) { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId) }); fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }
+                              }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
+                                style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                            </div>
+                          </div>
+                        )}
+                        {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).length === 0
+                          ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>אין מסלולים</div>
+                          : adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => (
+                            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', background: '#0f172a', borderRadius: '4px', marginBottom: '3px', border: '1px solid #1e293b' }}>
+                              <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{r.name}</span>
+                              <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId) }); setShowAirfieldRouteForm(true); }}
+                                style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
+                              <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -17186,56 +17236,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   </div>
                 </div>
               )}
-
-            {/* Airfield Routes section */}
-            <div style={{ marginTop: '28px', padding: '16px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', color: '#7dd3fc' }}>🛤️ מסלולי הסעה</h3>
-                <button onClick={() => { setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: selectedAdminAirfieldId ? String(selectedAdminAirfieldId) : '' }); setShowAirfieldRouteForm(true); }}
-                  style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                  + הוסף מסלול
-                </button>
-              </div>
-              {showAirfieldRouteForm && (
-                <div style={{ background: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #334155' }}>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                    <input type="text" placeholder="שם מסלול" value={airfieldRouteForm.name}
-                      onChange={e => setAirfieldRouteForm(p => ({ ...p, name: e.target.value }))}
-                      style={{ flex: 2, padding: '6px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', minWidth: '100px' }} />
-                    <select value={airfieldRouteForm.airfield_id}
-                      onChange={e => setAirfieldRouteForm(p => ({ ...p, airfield_id: e.target.value }))}
-                      style={{ flex: 1, padding: '6px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', minWidth: '80px' }}>
-                      <option value="">— שדה —</option>
-                      {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={async () => {
-                      if (!airfieldRouteForm.name.trim()) return;
-                      const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
-                      const method = editingAirfieldRoute ? 'PUT' : 'POST';
-                      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: airfieldRouteForm.airfield_id ? Number(airfieldRouteForm.airfield_id) : null }) });
-                      if (res.ok) { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }
-                    }} style={{ padding: '5px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>שמור</button>
-                    <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
-                      style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
-                  </div>
-                </div>
-              )}
-              {adminAirfieldRoutes.length === 0
-                ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '12px' }}>אין מסלולים מוגדרים</div>
-                : adminAirfieldRoutes.map((r: any) => (
-                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#1e293b', borderRadius: '6px', marginBottom: '4px', border: '1px solid #334155' }}>
-                    <span style={{ flex: 1, color: '#e2e8f0', fontSize: '13px' }}>{r.name}</span>
-                    {r.airfield_name && <span style={{ fontSize: '11px', color: '#64748b' }}>{r.airfield_name}</span>}
-                    <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: r.airfield_id ? String(r.airfield_id) : '' }); setShowAirfieldRouteForm(true); }}
-                      style={{ padding: '2px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
-                    <button onClick={async () => { if (!confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
-                      style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
-                  </div>
-                ))
-              }
-            </div>
 
             </div>
           );
