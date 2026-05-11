@@ -4855,6 +4855,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
+          {/* Route polygons overlay */}
+          {imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 3; }) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+              {(airfieldRoutes || []).map((r: any) => {
+                const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                if (pts.length < 3) return null;
+                const col = r.color || '#3b82f6';
+                const cx = pts.reduce((s: number, p: any) => s + p.x, 0) / pts.length;
+                const cy = pts.reduce((s: number, p: any) => s + p.y, 0) / pts.length;
+                return (
+                  <g key={r.id}>
+                    <polygon points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill={col + '2a'} stroke={col} strokeWidth="0.5" strokeDasharray="2,1" />
+                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                    {r.notes && <title>{r.notes}</title>}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+
           {/* Airfield points — drop zones + labels */}
           {points.map(pt => {
             const isDrop = mapDragOver === pt.id;
@@ -14496,9 +14517,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
   const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
-  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '' });
+  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '' });
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
+  const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
+  const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
 
   // Base Statuses admin state
   const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
@@ -17224,31 +17247,77 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '6px', border: '1px solid #1e3a5f' }}>
                             <input type="text" placeholder="שם מסלול" value={airfieldRouteForm.name}
                               onChange={e => setAirfieldRouteForm(p => ({ ...p, name: e.target.value }))}
-                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '5px' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע:</label>
+                              <input type="color" value={airfieldRouteForm.color}
+                                onChange={e => setAirfieldRouteForm(p => ({ ...p, color: e.target.value }))}
+                                style={{ width: '32px', height: '22px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer', background: 'transparent' }} />
+                              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: airfieldRouteForm.color, flexShrink: 0 }} />
+                            </div>
+                            <textarea placeholder="הערות (אופציונלי)" value={airfieldRouteForm.notes}
+                              onChange={e => setAirfieldRouteForm(p => ({ ...p, notes: e.target.value }))}
+                              rows={2}
+                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', resize: 'none', marginBottom: '5px' }} />
                             <div style={{ display: 'flex', gap: '5px' }}>
                               <button onClick={async () => {
                                 if (!airfieldRouteForm.name.trim()) return;
                                 const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
                                 const method = editingAirfieldRoute ? 'PUT' : 'POST';
-                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId) }) });
-                                if (res.ok) { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId) }); fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }
+                                const existingPath = editingAirfieldRoute
+                                  ? (adminAirfieldRoutes.find((x: any) => x.id === editingAirfieldRoute.id)?.route_path || [])
+                                  : [];
+                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_path: existingPath }) });
+                                if (res.ok) {
+                                  const saved = await res.json();
+                                  setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '' });
+                                  fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
+                                  // start drawing immediately after creating new route
+                                  if (method === 'POST' && hasMap) { setDrawingRouteId(saved.id); setRouteDraftPoints([]); }
+                                }
                               }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
                               <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
                                 style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
                             </div>
                           </div>
                         )}
+                        {/* Drawing mode indicator */}
+                        {drawingRouteId && (
+                          <div style={{ background: '#1c1400', border: '1px solid #fbbf24', borderRadius: '5px', padding: '6px 8px', marginBottom: '5px', fontSize: '10px', color: '#fcd34d' }}>
+                            ✏️ מצב ציור — לחץ על המפה להוספת נקודות
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                              <button onClick={async () => {
+                                if (routeDraftPoints.length < 3) { alert('יש לסמן לפחות 3 נקודות'); return; }
+                                const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
+                                if (!route) return;
+                                await fetch(`${API_URL}/airfield-routes/${drawingRouteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color || '#3b82f6', notes: route.notes || '', route_path: routeDraftPoints }) });
+                                fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
+                                setDrawingRouteId(null); setRouteDraftPoints([]);
+                              }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ סגור ({routeDraftPoints.length})</button>
+                              <button onClick={() => setRouteDraftPoints([])} style={{ padding: '3px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
+                              <button onClick={() => { setDrawingRouteId(null); setRouteDraftPoints([]); }} style={{ padding: '3px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                            </div>
+                          </div>
+                        )}
                         {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).length === 0
                           ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>אין מסלולים</div>
-                          : adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => (
-                            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', background: '#0f172a', borderRadius: '4px', marginBottom: '3px', border: '1px solid #1e293b' }}>
-                              <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{r.name}</span>
-                              <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId) }); setShowAirfieldRouteForm(true); }}
-                                style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
-                              <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
-                                style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
-                            </div>
-                          ))
+                          : adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
+                            const routePath = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                            return (
+                              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : '#1e293b'}` }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
+                                <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{r.name}</span>
+                                {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}נק)</span>}
+                                {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
+                                {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
+                                  style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
+                                <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '' }); setShowAirfieldRouteForm(true); }}
+                                  style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
+                                <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                  style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                              </div>
+                            );
+                          })
                         }
                       </div>
                     )}
@@ -17260,13 +17329,11 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               {hasMap && showAirfieldForm && (
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${placingPointMode ? '#fbbf24' : '#1e3a5f'}`, cursor: placingPointMode ? 'crosshair' : 'default' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') setPlacingPointMode(false); }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId) ? 'crosshair' : 'default' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); } }}
                     onClick={e => {
-                      if (!placingPointMode) return;
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
-                      // subtract border so coordinates match CSS absolute positioning (inside border)
                       const relX = e.clientX - rect.left - el.clientLeft;
                       const relY = e.clientY - rect.top - el.clientTop;
                       let x_pct: number, y_pct: number;
@@ -17279,14 +17346,53 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       }
                       x_pct = Math.max(0, Math.min(100, x_pct));
                       y_pct = Math.max(0, Math.min(100, y_pct));
-                      addPointAt(x_pct, y_pct);
+                      if (drawingRouteId) {
+                        setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
+                      } else if (placingPointMode) {
+                        addPointAt(x_pct, y_pct);
+                      }
                     }}
                   >
                     <img src={adminSelMapSrc!} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
                       style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
+
+                    {/* Route polygons SVG overlay */}
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+                      style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 2 }}>
+                      {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
+                        const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                        if (pts.length < 3) return null;
+                        const col = r.color || '#3b82f6';
+                        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+                        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+                        return (
+                          <g key={r.id}>
+                            <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill={col + '33'} stroke={col} strokeWidth="0.5" strokeDasharray="2,1" />
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                          </g>
+                        );
+                      })}
+                      {/* Draft polygon while drawing */}
+                      {drawingRouteId && routeDraftPoints.length >= 2 && (() => {
+                        const drawingRoute = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
+                        const col = drawingRoute?.color || '#f59e0b';
+                        return (
+                          <g>
+                            <polyline points={routeDraftPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.6" strokeDasharray="2,1" />
+                            {routeDraftPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="1" fill={col} />)}
+                          </g>
+                        );
+                      })()}
+                    </svg>
+
                     {placingPointMode && (
-                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px' }}>
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>📍 לחץ על המפה — ESC לביטול</div>
+                      </div>
+                    )}
+                    {drawingRouteId && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(245,158,11,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>✏️ ציור מסלול — {routeDraftPoints.length} נקודות — ESC לביטול</div>
                       </div>
                     )}
                     {airfieldPoints.map(pt => {

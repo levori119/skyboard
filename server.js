@@ -702,6 +702,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   // Workstation preset role: 'tower' | 'approach' | null
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_role VARCHAR(20)`);
+  // Airfield route notes and polygon
+  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
 
   console.log('Database initialized');
 }
@@ -3782,10 +3784,10 @@ app.get('/api/airfield-routes', async (req, res) => {
 
 app.post('/api/airfield-routes', async (req, res) => {
   try {
-    const { airfield_id, name, color, route_path } = req.body;
+    const { airfield_id, name, color, route_path, notes } = req.body;
     const result = await pool.query(
-      `INSERT INTO airfield_routes (airfield_id, name, color, route_path) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || [])]
+      `INSERT INTO airfield_routes (airfield_id, name, color, route_path, notes) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
@@ -3793,10 +3795,10 @@ app.post('/api/airfield-routes', async (req, res) => {
 
 app.put('/api/airfield-routes/:id', async (req, res) => {
   try {
-    const { name, color, route_path } = req.body;
+    const { name, color, route_path, notes } = req.body;
     const result = await pool.query(
-      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3 WHERE id=$4 RETURNING *`,
-      [name, color || '#3b82f6', JSON.stringify(route_path || []), req.params.id]
+      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4 WHERE id=$5 RETURNING *`,
+      [name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update airfield route' }); }
