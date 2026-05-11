@@ -14893,6 +14893,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
   const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3 });
   const [placingPointMode, setPlacingPointMode] = useState(false);
+  const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number } | null>(null);
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setAdminMapImgBounds(null); return; }
@@ -17529,6 +17530,17 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             await fetch(`${API_URL}/airfield-points/${pointId}`, { method: 'DELETE' });
             if (selectedAdminAirfieldId) loadAirfieldPoints(selectedAdminAirfieldId);
           };
+          const saveEditingPoint = async () => {
+            if (!editingPoint || !editingPoint.name.trim()) return;
+            const existing = airfieldPoints.find(p => p.id === editingPoint.id);
+            if (!existing) return;
+            const res = await fetch(`${API_URL}/airfield-points/${editingPoint.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: editingPoint.name, x_pct: existing.x_pct, y_pct: existing.y_pct, display_order: existing.display_order ?? 0, color: editingPoint.color, marker: editingPoint.marker, density_warn: editingPoint.density_warn }),
+            });
+            if (res.ok) { setEditingPoint(null); if (selectedAdminAirfieldId) loadAirfieldPoints(selectedAdminAirfieldId); }
+          };
           const selAirfield = adminAirfields.find(af => af.id === selectedAdminAirfieldId);
           const selMapSrc = adminSelMapSrc;
           const loadMapById = async (mapId: string | number) => {
@@ -17792,16 +17804,61 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>נקודות ({airfieldPoints.length}):</div>
                           {airfieldPoints.length === 0
                             ? <p style={{ color: '#475569', fontSize: '11px', textAlign: 'center', margin: 0 }}>אין נקודות</p>
-                            : airfieldPoints.map(pt => (
-                              <div key={pt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 7px', background: '#0f172a', borderRadius: '5px', marginBottom: '3px', border: `1px solid ${pt.color || '#1e293b'}44` }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
-                                  <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
-                                  <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
-                                  <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
+                            : airfieldPoints.map(pt => {
+                              const isEditing = editingPoint?.id === pt.id;
+                              return (
+                                <div key={pt.id} style={{ marginBottom: '4px', borderRadius: '6px', border: `1px solid ${isEditing ? '#3b82f6' : (pt.color || '#1e293b') + '44'}`, overflow: 'hidden' }}>
+                                  {/* Row header */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', background: '#0f172a' }}>
+                                    <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
+                                    <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
+                                    <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
+                                    <button
+                                      onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3 })}
+                                      style={{ padding: '1px 6px', background: isEditing ? '#1e3a5f' : '#1e293b', color: isEditing ? '#93c5fd' : '#94a3b8', border: `1px solid ${isEditing ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>
+                                      {isEditing ? '▲' : '✏️'}
+                                    </button>
+                                    <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 5px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
+                                  </div>
+                                  {/* Inline edit form */}
+                                  {isEditing && editingPoint && (
+                                    <div style={{ padding: '8px', background: '#0a1628', borderTop: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                      <input
+                                        value={editingPoint.name}
+                                        onChange={e => setEditingPoint(p => p ? { ...p, name: e.target.value } : p)}
+                                        placeholder="שם הנקודה"
+                                        style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
+                                      />
+                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ עומס:</label>
+                                        <input type="number" min={1} max={20} value={editingPoint.density_warn}
+                                          onChange={e => setEditingPoint(p => p ? { ...p, density_warn: Math.max(1, Number(e.target.value)) } : p)}
+                                          style={{ width: '50px', padding: '4px 6px', background: '#0f172a', border: '1px solid #f59e0b', borderRadius: '4px', color: '#fbbf24', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }} />
+                                        <div style={{ flex: 1 }} />
+                                        <label style={{ fontSize: '10px', color: '#94a3b8' }}>צבע:</label>
+                                        <input type="color" value={editingPoint.color}
+                                          onChange={e => setEditingPoint(p => p ? { ...p, color: e.target.value } : p)}
+                                          style={{ width: '28px', height: '22px', padding: '1px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }} />
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap' }}>
+                                        {GROUND_POINT_MARKERS.map(m => (
+                                          <button key={m.key} onClick={() => setEditingPoint(p => p ? { ...p, marker: m.key } : p)} title={m.label}
+                                            style={{ padding: '2px 3px', borderRadius: '3px', border: `2px solid ${editingPoint.marker === m.key ? editingPoint.color : '#334155'}`, background: editingPoint.marker === m.key ? '#1e293b' : '#0f172a', cursor: 'pointer' }}>
+                                            <GroundMarkerSVG marker={m.key} color={editingPoint.marker === m.key ? editingPoint.color : '#64748b'} size={12} />
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                        <button onClick={() => setEditingPoint(null)}
+                                          style={{ padding: '4px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                                        <button onClick={saveEditingPoint} disabled={!editingPoint.name.trim()}
+                                          style={{ padding: '4px 12px', background: editingPoint.name.trim() ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '4px', cursor: editingPoint.name.trim() ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: 'bold', opacity: editingPoint.name.trim() ? 1 : 0.5 }}>שמור</button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <button onClick={() => deletePoint(pt.id)} style={{ padding: '1px 5px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', marginRight: '4px' }}>מחק</button>
-                              </div>
-                            ))
+                              );
+                            })
                           }
                         </div>
                       </>
