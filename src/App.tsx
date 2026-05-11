@@ -14883,7 +14883,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 </div>
                 {/* Row 2: Conditional based on preset type */}
                 {presetForm.preset_type === 'ground' ? (
-                  <>
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שדה תעופה:</label>
                     <select value={presetForm.airfield_id}
@@ -14894,19 +14893,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
                   </div>
-                  <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>תפקיד עמדה (Ground):</label>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {[{ val: '', label: '— כללי —' }, { val: 'tower', label: '🗼 מגדל' }, { val: 'yaba', label: '📡 יב"א' }, { val: 'ground_ctrl', label: '🚜 שטח (Ground)' }].map(opt => (
-                        <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_role: opt.val }))}
-                          style={{ flex: '1 0 auto', padding: '8px 6px', borderRadius: '6px', border: `2px solid ${presetForm.preset_role === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_role === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_role === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.preset_role === opt.val ? 'bold' : 'normal' }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: עדכון SID בפ"מ | יב"א: עדכון STAR בפ"מ | כללי/שטח: הכל</p>
-                  </div>
-                  </>
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                     <label style={{ display: 'block', marginBottom: '10px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>📋 הגדרת עמדת סטריפים</label>
@@ -14946,6 +14932,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     </select>
                   </div>
                 )}
+
+                {/* תפקיד עמדה — מוצג לכל סוגי העמדות */}
+                <div style={{ marginBottom: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🏷 תפקיד עמדה:</label>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {[{ val: '', label: '— כללי —' }, { val: 'tower', label: '🗼 מגדל' }, { val: 'yaba', label: '📡 יב"א' }, { val: 'ground_ctrl', label: '🚜 שטח' }].map(opt => (
+                      <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_role: opt.val }))}
+                        style={{ flex: '1 0 auto', padding: '9px 10px', borderRadius: '6px', border: `2px solid ${presetForm.preset_role === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_role === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_role === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_role === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: מציג SID בפ"מ | יב"א: מציג STAR בפ"מ | כללי/שטח: הכל</p>
+                </div>
 
                 {presetForm.preset_type === 'normal' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>מצב תצוגה ברירת מחדל:</label>
