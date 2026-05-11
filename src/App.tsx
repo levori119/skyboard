@@ -4193,152 +4193,8 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   if(maxD>eps) return [...dpSimplify(pts.slice(0,maxI+1),eps).slice(0,-1),...dpSimplify(pts.slice(maxI),eps)];
   return [pts[0],pts[pts.length-1]];
 }
-async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):Promise<VectorLine[]> {
-  return new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>{
-      onProgress?.('טוען תמונה...');
-      // Scale to 900px max — bigger = more detail but slower
-      const MAX=900, scale=Math.min(MAX/img.naturalWidth, MAX/img.naturalHeight, 1);
-      const W=Math.round(img.naturalWidth*scale), H=Math.round(img.naturalHeight*scale);
-      const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
-      const ctx=cv.getContext('2d')!; ctx.drawImage(img,0,0,W,H);
-      const {data}=ctx.getImageData(0,0,W,H);
 
-      // 1. Grayscale
-      const gray=new Uint8Array(W*H);
-      for(let i=0;i<W*H;i++) gray[i]=Math.round(.299*data[i*4]+.587*data[i*4+1]+.114*data[i*4+2]);
-
-      // 2. Gaussian blur 7×7 — matches cv2.GaussianBlur(gray,(7,7),0)
-      onProgress?.('טשטוש רעש...');
-      const K7=[1,6,15,20,15,6,1, 6,36,90,120,90,36,6, 15,90,225,300,225,90,15,
-                20,120,300,400,300,120,20, 15,90,225,300,225,90,15, 6,36,90,120,90,36,6, 1,6,15,20,15,6,1];
-      const K7SUM=4096;
-      const blr=new Uint8Array(W*H);
-      for(let y=3;y<H-3;y++) for(let x=3;x<W-3;x++){
-        let s=0;
-        for(let ky=-3;ky<=3;ky++) for(let kx=-3;kx<=3;kx++) s+=gray[(y+ky)*W+(x+kx)]*K7[(ky+3)*7+(kx+3)];
-        blr[y*W+x]=s/K7SUM;
-      }
-
-      // 3. Sobel + Canny — thresholds 50/150 (as % of max like OpenCV does)
-      onProgress?.('זיהוי קצות (Canny)...');
-      const mag=new Float32Array(W*H), dir=new Float32Array(W*H);
-      let maxMag=0;
-      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
-        const gx=-blr[(y-1)*W+(x-1)]+blr[(y-1)*W+(x+1)]-2*blr[y*W+(x-1)]+2*blr[y*W+(x+1)]-blr[(y+1)*W+(x-1)]+blr[(y+1)*W+(x+1)];
-        const gy=-blr[(y-1)*W+(x-1)]-2*blr[(y-1)*W+x]-blr[(y-1)*W+(x+1)]+blr[(y+1)*W+(x-1)]+2*blr[(y+1)*W+x]+blr[(y+1)*W+(x+1)];
-        mag[y*W+x]=Math.sqrt(gx*gx+gy*gy); dir[y*W+x]=Math.atan2(gy,gx);
-        if(mag[y*W+x]>maxMag) maxMag=mag[y*W+x];
-      }
-      // Proportional to OpenCV Canny(img,50,150): low≈5%, high≈15% of max gradient
-      const LOW=maxMag*.05, HIGH=maxMag*.15;
-      const edges=new Uint8Array(W*H);
-      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
-        const m=mag[y*W+x]; if(m<LOW) continue;
-        const ang=((dir[y*W+x]*180/Math.PI)+180)%180;
-        let n1,n2;
-        if(ang<22.5||ang>=157.5){n1=mag[y*W+(x-1)];n2=mag[y*W+(x+1)];}
-        else if(ang<67.5){n1=mag[(y-1)*W+(x+1)];n2=mag[(y+1)*W+(x-1)];}
-        else if(ang<112.5){n1=mag[(y-1)*W+x];n2=mag[(y+1)*W+x];}
-        else{n1=mag[(y-1)*W+(x-1)];n2=mag[(y+1)*W+(x+1)];}
-        if(m>=n1&&m>=n2) edges[y*W+x]=m>=HIGH?255:128;
-      }
-      for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
-        if(edges[y*W+x]!==128) continue;
-        let strong=false;
-        for(let dy=-1;dy<=1&&!strong;dy++) for(let dx=-1;dx<=1&&!strong;dx++) if(edges[(y+dy)*W+(x+dx)]===255) strong=true;
-        edges[y*W+x]=strong?255:0;
-      }
-
-      // 4. HoughLinesP — matches cv2.HoughLinesP(edges,1,π/180,threshold=80,minLineLength=100,maxLineGap=20)
-      //    Parameters scaled proportionally to our working resolution
-      onProgress?.('HoughLinesP...');
-      const THRESH=80;                                         // minimum votes (same as OpenCV)
-      const MIN_LEN=Math.round(100*(Math.min(W,H)/600));      // ~100px at 600px, scales with image
-      const MAX_GAP=Math.round(20*(Math.min(W,H)/600));       // ~20px at 600px
-
-      const diag=Math.ceil(Math.sqrt(W*W+H*H));
-      const NT=180;
-      const acc=new Int32Array((2*diag+2)*NT);
-      const cosT=new Float32Array(NT), sinT=new Float32Array(NT);
-      for(let t=0;t<NT;t++){cosT[t]=Math.cos(t*Math.PI/NT); sinT[t]=Math.sin(t*Math.PI/NT);}
-
-      // Build accumulator
-      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-        if(!edges[y*W+x]) continue;
-        for(let t=0;t<NT;t++){
-          const rho=Math.round(x*cosT[t]+y*sinT[t])+diag;
-          acc[rho*NT+t]++;
-        }
-      }
-
-      // Find ALL (rho,theta) cells above threshold, sorted by votes (highest first)
-      // This is the probabilistic part: process strongest lines first
-      onProgress?.('מחלץ קטעים...');
-      const candidates:[number,number,number][]=[];
-      for(let r=1;r<2*diag+1;r++) for(let t=0;t<NT;t++){
-        if(acc[r*NT+t]>=THRESH) candidates.push([acc[r*NT+t],r-diag,t]);
-      }
-      candidates.sort((a,b)=>b[0]-a[0]);
-
-      // For each candidate line, trace actual segments (HoughLinesP segment extraction)
-      const lines:VectorLine[]=[];
-      const used=new Uint8Array(W*H);
-
-      for(const [,rho,tIdx] of candidates){
-        const cos=cosT[tIdx], sin=sinT[tIdx];
-        const dx=-sin, dy=cos;            // direction along line
-        const px0=cos*rho, py0=sin*rho;   // reference point on line
-
-        // Scan parameter p from -diag to +diag
-        // Track segments: start/end of runs of edge pixels (with gap tolerance)
-        let segStart=NaN, lastHit=NaN, gap=0;
-
-        const flushSeg=(end:number)=>{
-          if(isNaN(segStart)||isNaN(lastHit)) return;
-          const len=lastHit-segStart;
-          if(len>=MIN_LEN){
-            const x1=Math.max(0,Math.min(W-1,Math.round(px0+dx*segStart)));
-            const y1=Math.max(0,Math.min(H-1,Math.round(py0+dy*segStart)));
-            const x2=Math.max(0,Math.min(W-1,Math.round(px0+dx*end)));
-            const y2=Math.max(0,Math.min(H-1,Math.round(py0+dy*end)));
-            lines.push({id:Math.random().toString(36).slice(2),points:[{x:(x1/W)*100,y:(y1/H)*100},{x:(x2/W)*100,y:(y2/H)*100}],color:'#94a3b8',width:2});
-            // Mark pixels as used to avoid duplicate segments
-            for(let pp=segStart;pp<=end+1;pp++){
-              const mx=Math.round(px0+dx*pp), my=Math.round(py0+dy*pp);
-              if(mx>=0&&mx<W&&my>=0&&my<H) used[my*W+mx]=1;
-            }
-          }
-        };
-
-        for(let p=-diag;p<=diag;p++){
-          const px=Math.round(px0+dx*p), py=Math.round(py0+dy*p);
-          if(px<0||px>=W||py<0||py>=H) continue;
-          const hit=edges[py*W+px]>0 && !used[py*W+px];
-          if(hit){
-            if(isNaN(segStart)){ segStart=p; }
-            lastHit=p; gap=0;
-          } else if(!isNaN(segStart)){
-            gap++;
-            if(gap>MAX_GAP){
-              flushSeg(lastHit);
-              segStart=NaN; lastHit=NaN; gap=0;
-            }
-          }
-        }
-        flushSeg(isNaN(lastHit)?NaN as unknown as number:lastHit);
-
-        if(lines.length>=200) break; // cap at 200 segments like OpenCV's maxLines
-      }
-
-      resolve(lines);
-    };
-    img.onerror=reject; img.src=src;
-  });
-}
-
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, vectorData, airfieldElements, elementTypes, onUpdateElementStatus }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, airfieldElements, elementTypes, onUpdateElementStatus }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4363,12 +4219,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdateStripMeta?: (stripId: string, fields: Record<string, any>) => void;
   crewMemberId?: number | null;
   initialUndoDurationMs?: number | null;
-  vectorData?: VectorData | null;
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
 }) => {
-  const [showVectorMode, setShowVectorMode] = useState(false);
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
@@ -4513,8 +4367,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   }, [strips, pendingPointAssign]);
 
   // Convert % coordinates to absolute px within the rendered image area
-  // In vector mode the SVG fills the entire container so direct % is correct
-  const ptPos = (x_pct: number, y_pct: number) => (!showVectorMode && imgBounds)
+  const ptPos = (x_pct: number, y_pct: number) => imgBounds
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
 
@@ -5082,21 +4935,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
         )}
 
-        {vectorData && vectorData.lines.length > 0 && (
-          <div style={{ padding: '4px 10px', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, direction: 'rtl', background: lightMode ? '#f0f4f8' : '#060d18' }}>
-            <span style={{ fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>מצב תצוגה:</span>
-            <button onClick={() => setShowVectorMode(false)} style={{ padding: '2px 10px', borderRadius: '12px', border: !showVectorMode ? '2px solid #3b82f6' : `1px solid ${border}`, background: !showVectorMode ? '#3b82f6' : (lightMode ? '#f8fafc' : '#1e293b'), color: !showVectorMode ? '#fff' : headerColor, fontSize: '11px', fontWeight: !showVectorMode ? 'bold' : 'normal', cursor: 'pointer' }}>🛰 תצ"א</button>
-            <button onClick={() => setShowVectorMode(true)} style={{ padding: '2px 10px', borderRadius: '12px', border: showVectorMode ? '2px solid #10b981' : `1px solid ${border}`, background: showVectorMode ? '#10b981' : (lightMode ? '#f8fafc' : '#1e293b'), color: showVectorMode ? '#fff' : headerColor, fontSize: '11px', fontWeight: showVectorMode ? 'bold' : 'normal', cursor: 'pointer' }}>🗺 וקטורי</button>
-          </div>
-        )}
-        <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: showVectorMode && vectorData ? (vectorData.bgColor || '#0f172a') : (airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a')) }}>
-          {showVectorMode && vectorData ? (
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block' }}>
-              {vectorData.lines.map(line => (
-                <polyline key={line.id} points={line.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={line.color} strokeWidth={String(line.width * 0.35)} />
-              ))}
-            </svg>
-          ) : airfieldMapSrc
+        <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
+          {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
@@ -5119,10 +4959,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             )}
           </div>
 
-          {/* Route lines overlay — works in both photo and vector modes */}
-          {mapLayers.routes && (showVectorMode || imgBounds) && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {/* Route lines overlay */}
+          {mapLayers.routes && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={{ position: 'absolute', top: (!showVectorMode && imgBounds) ? imgBounds.top : 0, left: (!showVectorMode && imgBounds) ? imgBounds.left : 0, width: (!showVectorMode && imgBounds) ? imgBounds.width : '100%', height: (!showVectorMode && imgBounds) ? imgBounds.height : '100%', pointerEvents: 'none', zIndex: 2 }}>
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
@@ -5144,12 +4984,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </svg>
           )}
 
-          {/* Airfield elements overlay — works in both photo and vector modes */}
+          {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
             const sColor = statusColors[el.status] || '#94a3b8';
-            const pos = (!showVectorMode && imgBounds)
+            const pos = imgBounds
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             return (
@@ -10660,7 +10500,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }}
                 crewMemberId={session?.crewMember?.id ?? null}
                 initialUndoDurationMs={session?.crewMember?.undo_duration_ms ?? null}
-                vectorData={(() => { const vd = activeAirfield?.vector_data; return vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null; })()}
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
@@ -15032,12 +14871,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string}|null>(null);
-  const [adminVectorData, setAdminVectorData] = useState<VectorData | null>(null);
-  const [vectorEditMode, setVectorEditMode] = useState(false);
-  const [vectorDrawingActive, setVectorDrawingActive] = useState(false);
-  const [vectorDraftPoints, setVectorDraftPoints] = useState<{x:number;y:number}[]>([]);
-  const [vectorLineColor, setVectorLineColor] = useState('#ffffff');
-  const [vectorizingProgress, setVectorizingProgress] = useState<string | null>(null);
   // Airfield element types (global list)
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
@@ -17668,7 +17501,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             const mr = await fetch(`${API_URL}/maps/${mapId}`);
             if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
           };
-          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc || (adminVectorData && adminVectorData.lines.length > 0));
+          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
           return (
             <div style={{ display: 'flex', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
@@ -17682,7 +17515,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   {adminAirfields.length === 0
                     ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px 0' }}>אין שדות תעופה</div>
                     : adminAirfields.map(af => (
-                      <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); setShowElementsSection(true); const vd = af.vector_data; setAdminVectorData(vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null); setVectorEditMode(false); setVectorDrawingActive(false); setVectorDraftPoints([]); }}
+                      <div key={af.id} onClick={() => { setEditingAirfield(af); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); setShowElementsSection(true); }}
                         style={{ padding: '7px 10px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
                         <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>🛬 {af.name}</div>
                         <div style={{ color: '#64748b', fontSize: '10px' }}>{af.map_id ? 'מפה מוגדרת' : 'ללא מפה'}</div>
@@ -17694,76 +17527,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 </div>
 
 
-              {/* Vector data editor section */}
-              {selectedAdminAirfieldId && adminSelMapSrc && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  {/* ── Prominent generate button – always visible ── */}
-                  <button onClick={async () => {
-                    if (vectorizingProgress) return;
-                    setVectorizingProgress('מתחיל...');
-                    try {
-                      const lines = await vectorizeAirfieldImage(adminSelMapSrc!, msg => setVectorizingProgress(msg));
-                      const newData: VectorData = { lines, bgColor: '#0f172a' };
-                      setAdminVectorData(newData);
-                      await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                    } finally { setVectorizingProgress(null); }
-                  }} style={{ width: '100%', padding: '9px', background: vectorizingProgress ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: vectorizingProgress ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 'bold', opacity: vectorizingProgress ? 0.8 : 1, letterSpacing: '0.3px' }}>
-                    {vectorizingProgress ? `⏳ ${vectorizingProgress}` : '🗺 צור מפה וקטורית'}
-                  </button>
-                  {adminVectorData && adminVectorData.lines.length > 0 && (
-                    <div style={{ fontSize: '10px', color: '#34d399', textAlign: 'center' }}>✓ {adminVectorData.lines.length} קווים נשמרו</div>
-                  )}
-                  {/* ── Collapsible manual-edit tools ── */}
-                <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                  <div onClick={() => setVectorEditMode(p => !p)}
-                    style={{ padding: '7px 10px', background: vectorEditMode ? '#0f2a1a' : '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>✏️ עריכה ידנית</span>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
-                  </div>
-                  {vectorEditMode && (
-                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                        <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע קו:</label>
-                        <input type="color" value={vectorLineColor} onChange={e => setVectorLineColor(e.target.value)}
-                          style={{ width: '28px', height: '22px', padding: '0', border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
-                        <button onClick={() => { setVectorDrawingActive(true); setVectorDraftPoints([]); }}
-                          style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ צייר קו</button>
-                      </div>
-                      {vectorDrawingActive && (
-                        <div style={{ background: '#0f2a1a', border: '1px solid #059669', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#34d399' }}>
-                          ✏️ ציור וקטורי — {vectorDraftPoints.length} נקודות
-                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                            <button onClick={async () => {
-                              if (vectorDraftPoints.length < 2) return;
-                              const newLine: VectorLine = { id: Math.random().toString(36).slice(2), points: vectorDraftPoints, color: vectorLineColor, width: 1 };
-                              const newData: VectorData = { lines: [...(adminVectorData?.lines || []), newLine], bgColor: adminVectorData?.bgColor || '#0f172a' };
-                              setAdminVectorData(newData); setVectorDrawingActive(false); setVectorDraftPoints([]);
-                              await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                              fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                            }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vectorDraftPoints.length})</button>
-                            <button onClick={() => setVectorDraftPoints([])} style={{ padding: '3px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
-                            <button onClick={() => { setVectorDrawingActive(false); setVectorDraftPoints([]); }} style={{ padding: '3px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
-                          </div>
-                        </div>
-                      )}
-                      {adminVectorData && adminVectorData.lines.length > 0 && (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ fontSize: '10px', color: '#64748b', flex: 1 }}>{adminVectorData.lines.length} קווים שמורים</span>
-                          <button onClick={async () => {
-                            if (!confirm('למחוק את כל הנתונים הוקטוריים?')) return;
-                            const newData: VectorData = { lines: [], bgColor: '#0f172a' };
-                            setAdminVectorData(newData);
-                            await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                            fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                          }} style={{ padding: '2px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑 נקה הכל</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                </div>
-              )}
                 {/* Editor form (shown when airfield selected/new) */}
                 {showAirfieldForm && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -18103,8 +17866,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
               {hasMap && showAirfieldForm && (
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : vectorDrawingActive ? '#10b981' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || vectorDrawingActive || placingElementMode) ? 'crosshair' : 'default' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setVectorDrawingActive(false); setVectorDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode) ? 'crosshair' : 'default' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); } }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
@@ -18122,8 +17885,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       y_pct = Math.max(0, Math.min(100, y_pct));
                       if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
-                      } else if (vectorDrawingActive) {
-                        setVectorDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (placingElementMode && placingElementId) {
                         const el = adminAirfieldElements.find((e: any) => e.id === placingElementId);
                         if (el) {
@@ -18139,13 +17900,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     {adminSelMapSrc ? (
                       <img src={adminSelMapSrc} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
                         style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
-                    ) : (adminVectorData && adminVectorData.lines.length > 0) ? (
-                      <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-                        style={{ width: '100%', height: '480px', display: 'block', background: adminVectorData.bgColor || '#0f172a' }}>
-                        {adminVectorData.lines.map(line => (
-                          <polyline key={line.id} points={line.points.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={line.color} strokeWidth="0.4" />
-                        ))}
-                      </svg>
                     ) : null}
 
                     {/* Route polygons SVG overlay */}
@@ -18181,35 +17935,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       })()}
                     </svg>
 
-                    {/* Vector overlay in admin map */}
-                    {adminVectorData && adminVectorData.lines.length > 0 && !vectorDrawingActive && (
-                      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
-                        {adminVectorData.lines.map(line => (
-                          <polyline key={line.id} points={line.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={line.color} strokeWidth="0.4" opacity="0.7" />
-                        ))}
-                      </svg>
-                    )}
-                    {/* Vector drawing overlay */}
-                    {vectorDrawingActive && (
-                      <>
-                        {adminVectorData && adminVectorData.lines.length > 0 && (
-                          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
-                            {adminVectorData.lines.map(line => (
-                              <polyline key={line.id} points={line.points.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={line.color} strokeWidth="0.4" opacity="0.5" />
-                            ))}
-                          </svg>
-                        )}
-                        {vectorDraftPoints.length >= 1 && (
-                          <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 4 }}>
-                            <polyline points={vectorDraftPoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={vectorLineColor} strokeWidth="0.5" strokeDasharray="2,1" />
-                            {vectorDraftPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="0.8" fill={vectorLineColor} />)}
-                          </svg>
-                        )}
-                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(16,185,129,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
-                          <div style={{ background: '#000000dd', color: '#34d399', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #10b981' }}>✏️ ציור קו וקטורי — {vectorDraftPoints.length} נקודות — ESC לביטול</div>
-                        </div>
-                      </>
-                    )}
                     {/* Elements overlay in admin map */}
                     {adminAirfieldElements.filter(el => el.x_pct != null).map(el => {
                       const pos = adminMapImgBounds
