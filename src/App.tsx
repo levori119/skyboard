@@ -4509,7 +4509,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {sq && <span>- {sq}</span>}
                     </div>
                     {/* SID / STAR / Departure / Landing base row */}
-                    {(presetRole === 'tower' || presetRole === 'approach' || (aviationBases && aviationBases.length > 0)) && (() => {
+                    {(presetRole === 'tower' || presetRole === 'yaba' || presetRole === 'approach' || (aviationBases && aviationBases.length > 0)) && (() => {
                       const depBase = aviationBases?.find((b: any) => Number(b.id) === Number(strip.departure_base_id));
                       const landBase = aviationBases?.find((b: any) => Number(b.id) === Number(strip.landing_base_id));
                       const depSids: string[] = Array.isArray(depBase?.sids) ? depBase.sids : [];
@@ -4561,7 +4561,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               </select>
                             </>
                           )}
-                          {(presetRole === 'approach' || !presetRole) && (
+                          {(presetRole === 'yaba' || presetRole === 'approach' || !presetRole) && (
                             <>
                               <label style={{ fontSize: '10px', color: '#fbbf24', flexShrink: 0 }}>STAR:</label>
                               {landStars.length > 0 ? (
@@ -14897,14 +14897,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>תפקיד עמדה (Ground):</label>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {[{ val: '', label: '— כללי —' }, { val: 'tower', label: '🗼 מגדל (Tower)' }, { val: 'approach', label: '📡 גישה (Approach)' }, { val: 'ground_ctrl', label: '🚜 שטח (Ground)' }].map(opt => (
+                      {[{ val: '', label: '— כללי —' }, { val: 'tower', label: '🗼 מגדל' }, { val: 'yaba', label: '📡 יב"א' }, { val: 'ground_ctrl', label: '🚜 שטח (Ground)' }].map(opt => (
                         <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_role: opt.val }))}
                           style={{ flex: '1 0 auto', padding: '8px 6px', borderRadius: '6px', border: `2px solid ${presetForm.preset_role === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_role === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_role === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.preset_role === opt.val ? 'bold' : 'normal' }}>
                           {opt.label}
                         </button>
                       ))}
                     </div>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>Tower: מגדיר SID | Approach: מגדיר STAR | Ground: הכל</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: עדכון SID בפ"מ | יב"א: עדכון STAR בפ"מ | כללי/שטח: הכל</p>
                   </div>
                   </>
                 ) : presetForm.preset_type === 'classic' ? (
