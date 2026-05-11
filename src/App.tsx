@@ -5273,6 +5273,8 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'koteret', label: 'כותרת' },
   { key: 'numberOfFormation', label: 'מספר מצבה' },
   { key: 'notes', label: 'הערות' },
+  { key: 'sid', label: 'SID' },
+  { key: 'star', label: 'STAR' },
 ];
 
 const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit }: {
@@ -8124,6 +8126,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         if (!t) return '—';
         try { const d = new Date(t); return String(d.getUTCHours()).padStart(2,'0') + ':' + String(d.getUTCMinutes()).padStart(2,'0'); } catch { return String(t); }
       }
+      case 'sid': return s.sid || '—';
+      case 'star': return s.star || '—';
       default: {
         const cf = s.custom_fields && typeof s.custom_fields === 'object' ? s.custom_fields : {};
         return cf[colKey] || '—';
@@ -12836,6 +12840,8 @@ const STRIP_FIELD_DEFS = [
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
+  { key: 'sid',               label: 'SID',           editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'star',              label: 'STAR',          editableOptions: ['none', 'keyboard', 'both'] },
 ];
 
 const CUSTOM_FIELD_EDITABLE_OPTIONS = ['none', 'keyboard', 'both'];
