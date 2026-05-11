@@ -5362,57 +5362,85 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       </div>
 
       {/* Taxi Instructions Modal */}
-      {taxiInstModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}
-          onClick={() => setTaxiInstModal(null)}>
-          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '400px', width: '90%', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '16px' }}>🛤️ הנחיות הסעה</div>
-            <div style={{ marginBottom: '14px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#94a3b8' }}>לאן מסיע סופי:</label>
-              <select value={taxiDestRouteId ?? ''} onChange={e => setTaxiDestRouteId(e.target.value ? Number(e.target.value) : null)}
-                style={{ width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
-                <option value="">— ללא יעד —</option>
-                {(airfieldRoutes || []).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#94a3b8' }}>דרך אילו נקודות:</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto', padding: '4px', background: '#0f172a', borderRadius: '6px', border: '1px solid #334155' }}>
-                {(airfieldRoutes || []).map((r: any) => {
-                  const checked = taxiViaRouteIds.includes(r.id);
-                  return (
-                    <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#1e3a5f' : 'transparent' }}>
-                      <input type="checkbox" checked={checked} onChange={() => setTaxiViaRouteIds(prev => checked ? prev.filter(x => x !== r.id) : [...prev, r.id])} style={{ cursor: 'pointer' }} />
-                      <span style={{ fontSize: '13px', color: checked ? '#93c5fd' : '#94a3b8' }}>{r.name}</span>
-                    </label>
-                  );
-                })}
-                {(airfieldRoutes || []).length === 0 && <div style={{ padding: '8px', fontSize: '12px', color: '#475569', textAlign: 'center' }}>אין מסלולים מוגדרים</div>}
+      {taxiInstModal && (() => {
+        // taxiViaRouteIds holds ordered route IDs; 0 means "empty slot"
+        const viaSlots: number[] = taxiViaRouteIds.length > 0 ? taxiViaRouteIds : [0];
+        const routes = airfieldRoutes || [];
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}
+            onClick={() => setTaxiInstModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '22px', maxWidth: '380px', width: '90%', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '18px' }}>🛤️ הנחיות הסעה</div>
+
+              {/* יעד */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 'bold', color: '#94a3b8', letterSpacing: '0.03em' }}>יעד</label>
+                <select value={taxiDestRouteId ?? ''} onChange={e => setTaxiDestRouteId(e.target.value ? Number(e.target.value) : null)}
+                  style={{ width: '100%', padding: '9px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                  <option value="">— ללא יעד —</option>
+                  {routes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+
+              {/* דרך — ordered slots */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 'bold', color: '#94a3b8', letterSpacing: '0.03em' }}>דרך</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {viaSlots.map((routeId, slotIdx) => (
+                    <div key={slotIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '18px', textAlign: 'center', fontSize: '11px', color: '#475569', fontWeight: 'bold', flexShrink: 0 }}>{slotIdx + 1}</span>
+                      <select
+                        value={routeId || ''}
+                        onChange={e => {
+                          const val = e.target.value ? Number(e.target.value) : 0;
+                          const next = [...viaSlots];
+                          next[slotIdx] = val;
+                          setTaxiViaRouteIds(next);
+                        }}
+                        style={{ flex: 1, padding: '7px 10px', background: '#0f172a', border: `1px solid ${routeId ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: routeId ? '#93c5fd' : '#475569', fontSize: '13px', direction: 'rtl' }}
+                      >
+                        <option value="">— בחר מסלול —</option>
+                        {routes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                      <button
+                        onClick={() => setTaxiViaRouteIds(viaSlots.filter((_, i) => i !== slotIdx))}
+                        style={{ padding: '4px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}
+                        title="הסר שורה"
+                      >✕</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setTaxiViaRouteIds([...viaSlots, 0])}
+                    style={{ alignSelf: 'flex-start', marginTop: '2px', padding: '4px 12px', background: 'transparent', color: '#3b82f6', border: '1px dashed #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}
+                  >+ הוסף דרך</button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setTaxiInstModal(null)}
+                  style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  ביטול
+                </button>
+                <button onClick={() => {
+                  if (!onUpdateStripMeta) { setTaxiInstModal(null); return; }
+                  const savedVia = viaSlots.filter(id => id > 0);
+                  const strip = strips.find(s => String(s.id) === taxiInstModal.stripId);
+                  const pos: AircraftPos[] = getAircraftPositions(strip || {});
+                  const updated = taxiInstModal.idx === null
+                    ? pos.map(x => ({ ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: savedVia }))
+                    : pos.map(x => x.idx === taxiInstModal.idx ? { ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: savedVia } : x);
+                  onUpdateStripMeta(taxiInstModal.stripId, { aircraft_positions: JSON.stringify(updated) });
+                  setTaxiInstModal(null);
+                }}
+                  style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                  שמור
+                </button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setTaxiInstModal(null)}
-                style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
-              </button>
-              <button onClick={() => {
-                if (!onUpdateStripMeta) { setTaxiInstModal(null); return; }
-                const positions = strips.find(s => String(s.id) === taxiInstModal.stripId);
-                const pos: AircraftPos[] = getAircraftPositions(positions || {});
-                const updated = taxiInstModal.idx === null
-                  ? pos.map(x => ({ ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: taxiViaRouteIds }))
-                  : pos.map(x => x.idx === taxiInstModal.idx ? { ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: taxiViaRouteIds } : x);
-                onUpdateStripMeta(taxiInstModal.stripId, { aircraft_positions: JSON.stringify(updated) });
-                setTaxiInstModal(null);
-              }}
-                style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                שמור
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Transfer pending dialog */}
       {transferPending && (
