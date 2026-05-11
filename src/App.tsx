@@ -5484,10 +5484,10 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     }, '');
   };
   const getSingleEditableField = (row: any): string | null => {
-    if (!row.editable) return null;
     const fields = getRowFields(row);
     const markedField = fields.find((f: any) => f.editable);
     if (markedField) return markedField.field_name;
+    if (!row.editable) return null;
     return fields.length === 1 ? fields[0].field_name : null;
   };
   const defaultColor = lightMode ? '#1e293b' : '#e2e8f0';
@@ -5958,7 +5958,6 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
 };
 
 const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [eraseMode, setEraseMode] = React.useState(false);
   const isDown = React.useRef(false);
@@ -5966,28 +5965,50 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   const strokeColor = lightMode ? '#1d4ed8' : '#93c5fd';
   const ERASER_R = 14;
 
+  // Toggle canvas pointer-events based on what the cursor is over:
+  // pass-through when over strips/buttons/headers, active when over empty space
   React.useEffect(() => {
-    const container = containerRef.current;
+    const onGlobalMove = (e: PointerEvent) => {
+      const c = canvasRef.current;
+      if (!c || isDown.current) return;
+      c.style.pointerEvents = 'none';
+      const below = document.elementFromPoint(e.clientX, e.clientY);
+      c.style.pointerEvents = 'auto';
+      if (!below) return;
+      let el: Element | null = below;
+      let passThrough = false;
+      while (el) {
+        const tag = (el as HTMLElement).tagName?.toLowerCase();
+        if (tag === 'button' || tag === 'input' || tag === 'select' || tag === 'a') { passThrough = true; break; }
+        if ((el as HTMLElement).dataset?.classicStrip || (el as HTMLElement).dataset?.panelHeader) { passThrough = true; break; }
+        el = el.parentElement;
+      }
+      c.style.pointerEvents = passThrough ? 'none' : 'auto';
+    };
+    window.addEventListener('pointermove', onGlobalMove, { passive: true });
+    return () => window.removeEventListener('pointermove', onGlobalMove);
+  }, []);
+
+  React.useEffect(() => {
     const c = canvasRef.current;
-    if (!container || !c) return;
+    if (!c) return;
     const obs = new ResizeObserver(() => {
       const temp = document.createElement('canvas');
       temp.width = c.width; temp.height = c.height;
       temp.getContext('2d')?.drawImage(c, 0, 0);
-      c.width = container.offsetWidth;
-      c.height = container.offsetHeight;
+      c.width = c.offsetWidth; c.height = c.offsetHeight;
       c.getContext('2d')?.drawImage(temp, 0, 0);
     });
-    obs.observe(container);
+    obs.observe(c);
     return () => obs.disconnect();
   }, []);
 
-  const getPos = (e: React.PointerEvent): { x: number; y: number } => {
+  const getPos = (e: React.PointerEvent) => {
     const r = canvasRef.current!.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
   const onDown = (e: React.PointerEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
     canvasRef.current?.setPointerCapture(e.pointerId);
     isDown.current = true;
     const p = getPos(e);
@@ -6018,8 +6039,8 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
 
   const btn: React.CSSProperties = { padding: '2px 7px', borderRadius: 4, cursor: 'pointer', fontSize: 11, border: 'none', fontFamily: 'inherit', direction: 'rtl' };
   return (
-    <div ref={containerRef} style={{ flexShrink: 0, minHeight: 140, position: 'relative', borderTop: `1px dashed ${lightMode ? '#cbd5e1' : '#334155'}`, touchAction: 'none' }}>
-      <div style={{ position: 'absolute', top: 4, insetInlineStart: 4, display: 'flex', gap: 3, zIndex: 2, pointerEvents: 'auto' }}>
+    <>
+      <div style={{ position: 'absolute', top: 5, insetInlineStart: 5, display: 'flex', gap: 3, zIndex: 20, pointerEvents: 'auto' }}>
         <button onClick={() => setEraseMode(m => !m)} title={eraseMode ? 'מצב מחק פעיל — לחץ לציור' : 'מחק נקודתי'}
           style={{ ...btn, background: eraseMode ? (lightMode ? '#fef9c3' : '#422006') : (lightMode ? '#e0e7ff' : '#1e1b4b'), color: eraseMode ? (lightMode ? '#92400e' : '#fde68a') : (lightMode ? '#4338ca' : '#a5b4fc'), outline: eraseMode ? `2px solid ${lightMode ? '#ca8a04' : '#f59e0b'}` : 'none' }}>
           {eraseMode ? '✏️' : '🧹'}
@@ -6029,10 +6050,10 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
         </button>
       </div>
       <canvas ref={canvasRef}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: eraseMode ? 'cell' : 'crosshair', touchAction: 'none' }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', pointerEvents: 'auto', touchAction: 'none', zIndex: 10, cursor: eraseMode ? 'cell' : 'crosshair' }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
       />
-    </div>
+    </>
   );
 };
 
@@ -6104,7 +6125,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 
   const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg, position: 'relative' };
   const PANEL_HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
-  const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '3px 8px', fontSize: '12px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
+  const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '6px 10px', fontSize: '15px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
 
   const transferToSynth = (t: any) => ({
     callSign: t.callsign, sq: t.sq, alt: t.alt, task: t.task, squadron: t.squadron,
@@ -6141,7 +6162,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 
       {/* RIGHT panel — Transfer (למי מעביר) */}
       <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
-        <div style={PANEL_HDR}>📤 למי מעביר ({outgoingTransfers.length})</div>
+        <div data-panel-header="true" style={PANEL_HDR}>📤 למי מעביר ({outgoingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
             const partners = isPresetMode ? (partnerPresets || []) : [];
@@ -6200,7 +6221,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} style={{ position: 'relative' }}
+                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
@@ -6209,7 +6230,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
                                 </div>
                               ))
                             }
@@ -6265,7 +6286,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} style={{ position: 'relative' }}
+                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
@@ -6274,7 +6295,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
                                 </div>
                               ))
                             }
@@ -6314,7 +6335,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           }
         }}
       >
-        <div style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
+        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
           🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
@@ -6326,7 +6347,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           {strips.length === 0
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
-              <div key={s.id} draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+              <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
                 <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
                   onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
               </div>
@@ -6347,7 +6368,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 
       {/* LEFT panel — Receive (ממי מקבל) */}
       <div style={PANEL_STYLE}>
-        <div style={PANEL_HDR}>📥 ממי מקבל ({incomingTransfers.length})</div>
+        <div data-panel-header="true" style={PANEL_HDR}>📥 ממי מקבל ({incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
             const partners = isPresetMode ? (partnerPresets || []) : [];
