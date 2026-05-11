@@ -3772,7 +3772,7 @@ app.get('/api/airfield-routes', async (req, res) => {
   try {
     const { airfield_id } = req.query;
     let query = 'SELECT * FROM airfield_routes';
-    const params: any[] = [];
+    const params = [];
     if (airfield_id) { query += ' WHERE airfield_id=$1'; params.push(airfield_id); }
     query += ' ORDER BY name';
     const result = await pool.query(query, params);
