@@ -4863,11 +4863,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
                 const col = r.color || '#3b82f6';
-                const mid = pts[Math.floor(pts.length / 2)];
+                const labelPts = [pts[0], pts[pts.length - 1]];
                 return (
                   <g key={r.id}>
-                    <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />
-                    <text x={mid.x} y={mid.y} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                    <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                    {labelPts.map((lp: any, li: number) => (
+                      <g key={li}>
+                        <circle cx={lp.x} cy={lp.y} r="3.2" fill={col} opacity="0.85" />
+                        <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="1.8" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                      </g>
+                    ))}
                     {r.notes && <title>{r.notes}</title>}
                   </g>
                 );
@@ -14527,6 +14532,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
+  const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string}|null>(null);
 
   // Base Statuses admin state
   const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
@@ -17265,22 +17271,29 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                               rows={2}
                               style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', resize: 'none', marginBottom: '5px' }} />
                             <div style={{ display: 'flex', gap: '5px' }}>
-                              <button onClick={async () => {
-                                if (!airfieldRouteForm.name.trim()) return;
-                                const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
-                                const method = editingAirfieldRoute ? 'PUT' : 'POST';
-                                const existingPath = editingAirfieldRoute
-                                  ? (adminAirfieldRoutes.find((x: any) => x.id === editingAirfieldRoute.id)?.route_path || [])
-                                  : [];
-                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_path: existingPath }) });
-                                if (res.ok) {
-                                  const saved = await res.json();
-                                  setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '' });
-                                  fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
-                                  // start drawing immediately after creating new route
-                                  if (method === 'POST' && hasMap) { setDrawingRouteId(saved.id); setRouteDraftPoints([]); }
-                                }
-                              }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              {!editingAirfieldRoute && hasMap ? (
+                                <button onClick={() => {
+                                  if (!airfieldRouteForm.name.trim()) return;
+                                  setPendingNewRoute({ name: airfieldRouteForm.name, color: airfieldRouteForm.color, notes: airfieldRouteForm.notes });
+                                  setDrawingRouteId(-1);
+                                  setRouteDraftPoints([]);
+                                  setShowAirfieldRouteForm(false);
+                                }} style={{ flex: 1, padding: '4px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ ציור</button>
+                              ) : (
+                                <button onClick={async () => {
+                                  if (!airfieldRouteForm.name.trim()) return;
+                                  const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
+                                  const method = editingAirfieldRoute ? 'PUT' : 'POST';
+                                  const existingPath = editingAirfieldRoute
+                                    ? (adminAirfieldRoutes.find((x: any) => x.id === editingAirfieldRoute.id)?.route_path || [])
+                                    : [];
+                                  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_path: existingPath }) });
+                                  if (res.ok) {
+                                    setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '' });
+                                    fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
+                                  }
+                                }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              )}
                               <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
                                 style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
                             </div>
@@ -17293,9 +17306,14 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                               <button onClick={async () => {
                                 if (routeDraftPoints.length < 2) { alert('יש לסמן לפחות 2 נקודות'); return; }
-                                const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
-                                if (!route) return;
-                                await fetch(`${API_URL}/airfield-routes/${drawingRouteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color || '#3b82f6', notes: route.notes || '', route_path: routeDraftPoints }) });
+                                if (drawingRouteId === -1 && pendingNewRoute) {
+                                  await fetch(`${API_URL}/airfield-routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingNewRoute.name, airfield_id: Number(selectedAdminAirfieldId), color: pendingNewRoute.color, notes: pendingNewRoute.notes, route_path: routeDraftPoints }) });
+                                  setPendingNewRoute(null);
+                                } else {
+                                  const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
+                                  if (!route) return;
+                                  await fetch(`${API_URL}/airfield-routes/${drawingRouteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color || '#3b82f6', notes: route.notes || '', route_path: routeDraftPoints }) });
+                                }
                                 fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                 setDrawingRouteId(null); setRouteDraftPoints([]);
                               }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({routeDraftPoints.length})</button>
@@ -17368,11 +17386,16 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                         if (pts.length < 2) return null;
                         const col = r.color || '#3b82f6';
-                        const mid = pts[Math.floor(pts.length / 2)];
+                        const labelPts = [pts[0], pts[pts.length - 1]];
                         return (
                           <g key={r.id}>
-                            <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />
-                            <text x={mid.x} y={mid.y} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                            <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                            {labelPts.map((lp, li) => (
+                              <g key={li}>
+                                <circle cx={lp.x} cy={lp.y} r="3.2" fill={col} opacity="0.85" />
+                                <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="1.8" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                              </g>
+                            ))}
                           </g>
                         );
                       })}
