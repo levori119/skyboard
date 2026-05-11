@@ -5457,6 +5457,11 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const fieldLabel = (key: string) => {
+    const found = CLASSIC_STRIP_FIELDS.find(f => f.key === key);
+    return found ? found.label : key;
+  };
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
     if (fieldKey === 'callSign') return strip.callSign || strip.callsign || '';
@@ -5513,7 +5518,11 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
             style={{
               padding: '1px 6px', minHeight: '18px', display: 'flex', alignItems: 'center',
               justifyContent,
-              background: row.bg_color || rowDefaultBg,
+              background: isEditing
+                ? (lightMode ? '#eff6ff' : '#1e3a5f')
+                : (hoveredRow === i && editableField && onUpdateField)
+                  ? (lightMode ? '#f1f5f9' : '#1e2d40')
+                  : (row.bg_color || rowDefaultBg),
               color: row.text_color || defaultColor,
               fontSize: `${row.font_size || 12}px`,
               fontWeight: row.bold ? 'bold' : 'normal',
@@ -5522,17 +5531,23 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               borderBottom: i < 2 ? `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` : 'none',
               cursor: (editableField && onUpdateField) ? 'text' : 'grab',
               borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
+              transition: 'background 0.1s',
             }}
+            onMouseEnter={() => setHoveredRow(i)}
+            onMouseLeave={() => setHoveredRow(null)}
             onMouseDown={e => { if (editableField && onUpdateField) e.stopPropagation(); }}
             onClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
           >
             {isEditing ? (
-              <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
-                onMouseDown={e => e.stopPropagation()}
-                onBlur={() => { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); }}
-                onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
-                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any }}
-              />
+              <span style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
+                <span style={{ fontSize: '10px', color: lightMode ? '#3b82f6' : '#93c5fd', fontStyle: 'normal', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 'bold' }}>{fieldLabel(editableField!)}: </span>
+                <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
+                  onMouseDown={e => e.stopPropagation()}
+                  onBlur={() => { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); }}
+                  onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any, minWidth: 0 }}
+                />
+              </span>
             ) : hasPerFieldStyle && fields.length > 1 ? (
               /* Per-field styled rendering */
               <span style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'baseline', overflow: 'hidden', width: '100%', justifyContent }}>
@@ -5558,8 +5573,10 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
                 })}
               </span>
             ) : (
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any, color: (!val && editableField && onUpdateField) ? (lightMode ? '#94a3b8' : '#475569') : undefined, fontStyle: (!val && editableField && onUpdateField) ? 'italic' : undefined }}>
-                {val || (editableField && onUpdateField ? (() => { const m: Record<string,string> = { callSign:'קריאה', sq:'טייסת', numberOfFormation:'כמות', takeoff_time:'המראה', alt:'גובה', notes:'הערות', task:'משימה', erka:'ערך', mivtza:'מבצע', koteret:'כותרת' }; return m[editableField] || editableField; })() : '')}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
+                {val || (editableField && onUpdateField && hoveredRow === i
+                  ? <span style={{ color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic' }}>{fieldLabel(editableField)}</span>
+                  : '')}
               </span>
             )}
           </div>
