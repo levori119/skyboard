@@ -5916,6 +5916,81 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
   );
 };
 
+const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [drawMode, setDrawMode] = React.useState(false);
+  const isDown = React.useRef(false);
+  const lastP = React.useRef<{ x: number; y: number } | null>(null);
+  const strokeColor = lightMode ? '#1d4ed8' : '#93c5fd';
+
+  React.useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const obs = new ResizeObserver(() => {
+      const temp = document.createElement('canvas');
+      temp.width = c.width; temp.height = c.height;
+      temp.getContext('2d')?.drawImage(c, 0, 0);
+      c.width = c.offsetWidth; c.height = c.offsetHeight;
+      c.getContext('2d')?.drawImage(temp, 0, 0);
+    });
+    obs.observe(c);
+    return () => obs.disconnect();
+  }, []);
+
+  const getPos = (e: React.PointerEvent): { x: number; y: number } => {
+    const r = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const onDown = (e: React.PointerEvent) => {
+    if (!drawMode) return;
+    e.preventDefault();
+    canvasRef.current?.setPointerCapture(e.pointerId);
+    isDown.current = true; lastP.current = getPos(e);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (!drawMode || !isDown.current || !lastP.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const p = getPos(e);
+    ctx.beginPath(); ctx.moveTo(lastP.current.x, lastP.current.y); ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = strokeColor; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke();
+    lastP.current = p;
+  };
+  const onUp = () => { isDown.current = false; lastP.current = null; };
+  const clear = () => { const c = canvasRef.current; if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height); };
+
+  const btnBase: React.CSSProperties = { width: 26, height: 26, borderRadius: 5, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none' };
+  return (
+    <>
+      <div style={{ position: 'absolute', top: 5, insetInlineStart: 5, display: 'flex', gap: 3, zIndex: 20, pointerEvents: 'auto' }}>
+        <button
+          title={drawMode ? 'מצב רגיל — לחץ לסגירת שרטוט' : 'שרטוט חופשי (עכבר / עט)'}
+          onClick={() => setDrawMode(d => !d)}
+          style={{ ...btnBase, background: drawMode ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#e2e8f0' : '#1e293b'), color: drawMode ? (lightMode ? '#1d4ed8' : '#93c5fd') : (lightMode ? '#64748b' : '#475569'), outline: drawMode ? `2px solid ${lightMode ? '#3b82f6' : '#60a5fa'}` : 'none' }}>
+          {drawMode ? '🖐' : '✏️'}
+        </button>
+        {drawMode && (
+          <button title="נקה שרטוט" onClick={clear}
+            style={{ ...btnBase, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
+            ✕
+          </button>
+        )}
+      </div>
+      <canvas
+        ref={canvasRef}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', pointerEvents: drawMode ? 'auto' : 'none', touchAction: 'none', zIndex: 10, cursor: drawMode ? 'crosshair' : 'default' }}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerLeave={onUp}
+        onPointerCancel={onUp}
+      />
+    </>
+  );
+};
+
 const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
@@ -5982,7 +6057,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   const sectorHeaderColor = lightMode ? '#1e40af' : '#93c5fd';
   const panelBg = lightMode ? '#f8fafc' : '#0b1220';
 
-  const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg };
+  const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg, position: 'relative' };
   const PANEL_HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
   const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '3px 8px', fontSize: '12px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
 
@@ -6042,7 +6117,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                       const isDrop = dropTarget === `preset-${pp.id}`;
                       const isSectionDrag = draggingSection?.panel === 'right' && draggingSection?.kind === 'partner';
                       return (
-                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}
+                        <div key={`p-${pp.id}`} style={{ marginBottom: '10px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden' }}
                           onDragOver={e => {
                             if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return; }
                             e.preventDefault(); setDropTarget(`preset-${pp.id}`);
@@ -6107,7 +6182,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                       const isDrop = dropTarget === pt.sector_id;
                       const isSectionDrag = draggingSection?.panel === 'right' && draggingSection?.kind === 'point';
                       return (
-                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}
+                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '10px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden' }}
                           onDragOver={e => {
                             if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return; }
                             e.preventDefault(); setDropTarget(pt.sector_id);
@@ -6168,6 +6243,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
             );
           })()}
         </div>
+        <FreehandCanvas lightMode={lightMode} />
       </div>
 
       {/* CENTER panel — My Strips (שלי) — same as before */}
@@ -6203,6 +6279,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
             ))
           }
         </div>
+        <FreehandCanvas lightMode={lightMode} />
       </div>
 
       {/* LEFT panel — Receive (ממי מקבל) */}
@@ -6227,7 +6304,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                       const ptIn = incomingTransfers.filter(t => Number(t.from_preset_id) === Number(pp.id));
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'partner';
                       return (
-                        <div key={`p-${pp.id}`} style={{ marginBottom: '6px' }}
+                        <div key={`p-${pp.id}`} style={{ marginBottom: '10px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden' }}
                           onDragOver={e => { if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
                           onDrop={e => {
                             if (isSectionDrag && draggingSection) {
@@ -6267,7 +6344,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                       const ptT = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(pt.sector_id) && !t.from_preset_id);
                       const isSectionDrag = draggingSection?.panel === 'left' && draggingSection?.kind === 'point';
                       return (
-                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '6px' }}
+                        <div key={`s-${pt.sector_id}`} style={{ marginBottom: '10px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden' }}
                           onDragOver={e => { if (isSectionDrag) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
                           onDrop={e => {
                             if (isSectionDrag && draggingSection) {
@@ -6304,6 +6381,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
             );
           })()}
         </div>
+        <FreehandCanvas lightMode={lightMode} />
       </div>
 
     </div>
