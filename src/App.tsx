@@ -4743,7 +4743,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
                     return (
                       <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 5px', borderRadius: '5px', background: lightMode ? '#f8fafc' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0 }}>
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `3.5px solid ${statusColor}`, boxShadow: `0 0 5px ${statusColor}88`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0 }}>
                           {el.type_icon || '🔧'}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
