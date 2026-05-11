@@ -4238,7 +4238,7 @@ async function vectorizeAirfieldImage(src:string,onProgress?:(s:string)=>void):P
   });
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, vectorData, airfieldElements, elementTypes }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, vectorData, airfieldElements, elementTypes, onUpdateElementStatus }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4266,8 +4266,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   vectorData?: VectorData | null;
   airfieldElements?: any[];
   elementTypes?: any[];
+  onUpdateElementStatus?: (elementId: number, status: string) => void;
 }) => {
   const [showVectorMode, setShowVectorMode] = useState(false);
+  const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
@@ -4718,6 +4720,53 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             );
           })}
         </div>
+
+        {/* Elements list — bottom third of strip panel */}
+        {airfieldElements && airfieldElements.length > 0 && (() => {
+          const ELEM_STATUS_CYCLE = ['תקין', 'לא תקין', 'חלקי'];
+          const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+          const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'לא תקין': '#7f1d1d', 'חלקי': '#431407' };
+          return (
+            <div style={{ borderTop: `1px solid ${border}`, flexShrink: 0, maxHeight: '38%', display: 'flex', flexDirection: 'column' }}>
+              <div
+                onClick={() => setElemPanelOpen(v => !v)}
+                style={{ background: headerBg, padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}
+              >
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: headerColor }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                <span style={{ fontSize: '10px', color: headerColor }}>{elemPanelOpen ? '▲' : '▼'}</span>
+              </div>
+              {elemPanelOpen && (
+                <div style={{ overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  {airfieldElements.map(el => {
+                    const statusColor = ELEM_STATUS_COLOR[el.status] || '#94a3b8';
+                    const statusBg = ELEM_STATUS_BG[el.status] || '#1e293b';
+                    const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
+                    return (
+                      <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 5px', borderRadius: '5px', background: lightMode ? '#f8fafc' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0 }}>
+                          {el.type_icon || '🔧'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
+                          {el.type_name && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{el.type_name}</div>}
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (onUpdateElementStatus) onUpdateElementStatus(el.id, nextStatus);
+                          }}
+                          title={`לחץ לשינוי → ${nextStatus}`}
+                          style={{ padding: '2px 7px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', background: statusBg, color: statusColor, flexShrink: 0, whiteSpace: 'nowrap' }}
+                        >
+                          {el.status || 'לא ידוע'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* CENTER — Airfield map */}
@@ -9097,6 +9146,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 600);
   };
 
+  const handleUpdateElementStatus = async (elementId: number, status: string) => {
+    setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, status } : el));
+    try {
+      const el = airfieldElements.find(e => e.id === elementId);
+      if (!el) return;
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status, note: el.note, x_pct: el.x_pct, y_pct: el.y_pct }) });
+    } catch (e) { console.error(e); }
+  };
+
   const handleCreateGroundStrip = async (callSign: string, sq: string, count: number, sectorId: number | null) => {
     try {
       const body = {
@@ -10445,6 +10503,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 vectorData={(() => { const vd = activeAirfield?.vector_data; return vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null; })()}
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
+                onUpdateElementStatus={handleUpdateElementStatus}
               />
             );
           })()}
