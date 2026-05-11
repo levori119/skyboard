@@ -5558,8 +5558,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
                 })}
               </span>
             ) : (
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
-                {val}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any, color: (!val && editableField && onUpdateField) ? (lightMode ? '#94a3b8' : '#475569') : undefined, fontStyle: (!val && editableField && onUpdateField) ? 'italic' : undefined }}>
+                {val || (editableField && onUpdateField ? (() => { const m: Record<string,string> = { callSign:'קריאה', sq:'טייסת', numberOfFormation:'כמות', takeoff_time:'המראה', alt:'גובה', notes:'הערות', task:'משימה', erka:'ערך', mivtza:'מבצע', koteret:'כותרת' }; return m[editableField] || editableField; })() : '')}
               </span>
             )}
           </div>
@@ -6125,7 +6125,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 
   const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg, position: 'relative' };
   const PANEL_HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
-  const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '6px 10px', fontSize: '15px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
+  const SEC_HDR: React.CSSProperties = { background: sectorHeaderBg, color: sectorHeaderColor, padding: '4px 8px', fontSize: '12px', fontWeight: 'bold', borderBottom: `1px solid ${border}` };
 
   const transferToSynth = (t: any) => ({
     callSign: t.callsign, sq: t.sq, alt: t.alt, task: t.task, squadron: t.squadron,
