@@ -5446,6 +5446,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   const getSingleEditableField = (row: any): string | null => {
     if (!row.editable) return null;
     const fields = getRowFields(row);
+    const markedField = fields.find((f: any) => f.editable);
+    if (markedField) return markedField.field_name;
     return fields.length === 1 ? fields[0].field_name : null;
   };
   const defaultColor = lightMode ? '#1e293b' : '#e2e8f0';
@@ -5481,8 +5483,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               cursor: (editableField && onUpdateField) ? 'text' : 'grab',
               borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
             }}
-            onClick={() => { if (singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
-            onDoubleClick={() => { if (!singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(val); } }}
+            onClick={() => { if (singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
+            onDoubleClick={() => { if (!singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
           >
             {isEditing ? (
               <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
@@ -17171,6 +17173,10 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                                     style={{ flex: 1, padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                                     {CLASSIC_STRIP_FIELDS.map(f2 => <option key={f2.key} value={f2.key}>{f2.label}</option>)}
                                   </select>
+                                  <button
+                                    title={f.editable ? 'שדה זה ניתן לעריכה ע"י המשתמש (לחץ לביטול)' : 'הפוך שדה זה לניתן עריכה ע"י המשתמש'}
+                                    onClick={() => { const updated = [...activeFields]; updated[fi] = { ...f, editable: !f.editable }; setRowFields(updated); }}
+                                    style={{ padding: '3px 7px', border: `1px solid ${f.editable ? '#059669' : '#334155'}`, background: f.editable ? '#052e16' : '#0f172a', color: f.editable ? '#34d399' : '#475569', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏</button>
                                   <button onClick={() => setRowFields(activeFields.filter((_: any, i: number) => i !== fi))}
                                     style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>×</button>
                                 </div>
