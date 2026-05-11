@@ -4410,7 +4410,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   }, [strips, pendingPointAssign]);
 
   // Convert % coordinates to absolute px within the rendered image area
-  const ptPos = (x_pct: number, y_pct: number) => imgBounds
+  // In vector mode the SVG fills the entire container so direct % is correct
+  const ptPos = (x_pct: number, y_pct: number) => (!showVectorMode && imgBounds)
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
 
@@ -4968,10 +4969,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             )}
           </div>
 
-          {/* Route lines overlay */}
-          {mapLayers.routes && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {/* Route lines overlay — works in both photo and vector modes */}
+          {mapLayers.routes && (showVectorMode || imgBounds) && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
+              style={{ position: 'absolute', top: (!showVectorMode && imgBounds) ? imgBounds.top : 0, left: (!showVectorMode && imgBounds) ? imgBounds.left : 0, width: (!showVectorMode && imgBounds) ? imgBounds.width : '100%', height: (!showVectorMode && imgBounds) ? imgBounds.height : '100%', pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
@@ -4993,12 +4994,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </svg>
           )}
 
-          {/* Airfield elements overlay */}
+          {/* Airfield elements overlay — works in both photo and vector modes */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
             const sColor = statusColors[el.status] || '#94a3b8';
-            const pos = imgBounds
+            const pos = (!showVectorMode && imgBounds)
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             return (
@@ -17416,7 +17417,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             const mr = await fetch(`${API_URL}/maps/${mapId}`);
             if (mr.ok) { const md = await mr.json(); setAdminSelMapSrc(md.image_data || null); }
           };
-          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
+          const hasMap = !!(airfieldForm.map_id || adminSelMapSrc || (adminVectorData && adminVectorData.lines.length > 0));
           return (
             <div style={{ display: 'flex', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
@@ -17825,8 +17826,17 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       }
                     }}
                   >
-                    <img src={adminSelMapSrc!} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
-                      style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
+                    {adminSelMapSrc ? (
+                      <img src={adminSelMapSrc} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
+                        style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
+                    ) : (adminVectorData && adminVectorData.lines.length > 0) ? (
+                      <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+                        style={{ width: '100%', height: '480px', display: 'block', background: adminVectorData.bgColor || '#0f172a' }}>
+                        {adminVectorData.lines.map(line => (
+                          <polyline key={line.id} points={line.points.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={line.color} strokeWidth="0.4" />
+                        ))}
+                      </svg>
+                    ) : null}
 
                     {/* Route polygons SVG overlay */}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
