@@ -6246,6 +6246,15 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
         <FreehandCanvas lightMode={lightMode} />
       </div>
 
+      {/* Arrow: שלי → למי מעביר */}
+      <div style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}` }}>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממני</span>
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>למי{'\u000A'}מעביר</span>
+      </div>
+
       {/* CENTER panel — My Strips (שלי) — same as before */}
       <div id="classic-mine-panel" style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
         onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
@@ -6280,6 +6289,15 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           }
         </div>
         <FreehandCanvas lightMode={lightMode} />
+      </div>
+
+      {/* Arrow: ממי מקבל → אלי */}
+      <div style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}` }}>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממי{'\u000A'}מקבל</span>
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>אלי</span>
       </div>
 
       {/* LEFT panel — Receive (ממי מקבל) */}
