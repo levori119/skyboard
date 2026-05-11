@@ -17478,6 +17478,141 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   }
                 </div>
 
+
+              {/* Airfield Elements section */}
+              {selectedAdminAirfieldId && (
+                <div style={{ border: `1px solid ${showElementsSection ? '#ec4899' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                  <div onClick={() => setShowElementsSection(p => !p)} style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: showElementsSection ? '#f9a8d4' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🔧 אלמנטים בסיס</span>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminAirfieldElements.length} {showElementsSection ? '▲' : '▼'}</span>
+                  </div>
+                  {showElementsSection && (
+                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {/* Element list */}
+                      {adminAirfieldElements.map(el => {
+                        const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+                        const sColor = statusColors[el.status] || '#94a3b8';
+                        return (
+                          <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>
+                              <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
+                              <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
+                            </div>
+                            {el.type_name && <div style={{ fontSize: '9px', color: el.type_color || '#f59e0b', marginTop: '1px' }}>{el.type_name}</div>}
+                            {el.note && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.note}</div>}
+                            <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
+                              <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
+                              {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר</button>}
+                              <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏</button>
+                              <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Edit form */}
+                      {showElementForm && (
+                        <div style={{ padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <input value={elementForm.name} onChange={e => setElementForm(p => ({ ...p, name: e.target.value }))} placeholder="שם" style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }} />
+                          <select value={elementForm.element_type_id} onChange={e => setElementForm(p => ({ ...p, element_type_id: e.target.value }))} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
+                            <option value="">-- סוג --</option>
+                            {adminElementTypes.map(et => <option key={et.id} value={et.id}>{et.icon} {et.name}</option>)}
+                          </select>
+                          <select value={elementForm.status} onChange={e => setElementForm(p => ({ ...p, status: e.target.value }))} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
+                            <option>תקין</option><option>לא תקין</option><option>חלקי</option>
+                          </select>
+                          <textarea value={elementForm.note} onChange={e => setElementForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה" rows={2} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none' }} />
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button onClick={async () => {
+                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note };
+                              if (editingElement) {
+                                await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
+                              } else {
+                                await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
+                              }
+                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' });
+                              loadAirfieldElements(selectedAdminAirfieldId);
+                            }} style={{ flex: 1, padding: '3px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                            <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' }); }} style={{ padding: '3px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                          </div>
+                        </div>
+                      )}
+                      {!showElementForm && (
+                        <button onClick={() => { setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' }); setShowElementForm(true); }} style={{ width: '100%', padding: '4px', background: '#831843', color: '#f9a8d4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ אלמנט חדש</button>
+                      )}
+                      {placingElementMode && placingElementId && (
+                        <div style={{ background: '#1a0a2e', border: '1px solid #ec4899', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#f9a8d4' }}>
+                          📍 לחץ על המפה לקביעת מיקום — ESC לביטול
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Vector data editor section */}
+              {selectedAdminAirfieldId && adminSelMapSrc && (
+                <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                  <div onClick={() => setVectorEditMode(p => !p)}
+                    style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🗺️ וקטורי</span>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
+                  </div>
+                  {vectorEditMode && (
+                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <button onClick={async () => {
+                        if (vectorizingProgress) return;
+                        setVectorizingProgress('מתחיל...');
+                        try {
+                          const lines = await vectorizeAirfieldImage(adminSelMapSrc!, msg => setVectorizingProgress(msg));
+                          const newData: VectorData = { lines, bgColor: '#0f172a' };
+                          setAdminVectorData(newData);
+                          await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
+                          fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
+                        } finally { setVectorizingProgress(null); }
+                      }} style={{ width: '100%', padding: '5px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: vectorizingProgress ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: vectorizingProgress ? 0.7 : 1 }}>
+                        {vectorizingProgress || '🔄 המר תצ"א → וקטורי'}
+                      </button>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע קו:</label>
+                        <input type="color" value={vectorLineColor} onChange={e => setVectorLineColor(e.target.value)}
+                          style={{ width: '28px', height: '22px', padding: '0', border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
+                        <button onClick={() => { setVectorDrawingActive(true); setVectorDraftPoints([]); }}
+                          style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ צייר קו</button>
+                      </div>
+                      {vectorDrawingActive && (
+                        <div style={{ background: '#0f2a1a', border: '1px solid #059669', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#34d399' }}>
+                          ✏️ ציור וקטורי — {vectorDraftPoints.length} נקודות
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                            <button onClick={async () => {
+                              if (vectorDraftPoints.length < 2) return;
+                              const newLine: VectorLine = { id: Math.random().toString(36).slice(2), points: vectorDraftPoints, color: vectorLineColor, width: 1 };
+                              const newData: VectorData = { lines: [...(adminVectorData?.lines || []), newLine], bgColor: adminVectorData?.bgColor || '#0f172a' };
+                              setAdminVectorData(newData); setVectorDrawingActive(false); setVectorDraftPoints([]);
+                              await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
+                              fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
+                            }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vectorDraftPoints.length})</button>
+                            <button onClick={() => setVectorDraftPoints([])} style={{ padding: '3px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
+                            <button onClick={() => { setVectorDrawingActive(false); setVectorDraftPoints([]); }} style={{ padding: '3px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                          </div>
+                        </div>
+                      )}
+                      {adminVectorData && adminVectorData.lines.length > 0 && (
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '10px', color: '#64748b', flex: 1 }}>{adminVectorData.lines.length} קווים שמורים</span>
+                          <button onClick={async () => {
+                            if (!confirm('למחוק את כל הנתונים הוקטוריים?')) return;
+                            const newData: VectorData = { lines: [], bgColor: '#0f172a' };
+                            setAdminVectorData(newData);
+                            await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
+                            fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
+                          }} style={{ padding: '2px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑 נקה הכל</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
                 {/* Editor form (shown when airfield selected/new) */}
                 {showAirfieldForm && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -17690,140 +17825,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     )}
                   </div>
                 )}
-              {/* Airfield Elements section */}
-              {selectedAdminAirfieldId && (
-                <div style={{ border: `1px solid ${showElementsSection ? '#ec4899' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                  <div onClick={() => setShowElementsSection(p => !p)} style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: showElementsSection ? '#f9a8d4' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🔧 אלמנטים בסיס</span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminAirfieldElements.length} {showElementsSection ? '▲' : '▼'}</span>
-                  </div>
-                  {showElementsSection && (
-                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      {/* Element list */}
-                      {adminAirfieldElements.map(el => {
-                        const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
-                        const sColor = statusColors[el.status] || '#94a3b8';
-                        return (
-                          <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>
-                              <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
-                              <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
-                            </div>
-                            {el.type_name && <div style={{ fontSize: '9px', color: el.type_color || '#f59e0b', marginTop: '1px' }}>{el.type_name}</div>}
-                            {el.note && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.note}</div>}
-                            <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
-                              <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
-                              {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר</button>}
-                              <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏</button>
-                              <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {/* Edit form */}
-                      {showElementForm && (
-                        <div style={{ padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <input value={elementForm.name} onChange={e => setElementForm(p => ({ ...p, name: e.target.value }))} placeholder="שם" style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }} />
-                          <select value={elementForm.element_type_id} onChange={e => setElementForm(p => ({ ...p, element_type_id: e.target.value }))} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
-                            <option value="">-- סוג --</option>
-                            {adminElementTypes.map(et => <option key={et.id} value={et.id}>{et.icon} {et.name}</option>)}
-                          </select>
-                          <select value={elementForm.status} onChange={e => setElementForm(p => ({ ...p, status: e.target.value }))} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
-                            <option>תקין</option><option>לא תקין</option><option>חלקי</option>
-                          </select>
-                          <textarea value={elementForm.note} onChange={e => setElementForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה" rows={2} style={{ padding: '3px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none' }} />
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button onClick={async () => {
-                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note };
-                              if (editingElement) {
-                                await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
-                              } else {
-                                await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
-                              }
-                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' });
-                              loadAirfieldElements(selectedAdminAirfieldId);
-                            }} style={{ flex: 1, padding: '3px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
-                            <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' }); }} style={{ padding: '3px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
-                          </div>
-                        </div>
-                      )}
-                      {!showElementForm && (
-                        <button onClick={() => { setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '' }); setShowElementForm(true); }} style={{ width: '100%', padding: '4px', background: '#831843', color: '#f9a8d4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>+ אלמנט חדש</button>
-                      )}
-                      {placingElementMode && placingElementId && (
-                        <div style={{ background: '#1a0a2e', border: '1px solid #ec4899', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#f9a8d4' }}>
-                          📍 לחץ על המפה לקביעת מיקום — ESC לביטול
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Vector data editor section */}
-              {selectedAdminAirfieldId && adminSelMapSrc && (
-                <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#1e3a5f'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                  <div onClick={() => setVectorEditMode(p => !p)}
-                    style={{ padding: '7px 10px', background: '#0f172a', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🗺️ וקטורי</span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
-                  </div>
-                  {vectorEditMode && (
-                    <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <button onClick={async () => {
-                        if (vectorizingProgress) return;
-                        setVectorizingProgress('מתחיל...');
-                        try {
-                          const lines = await vectorizeAirfieldImage(adminSelMapSrc!, msg => setVectorizingProgress(msg));
-                          const newData: VectorData = { lines, bgColor: '#0f172a' };
-                          setAdminVectorData(newData);
-                          await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                          fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                        } finally { setVectorizingProgress(null); }
-                      }} style={{ width: '100%', padding: '5px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: vectorizingProgress ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: vectorizingProgress ? 0.7 : 1 }}>
-                        {vectorizingProgress || '🔄 המר תצ"א → וקטורי'}
-                      </button>
-                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                        <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע קו:</label>
-                        <input type="color" value={vectorLineColor} onChange={e => setVectorLineColor(e.target.value)}
-                          style={{ width: '28px', height: '22px', padding: '0', border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }} />
-                        <button onClick={() => { setVectorDrawingActive(true); setVectorDraftPoints([]); }}
-                          style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✏️ צייר קו</button>
-                      </div>
-                      {vectorDrawingActive && (
-                        <div style={{ background: '#0f2a1a', border: '1px solid #059669', borderRadius: '4px', padding: '5px 7px', fontSize: '10px', color: '#34d399' }}>
-                          ✏️ ציור וקטורי — {vectorDraftPoints.length} נקודות
-                          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                            <button onClick={async () => {
-                              if (vectorDraftPoints.length < 2) return;
-                              const newLine: VectorLine = { id: Math.random().toString(36).slice(2), points: vectorDraftPoints, color: vectorLineColor, width: 1 };
-                              const newData: VectorData = { lines: [...(adminVectorData?.lines || []), newLine], bgColor: adminVectorData?.bgColor || '#0f172a' };
-                              setAdminVectorData(newData); setVectorDrawingActive(false); setVectorDraftPoints([]);
-                              await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                              fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                            }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({vectorDraftPoints.length})</button>
-                            <button onClick={() => setVectorDraftPoints([])} style={{ padding: '3px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
-                            <button onClick={() => { setVectorDrawingActive(false); setVectorDraftPoints([]); }} style={{ padding: '3px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
-                          </div>
-                        </div>
-                      )}
-                      {adminVectorData && adminVectorData.lines.length > 0 && (
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ fontSize: '10px', color: '#64748b', flex: 1 }}>{adminVectorData.lines.length} קווים שמורים</span>
-                          <button onClick={async () => {
-                            if (!confirm('למחוק את כל הנתונים הוקטוריים?')) return;
-                            const newData: VectorData = { lines: [], bgColor: '#0f172a' };
-                            setAdminVectorData(newData);
-                            await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                            fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                          }} style={{ padding: '2px 7px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑 נקה הכל</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
               </div>
 
               {/* LEFT area: map (large, fills remaining space) */}
