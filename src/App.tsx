@@ -5422,6 +5422,13 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     if (fieldKey === 'callSign') return strip.callSign || strip.callsign || '';
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
+    if (fieldKey === 'takeoff_time') {
+      const raw = strip.takeoff_time || strip.takeoffTime || '';
+      if (!raw) return '';
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+      return raw;
+    }
     return strip[fieldKey] || '';
   };
   const getRowFields = (row: any): any[] => (row.fields && Array.isArray(row.fields) && row.fields.length > 0)
@@ -9125,9 +9132,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const updateData: any = {};
       if (field === 'callSign') updateData.callsign = value;
       else if (field === 'numberOfFormation') updateData.number_of_formation = value;
-      else updateData[field] = value;
+      else if (field === 'takeoff_time') {
+        if (value && /^\d{1,2}:\d{2}$/.test(value.trim())) {
+          const [h, m] = value.trim().split(':');
+          const now = new Date();
+          updateData.takeoff_time = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), Number(h), Number(m))).toISOString();
+        } else {
+          updateData.takeoff_time = value || null;
+        }
+      } else updateData[field] = value;
       await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateData) });
-      setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, [field]: value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) } : s));
+      setStrips(prev => prev.map(s => String(s.id) === stripId ? { ...s, [field]: updateData[field] ?? updateData.callsign ?? value, ...(field === 'callSign' ? { callsign: value } : {}), ...(field === 'numberOfFormation' ? { number_of_formation: value } : {}) } : s));
     } catch (e) { console.error(e); }
   };
 
