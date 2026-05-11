@@ -4855,20 +4855,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
-          {/* Route polygons overlay */}
-          {imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 3; }) && (
+          {/* Route lines overlay */}
+          {imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
-                if (pts.length < 3) return null;
+                if (pts.length < 2) return null;
                 const col = r.color || '#3b82f6';
-                const cx = pts.reduce((s: number, p: any) => s + p.x, 0) / pts.length;
-                const cy = pts.reduce((s: number, p: any) => s + p.y, 0) / pts.length;
+                const mid = pts[Math.floor(pts.length / 2)];
                 return (
                   <g key={r.id}>
-                    <polygon points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill={col + '2a'} stroke={col} strokeWidth="0.5" strokeDasharray="2,1" />
-                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                    <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />
+                    <text x={mid.x} y={mid.y} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
                     {r.notes && <title>{r.notes}</title>}
                   </g>
                 );
@@ -17293,13 +17292,13 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             ✏️ מצב ציור — לחץ על המפה להוספת נקודות
                             <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                               <button onClick={async () => {
-                                if (routeDraftPoints.length < 3) { alert('יש לסמן לפחות 3 נקודות'); return; }
+                                if (routeDraftPoints.length < 2) { alert('יש לסמן לפחות 2 נקודות'); return; }
                                 const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
                                 if (!route) return;
                                 await fetch(`${API_URL}/airfield-routes/${drawingRouteId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color || '#3b82f6', notes: route.notes || '', route_path: routeDraftPoints }) });
                                 fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                 setDrawingRouteId(null); setRouteDraftPoints([]);
-                              }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ סגור ({routeDraftPoints.length})</button>
+                              }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({routeDraftPoints.length})</button>
                               <button onClick={() => setRouteDraftPoints([])} style={{ padding: '3px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
                               <button onClick={() => { setDrawingRouteId(null); setRouteDraftPoints([]); }} style={{ padding: '3px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
                             </div>
@@ -17367,14 +17366,13 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 2 }}>
                       {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
                         const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
-                        if (pts.length < 3) return null;
+                        if (pts.length < 2) return null;
                         const col = r.color || '#3b82f6';
-                        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-                        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+                        const mid = pts[Math.floor(pts.length / 2)];
                         return (
                           <g key={r.id}>
-                            <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill={col + '33'} stroke={col} strokeWidth="0.5" strokeDasharray="2,1" />
-                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                            <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.7" />
+                            <text x={mid.x} y={mid.y} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
                           </g>
                         );
                       })}
