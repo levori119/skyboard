@@ -15391,36 +15391,58 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               </div>
               </MaybeSettingsModal>}
               
-              {/* Presets List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {presets.map(preset => {
-                  const relevantSectorNames = (preset.relevant_sectors || [])
-                    .map((id: number) => sectors.find(s => s.id === id)?.label_he || sectors.find(s => s.id === id)?.name)
-                    .filter(Boolean)
-                    .join(', ');
-                  return (
-                    <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
-                        <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
-                          מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
-                          {relevantSectorNames && ` | נקודות העברה: ${relevantSectorNames}`}
-                          {preset.table_mode_id && ` | טבלה: ${tableModes.find(tm => tm.id === preset.table_mode_id)?.name || '#' + preset.table_mode_id}`}
+              {/* Presets List — grouped by role */}
+              {presets.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
+                  אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.
+                </div>
+              ) : (
+                <>
+                  {[
+                    { role: 'yaba',  label: '📡 עמדות יב"א',  color: '#fbbf24', border: '#92400e' },
+                    { role: 'tower', label: '🗼 עמדות מגדל',  color: '#7dd3fc', border: '#1e3a5f' },
+                    { role: null,    label: '⚙️ עמדות כלליות', color: '#94a3b8', border: '#1e293b' },
+                  ].map(group => {
+                    const groupPresets = presets.filter((p: any) =>
+                      group.role === null
+                        ? !p.preset_role || (p.preset_role !== 'yaba' && p.preset_role !== 'tower')
+                        : p.preset_role === group.role
+                    );
+                    if (groupPresets.length === 0) return null;
+                    return (
+                      <div key={group.role ?? 'general'} style={{ marginBottom: '20px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 'bold', color: group.color, padding: '6px 10px', background: '#0a0f1a', borderRadius: '6px', borderRight: `3px solid ${group.color}`, marginBottom: '8px' }}>
+                          {group.label}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {groupPresets.map((preset: any) => {
+                            const relevantSectorNames = (preset.relevant_sectors || [])
+                              .map((id: number) => sectors.find(s => s.id === id)?.label_he || sectors.find(s => s.id === id)?.name)
+                              .filter(Boolean)
+                              .join(', ');
+                            return (
+                              <div key={preset.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRight: `2px solid ${group.border}` }}>
+                                <div>
+                                  <strong style={{ fontSize: '16px' }}>{preset.name}</strong>
+                                  <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>
+                                    מפה: {maps.find(m => m.id === preset.map_id)?.name || 'לא מוגדר'}
+                                    {relevantSectorNames && ` | נקודות העברה: ${relevantSectorNames}`}
+                                    {preset.table_mode_id && ` | טבלה: ${tableModes.find(tm => tm.id === preset.table_mode_id)?.name || '#' + preset.table_mode_id}`}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                                  <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
-                        <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {presets.length === 0 && (
-                  <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
-                    אין עמדות מוגדרות. הוסף עמדה חדשה למעלה.
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           )}
 
