@@ -705,6 +705,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_role VARCHAR(20)`);
   // Airfield route notes and polygon
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
+  // Airfield vector data
+  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
 
   console.log('Database initialized');
 }
@@ -2410,6 +2412,21 @@ app.delete('/api/airfields/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete airfield' });
+  }
+});
+
+app.put('/api/airfields/:id/vector', async (req, res) => {
+  try {
+    const { vector_data } = req.body;
+    const result = await pool.query(
+      'UPDATE airfields SET vector_data=$1 WHERE id=$2 RETURNING *',
+      [vector_data ? JSON.stringify(vector_data) : null, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save vector data' });
   }
 });
 
