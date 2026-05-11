@@ -671,6 +671,38 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
 
+  // Aviation bases — SID/STAR management
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS aviation_bases (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      code VARCHAR(20),
+      coord_n VARCHAR(10),
+      coord_e VARCHAR(10),
+      sids JSONB DEFAULT '[]',
+      stars JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Airfield routes — taxi instruction paths
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfield_routes (
+      id SERIAL PRIMARY KEY,
+      airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(20) DEFAULT '#3b82f6',
+      route_path JSONB DEFAULT '[]',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Strip SID/STAR and departure/landing base fields
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS departure_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  // Workstation preset role: 'tower' | 'approach' | null
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_role VARCHAR(20)`);
+
   console.log('Database initialized');
 }
 
@@ -979,7 +1011,11 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.callsign !== undefined && req.body.callSign === undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callsign); }
     if (req.body.task !== undefined) { updates.push(`task = $${paramIndex++}`); values.push(req.body.task); }
     if (req.body.workstation_preset_id !== undefined) { updates.push(`workstation_preset_id = $${paramIndex++}`); values.push(req.body.workstation_preset_id ? parseInt(req.body.workstation_preset_id) : null); }
-    
+    if (req.body.sid !== undefined) { updates.push(`sid = $${paramIndex++}`); values.push(req.body.sid || null); }
+    if (req.body.star !== undefined) { updates.push(`star = $${paramIndex++}`); values.push(req.body.star || null); }
+    if (req.body.departure_base_id !== undefined) { updates.push(`departure_base_id = $${paramIndex++}`); values.push(req.body.departure_base_id ? parseInt(req.body.departure_base_id) : null); }
+    if (req.body.landing_base_id !== undefined) { updates.push(`landing_base_id = $${paramIndex++}`); values.push(req.body.landing_base_id ? parseInt(req.body.landing_base_id) : null); }
+
     if (updates.length > 0) {
       values.push(id);
       await pool.query(`UPDATE strips SET ${updates.join(', ')} WHERE id = $${paramIndex}`, values);
@@ -2172,15 +2208,15 @@ app.get('/api/workstation-presets', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role } = req.body;
     // Backward-compat: if only legacy single list provided, treat as both directions
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || [])]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null]
     );
     const row = result.rows[0];
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
@@ -2193,13 +2229,13 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role } = req.body;
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28 WHERE id = $22 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || [])]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29 WHERE id = $22 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -3692,6 +3728,85 @@ app.delete('/api/base-statuses/:id', async (req, res) => {
     await pool.query('DELETE FROM base_statuses WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete base status' }); }
+});
+
+// --- Aviation Bases API ---
+app.get('/api/aviation-bases', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM aviation_bases ORDER BY name');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch aviation bases' }); }
+});
+
+app.post('/api/aviation-bases', async (req, res) => {
+  try {
+    const { name, code, coord_n, coord_e, sids, stars } = req.body;
+    const result = await pool.query(
+      `INSERT INTO aviation_bases (name, code, coord_n, coord_e, sids, stars) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create aviation base' }); }
+});
+
+app.put('/api/aviation-bases/:id', async (req, res) => {
+  try {
+    const { name, code, coord_n, coord_e, sids, stars } = req.body;
+    const result = await pool.query(
+      `UPDATE aviation_bases SET name=$1, code=$2, coord_n=$3, coord_e=$4, sids=$5, stars=$6 WHERE id=$7 RETURNING *`,
+      [name, code || null, coord_n || null, coord_e || null, JSON.stringify(sids || []), JSON.stringify(stars || []), req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update aviation base' }); }
+});
+
+app.delete('/api/aviation-bases/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM aviation_bases WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete aviation base' }); }
+});
+
+// --- Airfield Routes API ---
+app.get('/api/airfield-routes', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    let query = 'SELECT * FROM airfield_routes';
+    const params: any[] = [];
+    if (airfield_id) { query += ' WHERE airfield_id=$1'; params.push(airfield_id); }
+    query += ' ORDER BY name';
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch airfield routes' }); }
+});
+
+app.post('/api/airfield-routes', async (req, res) => {
+  try {
+    const { airfield_id, name, color, route_path } = req.body;
+    const result = await pool.query(
+      `INSERT INTO airfield_routes (airfield_id, name, color, route_path) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
+});
+
+app.put('/api/airfield-routes/:id', async (req, res) => {
+  try {
+    const { name, color, route_path } = req.body;
+    const result = await pool.query(
+      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3 WHERE id=$4 RETURNING *`,
+      [name, color || '#3b82f6', JSON.stringify(route_path || []), req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update airfield route' }); }
+});
+
+app.delete('/api/airfield-routes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
 });
 
 const PORT = process.env.PORT || 3001;

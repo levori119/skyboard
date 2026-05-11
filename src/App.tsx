@@ -4176,7 +4176,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4195,6 +4195,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   currentPresetId?: number | null;
   currentSectorId?: number | null;
   singleTransfers?: { sectorId: number; callSign: string; aircraftIdx: number; totalCount: number }[];
+  airfieldRoutes?: any[];
+  aviationBases?: any[];
+  presetRole?: string | null;
+  onUpdateStripMeta?: (stripId: string, fields: Record<string, any>) => void;
 }) => {
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -4264,6 +4268,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   }, [filterMode]);
   const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
   const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [taxiInstModal, setTaxiInstModal] = React.useState<{ stripId: string; idx: number | null } | null>(null);
+  const [taxiDestRouteId, setTaxiDestRouteId] = React.useState<number | null>(null);
+  const [taxiViaRouteIds, setTaxiViaRouteIds] = React.useState<number[]>([]);
   React.useEffect(() => {
     return () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current); };
   }, []);
@@ -4482,10 +4489,57 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isExpanded && (
                   <div>
                     {/* Formation header row */}
-                    <div style={{ padding: '3px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, display: 'flex', gap: '6px' }}>
+                    <div style={{ padding: '3px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{callSign} {count}</span>
                       {sq && <span>- {sq}</span>}
                     </div>
+                    {/* SID / STAR / Departure / Landing base row */}
+                    {(presetRole === 'tower' || presetRole === 'approach' || (aviationBases && aviationBases.length > 0)) && (
+                      <div style={{ padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0a0f1a', borderTop: `1px solid ${border}`, display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {(presetRole === 'tower' || !presetRole) && (
+                          <>
+                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>SID:</label>
+                            <input type="text" defaultValue={strip.sid || ''}
+                              onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                              onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.sid || '')) onUpdateStripMeta(String(strip.id), { sid: e.target.value || null }); }}
+                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                              placeholder='—'
+                              style={{ width: '50px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
+                          </>
+                        )}
+                        {(presetRole === 'approach' || !presetRole) && (
+                          <>
+                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>STAR:</label>
+                            <input type="text" defaultValue={strip.star || ''}
+                              onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                              onBlur={e => { if (onUpdateStripMeta && e.target.value !== (strip.star || '')) onUpdateStripMeta(String(strip.id), { star: e.target.value || null }); }}
+                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                              placeholder='—'
+                              style={{ width: '50px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
+                          </>
+                        )}
+                        {(aviationBases && aviationBases.length > 0) && (
+                          <>
+                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>בסיס המראה:</label>
+                            <select value={strip.departure_base_id || ''}
+                              onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                              onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { departure_base_id: e.target.value ? Number(e.target.value) : null }); }}
+                              style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
+                              <option value="">—</option>
+                              {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
+                            </select>
+                            <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>בסיס נחיתה:</label>
+                            <select value={strip.landing_base_id || ''}
+                              onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                              onChange={e => { if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { landing_base_id: e.target.value ? Number(e.target.value) : null }); }}
+                              style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', maxWidth: '90px' }}>
+                              <option value="">—</option>
+                              {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.code || b.name}</option>)}
+                            </select>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {aircraft.map(ac => {
                       const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
                       const acRow = getAcRow(ac.idx);
@@ -4919,6 +4973,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             {s.label}
                           </button>
                         ))}
+                        {(airfieldRoutes?.length ?? 0) > 0 && (
+                          <div style={{ borderTop: '1px solid #1e293b', marginTop: '4px', paddingTop: '4px' }}>
+                            <button onClick={() => { const pos = getAircraftPositions(strip); const anyAc = acsAtPoint[0]; const existing: any = pos.find(x => x.idx === anyAc.idx); setTaxiDestRouteId(existing?.taxi_dest_route_id ?? null); setTaxiViaRouteIds(existing?.taxi_via_route_ids ?? []); setTaxiInstModal({ stripId: String(strip.id), idx: null }); setGroundQuickMenu(null); }}
+                              style={{ display: 'block', width: '100%', padding: '4px 8px', background: '#0c1a2e', color: '#60a5fa', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: 'bold' }}>
+                              🛤️ הנחיות הסעה
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4974,6 +5036,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             {s.label}
                           </button>
                         ))}
+                        {(airfieldRoutes?.length ?? 0) > 0 && (
+                          <div style={{ borderTop: '1px solid #1e293b', marginTop: '4px', paddingTop: '4px' }}>
+                            <button onClick={() => { const pos = getAircraftPositions(strip); const existing: any = pos.find(x => x.idx === ac.idx); setTaxiDestRouteId(existing?.taxi_dest_route_id ?? null); setTaxiViaRouteIds(existing?.taxi_via_route_ids ?? []); setTaxiInstModal({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
+                              style={{ display: 'block', width: '100%', padding: '4px 8px', background: '#0c1a2e', color: '#60a5fa', border: '1px solid #1e3a5f', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: 'bold' }}>
+                              🛤️ הנחיות הסעה
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -5038,6 +5108,59 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
         </div>
       </div>
+
+      {/* Taxi Instructions Modal */}
+      {taxiInstModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}
+          onClick={() => setTaxiInstModal(null)}>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '400px', width: '90%', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '16px' }}>🛤️ הנחיות הסעה</div>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#94a3b8' }}>לאן מסיע סופי:</label>
+              <select value={taxiDestRouteId ?? ''} onChange={e => setTaxiDestRouteId(e.target.value ? Number(e.target.value) : null)}
+                style={{ width: '100%', padding: '8px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                <option value="">— ללא יעד —</option>
+                {(airfieldRoutes || []).map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', color: '#94a3b8' }}>דרך אילו נקודות:</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto', padding: '4px', background: '#0f172a', borderRadius: '6px', border: '1px solid #334155' }}>
+                {(airfieldRoutes || []).map((r: any) => {
+                  const checked = taxiViaRouteIds.includes(r.id);
+                  return (
+                    <label key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 8px', cursor: 'pointer', borderRadius: '4px', background: checked ? '#1e3a5f' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => setTaxiViaRouteIds(prev => checked ? prev.filter(x => x !== r.id) : [...prev, r.id])} style={{ cursor: 'pointer' }} />
+                      <span style={{ fontSize: '13px', color: checked ? '#93c5fd' : '#94a3b8' }}>{r.name}</span>
+                    </label>
+                  );
+                })}
+                {(airfieldRoutes || []).length === 0 && <div style={{ padding: '8px', fontSize: '12px', color: '#475569', textAlign: 'center' }}>אין מסלולים מוגדרים</div>}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setTaxiInstModal(null)}
+                style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+              <button onClick={() => {
+                if (!onUpdateStripMeta) { setTaxiInstModal(null); return; }
+                const positions = strips.find(s => String(s.id) === taxiInstModal.stripId);
+                const pos: AircraftPos[] = getAircraftPositions(positions || {});
+                const updated = taxiInstModal.idx === null
+                  ? pos.map(x => ({ ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: taxiViaRouteIds }))
+                  : pos.map(x => x.idx === taxiInstModal.idx ? { ...x, taxi_dest_route_id: taxiDestRouteId, taxi_via_route_ids: taxiViaRouteIds } : x);
+                onUpdateStripMeta(taxiInstModal.stripId, { aircraft_positions: JSON.stringify(updated) });
+                setTaxiInstModal(null);
+              }}
+                style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                שמור
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transfer pending dialog */}
       {transferPending && (
@@ -7238,6 +7361,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
+  const [aviationBases, setAviationBases] = useState<any[]>([]);
+  const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
   const [groundStripAircraft, setGroundStripAircraft] = useState<Record<string, GroundAircraftRow[]>>({});
   const [groundSingleTransfers, setGroundSingleTransfers] = useState<{ sectorId: number; callSign: string; aircraftIdx: number; totalCount: number }[]>([]);
   const neighbors = allSectors.slice(1);
@@ -8186,6 +8311,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     const loadAirfieldsAndConfig = () => {
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
+      fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAviationBases).catch(() => {});
+      fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAirfieldRoutes).catch(() => {});
       if (session.presetId && !primarySectorId) {
         fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
           if (!presets) return;
@@ -10059,6 +10186,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 currentPresetId={session?.presetId}
                 currentSectorId={myPresetConfig?.relevant_sectors?.[0] || null}
                 singleTransfers={groundSingleTransfers}
+                airfieldRoutes={airfieldRoutes}
+                aviationBases={aviationBases}
+                presetRole={myPresetConfig?.preset_role ?? null}
+                onUpdateStripMeta={async (stripId, fields) => {
+                  try {
+                    await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
+                    setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, ...fields } : s));
+                  } catch (e) { console.error(e); }
+                }}
               />
             );
           })()}
@@ -14157,8 +14293,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -14257,6 +14393,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     allow_view_switching: true as boolean,
     show_base_statuses: false as boolean,
     base_status_ids: [] as number[],
+    preset_role: '' as string,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -14307,6 +14444,17 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     { row_number: 3, field_name: 'task', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
   ]);
 
+  // Aviation Bases admin state
+  const [adminAviationBases, setAdminAviationBases] = useState<any[]>([]);
+  const [aviationBaseForm, setAviationBaseForm] = useState({ name: '', code: '', coord_n: '', coord_e: '' });
+  const [editingAviationBase, setEditingAviationBase] = useState<any | null>(null);
+  const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
+  // Airfield Routes admin state
+  const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
+  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '' });
+  const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
+  const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
+
   // Base Statuses admin state
   const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
   const [editingBaseStatus, setEditingBaseStatus] = useState<any | null>(null);
@@ -14352,6 +14500,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables).catch(() => {});
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
       fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
+      fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
+      fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
       const assignRes = await fetch(`${API_URL}/bdh-preset-assignments`);
       if (assignRes.ok) setBdhPresetAssignments(await assignRes.json());
     } catch (err) {
@@ -14501,6 +14651,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           allow_view_switching: presetForm.allow_view_switching !== false,
           show_base_statuses: presetForm.show_base_statuses === true,
           base_status_ids: presetForm.base_status_ids || [],
+          preset_role: presetForm.preset_role || null,
         })
       });
       if (!res.ok) {
@@ -14514,7 +14665,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' });
       } else if (saved) {
         editPreset(saved);
       }
@@ -14554,6 +14705,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       allow_view_switching: preset.allow_view_switching !== false,
       show_base_statuses: preset.show_base_statuses === true,
       base_status_ids: Array.isArray(preset.base_status_ids) ? preset.base_status_ids.map(Number) : [],
+      preset_role: preset.preset_role || '',
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -14630,6 +14782,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
         {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
+        {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={tabStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -14651,7 +14804,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -14685,6 +14838,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 </div>
                 {/* Row 2: Conditional based on preset type */}
                 {presetForm.preset_type === 'ground' ? (
+                  <>
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שדה תעופה:</label>
                     <select value={presetForm.airfield_id}
@@ -14695,6 +14849,19 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
                   </div>
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>תפקיד עמדה (Ground):</label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {[{ val: '', label: '— כללי —' }, { val: 'tower', label: '🗼 מגדל (Tower)' }, { val: 'approach', label: '📡 גישה (Approach)' }, { val: 'ground_ctrl', label: '🚜 שטח (Ground)' }].map(opt => (
+                        <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_role: opt.val }))}
+                          style={{ flex: '1 0 auto', padding: '8px 6px', borderRadius: '6px', border: `2px solid ${presetForm.preset_role === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_role === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_role === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.preset_role === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>Tower: מגדיר SID | Approach: מגדיר STAR | Ground: הכל</p>
+                  </div>
+                  </>
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                     <label style={{ display: 'block', marginBottom: '10px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>📋 הגדרת עמדת סטריפים</label>
@@ -15170,7 +15337,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
@@ -17020,6 +17187,56 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 </div>
               )}
 
+            {/* Airfield Routes section */}
+            <div style={{ marginTop: '28px', padding: '16px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#7dd3fc' }}>🛤️ מסלולי הסעה</h3>
+                <button onClick={() => { setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: selectedAdminAirfieldId ? String(selectedAdminAirfieldId) : '' }); setShowAirfieldRouteForm(true); }}
+                  style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                  + הוסף מסלול
+                </button>
+              </div>
+              {showAirfieldRouteForm && (
+                <div style={{ background: '#1e293b', padding: '12px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #334155' }}>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                    <input type="text" placeholder="שם מסלול" value={airfieldRouteForm.name}
+                      onChange={e => setAirfieldRouteForm(p => ({ ...p, name: e.target.value }))}
+                      style={{ flex: 2, padding: '6px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', minWidth: '100px' }} />
+                    <select value={airfieldRouteForm.airfield_id}
+                      onChange={e => setAirfieldRouteForm(p => ({ ...p, airfield_id: e.target.value }))}
+                      style={{ flex: 1, padding: '6px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', minWidth: '80px' }}>
+                      <option value="">— שדה —</option>
+                      {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={async () => {
+                      if (!airfieldRouteForm.name.trim()) return;
+                      const url = editingAirfieldRoute ? `${API_URL}/airfield-routes/${editingAirfieldRoute.id}` : `${API_URL}/airfield-routes`;
+                      const method = editingAirfieldRoute ? 'PUT' : 'POST';
+                      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: airfieldRouteForm.airfield_id ? Number(airfieldRouteForm.airfield_id) : null }) });
+                      if (res.ok) { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }
+                    }} style={{ padding: '5px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>שמור</button>
+                    <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
+                      style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                  </div>
+                </div>
+              )}
+              {adminAirfieldRoutes.length === 0
+                ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '12px' }}>אין מסלולים מוגדרים</div>
+                : adminAirfieldRoutes.map((r: any) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#1e293b', borderRadius: '6px', marginBottom: '4px', border: '1px solid #334155' }}>
+                    <span style={{ flex: 1, color: '#e2e8f0', fontSize: '13px' }}>{r.name}</span>
+                    {r.airfield_name && <span style={{ fontSize: '11px', color: '#64748b' }}>{r.airfield_name}</span>}
+                    <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: r.airfield_id ? String(r.airfield_id) : '' }); setShowAirfieldRouteForm(true); }}
+                      style={{ padding: '2px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
+                    <button onClick={async () => { if (!confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                      style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
+                  </div>
+                ))
+              }
+            </div>
+
             </div>
           );
         })()}
@@ -17142,6 +17359,85 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {activeTab === 'aviation_bases' && (() => {
+          const saveAviationBase = async () => {
+            if (!aviationBaseForm.name.trim()) { alert('חובה להזין שם בסיס'); return; }
+            const url = editingAviationBase ? `${API_URL}/aviation-bases/${editingAviationBase.id}` : `${API_URL}/aviation-bases`;
+            const method = editingAviationBase ? 'PUT' : 'POST';
+            const body = {
+              name: aviationBaseForm.name.trim(),
+              code: aviationBaseForm.code.trim() || null,
+              coord_n: aviationBaseForm.coord_n ? Number(aviationBaseForm.coord_n) : null,
+              coord_e: aviationBaseForm.coord_e ? Number(aviationBaseForm.coord_e) : null,
+            };
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!res.ok) { alert('שגיאה בשמירה'); return; }
+            setEditingAviationBase(null); setShowAviationBaseForm(false);
+            setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' });
+            fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {});
+          };
+          return (
+            <div style={{ padding: '20px', direction: 'rtl', maxWidth: '900px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ margin: 0, fontSize: '18px', color: '#7dd3fc' }}>✈️ בסיסי תעופה</h2>
+                <button onClick={() => { setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' }); setShowAviationBaseForm(true); }}
+                  style={{ padding: '7px 16px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                  + בסיס חדש
+                </button>
+              </div>
+
+              {showAviationBaseForm && (
+                <div style={{ background: '#1e293b', padding: '16px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #334155' }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#94a3b8' }}>{editingAviationBase ? 'עריכת בסיס' : 'בסיס חדש'}</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 140px 140px', gap: '8px', marginBottom: '12px' }}>
+                    <input type="text" placeholder="שם הבסיס *" value={aviationBaseForm.name}
+                      onChange={e => setAviationBaseForm(p => ({ ...p, name: e.target.value }))}
+                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
+                    <input type="text" placeholder="קוד (ICAO)" value={aviationBaseForm.code}
+                      onChange={e => setAviationBaseForm(p => ({ ...p, code: e.target.value.toUpperCase() }))}
+                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr', textAlign: 'center', fontFamily: 'monospace' }} />
+                    <input type="number" placeholder="קואורד N" value={aviationBaseForm.coord_n}
+                      onChange={e => setAviationBaseForm(p => ({ ...p, coord_n: e.target.value }))}
+                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr' }} />
+                    <input type="number" placeholder="קואורד E" value={aviationBaseForm.coord_e}
+                      onChange={e => setAviationBaseForm(p => ({ ...p, coord_e: e.target.value }))}
+                      style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'ltr' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={saveAviationBase}
+                      style={{ padding: '7px 18px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
+                    <button onClick={() => { setShowAviationBaseForm(false); setEditingAviationBase(null); setAviationBaseForm({ name: '', code: '', coord_n: '', coord_e: '' }); }}
+                      style={{ padding: '7px 14px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 120px 80px', gap: '8px', padding: '8px 12px', background: '#1e3a5f', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>
+                  <span>שם הבסיס</span><span style={{ textAlign: 'center' }}>קוד</span><span style={{ textAlign: 'center' }}>קואורד N</span><span style={{ textAlign: 'center' }}>קואורד E</span><span></span>
+                </div>
+                {adminAviationBases.length === 0
+                  ? <div style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>אין בסיסים מוגדרים. לחץ "+ בסיס חדש" כדי להוסיף.</div>
+                  : adminAviationBases.map((b: any) => (
+                    <div key={b.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 120px 80px', gap: '8px', padding: '8px 12px', borderTop: '1px solid #1e293b', alignItems: 'center' }}>
+                      <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500' }}>{b.name}</span>
+                      <span style={{ color: '#93c5fd', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 'bold' }}>{b.code || '—'}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_n != null ? b.coord_n : '—'}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', textAlign: 'center', fontFamily: 'monospace' }}>{b.coord_e != null ? b.coord_e : '—'}</span>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setEditingAviationBase(b); setAviationBaseForm({ name: b.name, code: b.code || '', coord_n: b.coord_n != null ? String(b.coord_n) : '', coord_e: b.coord_e != null ? String(b.coord_e) : '' }); setShowAviationBaseForm(true); }}
+                          style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
+                        <button onClick={async () => { if (!confirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
+                          style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
+                      </div>
+                    </div>
+                  ))
+                }
               </div>
             </div>
           );
