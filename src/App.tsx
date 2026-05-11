@@ -17693,27 +17693,33 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
               {/* Vector data editor section */}
               {selectedAdminAirfieldId && adminSelMapSrc && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  {/* ── Prominent generate button – always visible ── */}
+                  <button onClick={async () => {
+                    if (vectorizingProgress) return;
+                    setVectorizingProgress('מתחיל...');
+                    try {
+                      const lines = await vectorizeAirfieldImage(adminSelMapSrc!, msg => setVectorizingProgress(msg));
+                      const newData: VectorData = { lines, bgColor: '#0f172a' };
+                      setAdminVectorData(newData);
+                      await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
+                      fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
+                    } finally { setVectorizingProgress(null); }
+                  }} style={{ width: '100%', padding: '9px', background: vectorizingProgress ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: vectorizingProgress ? 'wait' : 'pointer', fontSize: '13px', fontWeight: 'bold', opacity: vectorizingProgress ? 0.8 : 1, letterSpacing: '0.3px' }}>
+                    {vectorizingProgress ? `⏳ ${vectorizingProgress}` : '🗺 צור מפה וקטורית'}
+                  </button>
+                  {adminVectorData && adminVectorData.lines.length > 0 && (
+                    <div style={{ fontSize: '10px', color: '#34d399', textAlign: 'center' }}>✓ {adminVectorData.lines.length} קווים נשמרו</div>
+                  )}
+                  {/* ── Collapsible manual-edit tools ── */}
                 <div style={{ border: `1px solid ${vectorEditMode ? '#10b981' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
                   <div onClick={() => setVectorEditMode(p => !p)}
                     style={{ padding: '7px 10px', background: vectorEditMode ? '#0f2a1a' : '#1e293b', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>🗺️ וקטורי</span>
+                    <span style={{ color: vectorEditMode ? '#34d399' : '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>✏️ עריכה ידנית</span>
                     <span style={{ fontSize: '10px', color: '#94a3b8' }}>{adminVectorData?.lines.length || 0} קווים {vectorEditMode ? '▲' : '▼'}</span>
                   </div>
                   {vectorEditMode && (
                     <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <button onClick={async () => {
-                        if (vectorizingProgress) return;
-                        setVectorizingProgress('מתחיל...');
-                        try {
-                          const lines = await vectorizeAirfieldImage(adminSelMapSrc!, msg => setVectorizingProgress(msg));
-                          const newData: VectorData = { lines, bgColor: '#0f172a' };
-                          setAdminVectorData(newData);
-                          await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/vector`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vector_data: newData }) });
-                          fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(setAdminAirfields).catch(() => {});
-                        } finally { setVectorizingProgress(null); }
-                      }} style={{ width: '100%', padding: '5px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: vectorizingProgress ? 'wait' : 'pointer', fontSize: '11px', fontWeight: 'bold', opacity: vectorizingProgress ? 0.7 : 1 }}>
-                        {vectorizingProgress || '🔄 המר תצ"א → וקטורי'}
-                      </button>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <label style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>צבע קו:</label>
                         <input type="color" value={vectorLineColor} onChange={e => setVectorLineColor(e.target.value)}
@@ -17752,6 +17758,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                       )}
                     </div>
                   )}
+                </div>
                 </div>
               )}
                 {/* Editor form (shown when airfield selected/new) */}
