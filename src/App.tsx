@@ -5483,11 +5483,12 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               cursor: (editableField && onUpdateField) ? 'text' : 'grab',
               borderRight: row.border_width ? `${row.border_width}px solid ${row.border_color || '#94a3b8'}` : undefined,
             }}
-            onClick={() => { if (singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
-            onDoubleClick={() => { if (!singleClickEdit && editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
+            onMouseDown={e => { if (editableField && onUpdateField) e.stopPropagation(); }}
+            onClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
           >
             {isEditing ? (
               <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
+                onMouseDown={e => e.stopPropagation()}
                 onBlur={() => { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); }}
                 onKeyDown={e => { if (e.key === 'Enter') { if (onUpdateField && editableField) onUpdateField(editableField, editVal); setEditingRow(null); } if (e.key === 'Escape') setEditingRow(null); }}
                 style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: 'inherit', textAlign: (row.text_align || 'center') as any }}
@@ -5917,23 +5918,27 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
 };
 
 const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  const [drawMode, setDrawMode] = React.useState(false);
+  const [eraseMode, setEraseMode] = React.useState(false);
   const isDown = React.useRef(false);
   const lastP = React.useRef<{ x: number; y: number } | null>(null);
   const strokeColor = lightMode ? '#1d4ed8' : '#93c5fd';
+  const ERASER_R = 14;
 
   React.useEffect(() => {
+    const container = containerRef.current;
     const c = canvasRef.current;
-    if (!c) return;
+    if (!container || !c) return;
     const obs = new ResizeObserver(() => {
       const temp = document.createElement('canvas');
       temp.width = c.width; temp.height = c.height;
       temp.getContext('2d')?.drawImage(c, 0, 0);
-      c.width = c.offsetWidth; c.height = c.offsetHeight;
+      c.width = container.offsetWidth;
+      c.height = container.offsetHeight;
       c.getContext('2d')?.drawImage(temp, 0, 0);
     });
-    obs.observe(c);
+    obs.observe(container);
     return () => obs.disconnect();
   }, []);
 
@@ -5942,52 +5947,52 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
   const onDown = (e: React.PointerEvent) => {
-    if (!drawMode) return;
-    e.preventDefault();
+    e.preventDefault(); e.stopPropagation();
     canvasRef.current?.setPointerCapture(e.pointerId);
-    isDown.current = true; lastP.current = getPos(e);
+    isDown.current = true;
+    const p = getPos(e);
+    lastP.current = p;
+    if (eraseMode) {
+      const ctx = canvasRef.current?.getContext('2d');
+      if (ctx) ctx.clearRect(p.x - ERASER_R, p.y - ERASER_R, ERASER_R * 2, ERASER_R * 2);
+    }
   };
   const onMove = (e: React.PointerEvent) => {
-    if (!drawMode || !isDown.current || !lastP.current) return;
+    if (!isDown.current) return;
     e.preventDefault();
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const p = getPos(e);
-    ctx.beginPath(); ctx.moveTo(lastP.current.x, lastP.current.y); ctx.lineTo(p.x, p.y);
-    ctx.strokeStyle = strokeColor; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.stroke();
+    if (eraseMode) {
+      ctx.clearRect(p.x - ERASER_R, p.y - ERASER_R, ERASER_R * 2, ERASER_R * 2);
+    } else {
+      if (!lastP.current) { lastP.current = p; return; }
+      ctx.beginPath(); ctx.moveTo(lastP.current.x, lastP.current.y); ctx.lineTo(p.x, p.y);
+      ctx.strokeStyle = strokeColor; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
     lastP.current = p;
   };
   const onUp = () => { isDown.current = false; lastP.current = null; };
-  const clear = () => { const c = canvasRef.current; if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height); };
+  const clearAll = () => { const c = canvasRef.current; if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height); };
 
-  const btnBase: React.CSSProperties = { width: 26, height: 26, borderRadius: 5, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none' };
+  const btn: React.CSSProperties = { padding: '2px 7px', borderRadius: 4, cursor: 'pointer', fontSize: 11, border: 'none', fontFamily: 'inherit', direction: 'rtl' };
   return (
-    <>
-      <div style={{ position: 'absolute', top: 5, insetInlineStart: 5, display: 'flex', gap: 3, zIndex: 20, pointerEvents: 'auto' }}>
-        <button
-          title={drawMode ? 'מצב רגיל — לחץ לסגירת שרטוט' : 'שרטוט חופשי (עכבר / עט)'}
-          onClick={() => setDrawMode(d => !d)}
-          style={{ ...btnBase, background: drawMode ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#e2e8f0' : '#1e293b'), color: drawMode ? (lightMode ? '#1d4ed8' : '#93c5fd') : (lightMode ? '#64748b' : '#475569'), outline: drawMode ? `2px solid ${lightMode ? '#3b82f6' : '#60a5fa'}` : 'none' }}>
-          {drawMode ? '🖐' : '✏️'}
+    <div ref={containerRef} style={{ flexShrink: 0, minHeight: 140, position: 'relative', borderTop: `1px dashed ${lightMode ? '#cbd5e1' : '#334155'}`, touchAction: 'none' }}>
+      <div style={{ position: 'absolute', top: 4, insetInlineStart: 4, display: 'flex', gap: 3, zIndex: 2, pointerEvents: 'auto' }}>
+        <button onClick={() => setEraseMode(m => !m)} title={eraseMode ? 'מצב מחק פעיל — לחץ לציור' : 'מחק נקודתי'}
+          style={{ ...btn, background: eraseMode ? (lightMode ? '#fef9c3' : '#422006') : (lightMode ? '#e0e7ff' : '#1e1b4b'), color: eraseMode ? (lightMode ? '#92400e' : '#fde68a') : (lightMode ? '#4338ca' : '#a5b4fc'), outline: eraseMode ? `2px solid ${lightMode ? '#ca8a04' : '#f59e0b'}` : 'none' }}>
+          {eraseMode ? '✏️' : '🧹'}
         </button>
-        {drawMode && (
-          <button title="נקה שרטוט" onClick={clear}
-            style={{ ...btnBase, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
-            ✕
-          </button>
-        )}
+        <button onClick={clearAll} title="נקה הכל" style={{ ...btn, background: lightMode ? '#fee2e2' : '#1c0606', color: lightMode ? '#dc2626' : '#f87171' }}>
+          ✕ הכל
+        </button>
       </div>
-      <canvas
-        ref={canvasRef}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', pointerEvents: drawMode ? 'auto' : 'none', touchAction: 'none', zIndex: 10, cursor: drawMode ? 'crosshair' : 'default' }}
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerLeave={onUp}
-        onPointerCancel={onUp}
+      <canvas ref={canvasRef}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: eraseMode ? 'cell' : 'crosshair', touchAction: 'none' }}
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} onPointerCancel={onUp}
       />
-    </>
+    </div>
   );
 };
 
