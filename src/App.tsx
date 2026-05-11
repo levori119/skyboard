@@ -17298,13 +17298,26 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                 <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '10px', padding: '18px', marginBottom: '20px', direction: 'rtl' }}>
                   <h3 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#fcd34d' }}>{editingBaseStatus ? '✎ עריכת בסיס' : '+ בסיס חדש'}</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>שם בסיס *</label>
-                      <input value={baseStatusForm.name} onChange={e => setBaseStatusForm(p => ({ ...p, name: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>קוד בסיס</label>
-                      <input value={baseStatusForm.code} onChange={e => setBaseStatusForm(p => ({ ...p, code: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>בסיס *</label>
+                      {adminAviationBases.length > 0 ? (
+                        <select
+                          value={baseStatusForm.name}
+                          onChange={e => {
+                            const sel = adminAviationBases.find((b: any) => b.name === e.target.value);
+                            setBaseStatusForm(p => ({ ...p, name: sel ? sel.name : e.target.value, code: sel?.code || p.code }));
+                          }}
+                          style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: baseStatusForm.name ? 'white' : '#64748b', fontSize: '13px', direction: 'rtl' }}
+                        >
+                          <option value="">— בחר בסיס —</option>
+                          {adminAviationBases.map((b: any) => (
+                            <option key={b.id} value={b.name}>{b.name}{b.code ? ` (${b.code})` : ''}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input value={baseStatusForm.name} onChange={e => setBaseStatusForm(p => ({ ...p, name: e.target.value }))} placeholder="הזן שם בסיס" style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                      )}
+                      {adminAviationBases.length === 0 && <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '4px' }}>⚠️ הגדר בסיסי תעופה בלשונית "✈️ בסיסים" כדי לבחור מרשימה</div>}
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>רלוונטי ל</label>
