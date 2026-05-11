@@ -17264,20 +17264,18 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
                     tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') setPlacingPointMode(false); }}
                     onClick={e => {
                       if (!placingPointMode) return;
-                      const imgEl = (e.currentTarget as HTMLElement).querySelector('img') as HTMLImageElement | null;
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const el = e.currentTarget as HTMLElement;
+                      const rect = el.getBoundingClientRect();
+                      // subtract border so coordinates match CSS absolute positioning (inside border)
+                      const relX = e.clientX - rect.left - el.clientLeft;
+                      const relY = e.clientY - rect.top - el.clientTop;
                       let x_pct: number, y_pct: number;
-                      if (imgEl && imgEl.naturalWidth && imgEl.naturalHeight) {
-                        const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
-                        const cRatio = rect.width / rect.height;
-                        let imgL: number, imgT: number, imgW: number, imgH: number;
-                        if (nRatio > cRatio) { imgW = rect.width; imgH = imgW / nRatio; imgL = 0; imgT = (rect.height - imgH) / 2; }
-                        else { imgH = rect.height; imgW = imgH * nRatio; imgL = (rect.width - imgW) / 2; imgT = 0; }
-                        x_pct = Math.round(((e.clientX - rect.left - imgL) / imgW) * 100);
-                        y_pct = Math.round(((e.clientY - rect.top - imgT) / imgH) * 100);
+                      if (adminMapImgBounds) {
+                        x_pct = Math.round(((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100);
+                        y_pct = Math.round(((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100);
                       } else {
-                        x_pct = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                        y_pct = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                        x_pct = Math.round((relX / el.clientWidth) * 100);
+                        y_pct = Math.round((relY / el.clientHeight) * 100);
                       }
                       x_pct = Math.max(0, Math.min(100, x_pct));
                       y_pct = Math.max(0, Math.min(100, y_pct));
