@@ -17080,7 +17080,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
             <div style={{ display: 'flex', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
               {/* LEFT panel: list + editor controls */}
-              <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
 
                 {/* Airfield list */}
                 <div>
