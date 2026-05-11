@@ -18,6 +18,9 @@ interface CrewMember {
   is_team_lead?: boolean;
   approved_workstations?: number[];
   undo_duration_ms?: number | null;
+  ground_datk_filter?: number | null;
+  ground_status_filter?: string[] | null;
+  ground_filter_mode?: 'AND' | 'OR' | null;
 }
 
 interface WorkstationSession {
@@ -4199,7 +4202,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, airfieldElements, elementTypes, onUpdateElementStatus }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4224,6 +4227,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdateStripMeta?: (stripId: string, fields: Record<string, any>) => void;
   crewMemberId?: number | null;
   initialUndoDurationMs?: number | null;
+  initialDatkFilter?: number | null;
+  initialStatusFilter?: string[] | null;
+  initialFilterMode?: 'AND' | 'OR' | null;
+  vectorData?: VectorData | null;
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
@@ -4240,6 +4247,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [datkFilter, setDatkFilter] = useState<number | null>(() => {
+    if (initialDatkFilter !== undefined && initialDatkFilter !== null) return initialDatkFilter;
     try {
       const stored = localStorage.getItem('datkFilter');
       if (stored === null || stored === 'null') return null;
@@ -4249,14 +4257,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       return null;
     }
   }); // minimum datk to highlight; null = no filter
+  const isFirstDatkMount = React.useRef(true);
   React.useEffect(() => {
+    if (isFirstDatkMount.current) { isFirstDatkMount.current = false; return; }
     try {
       localStorage.setItem('datkFilter', String(datkFilter));
     } catch {
       // ignore storage errors
     }
+    if (crewMemberId) {
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ground_datk_filter: datkFilter })
+      }).catch(() => {});
+    }
   }, [datkFilter]);
   const [statusFilter, setStatusFilter] = useState<string[]>(() => {
+    if (initialStatusFilter !== undefined && initialStatusFilter !== null && Array.isArray(initialStatusFilter)) {
+      const validKeys = GROUND_STATUSES.map(s => s.key) as readonly string[];
+      return [...new Set(initialStatusFilter.filter((k: unknown) => typeof k === 'string' && validKeys.includes(k as string)))] as string[];
+    }
     try {
       const stored = localStorage.getItem('groundStatusFilter');
       if (!stored || stored === 'null') return [];
@@ -4275,14 +4296,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       return [];
     }
   }); // set of status keys to highlight; empty = no filter
+  const isFirstStatusMount = React.useRef(true);
   React.useEffect(() => {
+    if (isFirstStatusMount.current) { isFirstStatusMount.current = false; return; }
     try {
       localStorage.setItem('groundStatusFilter', JSON.stringify(statusFilter));
     } catch {
       // ignore storage errors
     }
+    if (crewMemberId) {
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ground_status_filter: statusFilter })
+      }).catch(() => {});
+    }
   }, [statusFilter]);
   const [filterMode, setFilterMode] = useState<'AND' | 'OR'>(() => {
+    if (initialFilterMode === 'AND' || initialFilterMode === 'OR') return initialFilterMode;
     try {
       const stored = localStorage.getItem('groundFilterMode');
       return stored === 'OR' ? 'OR' : 'AND';
@@ -4290,11 +4321,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       return 'AND';
     }
   });
+  const isFirstFilterModeMount = React.useRef(true);
   React.useEffect(() => {
+    if (isFirstFilterModeMount.current) { isFirstFilterModeMount.current = false; return; }
     try {
       localStorage.setItem('groundFilterMode', filterMode);
     } catch {
       // ignore storage errors
+    }
+    if (crewMemberId) {
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ground_filter_mode: filterMode })
+      }).catch(() => {});
     }
   }, [filterMode]);
   const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
@@ -10562,6 +10602,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }}
                 crewMemberId={session?.crewMember?.id ?? null}
                 initialUndoDurationMs={session?.crewMember?.undo_duration_ms ?? null}
+                initialDatkFilter={session?.crewMember?.ground_datk_filter ?? null}
+                initialStatusFilter={session?.crewMember?.ground_status_filter ?? null}
+                initialFilterMode={session?.crewMember?.ground_filter_mode ?? null}
+                vectorData={(() => { const vd = activeAirfield?.vector_data; return vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null; })()}
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
