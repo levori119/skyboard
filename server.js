@@ -588,6 +588,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS color VARCHAR(20) DEFAULT '#3b82f6'`);
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS marker VARCHAR(30) DEFAULT 'circle'`);
   await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS density_warn INT DEFAULT 3`);
+  await pool.query(`ALTER TABLE airfield_points ADD COLUMN IF NOT EXISTS point_type VARCHAR(10) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS sids JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS stars JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ground_status VARCHAR(30) DEFAULT 'none'`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_positions JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS preset_type VARCHAR(20) DEFAULT 'standard'`);
@@ -2398,12 +2401,24 @@ app.get('/api/airfields', async (req, res) => {
 
 app.post('/api/airfields', async (req, res) => {
   try {
-    const { name, notes, map_id } = req.body;
+    const { name, notes, map_id, sids, stars } = req.body;
+    const newSids = Array.isArray(sids) ? sids : [];
+    const newStars = Array.isArray(stars) ? stars : [];
     const result = await pool.query(
-      'INSERT INTO airfields (name, notes, map_id) VALUES ($1,$2,$3) RETURNING *',
-      [name, notes || null, map_id || null]
+      'INSERT INTO airfields (name, notes, map_id, sids, stars) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [name, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars)]
     );
-    res.json({ ...result.rows[0], points: [] });
+    const airfieldId = result.rows[0].id;
+    for (const sid of newSids) {
+      await pool.query('INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,50,50,0,$3,$4,3,$5)',
+        [airfieldId, sid, '#3b82f6', 'circle', 'sid']);
+    }
+    for (const star of newStars) {
+      await pool.query('INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,50,50,0,$3,$4,3,$5)',
+        [airfieldId, star, '#f59e0b', 'circle', 'star']);
+    }
+    const pts = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [airfieldId]);
+    res.json({ ...result.rows[0], points: pts.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create airfield' });
@@ -2412,10 +2427,39 @@ app.post('/api/airfields', async (req, res) => {
 
 app.put('/api/airfields/:id', async (req, res) => {
   try {
-    const { name, notes, map_id } = req.body;
+    const { name, notes, map_id, sids, stars } = req.body;
+    const newSids = Array.isArray(sids) ? sids : [];
+    const newStars = Array.isArray(stars) ? stars : [];
+
+    // Sync SID points
+    const existingSidPts = await pool.query("SELECT * FROM airfield_points WHERE airfield_id=$1 AND point_type='sid'", [req.params.id]);
+    for (const pt of existingSidPts.rows) {
+      if (!newSids.includes(pt.name)) await pool.query('DELETE FROM airfield_points WHERE id=$1', [pt.id]);
+    }
+    const existingSidNames = existingSidPts.rows.map(p => p.name);
+    for (const sid of newSids) {
+      if (!existingSidNames.includes(sid)) {
+        await pool.query('INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,50,50,0,$3,$4,3,$5)',
+          [req.params.id, sid, '#3b82f6', 'circle', 'sid']);
+      }
+    }
+
+    // Sync STAR points
+    const existingStarPts = await pool.query("SELECT * FROM airfield_points WHERE airfield_id=$1 AND point_type='star'", [req.params.id]);
+    for (const pt of existingStarPts.rows) {
+      if (!newStars.includes(pt.name)) await pool.query('DELETE FROM airfield_points WHERE id=$1', [pt.id]);
+    }
+    const existingStarNames = existingStarPts.rows.map(p => p.name);
+    for (const star of newStars) {
+      if (!existingStarNames.includes(star)) {
+        await pool.query('INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,50,50,0,$3,$4,3,$5)',
+          [req.params.id, star, '#f59e0b', 'circle', 'star']);
+      }
+    }
+
     const result = await pool.query(
-      'UPDATE airfields SET name=$1, notes=$2, map_id=$3 WHERE id=$4 RETURNING *',
-      [name, notes || null, map_id || null, req.params.id]
+      'UPDATE airfields SET name=$1, notes=$2, map_id=$3, sids=$4, stars=$5 WHERE id=$6 RETURNING *',
+      [name, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), req.params.id]
     );
     const pts = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
     res.json({ ...result.rows[0], points: pts.rows });
