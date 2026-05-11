@@ -38,6 +38,15 @@ interface QGroup { id: string; type: 'group'; operator: QOperator; children: QNo
 type QNode = QGroup | QLeaf;
 
 const qGenId = () => Math.random().toString(36).slice(2, 10);
+
+function clampMenuPos(x: number, y: number, menuW: number, menuH: number) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  return {
+    left: Math.max(4, Math.min(x, vw - menuW - 4)),
+    top: Math.max(4, Math.min(y, vh - menuH - 4)),
+  };
+}
 const emptyQGroup = (): QGroup => ({ id: qGenId(), type: 'group', operator: 'all', children: [] });
 const hasConditions = (node: QNode | null): boolean => {
   if (!node) return false;
@@ -3490,7 +3499,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       {serialRowMenu && (
         <>
           <div onClick={() => setSerialRowMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
-          <div style={{ position: 'fixed', left: serialRowMenu.x, top: serialRowMenu.y, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '170px', overflow: 'hidden', direction: 'rtl' }}>
+          <div style={{ position: 'fixed', left: clampMenuPos(serialRowMenu.x, serialRowMenu.y, 190, 150).left, top: clampMenuPos(serialRowMenu.x, serialRowMenu.y, 190, 150).top, zIndex: 9999, background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: '170px', overflow: 'hidden', direction: 'rtl' }}>
             <div style={{ padding: '4px 0' }}>
               <button
                 onClick={() => { onSerialSelect && onSerialSelect(s.id, serialRowMenu.station, serialRowMenu.specificSerialId ?? serialRowMenu.latestSerialId, false); setSerialRowMenu(null); }}
@@ -3527,8 +3536,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           return t >= threeHoursAgo;
         });
         const fmt = (dt: string) => dt ? new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
-        const popLeft = Math.min(serialViewPopup.x, window.innerWidth - 330);
-        const popTop = Math.min(serialViewPopup.y, window.innerHeight - 440);
+        const { left: popLeft, top: popTop } = clampMenuPos(serialViewPopup.x, serialViewPopup.y, 330, 440);
         return (
           <>
             <div onClick={() => setSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }}/>
@@ -5985,7 +5993,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       {/* Context menu for cancel transfer */}
       {ctxMenu && (
         <div
-          style={{ position: 'fixed', top: ctxMenu.y, left: ctxMenu.x, background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '120px' }}
+          style={{ position: 'fixed', ...clampMenuPos(ctxMenu.x, ctxMenu.y, 140, 60), background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '4px', zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: '120px' }}
           onClick={e => e.stopPropagation()}
         >
           <button
@@ -9717,7 +9725,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div onClick={() => setShowStickyDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
               <div
                 onClick={e => e.stopPropagation()}
-                style={{ position: 'absolute', top: '110%', left: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl' }}
+                style={{ position: 'absolute', top: '110%', right: 0, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '6px 0', minWidth: '220px', zIndex: 3000, boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl' }}
               >
                 <div style={{ padding: '4px 12px 6px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155', marginBottom: '4px' }}>פתקיות סגורות</div>
                 {stickyNotes.filter(n => n.minimized).length === 0 && (
@@ -9952,8 +9960,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         })();
         const fmt = (dt: string) => dt ? new Date(dt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '—';
         const fmtFull = (dt: string) => dt ? new Date(dt).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
-        const popLeft = Math.min(x, window.innerWidth - 330);
-        const popTop = Math.min(y, window.innerHeight - 480);
+        const { left: popLeft, top: popTop } = clampMenuPos(x, y, 300, 480);
         return (
           <>
             <div onClick={() => setTableSerialViewPopup(null)} style={{ position: 'fixed', inset: 0, zIndex: 9998 }} />
@@ -11546,7 +11553,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Table row right-click context menu */}
           {tableRowCtxMenu && (
             <div
-              style={{ position: 'fixed', top: Math.min(tableRowCtxMenu.y, window.innerHeight - 260), right: Math.max(window.innerWidth - tableRowCtxMenu.x, 8), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+              style={{ position: 'fixed', ...clampMenuPos(tableRowCtxMenu.x, tableRowCtxMenu.y, 180, 260), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '6px', zIndex: 9999, minWidth: '160px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}
             >
               {(() => {
@@ -11623,7 +11630,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             if (!ctxDev && !ctxAck) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
               <div
-                style={{ position: 'fixed', top: verticalCtxMenu.y, left: verticalCtxMenu.x, background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '180px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 200, 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '180px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}
               >
                 <button
@@ -11659,7 +11666,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Altitude update mini-form */}
           {altUpdateForm && (
             <div
-              style={{ position: 'fixed', top: altUpdateForm.y, left: altUpdateForm.x, background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
+              style={{ position: 'fixed', ...clampMenuPos(altUpdateForm.x, altUpdateForm.y, 220, 160), background: '#1e293b', border: '1px solid #3b82f6', borderRadius: '8px', zIndex: 10000, padding: '12px 14px', direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '200px' }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>✏️ עדכון גובה</div>
@@ -12052,7 +12059,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Block table right-click context menu — rendered outside contain:paint so position:fixed uses the viewport */}
         {btCtxMenu && (
           <div
-            style={{ position: 'fixed', top: btCtxMenu.y, left: btCtxMenu.x, background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
+            style={{ position: 'fixed', ...clampMenuPos(btCtxMenu.x, btCtxMenu.y, 200, 70), background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 10000, minWidth: '180px', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', direction: 'rtl', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}
           >
             {activeBlockTableId === btCtxMenu.btId ? (
