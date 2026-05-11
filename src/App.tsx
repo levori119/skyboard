@@ -4884,8 +4884,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
                     {labelPts.map((lp: any, li: number) => (
                       <g key={li}>
-                        <circle cx={lp.x} cy={lp.y} r="3.2" fill={col} opacity="0.85" />
-                        <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="1.8" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                        <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
+                        <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
                       </g>
                     ))}
                     {r.notes && <title>{r.notes}</title>}
@@ -17409,8 +17409,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
                             <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
                             {labelPts.map((lp, li) => (
                               <g key={li}>
-                                <circle cx={lp.x} cy={lp.y} r="3.2" fill={col} opacity="0.85" />
-                                <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="1.8" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                                <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
+                                <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
                               </g>
                             ))}
                           </g>
