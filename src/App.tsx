@@ -5458,6 +5458,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [cardHovered, setCardHovered] = useState(false);
   const fieldLabel = (key: string) => {
     const found = CLASSIC_STRIP_FIELDS.find(f => f.key === key);
     return found ? found.label : key;
@@ -5502,6 +5503,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     <div
       draggable={!!onDragStart}
       onDragStart={onDragStart}
+      onMouseEnter={() => setCardHovered(true)}
+      onMouseLeave={() => { setCardHovered(false); setHoveredRow(null); }}
       style={{ border: `1.5px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', marginBottom: '5px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none', boxShadow: `0 2px 0 ${accent}` }}
     >
       {[0, 1, 2].map(i => {
@@ -5574,7 +5577,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
               </span>
             ) : (
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: (row.text_align || 'center') as any }}>
-                {val || (editableField && onUpdateField && hoveredRow === i
+                {val || (editableField && onUpdateField && cardHovered
                   ? <span style={{ color: lightMode ? '#94a3b8' : '#475569', fontStyle: 'italic' }}>{fieldLabel(editableField)}</span>
                   : '')}
               </span>
