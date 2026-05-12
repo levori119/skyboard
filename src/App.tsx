@@ -5366,8 +5366,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       // Whole-formation drag → transfer the whole strip directly (no dialog).
                       onTransfer(String(data.stripId), sec.id);
                     } else if (data.idx) {
-                      const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
-                      setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?', totalCount });
+                      // Single aircraft drag → transfer directly as individual aircraft (no dialog).
+                      onTransfer(String(data.stripId), sec.id, data.idx);
                     }
                   } catch {}
                 }}
