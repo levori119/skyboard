@@ -4637,21 +4637,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       );
                     })()}
                   </div>
-                  {/* Partial sibling merge button */}
-                  {(() => {
-                    if (!strip.parent_strip_id || !onMergePartial) return null;
-                    const siblings = strips.filter(s => s.parent_strip_id && String(s.parent_strip_id) === String(strip.parent_strip_id) && String(s.id) !== String(strip.id));
-                    if (siblings.length === 0) return null;
-                    return (
-                      <button
-                        title={'מזג עם הפמ"מ החלקי האח'}
-                        onClick={e => { e.stopPropagation(); onMergePartial(String(siblings[0].id), String(strip.id)); }}
-                        style={{ padding: '4px 7px', background: '#1d4ed8', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
-                      >
-                        ⊕מזג
-                      </button>
-                    );
-                  })()}
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
                     style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
