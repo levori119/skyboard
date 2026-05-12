@@ -197,6 +197,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_datk_filter INTEGER`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_status_filter JSONB`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_filter_mode VARCHAR(3)`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_panel_orders JSONB`);
   
   // Junction table for crew member approved workstations
   await pool.query(`
@@ -820,7 +821,7 @@ app.put('/api/crew-members/:id', async (req, res) => {
 
 app.patch('/api/crew-members/:id/preferences', async (req, res) => {
   try {
-    const { undo_duration_ms, ground_datk_filter, ground_status_filter, ground_filter_mode } = req.body;
+    const { undo_duration_ms, ground_datk_filter, ground_status_filter, ground_filter_mode, classic_panel_orders } = req.body;
     const fields = [];
     const values = [];
     let idx = 1;
@@ -828,6 +829,7 @@ app.patch('/api/crew-members/:id/preferences', async (req, res) => {
     if ('ground_datk_filter' in req.body) { fields.push(`ground_datk_filter = $${idx++}`); values.push(ground_datk_filter ?? null); }
     if ('ground_status_filter' in req.body) { fields.push(`ground_status_filter = $${idx++}`); values.push(ground_status_filter !== undefined ? JSON.stringify(ground_status_filter) : null); }
     if ('ground_filter_mode' in req.body) { fields.push(`ground_filter_mode = $${idx++}`); values.push(ground_filter_mode ?? null); }
+    if ('classic_panel_orders' in req.body) { fields.push(`classic_panel_orders = COALESCE(classic_panel_orders, '{}'::jsonb) || $${idx++}::jsonb`); values.push(classic_panel_orders !== undefined ? JSON.stringify(classic_panel_orders) : '{}'); }
     if (fields.length > 0) {
       values.push(req.params.id);
       await pool.query(`UPDATE crew_members SET ${fields.join(', ')} WHERE id = $${idx}`, values);

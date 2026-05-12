@@ -6137,12 +6137,14 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
   allSectors: any[]; lightMode: boolean;
   presetId?: number | string;
+  crewMemberId?: number | null;
+  initialPanelOrder?: { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] } | null;
   onTransfer: (stripId: string, toSectorId: number) => void;
   onTransferToPreset?: (stripId: string, toPresetId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
@@ -6160,19 +6162,45 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; transferId: string } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
-  // Section reorder (drag the section header ≡): persisted per-preset to localStorage.
-  // Stored as { rightPartners: number[], rightPoints: number[], leftPartners: number[], leftPoints: number[] } of IDs in user order.
+  // Section reorder (drag the section header ≡): persisted per-crew-member to the server,
+  // with localStorage as fallback. Stored as { rightPartners, rightPoints, leftPartners, leftPoints }.
   const orderKey = `sky_classic_panel_order_${presetId ?? 'global'}`;
-  const loadOrder = (key: string) => {
+  const loadOrder = (key: string, serverOrder?: { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] } | null) => {
+    if (serverOrder) return { rightPartners: [], rightPoints: [], leftPartners: [], leftPoints: [], ...serverOrder };
     try {
       const raw = localStorage.getItem(key);
       if (raw) return { rightPartners: [], rightPoints: [], leftPartners: [], leftPoints: [], ...JSON.parse(raw) };
     } catch {}
     return { rightPartners: [], rightPoints: [], leftPartners: [], leftPoints: [] };
   };
-  const [savedOrder, setSavedOrder] = useState<{ rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] }>(() => loadOrder(orderKey));
-  React.useEffect(() => { setSavedOrder(loadOrder(orderKey)); }, [orderKey]);
-  const persistOrder = (next: typeof savedOrder) => { setSavedOrder(next); try { localStorage.setItem(orderKey, JSON.stringify(next)); } catch {} };
+  const [savedOrder, setSavedOrder] = useState<{ rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] }>(() => loadOrder(orderKey, initialPanelOrder));
+  const isFirstOrderMount = React.useRef(true);
+  const isFirstCrewSwap = React.useRef(true);
+
+  // When presetId changes, reload order (server pref for this preset, then localStorage).
+  React.useEffect(() => { setSavedOrder(loadOrder(orderKey, initialPanelOrder)); }, [orderKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When crewMemberId changes (hot-swap), reload order from the new crew member's saved preference.
+  React.useEffect(() => {
+    if (isFirstCrewSwap.current) { isFirstCrewSwap.current = false; return; }
+    setSavedOrder(loadOrder(orderKey, initialPanelOrder));
+  }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist order to server and localStorage whenever it changes (skip initial mount).
+  React.useEffect(() => {
+    if (isFirstOrderMount.current) { isFirstOrderMount.current = false; return; }
+    try { localStorage.setItem(orderKey, JSON.stringify(savedOrder)); } catch {}
+    if (crewMemberId) {
+      const presetKey = String(presetId ?? 'global');
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classic_panel_orders: { [presetKey]: savedOrder } }),
+      }).catch(() => {});
+    }
+  }, [savedOrder]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const persistOrder = (next: typeof savedOrder) => { setSavedOrder(next); };
   const applyOrder = <I,>(items: I[], getKey: (item: I) => number, keys: number[]): I[] => {
     if (!keys.length) return items;
     const map = new Map<number, I>();
@@ -10888,6 +10916,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 allSectors={allSectors}
                 lightMode={lightMode}
                 presetId={session.presetId}
+                crewMemberId={session?.crewMember?.id ?? null}
+                initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
