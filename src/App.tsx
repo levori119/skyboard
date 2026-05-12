@@ -4338,6 +4338,49 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       }).catch(() => {});
     }
   }, [filterMode]);
+  // When the active crew member hot-swaps, reload their saved filter preferences
+  const isFirstCrewMemberMount = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstCrewMemberMount.current) { isFirstCrewMemberMount.current = false; return; }
+    // Load new crew member's datkFilter
+    const newDatk = (initialDatkFilter !== undefined && initialDatkFilter !== null)
+      ? initialDatkFilter
+      : (() => {
+          try {
+            const stored = localStorage.getItem('datkFilter');
+            if (stored === null || stored === 'null') return null;
+            const parsed = Number(stored);
+            return isNaN(parsed) ? null : parsed;
+          } catch { return null; }
+        })();
+    // Load new crew member's statusFilter
+    const validKeys = GROUND_STATUSES.map(s => s.key) as readonly string[];
+    const newStatus = (initialStatusFilter !== undefined && initialStatusFilter !== null && Array.isArray(initialStatusFilter))
+      ? [...new Set(initialStatusFilter.filter((k: unknown) => typeof k === 'string' && validKeys.includes(k as string)))] as string[]
+      : (() => {
+          try {
+            const stored = localStorage.getItem('groundStatusFilter');
+            if (!stored || stored === 'null') return [];
+            if (!stored.startsWith('[') && !stored.startsWith('"')) return validKeys.includes(stored) ? [stored] : [];
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) return [...new Set(parsed.filter((k: unknown) => typeof k === 'string' && validKeys.includes(k as string)))] as string[];
+            if (typeof parsed === 'string' && validKeys.includes(parsed)) return [parsed];
+            return [];
+          } catch { return []; }
+        })();
+    // Load new crew member's filterMode
+    const newMode: 'AND' | 'OR' = (initialFilterMode === 'AND' || initialFilterMode === 'OR')
+      ? initialFilterMode
+      : (() => {
+          try {
+            const stored = localStorage.getItem('groundFilterMode');
+            return stored === 'OR' ? 'OR' : 'AND';
+          } catch { return 'AND'; }
+        })();
+    setDatkFilter(newDatk);
+    setStatusFilter(newStatus);
+    setFilterMode(newMode);
+  }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
   const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [taxiInstModal, setTaxiInstModal] = React.useState<{ stripId: string; idx: number | null } | null>(null);
