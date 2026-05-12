@@ -2725,6 +2725,102 @@ app.put('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   }
 });
 
+// POST /api/strips/ground-single-transfer
+// Extracts one aircraft from a ground strip and creates a new 1-aircraft strip ready for transfer.
+// Body: { sourceStripId, aircraftIdx }
+// Returns: { newStripId, remaining, sourceDeleted }
+app.post('/api/strips/ground-single-transfer', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { sourceStripId, aircraftIdx } = req.body;
+    const rawId = parseInt(String(sourceStripId).replace(/^s/, ''));
+    const aidx = parseInt(String(aircraftIdx));
+    if (isNaN(rawId) || isNaN(aidx) || aidx < 1) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Invalid sourceStripId or aircraftIdx' });
+    }
+
+    const srcRow = await client.query('SELECT * FROM strips WHERE id=$1', [rawId]);
+    if (srcRow.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Source strip not found' });
+    }
+    const src = srcRow.rows[0];
+
+    // Get the strip_aircraft row for this aircraft (datk/kipa)
+    const saRow = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, aidx]);
+    const sa = saRow.rows[0] || null;
+
+    // Determine parent tracking
+    const rootParentId = src.parent_strip_id || src.id;
+    const origCount = src.original_formation_count || parseInt(src.number_of_formation || '1') || 1;
+    const srcIndices = Array.isArray(src.aircraft_indices)
+      ? src.aircraft_indices
+      : (src.aircraft_indices ? (() => { try { return JSON.parse(src.aircraft_indices); } catch { return null; } })() : null)
+        || Array.from({ length: origCount }, (_, i) => i + 1);
+
+    // Create new 1-aircraft strip (clone of source fields)
+    const newRes = await client.query(
+      `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time,
+         number_of_formation, erka, koteret, mivtza, notes, status, workstation_preset_id,
+         in_table, parent_strip_id, aircraft_indices, original_formation_count)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,'active',$12,true,$13,$14,$15)
+       RETURNING id`,
+      [
+        src.callsign, src.sq, src.alt, src.task, src.squadron,
+        src.sector_id, src.takeoff_time,
+        src.erka, src.koteret, src.mivtza, src.notes,
+        src.workstation_preset_id,
+        rootParentId, JSON.stringify([aidx]), origCount
+      ]
+    );
+    const newStripId = newRes.rows[0].id;
+
+    // Copy strip_aircraft row to new strip with sequential idx=1
+    if (sa) {
+      await client.query(
+        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,1,$2,$3) ON CONFLICT DO NOTHING',
+        [newStripId, sa.datk, sa.kipa]
+      );
+    }
+
+    // Remove the aircraft from the source strip_aircraft and renumber
+    await client.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, aidx]);
+    await client.query('UPDATE strip_aircraft SET idx = idx - 1 WHERE strip_id=$1 AND idx > $2', [rawId, aidx]);
+
+    // Decrement source or delete if last aircraft
+    const newCount = Math.max(0, (parseInt(src.number_of_formation || '1') || 1) - 1);
+    let sourceDeleted = false;
+    if (newCount <= 0) {
+      await client.query('DELETE FROM strips WHERE id=$1', [rawId]);
+      sourceDeleted = true;
+    } else {
+      const remainingIndices = srcIndices.filter(i => i !== aidx);
+      const srcPositions = Array.isArray(src.aircraft_positions)
+        ? src.aircraft_positions
+        : (src.aircraft_positions ? (() => { try { return JSON.parse(src.aircraft_positions); } catch { return []; } })() : []);
+      const remainingPositions = srcPositions
+        .filter(p => p.idx !== aidx)
+        .map((p, i) => ({ ...p, idx: i + 1 }));
+      await client.query(
+        `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, aircraft_positions=$3,
+           parent_strip_id=$4, original_formation_count=$5 WHERE id=$6`,
+        [String(newCount), JSON.stringify(remainingIndices), JSON.stringify(remainingPositions), rootParentId, origCount, rawId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ newStripId: 's' + newStripId, remaining: newCount, sourceDeleted });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error in ground-single-transfer:', err);
+    res.status(500).json({ error: 'Failed to extract aircraft from ground strip' });
+  } finally {
+    client.release();
+  }
+});
+
 // POST create a new strip directly from ground workstation
 app.post('/api/strips/ground-create', async (req, res) => {
   try {

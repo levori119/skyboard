@@ -9137,11 +9137,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return handleTransfer(stripId, toSectorId);
     }
     try {
-      // Get strip info before deletion for the transfer log
-      const strip = strips.find(s => String(s.id) === String(stripId));
-      const callSign = strip?.callSign || strip?.callsign || '?';
-      const totalBefore = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
-
       const sid = parseInt(String(stripId).replace(/^s/, ''));
       const aidx = parseInt(String(aircraftIdx));
       if (isNaN(sid) || isNaN(aidx) || aidx < 1) {
@@ -9149,16 +9144,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
 
-      const res = await fetch(`${API_URL}/strip-aircraft/${sid}/${aidx}`, { method: 'DELETE' });
+      // Create a real 1-aircraft strip from the ground strip, then transfer it
+      const res = await fetch(`${API_URL}/strips/ground-single-transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceStripId: String(sid), aircraftIdx: aidx })
+      });
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        console.error('Failed to remove aircraft:', errData);
-        return; // Do NOT fall through to full-strip transfer on error
+        console.error('ground-single-transfer failed:', await res.text());
+        return;
       }
-      const data = await res.json();
-      const remaining: number = typeof data.numberOfFormation === 'number' ? data.numberOfFormation : parseInt(String(data.numberOfFormation || '0')) || 0;
+      const { newStripId, remaining, sourceDeleted } = await res.json();
 
-      // Renumber groundStripAircraft: remove the deleted idx, shift higher indices down
+      // Optimistic UI: remove the aircraft row from groundStripAircraft and renumber
       setGroundStripAircraft(prev => {
         const rows = (prev[String(sid)] || [])
           .filter(r => r.idx !== aidx)
@@ -9166,25 +9164,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return { ...prev, [String(sid)]: rows };
       });
 
-      // Update local strips state with server response (renumbered aircraft_positions)
-      setStrips(prev => prev.map(s => {
-        if (parseInt(String(s.id).replace(/^s/, '')) !== sid) return s;
-        return { ...s, numberOfFormation: String(remaining), aircraft_positions: data.aircraftPositions || [] };
-      }));
-
-      if (remaining <= 0) {
-        // Last aircraft — transfer the whole strip
-        await handleTransfer(stripId, toSectorId);
+      // Optimistic UI: update source strip count (or remove it if deleted)
+      if (sourceDeleted) {
+        setStrips(prev => prev.filter(s => parseInt(String(s.id).replace(/^s/, '')) !== sid));
       } else {
-        // Record single-aircraft transfer for display in the sector panel
-        setGroundSingleTransfers(prev => [
-          ...prev,
-          { sectorId: toSectorId, callSign, aircraftIdx, totalCount: totalBefore }
-        ]);
-        loadData();
+        setStrips(prev => prev.map(s => {
+          if (parseInt(String(s.id).replace(/^s/, '')) !== sid) return s;
+          return { ...s, numberOfFormation: String(remaining) };
+        }));
       }
+
+      // Transfer the newly created partial strip to the target sector
+      await handleTransfer(newStripId, toSectorId);
+      await loadData();
     } catch (err) {
-      console.error('Failed to remove single aircraft:', err);
+      console.error('Failed to transfer single aircraft from ground:', err);
     }
   };
 
