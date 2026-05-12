@@ -4377,9 +4377,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             return stored === 'OR' ? 'OR' : 'AND';
           } catch { return 'AND'; }
         })();
+    // Load new crew member's undoDurationMs
+    const UNDO_OPTS = [3000, 6000, 10000] as const;
+    const newUndo = (initialUndoDurationMs && (UNDO_OPTS as readonly number[]).includes(initialUndoDurationMs))
+      ? initialUndoDurationMs
+      : (() => {
+          try {
+            const stored = localStorage.getItem('groundUndoDurationMs');
+            if (stored) {
+              const parsed = Number(stored);
+              if ((UNDO_OPTS as readonly number[]).includes(parsed)) return parsed;
+            }
+          } catch { /* ignore */ }
+          return 6000;
+        })();
     setDatkFilter(newDatk);
     setStatusFilter(newStatus);
     setFilterMode(newMode);
+    setUndoDurationMs(newUndo);
   }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
   const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
