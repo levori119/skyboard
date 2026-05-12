@@ -9213,6 +9213,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
 
+      // Capture strip info before modifying state
+      const sourceStrip = strips.find(s => parseInt(String(s.id).replace(/^s/, '')) === sid);
+      const xferCallSign = sourceStrip?.callSign || sourceStrip?.callsign || '?';
+      const xferTotalCount = parseInt(sourceStrip?.numberOfFormation ?? sourceStrip?.number_of_formation ?? '1') || 1;
+
       // Create a real 1-aircraft strip from the ground strip, then transfer it
       const res = await fetch(`${API_URL}/strips/ground-single-transfer`, {
         method: 'POST',
@@ -9232,6 +9237,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .map(r => r.idx > aidx ? { ...r, idx: r.idx - 1 } : r);
         return { ...prev, [String(sid)]: rows };
       });
+
+      // Track this aircraft as transferred (for the אוק indicator on the strip card)
+      if (sourceDeleted) {
+        // Whole strip is gone — clear all transfer indicators for it
+        setGroundSingleTransfers(prev => prev.filter(t => t.callSign !== xferCallSign));
+      } else {
+        setGroundSingleTransfers(prev => [...prev, { sectorId: toSectorId, callSign: xferCallSign, aircraftIdx: aidx, totalCount: xferTotalCount }]);
+      }
 
       // Optimistic UI: update source strip count (or remove it if deleted)
       if (sourceDeleted) {
