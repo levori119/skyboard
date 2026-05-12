@@ -4603,6 +4603,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
                       {strip.aircraft_indices && <span style={{ fontSize: '9px', background: '#92400e', color: '#fcd34d', borderRadius: '4px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חלקי</span>}
+                      {(() => {
+                        const transferred = [...new Set((singleTransfers || []).filter(t => t.callSign === callSign).map(t => t.aircraftIdx))];
+                        if (transferred.length === 0) return null;
+                        const allDone = count > 0 && transferred.length >= count;
+                        return (
+                          <span style={{ fontSize: '10px', background: '#14532d', color: '#86efac', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                            ✈️ אוק{allDone ? '' : ' ' + transferred.sort((a, b) => a - b).join(' ')}
+                          </span>
+                        );
+                      })()}
                     </div>
                     {/* Per-aircraft datk/kipa badges shown in collapsed view */}
                     {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
