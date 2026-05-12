@@ -734,6 +734,11 @@ async function initDb() {
     created_at TIMESTAMP DEFAULT NOW()
   )`);
 
+  // Partial formation support
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_indices JSONB DEFAULT NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS original_formation_count INTEGER DEFAULT NULL`);
+
   console.log('Database initialized');
 }
 
@@ -1647,39 +1652,73 @@ app.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
 });
 
 app.post('/api/transfers/:id/accept', async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN');
     const transferId = req.params.id;
     
-    const transfer = await pool.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
+    const transfer = await client.query('SELECT * FROM strip_transfers WHERE id = $1', [transferId]);
     if (transfer.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
     const { strip_id, to_sector_id, to_workstation_id, target_x, target_y, to_preset_id } = transfer.rows[0];
-    // receivingPresetId is sent by the client (session.presetId) so we always know which workstation is accepting
     const { receivingPresetId } = req.body || {};
     const assignedPresetId = receivingPresetId || to_preset_id || to_workstation_id || null;
-    
-    if (to_preset_id) {
-      // Classic preset-to-preset transfer: assign strip to receiving workstation
-      await pool.query('UPDATE strips SET status = $1, workstation_preset_id = $2, in_table = true WHERE id = $3', ['active', assignedPresetId, strip_id]);
-    } else {
-      // Standard sector-based transfer: move strip to target sector and assign to receiving workstation
-      await pool.query(
-        'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
-        [to_sector_id, 'queued', false, target_x || 0, target_y || 0, assignedPresetId, assignedPresetId, strip_id]
+
+    // Check if incoming strip is a partial and if a sibling partial already exists at destination
+    const incomingStrip = (await client.query('SELECT * FROM strips WHERE id=$1', [strip_id])).rows[0];
+    let mergedIntoId = null;
+    if (incomingStrip && incomingStrip.parent_strip_id) {
+      // Look for another partial of the same parent already at the receiving workstation
+      const sibling = await client.query(
+        `SELECT * FROM strips WHERE parent_strip_id=$1 AND id!=$2 AND workstation_preset_id=$3 AND status NOT IN ('pending_transfer','deleted')`,
+        [incomingStrip.parent_strip_id, strip_id, assignedPresetId]
       );
+      if (sibling.rows.length > 0) {
+        // Auto-merge incoming into existing sibling
+        const sibId = sibling.rows[0].id;
+        const parseIdx = (r) => {
+          if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
+          if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
+          return null;
+        };
+        const sibIdx = parseIdx(sibling.rows[0]) || Array.from({ length: parseInt(sibling.rows[0].number_of_formation||'1')||1 }, (_,i)=>i+1);
+        const incIdx = parseIdx(incomingStrip) || Array.from({ length: parseInt(incomingStrip.number_of_formation||'1')||1 }, (_,i)=>i+1);
+        const combinedIdx = [...new Set([...sibIdx, ...incIdx])].sort((a,b)=>a-b);
+        const origCount = sibling.rows[0].original_formation_count || incomingStrip.original_formation_count;
+        const isFull = origCount !== null && combinedIdx.length >= origCount;
+        const mergedNotes = [sibling.rows[0].notes, incomingStrip.notes].filter(Boolean).join('\n---\n');
+        await client.query(
+          `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3, parent_strip_id=$4, notes=$5 WHERE id=$6`,
+          [String(combinedIdx.length), isFull ? null : JSON.stringify(combinedIdx), isFull ? null : origCount, isFull ? null : incomingStrip.parent_strip_id, mergedNotes || null, sibId]
+        );
+        await client.query('DELETE FROM strips WHERE id=$1', [strip_id]);
+        mergedIntoId = 's' + sibId;
+      }
+    }
+
+    if (!mergedIntoId) {
+      if (to_preset_id) {
+        await client.query('UPDATE strips SET status=$1, workstation_preset_id=$2, in_table=true WHERE id=$3', ['active', assignedPresetId, strip_id]);
+      } else {
+        await client.query(
+          'UPDATE strips SET sector_id=$1, status=$2, on_map=$3, x=$4, y=$5, held_by_workstation=$6, workstation_preset_id=$7, in_table=true WHERE id=$8',
+          [to_sector_id, 'queued', false, target_x||0, target_y||0, assignedPresetId, assignedPresetId, strip_id]
+        );
+      }
     }
     
-    await pool.query(
-      'UPDATE strip_transfers SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      ['accepted', transferId]
-    );
-    
-    res.json({ success: true });
+    await client.query('UPDATE strip_transfers SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', ['accepted', transferId]);
+    await client.query('COMMIT');
+    res.json({ success: true, mergedIntoId });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error accepting transfer:', err);
     res.status(500).json({ error: 'Failed to accept transfer' });
+  } finally {
+    client.release();
   }
 });
 
@@ -2039,7 +2078,10 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
       aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
-      ground_status: r.ground_status || 'none'
+      ground_status: r.ground_status || 'none',
+      parent_strip_id: r.parent_strip_id || null,
+      aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
+      original_formation_count: r.original_formation_count || null
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
@@ -2080,7 +2122,10 @@ app.get('/api/strips/global', async (req, res) => {
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
       aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
-      ground_status: r.ground_status || 'none'
+      ground_status: r.ground_status || 'none',
+      parent_strip_id: r.parent_strip_id || null,
+      aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
+      original_formation_count: r.original_formation_count || null
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);
@@ -2779,6 +2824,201 @@ app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to remove aircraft' });
+  }
+});
+
+// ─── Partial Formation API ─────────────────────────────────────────────────
+
+// POST /api/strips/partial-create
+// Creates a new partial-formation strip from a subset of aircraft of an existing strip.
+// Body: { sourceStripId, aircraftIndices: number[], workstation_preset_id?, sector_id? }
+// The source strip's aircraft_indices and number_of_formation are updated to reflect removal.
+// Returns: { partialStripId, partialStrip, sourceStrip }
+app.post('/api/strips/partial-create', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { sourceStripId, aircraftIndices, workstation_preset_id, sector_id } = req.body;
+    if (!sourceStripId || !Array.isArray(aircraftIndices) || aircraftIndices.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'sourceStripId and aircraftIndices[] required' });
+    }
+    const rawId = parseInt(String(sourceStripId).replace(/^s/, ''));
+    const srcRow = await client.query('SELECT * FROM strips WHERE id=$1', [rawId]);
+    if (srcRow.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Source strip not found' }); }
+    const src = srcRow.rows[0];
+
+    // Determine root parent and original count
+    const rootParentId = src.parent_strip_id || src.id;
+    const origCount = src.original_formation_count || parseInt(src.number_of_formation || '1') || 1;
+    const srcIndices = Array.isArray(src.aircraft_indices)
+      ? src.aircraft_indices
+      : (src.aircraft_indices ? (() => { try { return JSON.parse(src.aircraft_indices); } catch { return null; } })() : null)
+      || Array.from({ length: origCount }, (_, i) => i + 1);
+
+    // Filter requested indices to only valid ones present in source
+    const validIndices = aircraftIndices.map(Number).filter(n => srcIndices.includes(n));
+    if (validIndices.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'No valid aircraft indices' }); }
+
+    // Remaining indices stay in source
+    const remainingIndices = srcIndices.filter(i => !validIndices.includes(i));
+
+    // Build aircraft_positions for partial (only selected indices)
+    const srcPositions = Array.isArray(src.aircraft_positions)
+      ? src.aircraft_positions
+      : (src.aircraft_positions ? (() => { try { return JSON.parse(src.aircraft_positions); } catch { return []; } })() : []);
+    const partialPositions = srcPositions.filter(p => validIndices.includes(p.idx));
+    const remainingPositions = srcPositions.filter(p => remainingIndices.includes(p.idx));
+
+    // Merge notes helper
+    const mergeNotes = (a, b) => [a, b].filter(Boolean).join('\n---\n');
+
+    // Create the partial strip (clone of source)
+    const partialResult = await client.query(
+      `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
+        erka, koteret, mivtza, notes, status, workstation_preset_id, in_table,
+        parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,true,$14,$15,$16,$17)
+       RETURNING id`,
+      [
+        src.callsign, src.sq, src.alt, src.task, src.squadron,
+        sector_id || src.sector_id, src.takeoff_time,
+        String(validIndices.length),
+        src.erka, src.koteret, src.mivtza, src.notes,
+        workstation_preset_id || src.workstation_preset_id,
+        rootParentId, JSON.stringify(validIndices), origCount,
+        JSON.stringify(partialPositions)
+      ]
+    );
+    const partialStripId = partialResult.rows[0].id;
+
+    // Copy strip_aircraft rows for selected indices
+    for (const idx of validIndices) {
+      const sa = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, idx]);
+      if (sa.rows.length > 0) {
+        await client.query(
+          'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+          [partialStripId, idx, sa.rows[0].datk, sa.rows[0].kipa]
+        );
+      }
+    }
+
+    // Update source strip: remove transferred aircraft
+    if (remainingIndices.length === 0) {
+      // All aircraft transferred — delete source strip
+      await client.query('DELETE FROM strips WHERE id=$1', [rawId]);
+    } else {
+      await client.query(
+        `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, aircraft_positions=$3,
+          parent_strip_id=$4, original_formation_count=$5 WHERE id=$6`,
+        [
+          String(remainingIndices.length),
+          JSON.stringify(remainingIndices),
+          JSON.stringify(remainingPositions),
+          rootParentId, origCount, rawId
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ partialStripId: 's' + partialStripId, sourceDeleted: remainingIndices.length === 0 });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating partial strip:', err);
+    res.status(500).json({ error: 'Failed to create partial strip' });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /api/strips/:id/merge-partial
+// Merges another partial strip (sourceStripId) INTO this strip (target = :id).
+// Combines aircraft_indices, notes. If combined = original_formation_count → becomes full formation.
+// Body: { sourceStripId }
+app.post('/api/strips/:id/merge-partial', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const targetId = parseInt(req.params.id.replace(/^s/, ''));
+    const rawSourceId = parseInt(String(req.body.sourceStripId || '').replace(/^s/, ''));
+    if (isNaN(targetId) || isNaN(rawSourceId)) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Invalid IDs' }); }
+
+    const [tRow, sRow] = await Promise.all([
+      client.query('SELECT * FROM strips WHERE id=$1', [targetId]),
+      client.query('SELECT * FROM strips WHERE id=$1', [rawSourceId])
+    ]);
+    if (tRow.rows.length === 0 || sRow.rows.length === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Strip not found' }); }
+
+    const target = tRow.rows[0];
+    const source = sRow.rows[0];
+
+    const parseIndices = (r) => {
+      if (Array.isArray(r.aircraft_indices)) return r.aircraft_indices;
+      if (r.aircraft_indices) { try { return JSON.parse(r.aircraft_indices); } catch { return null; } }
+      return null;
+    };
+    const parsePositions = (r) => {
+      if (Array.isArray(r.aircraft_positions)) return r.aircraft_positions;
+      if (r.aircraft_positions) { try { return JSON.parse(r.aircraft_positions); } catch { return []; } }
+      return [];
+    };
+
+    const origCount = target.original_formation_count || source.original_formation_count || null;
+    const tIdx = parseIndices(target) || Array.from({ length: parseInt(target.number_of_formation || '1') || 1 }, (_, i) => i + 1);
+    const sIdx = parseIndices(source) || Array.from({ length: parseInt(source.number_of_formation || '1') || 1 }, (_, i) => i + 1);
+    const combinedIdx = [...new Set([...tIdx, ...sIdx])].sort((a, b) => a - b);
+
+    // Merge aircraft_positions
+    const tPos = parsePositions(target);
+    const sPos = parsePositions(source);
+    const combinedPos = [...tPos, ...sPos.filter(sp => !tPos.find(tp => tp.idx === sp.idx))];
+
+    // Merge notes
+    const mergedNotes = [target.notes, source.notes].filter(Boolean).join('\n---\n');
+
+    // Check serial match for datk note
+    const tSa = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1', [targetId]);
+    const sSa = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1', [rawSourceId]);
+    const allDatk = [...tSa.rows, ...sSa.rows].map(r => r.datk).filter(d => d !== null && d !== undefined);
+    const datkmMismatch = allDatk.length > 0 && new Set(allDatk).size > 1;
+    const finalNotes = datkmMismatch ? (mergedNotes ? mergedNotes + '\nלא כל המטוסים מעודכנים' : 'לא כל המטוסים מעודכנים') : mergedNotes;
+
+    // Is full formation?
+    const isFull = origCount !== null && combinedIdx.length >= origCount;
+
+    await client.query(
+      `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, original_formation_count=$3,
+        parent_strip_id=$4, aircraft_positions=$5, notes=$6 WHERE id=$7`,
+      [
+        String(combinedIdx.length),
+        isFull ? null : JSON.stringify(combinedIdx),
+        isFull ? null : origCount,
+        isFull ? null : (target.parent_strip_id || source.parent_strip_id),
+        JSON.stringify(combinedPos),
+        finalNotes || null,
+        targetId
+      ]
+    );
+
+    // Copy source strip_aircraft rows to target (skip if already present)
+    for (const sa of sSa.rows) {
+      await client.query(
+        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        [targetId, sa.idx, sa.datk, sa.kipa]
+      );
+    }
+
+    // Delete source strip
+    await client.query('DELETE FROM strips WHERE id=$1', [rawSourceId]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, isFull, combinedIndices: combinedIdx });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error merging partial strips:', err);
+    res.status(500).json({ error: 'Failed to merge partial strips' });
+  } finally {
+    client.release();
   }
 });
 

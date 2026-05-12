@@ -3213,7 +3213,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             fontSize: '11px',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
             ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '3px', padding: '0 3px' } : {})
-          }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
+          }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>⬡חלקי</span> : null}</div>
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
         </div>
         {/* שורה 2: משימה + זמן המראה */}
@@ -3707,7 +3707,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
             <div style={{ width: 35, background: '#1e293b', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '20px' }}>⋮</div>
             <div style={{ padding: '8px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}</div>
                 <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '3px' }}>{s.sq}</div>
               </div>
               {(!s.sq && s.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>{s.squadron}</div>}
@@ -4202,7 +4202,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4234,6 +4234,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
+  onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
@@ -4543,6 +4544,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
+                      {strip.aircraft_indices && <span style={{ fontSize: '9px', background: '#92400e', color: '#fcd34d', borderRadius: '4px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חלקי</span>}
                     </div>
                     {/* Per-aircraft datk/kipa badges shown in collapsed view */}
                     {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
@@ -4577,6 +4579,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       );
                     })()}
                   </div>
+                  {/* Partial sibling merge button */}
+                  {(() => {
+                    if (!strip.parent_strip_id || !onMergePartial) return null;
+                    const siblings = strips.filter(s => s.parent_strip_id && String(s.parent_strip_id) === String(strip.parent_strip_id) && String(s.id) !== String(strip.id));
+                    if (siblings.length === 0) return null;
+                    return (
+                      <button
+                        title={'מזג עם הפמ"מ החלקי האח'}
+                        onClick={e => { e.stopPropagation(); onMergePartial(String(siblings[0].id), String(strip.id)); }}
+                        style={{ padding: '4px 7px', background: '#1d4ed8', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
+                      >
+                        ⊕מזג
+                      </button>
+                    );
+                  })()}
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
                     style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
@@ -7355,6 +7372,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
  */
 // Normalize an altitude string: strip FL prefix, collapse spaces around dash
 // e.g. "FL340" → "340", "FL340 - FL360" → "340-360", "340  -  360" → "340-360"
+const getFormationDisplayName = (strip: any): string => {
+  const base = strip.callSign || strip.callsign || '';
+  const indices: number[] | null = Array.isArray(strip.aircraft_indices) ? strip.aircraft_indices : null;
+  if (!indices || indices.length === 0) return base;
+  return `${base} ${[...indices].sort((a, b) => a - b).join('+')}`;
+};
+
 const normalizeAlt = (raw: string): string => {
   if (!raw) return raw;
   const s = raw.trim();
@@ -7727,6 +7751,65 @@ const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: any; bl
   );
 };
 
+// --- Partial Transfer Modal ---
+const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit }: {
+  strip: any;
+  selectedIndices: number[];
+  onToggleIndex: (idx: number) => void;
+  onCancel: () => void;
+  onTransferAll: () => void;
+  onSubmit: () => void;
+}) => {
+  const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+  const availableIndices: number[] = Array.isArray(strip?.aircraft_indices)
+    ? [...(strip.aircraft_indices as number[])].sort((a, b) => a - b)
+    : Array.from({ length: totalCount }, (_, i) => i + 1);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '28px 24px', minWidth: '320px', maxWidth: '440px', direction: 'rtl', color: 'white', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה חלקית</div>
+        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
+          {getFormationDisplayName(strip)} — בחר מטוסים להעברה
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '18px' }}>
+          {availableIndices.map(idx => {
+            const sel = selectedIndices.includes(idx);
+            return (
+              <button key={idx} onClick={() => onToggleIndex(idx)} style={{
+                width: '52px', height: '52px', borderRadius: '8px',
+                border: `2px solid ${sel ? '#3b82f6' : '#475569'}`,
+                background: sel ? '#1d4ed8' : '#334155',
+                color: sel ? 'white' : '#94a3b8',
+                cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
+              }}>{idx}</button>
+            );
+          })}
+        </div>
+
+        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '20px', textAlign: 'center' }}>
+          {selectedIndices.length} / {availableIndices.length} מטוסים נבחרו
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ background: '#334155', border: 'none', color: '#94a3b8', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+          <button onClick={onTransferAll} style={{ background: '#475569', border: 'none', color: 'white', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>העבר הכל</button>
+          <button onClick={onSubmit} disabled={selectedIndices.length === 0} style={{
+            background: selectedIndices.length === 0 ? '#1e293b' : '#1d4ed8',
+            border: 'none', color: selectedIndices.length === 0 ? '#475569' : 'white',
+            padding: '9px 18px', borderRadius: '7px',
+            cursor: selectedIndices.length === 0 ? 'default' : 'pointer',
+            fontSize: '13px', fontWeight: 'bold'
+          }}>
+            העברה חלקית ({selectedIndices.length})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
@@ -7772,6 +7855,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
+  const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
+  const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
@@ -8943,6 +9028,66 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
   handleTransferRef.current = handleTransfer;
+
+  const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
+    const strip = strips.find((s: any) => String(s.id) === String(stripId));
+    const count = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+    if (count > 1) {
+      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: count }, (_, i) => i + 1);
+      setPartialSelectedIndices(indices);
+      setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
+    } else {
+      handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
+    }
+  };
+
+  const handlePartialTransferAll = async () => {
+    if (!partialTransferModal) return;
+    const { stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId } = partialTransferModal;
+    setPartialTransferModal(null);
+    await handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
+  };
+
+  const handlePartialTransferSubmit = async () => {
+    if (!partialTransferModal || partialSelectedIndices.length === 0) return;
+    const { stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId } = partialTransferModal;
+    const totalCount = parseInt(partialTransferModal.strip?.numberOfFormation ?? partialTransferModal.strip?.number_of_formation ?? '1') || 1;
+    const availableCount = Array.isArray(partialTransferModal.strip?.aircraft_indices)
+      ? (partialTransferModal.strip.aircraft_indices as number[]).length
+      : totalCount;
+    if (partialSelectedIndices.length === availableCount) {
+      await handlePartialTransferAll();
+      return;
+    }
+    setPartialTransferModal(null);
+    try {
+      const res = await fetch(`${API_URL}/strips/partial-create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { newStripId } = await res.json();
+      await loadData();
+      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
+    } catch (err) {
+      console.error('Partial create failed:', err);
+    }
+  };
+
+  const handleMergePartial = async (targetStripId: string, sourceStripId: string) => {
+    try {
+      const res = await fetch(`${API_URL}/strips/${targetStripId}/merge-partial`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceStripId })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await loadData();
+    } catch (err) {
+      console.error('Merge partial failed:', err);
+    }
+  };
 
   const handleGroundTransfer = async (stripId: string, toSectorId: number, aircraftIdx?: number) => {
     if (aircraftIdx === undefined) {
@@ -10560,7 +10705,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransfer(stripId, sectorId); setTableDragRow(null); } : undefined}
+                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
@@ -10650,6 +10795,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
+                onMergePartial={handleMergePartial}
               />
             );
           })()}
@@ -12033,7 +12179,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
                 neighbors={allSectors}
-                onTransfer={handleTransfer}
+                onTransfer={handleTransferWithPartialCheck}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
                 onUpdateDetails={handleUpdateStripDetails}
@@ -12053,6 +12199,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               />
             ))}
             
+            {/* Partial Formation Merge Overlay (T006) — merge button for map-mode sibling partial strips */}
+            {(() => {
+              const mapPartials = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && s.parent_strip_id && Array.isArray(s.aircraft_indices));
+              if (mapPartials.length < 2) return null;
+              return mapPartials.map(s => {
+                const siblings = mapPartials.filter(t => String(t.parent_strip_id) === String(s.parent_strip_id) && String(t.id) !== String(s.id));
+                if (siblings.length === 0) return null;
+                const px = (s.x || 0) * mapZoom + mapPan.x;
+                const py = (s.y || 0) * mapZoom + mapPan.y;
+                return (
+                  <div key={`merge-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 24, zIndex: 500, pointerEvents: 'all' }}>
+                    <button
+                      title={`מזג עם פמ"מ חלקי אח (${getFormationDisplayName(siblings[0])})`}
+                      onClick={() => handleMergePartial(String(siblings[0].id), String(s.id))}
+                      style={{ background: '#1d4ed8', border: '1px solid #3b82f6', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                    >
+                      ⊕מזג
+                    </button>
+                  </div>
+                );
+              });
+            })()}
+
             {/* Markers Layer */}
             {neighborMarkers.map((marker, idx) => (
               <DraggableMapMarker
@@ -18578,6 +18747,18 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
+
+      {/* Partial Formation Transfer Modal */}
+      {partialTransferModal && (
+        <PartialTransferModal
+          strip={partialTransferModal.strip}
+          selectedIndices={partialSelectedIndices}
+          onToggleIndex={(idx: number) => setPartialSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
+          onCancel={() => setPartialTransferModal(null)}
+          onTransferAll={handlePartialTransferAll}
+          onSubmit={handlePartialTransferSubmit}
+        />
+      )}
 
     </div>
   );
