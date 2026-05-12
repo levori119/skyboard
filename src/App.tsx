@@ -8360,6 +8360,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground';
 
+  // Derived from preset: parent base and pressure update rights
+  const parentBaseId: number | null = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
+  const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
+
+  // Load pressure from DB and poll every 5s when a parent base is configured
+  useEffect(() => {
+    if (!parentBaseId) return;
+    let cancelled = false;
+    const load = () => fetch(`${API_URL}/base-pressure/${parentBaseId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled && data?.pressure_inhg != null) setPressureInHg(parseFloat(data.pressure_inhg).toFixed(2)); })
+      .catch(() => {});
+    load();
+    const iv = setInterval(load, 5000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [parentBaseId]);
+
+  // Save pressure to DB (debounced 800ms) when authorized updater changes it
+  useEffect(() => {
+    if (!parentBaseId || !canUpdatePressure || !pressureInHg || isNaN(parseFloat(pressureInHg))) return;
+    const t = setTimeout(() => {
+      fetch(`${API_URL}/base-pressure/${parentBaseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pressure_inhg: parseFloat(pressureInHg) })
+      }).catch(() => {});
+    }, 800);
+    return () => clearTimeout(t);
+  }, [pressureInHg, parentBaseId, canUpdatePressure]);
+
   // Cross-sector altitude conflict detection: compare ALL transfers (outgoing + incoming)
   // against each other across all sectors. Any pair within conflict_alt_delta → both flagged.
   const crossSectorConflictIds = React.useMemo(() => {
@@ -9918,8 +9948,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
           {/* Pressure field */}
           <div
-            onClick={() => !pressureEditing && setPressureEditing(true)}
-            title="לחץ אטמוספרי — לחץ לעריכה"
+            onClick={() => !pressureEditing && (canUpdatePressure || !parentBaseId) && setPressureEditing(true)}
+            title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
             style={{ display: 'flex', alignItems: 'center', gap: '5px', background: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#0c1a30' : '#1e293b', border: `2px solid ${pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : 'pointer', minWidth: '130px' }}
           >
             <span style={{ fontSize: '12px' }}>🌡</span>
@@ -15245,6 +15275,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     show_base_statuses: false as boolean,
     base_status_ids: [] as number[],
     preset_role: '' as string,
+    parent_base_id: '' as string | number,
+    can_update_pressure: false as boolean,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -15523,6 +15555,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           show_base_statuses: presetForm.show_base_statuses === true,
           base_status_ids: presetForm.base_status_ids || [],
           preset_role: presetForm.preset_role || null,
+          parent_base_id: presetForm.parent_base_id || null,
+          can_update_pressure: presetForm.can_update_pressure === true,
         })
       });
       if (!res.ok) {
@@ -15536,7 +15570,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false });
       } else if (saved) {
         editPreset(saved);
       }
@@ -15577,6 +15611,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       show_base_statuses: preset.show_base_statuses === true,
       base_status_ids: Array.isArray(preset.base_status_ids) ? preset.base_status_ids.map(Number) : [],
       preset_role: preset.preset_role || '',
+      parent_base_id: preset.parent_base_id?.toString() || '',
+      can_update_pressure: preset.can_update_pressure === true,
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -15666,7 +15702,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], parent_base_id: '', can_update_pressure: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -15676,7 +15712,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -15975,6 +16011,34 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   )}
                 </div>
 
+                {/* Parent Base — shared atmospheric pressure */}
+                <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🏢 בסיס אב (לחץ אטמוספרי משותף):</label>
+                  <select
+                    value={presetForm.parent_base_id || ''}
+                    onChange={e => setPresetForm(p => ({ ...p, parent_base_id: e.target.value || '', can_update_pressure: e.target.value ? p.can_update_pressure : false }))}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '13px', marginBottom: '8px' }}
+                  >
+                    <option value="">— ללא בסיס אב —</option>
+                    {adminBaseStatuses.map((bs: any) => (
+                      <option key={bs.id} value={bs.id}>{bs.name}{bs.code ? ` (${bs.code})` : ''}</option>
+                    ))}
+                  </select>
+                  {presetForm.parent_base_id && (
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl', alignItems: 'center', marginTop: '6px' }}>
+                      <span style={{ fontSize: '12px', color: '#94a3b8', flexShrink: 0 }}>הרשאת עדכון לחץ:</span>
+                      {([{ val: true, label: '✏️ מעדכן' }, { val: false, label: '👁 קורא בלבד' }] as { val: boolean; label: string }[]).map(opt => (
+                        <button key={String(opt.val)} type="button"
+                          onClick={() => setPresetForm(p => ({ ...p, can_update_pressure: opt.val }))}
+                          style={{ padding: '5px 14px', borderRadius: '6px', border: `1px solid ${presetForm.can_update_pressure === opt.val ? '#3b82f6' : '#334155'}`, background: presetForm.can_update_pressure === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.can_update_pressure === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.can_update_pressure === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות עם אותו בסיס אב משתפות לחץ אטמוספרי. רק עמדת "מעדכן" יכולה לשנות — האחרות קריאה בלבד עם עדכון אוטומטי כל 5 שניות.</p>
+                </div>
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
@@ -16209,7 +16273,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '' }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
