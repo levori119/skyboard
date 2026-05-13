@@ -3105,26 +3105,41 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
-      setIsDragging(true);
-    }
+    // Try containerRef first; fall back to .bt-strip ancestor or parent element
+    // (containerRef becomes null when isDragging=true due to ref={!isDragging ? containerRef : undefined})
+    const rect = containerRef.current?.getBoundingClientRect()
+      ?? (e.currentTarget as HTMLElement).closest('.bt-strip')?.getBoundingClientRect()
+      ?? (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect();
+    const ox = rect ? e.clientX - rect.left : 30;
+    const oy = rect ? e.clientY - rect.top : 15;
+    startPosRef.current = { x: ox, y: oy };
+    setDragPos({ x: e.clientX - ox, y: e.clientY - oy });
+    setIsDragging(true);
   };
 
   useEffect(() => {
     if (!isDragging) return;
 
-    const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
-      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
+    // Find a drop target by class+attr — uses elementsFromPoint with getBoundingClientRect fallback
+    // (elementsFromPoint can fail with pointer-capture on iOS/iPad Safari)
+    const findDropTarget = (clientX: number, clientY: number, cls: string, attr: string): Element | null => {
+      const byPoint = document.elementsFromPoint(clientX, clientY);
+      const hit = byPoint.find(el => el.classList.contains(cls) && el.getAttribute(attr));
+      if (hit) return hit;
+      // Fallback: check all matching elements via bounding rect
+      const all = document.querySelectorAll(`.${cls}[${attr}]`);
+      for (const el of Array.from(all)) {
+        const r = el.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return el;
+      }
+      return null;
     };
 
-    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
-      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
-    };
+    const findTopmostMarker = (clientX: number, clientY: number): Element | null =>
+      findDropTarget(clientX, clientY, 'marker-drop-zone', 'data-marker-sector');
+
+    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null =>
+      findDropTarget(clientX, clientY, 'neighbor-drop-zone', 'data-sector-id');
 
     const clearAllDropHighlights = () => {
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
@@ -3218,7 +3233,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const stripContent = (style: React.CSSProperties) => (
     <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
       <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
-        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
+        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none' }}>⋮</div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
@@ -5400,6 +5415,60 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       </div>
 
+      {/* LEFT panel — Transfer Sector Drop Zones */}
+      {transferSectors.length > 0 && (
+        <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderRight: `1px solid ${border}` }}>
+          <div style={{ ...HDR }}>✈️ נקודות העברה</div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {transferSectors.map(sector => {
+              const isOver = leftDragOver === sector.id;
+              return (
+                <div
+                  key={sector.id}
+                  onDragOver={e => { e.preventDefault(); setLeftDragOver(sector.id); }}
+                  onDragLeave={() => { if (leftDragOver === sector.id) setLeftDragOver(null); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setLeftDragOver(null);
+                    if (!dragging) return;
+                    const strip = strips.find(s => String(s.id) === String(dragging.stripId));
+                    if (!strip) return;
+                    const aircraft = getAircraftPositions(strip);
+                    const totalCount = aircraft.length;
+                    const stripName = strip.callSign || strip.callsign || '?';
+                    if (totalCount <= 1) {
+                      onTransfer(String(dragging.stripId), sector.id);
+                    } else {
+                      setTransferPending({ stripId: String(dragging.stripId), sectorId: sector.id, aircraftIdx: dragging.idx, stripName, totalCount });
+                    }
+                    setDragging(null);
+                  }}
+                  style={{
+                    padding: '12px 8px',
+                    borderRadius: '8px',
+                    border: `2px dashed ${isOver ? '#22c55e' : (lightMode ? '#cbd5e1' : '#334155')}`,
+                    background: isOver ? (lightMode ? '#dcfce7' : '#14532d') : (lightMode ? '#f8fafc' : '#0f172a'),
+                    color: isOver ? (lightMode ? '#166534' : '#86efac') : headerColor,
+                    textAlign: 'center',
+                    cursor: 'default',
+                    transition: 'all 0.15s',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {isOver && <div style={{ fontSize: '16px', marginBottom: '4px' }}>📥</div>}
+                  {sector.name || sector.label || `סקטור ${sector.id}`}
+                </div>
+              );
+            })}
+            {transferSectors.length === 0 && (
+              <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px' }}>
+                אין סקטורים מוגדרים להעברה
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Taxi Instructions Modal */}
       {taxiInstModal && (() => {
@@ -9490,13 +9559,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         }
       }
       // Check if dropped on a map marker (transfer point) or neighbor drop zone
-      const dropEls = document.elementsFromPoint(e.clientX, e.clientY);
-      const markerEl = dropEls.find((el: Element) => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector'));
+      // Uses elementsFromPoint with getBoundingClientRect fallback for iOS/iPad pointer-capture
+      const findDrop = (cls: string, attr: string): Element | null => {
+        const byPoint = document.elementsFromPoint(e.clientX, e.clientY);
+        const hit = byPoint.find((el: Element) => el.classList.contains(cls) && el.getAttribute(attr));
+        if (hit) return hit;
+        const all = document.querySelectorAll(`.${cls}[${attr}]`);
+        for (const el of Array.from(all)) {
+          const r = el.getBoundingClientRect();
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return el;
+        }
+        return null;
+      };
+      const markerEl = findDrop('marker-drop-zone', 'data-marker-sector');
       if (markerEl) {
         const sectorId = Number(markerEl.getAttribute('data-marker-sector'));
         if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
       }
-      const neighborEl = dropEls.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+      const neighborEl = findDrop('neighbor-drop-zone', 'data-sector-id');
       if (neighborEl) {
         const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
         if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
@@ -9596,9 +9676,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         handleMoveRef.current(String(id), 0, 0, false);
         return;
       }
-      const els = document.elementsFromPoint(e.clientX, e.clientY);
       // Dropped on neighbor panel → initiate transfer
-      const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+      // Uses elementsFromPoint with getBoundingClientRect fallback for iOS/iPad pointer-capture
+      const findNeighbor = (): Element | null => {
+        const byPoint = document.elementsFromPoint(e.clientX, e.clientY);
+        const hit = byPoint.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+        if (hit) return hit;
+        const all = document.querySelectorAll('.neighbor-drop-zone[data-sector-id]');
+        for (const el of Array.from(all)) {
+          const r = el.getBoundingClientRect();
+          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return el;
+        }
+        return null;
+      };
+      const neighborEl = findNeighbor();
       if (neighborEl) {
         const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
         handleTransferRef.current(id, sectorId);
