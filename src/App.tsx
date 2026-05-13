@@ -74,6 +74,7 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'status', label: 'מצב', ftype: 'text' },
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
+  { key: 'in_table', label: 'הועבר אלי', ftype: 'bool' },
   // ── טקסט חופשי ──
   { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
   { key: 'notes', label: 'הערות', ftype: 'text' },
@@ -104,6 +105,7 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
 const getQFieldValue = (strip: any, field: string): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
+  if (field === 'in_table') return !!strip.in_table;
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
   if (field === 'notes') return strip.notes || '';
