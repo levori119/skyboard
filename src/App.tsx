@@ -4202,7 +4202,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial, headerButtons }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4235,6 +4235,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
+  headerButtons?: React.ReactNode;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
@@ -4518,8 +4519,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       {/* RIGHT panel — Strips list */}
       <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
         {/* Header */}
-        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px' }}>
+        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', gap: '6px' }}>
           <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
+          {headerButtons && <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>{headerButtons}</div>}
         </div>
 
 
@@ -10963,6 +10965,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
                 onMergePartial={handleMergePartial}
+                headerButtons={<>
+                  <button
+                    onClick={() => setSidebarPinned(v => !v)}
+                    title={sidebarPinned ? 'בטל נעץ' : 'נעץ חלונית'}
+                    style={{ background: sidebarPinned ? '#1e3a5f' : 'transparent', border: `1px solid ${sidebarPinned ? '#3b82f6' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px', color: sidebarPinned ? '#60a5fa' : '#94a3b8' }}
+                  >📌</button>
+                  <button
+                    onClick={() => { setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null); setShowPersonalFilter(v => !v); }}
+                    title={sessionFilter ? 'סינון סשן פעיל' : personalFilter ? 'סינון אישי שמור' : adminFilterQuery ? 'סינון מנהל' : 'הגדרת שאילתא'}
+                    style={{ background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent', border: sessionFilter ? '1px solid #fb923c' : personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 6px', color: sessionFilter ? '#fed7aa' : personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#94a3b8', fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal' }}
+                  >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
+                </>}
               />
             );
           })()}
@@ -12665,7 +12679,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
