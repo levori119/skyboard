@@ -3099,7 +3099,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Do NOT call setPointerCapture: the capture element (⋮ div) is unmounted on re-render
+    // when isDragging becomes true, causing the browser to fire pointercancel and
+    // immediately cancelling the drag. Without capture, events bubble to window normally.
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
       startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -3108,7 +3110,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     }
   };
 
-  useEffect(() => {
+  // useLayoutEffect adds listeners synchronously after DOM update, before the browser
+  // can dispatch any queued pointer events (avoids race with early pointermove/pointerup).
+  useLayoutEffect(() => {
     if (!isDragging) return;
 
     // Use getBoundingClientRect on each candidate element for reliable hit-testing.
