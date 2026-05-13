@@ -8030,6 +8030,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
   const [pendingDeleteStrip, setPendingDeleteStrip] = React.useState<{ stripId: string; callSign: string; durationMs: number } | null>(null);
+  const [pressureToast, setPressureToast] = React.useState<string | null>(null);
+  const pressureToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const deleteStripUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => {
     return () => { if (deleteStripUndoTimerRef.current) clearTimeout(deleteStripUndoTimerRef.current); };
@@ -8429,17 +8431,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
 
   // Load pressure from DB and poll every 5s when a parent base is configured
+  const prevPressureRef = React.useRef<string>('');
   useEffect(() => {
     if (!parentBaseId) return;
     let cancelled = false;
     const load = () => fetch(`${API_URL}/base-pressure/${parentBaseId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (!cancelled && data?.pressure_inhg != null) setPressureInHg(parseFloat(data.pressure_inhg).toFixed(2)); })
+      .then(data => {
+        if (cancelled || data?.pressure_inhg == null) return;
+        const newVal = parseFloat(data.pressure_inhg).toFixed(2);
+        if (!canUpdatePressure && prevPressureRef.current && prevPressureRef.current !== newVal) {
+          const mb = (parseFloat(newVal) * 33.8639).toFixed(0);
+          const msg = `עודכן לחץ ל-${newVal}" / ${mb} mb`;
+          setPressureToast(msg);
+          if (pressureToastTimerRef.current) clearTimeout(pressureToastTimerRef.current);
+          pressureToastTimerRef.current = setTimeout(() => setPressureToast(null), 4000);
+        }
+        prevPressureRef.current = newVal;
+        setPressureInHg(newVal);
+      })
       .catch(() => {});
     load();
     const iv = setInterval(load, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [parentBaseId]);
+  }, [parentBaseId, canUpdatePressure]);
 
   // Save pressure to DB (debounced 800ms) when authorized updater changes it
   useEffect(() => {
@@ -13649,6 +13664,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         document.body
       )}
 
+      {/* Pressure update toast — shown on non-updater workstations */}
+      {pressureToast && (
+        <div style={{
+          position: 'fixed', top: '24px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px',
+          background: '#0c1a30', border: '2px solid #3b82f6', borderRadius: '10px',
+          padding: '8px 16px', boxShadow: '0 4px 20px rgba(59,130,246,0.4)', direction: 'rtl',
+          animation: 'fadeIn 0.2s ease', pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: '16px' }}>🌡</span>
+          <span style={{ fontSize: '13px', color: '#7dd3fc', fontWeight: 'bold' }}>{pressureToast}</span>
+        </div>
+      )}
       {/* Pending strip delete undo toast */}
       {pendingDeleteStrip && (
         <div style={{
