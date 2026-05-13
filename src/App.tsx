@@ -12704,7 +12704,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
