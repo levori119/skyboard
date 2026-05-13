@@ -1829,7 +1829,7 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ marginBottom: '6px', border: `2px solid ${isStripDragOver ? '#22c55e' : hasConflict ? '#ef4444' : '#1e293b'}`, borderRadius: '8px', overflow: 'hidden', background: isStripDragOver ? '#0a2010' : hasConflict ? '#3b0000' : 'transparent', transition: 'all 0.15s' }}>
+      <div style={{ marginBottom: '5px', border: `1px solid ${isStripDragOver ? '#22c55e' : hasConflict ? '#ef4444' : '#2d3f55'}`, borderRadius: '10px', overflow: 'hidden', background: isStripDragOver ? '#0a2010' : hasConflict ? '#2a0a0a' : '#131e2e', transition: 'all 0.15s' }}>
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
@@ -1840,9 +1840,9 @@ const DraggableNeighborPanel = ({
           onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
           onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
           style={{
-            padding: '6px 8px',
-            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : hasConflict ? '#3b0000' : '#1e293b'),
-            color: isStripDragOver ? '#86efac' : '#e2e8f0',
+            padding: '7px 10px',
+            background: isStripDragOver ? '#166534' : (dragStripId ? '#0f2a1a' : hasConflict ? '#2a0a0a' : 'transparent'),
+            color: isStripDragOver ? '#86efac' : '#cbd5e1',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1853,15 +1853,15 @@ const DraggableNeighborPanel = ({
         >
           <div style={{ flex: 1, userSelect: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>{neighbor.label_he || neighbor.name}</div>
+              <div style={{ fontSize: '12px', fontWeight: '500', textAlign: 'center', letterSpacing: '0.01em' }}>{neighbor.label_he || neighbor.name}</div>
               {hasConflict && (
-                <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  ⚠️ קונפליקט גובה
+                <span style={{ fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '6px', padding: '1px 5px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                  ⚠️ קונפליקט
                 </span>
               )}
             </div>
             {neighbor.notes && (
-              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px', textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: '#64748b', fontStyle: 'italic', marginTop: '2px', textAlign: 'center' }}>
                 {neighbor.notes}
               </div>
             )}
