@@ -8053,7 +8053,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
-  const [pressureEditing, setPressureEditing] = useState(false);
+  const [pressureEditMode, setPressureEditMode] = useState<'inhg' | 'mb' | null>(null);
+  const [pressureMbInput, setPressureMbInput] = useState('');
   const [pressureAlert, setPressureAlert] = useState<string | null>(null);
   const lastPolledPressureRef = React.useRef<string | null>(null);
   const pressureSavedLocallyRef = React.useRef(false);
@@ -9974,36 +9975,65 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </span>
           )}
           {/* Pressure field */}
-          <div
-            onClick={() => !pressureEditing && (canUpdatePressure || !parentBaseId) && setPressureEditing(true)}
-            title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
-            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#0c1a30' : '#1e293b', border: `2px solid ${pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : 'pointer', minWidth: '130px' }}
-          >
-            <span style={{ fontSize: '12px' }}>🌡</span>
-            <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
-            {pressureEditing ? (
-              <input
-                autoFocus
-                type="text"
-                value={pressureInHg}
-                onChange={e => setPressureInHg(e.target.value)}
-                onBlur={() => setPressureEditing(false)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setPressureEditing(false); } }}
-                placeholder='29.92'
-                style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
-              />
-            ) : (
-              <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? parseFloat(pressureInHg).toFixed(2) : '—'}
-              </span>
-            )}
-            <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
-            <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
-            <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
-            </span>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
-          </div>
+          {(() => {
+            const canEdit = canUpdatePressure || !parentBaseId;
+            const hasVal = pressureInHg && !isNaN(parseFloat(pressureInHg));
+            const inHgDisplay = hasVal ? parseFloat(pressureInHg).toFixed(2) : '—';
+            const mbDisplay = hasVal ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—';
+            const commitMb = () => {
+              const mb = parseFloat(pressureMbInput);
+              if (!isNaN(mb) && mb > 0) setPressureInHg((mb / 33.8639).toFixed(2));
+              setPressureEditMode(null);
+            };
+            return (
+              <div
+                title={parentBaseId && !canEdit ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי'}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: hasVal ? '#0c1a30' : '#1e293b', border: `2px solid ${hasVal ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', minWidth: '130px' }}
+              >
+                <span style={{ fontSize: '12px' }}>🌡</span>
+                <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
+                {/* inHg editable area */}
+                {pressureEditMode === 'inhg' ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    defaultValue=""
+                    onChange={e => setPressureInHg(e.target.value)}
+                    onBlur={() => setPressureEditMode(null)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setPressureEditMode(null); }}
+                    placeholder='29.92'
+                    style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => canEdit && setPressureEditMode('inhg')}
+                    style={{ fontSize: '13px', color: hasVal ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
+                  >{inHgDisplay}</span>
+                )}
+                <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
+                <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
+                {/* MB editable area */}
+                {pressureEditMode === 'mb' ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    defaultValue=""
+                    onChange={e => setPressureMbInput(e.target.value)}
+                    onBlur={commitMb}
+                    onKeyDown={e => { if (e.key === 'Enter') commitMb(); if (e.key === 'Escape') setPressureEditMode(null); }}
+                    placeholder='1013'
+                    style={{ width: '40px', background: 'transparent', border: 'none', outline: 'none', color: '#c084fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => canEdit && (setPressureMbInput(''), setPressureEditMode('mb'))}
+                    style={{ fontSize: '13px', color: hasVal ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
+                  >{mbDisplay}</span>
+                )}
+                <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+              </div>
+            );
+          })()}
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
