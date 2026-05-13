@@ -9812,12 +9812,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const getUndoDurationMs = () => {
     const VALID_DURATIONS = [3000, 6000, 10000];
+    const cmDur = session?.crewMember?.undo_duration_ms;
+    if (cmDur && VALID_DURATIONS.includes(cmDur)) return cmDur;
     try {
       const v = localStorage.getItem('groundUndoDurationMs');
       if (v) { const n = Number(v); if (VALID_DURATIONS.includes(n)) return n; }
     } catch { /* ignore */ }
-    const cmDur = session?.crewMember?.undo_duration_ms;
-    if (cmDur && VALID_DURATIONS.includes(cmDur)) return cmDur;
     return 6000;
   };
 
