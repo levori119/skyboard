@@ -9213,9 +9213,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
-    const count = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
-    if (count > 1) {
-      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: count }, (_, i) => i + 1);
+    const availableCount = Array.isArray(strip?.aircraft_indices)
+      ? (strip.aircraft_indices as number[]).length
+      : (parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1);
+    if (availableCount > 1) {
+      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: availableCount }, (_, i) => i + 1);
       setPartialSelectedIndices(indices);
       setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
     } else {
@@ -11190,23 +11192,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </td>
                     );
                   }
-                  const partialSibling = Array.isArray(s.aircraft_indices) && s.parent_strip_id
-                    ? myTableStrips.find(t => String(t.id) !== String(s.id) && String(t.parent_strip_id) === String(s.parent_strip_id) && Array.isArray(t.aircraft_indices))
-                    : null;
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>
-                          {getFormationDisplayName(s)}{!s.aircraft_indices && s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
-                        </span>
-                        {partialSibling && (
-                          <button
-                            onClick={() => handleMergePartial(String(s.id), String(partialSibling.id))}
-                            title={`מזג עם ${getFormationDisplayName(partialSibling)}`}
-                            style={{ background: '#1d4ed8', border: '1px solid #3b82f6', color: 'white', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                          >⊕ מזג</button>
-                        )}
-                      </div>
+                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>
+                        {getFormationDisplayName(s)}{!s.aircraft_indices && s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                      </span>
                     </td>
                   );
                 }
