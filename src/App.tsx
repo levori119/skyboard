@@ -102,10 +102,14 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
   none: 'אף אחד לא מתקיים',
 };
 
-const getQFieldValue = (strip: any, field: string): any => {
+const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | string | null }): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
-  if (field === 'in_table') return !!strip.in_table;
+  if (field === 'in_table') {
+    if (!strip.in_table) return false;
+    if (ctx?.presetId != null) return Number(strip.workstation_preset_id) === Number(ctx.presetId);
+    return true;
+  }
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
   if (field === 'notes') return strip.notes || '';
@@ -113,8 +117,8 @@ const getQFieldValue = (strip: any, field: string): any => {
   return strip[field] ?? '';
 };
 
-const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
-  const raw = getQFieldValue(strip, leaf.field);
+const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null }): boolean => {
+  const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
   const isBool = leaf.field === 'airborne' || leaf.field === 'in_table';
@@ -134,10 +138,10 @@ const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   }
 };
 
-const evaluateQuery = (strip: any, node: QNode): boolean => {
-  if (node.type === 'leaf') return evalQLeaf(strip, node);
+const evaluateQuery = (strip: any, node: QNode, ctx?: { presetId?: number | string | null }): boolean => {
+  if (node.type === 'leaf') return evalQLeaf(strip, node, ctx);
   if (node.children.length === 0) return true;
-  const results = node.children.map(c => evaluateQuery(strip, c));
+  const results = node.children.map(c => evaluateQuery(strip, c, ctx));
   switch (node.operator) {
     case 'all': return results.every(Boolean);
     case 'any': return results.some(Boolean);
@@ -1836,9 +1840,9 @@ const DraggableNeighborPanel = ({
           onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
-          onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
-          onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
-          onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
+          onDragOver={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); })}
+          onDragLeave={(() => setIsStripDragOver(false))}
+          onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer'); if (sid && onStripDrop) onStripDrop(sid, neighbor.id); })}
           style={{
             padding: '8px 12px',
             background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (hasConflict ? '#3b0000' : (isExpanded ? '#334155' : 'transparent'))),
@@ -8566,9 +8570,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
+  const _qCtx = session.presetId != null ? { presetId: session.presetId } : undefined;
   const myStrips = strips.filter(s =>
     s.status !== 'pending_transfer' &&
-    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
+    (!effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx))
   );
 
   // myTableStrips: same logic — query-driven, no inTable/preset restriction.
@@ -9063,16 +9068,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const getStripGroupValueRef = useRef<((strip: any) => string) | null>(null);
 
   const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
-    setStrips(prev => prev.map(item => item.id === id ? {...item, x, y, onMap: toMap} : item));
+    const presetId = session.presetId ? Number(session.presetId) : null;
+    setStrips(prev => prev.map(item => item.id === id ? {
+      ...item, x, y, onMap: toMap,
+      workstation_preset_id: toMap ? presetId : item.workstation_preset_id
+    } : item));
     if (toMap) {
-      // When placed on map, ensure strip remains visible in table
       setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
     }
     try {
       await fetch(`${API_URL}/strips/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x, y, onMap: toMap })
+        body: JSON.stringify({ x, y, onMap: toMap, ...(toMap ? { workstation_preset_id: presetId } : {}) })
       });
     } catch (err) {
       console.error('Failed to update strip position:', err);
@@ -12392,8 +12400,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </svg>
             )}
             
-            {/* Strips Layer */}
-            {strips.filter(s => s.onMap && s.status !== 'pending_transfer').map(s => (
+            {/* Strips Layer — only show strips placed by this workstation */}
+            {strips.filter(s => s.onMap && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId))).map(s => (
               <Strip key={s.id} s={s} 
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
@@ -12420,7 +12428,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             
             {/* Partial Formation Merge Overlay (T006) — merge button for map-mode sibling partial strips */}
             {(() => {
-              const mapPartials = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && s.parent_strip_id && Array.isArray(s.aircraft_indices));
+              const mapPartials = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && s.parent_strip_id && Array.isArray(s.aircraft_indices) && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
               if (mapPartials.length < 2) return null;
               return mapPartials.map(s => {
                 const siblings = mapPartials.filter(t => String(t.parent_strip_id) === String(s.parent_strip_id) && String(t.id) !== String(s.id));
