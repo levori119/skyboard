@@ -8046,6 +8046,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [pendingDeleteStrip, setPendingDeleteStrip] = React.useState<{ stripId: string; callSign: string; durationMs: number } | null>(null);
   const [pressureToast, setPressureToast] = React.useState<string | null>(null);
   const pressureToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [transferBlockedToast, setTransferBlockedToast] = React.useState<string | null>(null);
+  const transferBlockedToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTransferBlockedToast = React.useCallback((callSign: string) => {
+    const msg = `⚠️ ${callSign} — נמצא בשלבי העברה ולא ניתן להעביר שוב`;
+    setTransferBlockedToast(msg);
+    if (transferBlockedToastTimerRef.current) clearTimeout(transferBlockedToastTimerRef.current);
+    transferBlockedToastTimerRef.current = setTimeout(() => setTransferBlockedToast(null), 4000);
+  }, []);
   const deleteStripUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => {
     return () => { if (deleteStripUndoTimerRef.current) clearTimeout(deleteStripUndoTimerRef.current); };
@@ -9218,6 +9226,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
+    const stripToCheck = strips.find((s: any) => String(s.id) === String(stripId));
+    if (stripToCheck?.status === 'pending_transfer') {
+      showTransferBlockedToast(stripToCheck.callSign || stripToCheck.callsign || String(stripId));
+      return;
+    }
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
@@ -9250,6 +9263,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
+    if (strip?.status === 'pending_transfer') {
+      showTransferBlockedToast(strip.callSign || strip.callsign || String(stripId));
+      return;
+    }
     const availableCount = Array.isArray(strip?.aircraft_indices)
       ? (strip.aircraft_indices as number[]).length
       : (parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1);
@@ -13711,6 +13728,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         }}>
           <span style={{ fontSize: '16px' }}>🌡</span>
           <span style={{ fontSize: '13px', color: '#7dd3fc', fontWeight: 'bold' }}>{pressureToast}</span>
+        </div>
+      )}
+      {/* Transfer blocked toast — strip already in pending transfer */}
+      {transferBlockedToast && (
+        <div style={{
+          position: 'fixed', top: pressureToast ? '72px' : '24px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10002, display: 'flex', alignItems: 'center', gap: '10px',
+          background: '#1c0a00', border: '2px solid #f97316', borderRadius: '10px',
+          padding: '10px 20px', boxShadow: '0 4px 24px rgba(249,115,22,0.5)', direction: 'rtl',
+          animation: 'fadeIn 0.2s ease', pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: '18px' }}>🚫</span>
+          <span style={{ fontSize: '13px', color: '#fed7aa', fontWeight: 'bold' }}>{transferBlockedToast}</span>
         </div>
       )}
       {/* Pending strip delete undo toast */}
