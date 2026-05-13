@@ -1829,7 +1829,7 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ borderBottom: '1px solid #334155' }}>
+      <div style={{ marginBottom: '6px', border: `2px solid ${isStripDragOver ? '#22c55e' : hasConflict ? '#ef4444' : '#1e293b'}`, borderRadius: '8px', overflow: 'hidden', background: isStripDragOver ? '#0a2010' : hasConflict ? '#3b0000' : 'transparent', transition: 'all 0.15s' }}>
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
@@ -1840,26 +1840,20 @@ const DraggableNeighborPanel = ({
           onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
           onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
           style={{
-            padding: '8px 12px',
-            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (hasConflict ? '#3b0000' : (isExpanded ? '#334155' : 'transparent'))),
+            padding: '6px 8px',
+            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : hasConflict ? '#3b0000' : '#1e293b'),
+            color: isStripDragOver ? '#86efac' : '#e2e8f0',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             cursor: dragStripId ? 'copy' : 'grab',
             userSelect: 'none',
             transition: 'background 0.15s',
-            border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '2px solid transparent'),
           }}
         >
-          <div 
-            style={{ 
-              flex: 1, 
-              textAlign: 'right', 
-              userSelect: 'none'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
+          <div style={{ flex: 1, userSelect: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>{neighbor.label_he || neighbor.name}</div>
               {hasConflict && (
                 <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                   ⚠️ קונפליקט גובה
@@ -1867,24 +1861,24 @@ const DraggableNeighborPanel = ({
               )}
             </div>
             {neighbor.notes && (
-              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
+              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px', textAlign: 'center' }}>
                 {neighbor.notes}
               </div>
             )}
           </div>
           {(hasSubSectors || hasTransfers) && (
-            <span 
+            <span
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
             >
               {isExpanded ? '▼' : '◀'}
               {hasTransfers && !isExpanded && (
-                <span style={{ 
-                  marginRight: '4px', 
-                  background: '#f59e0b', 
-                  color: '#1e293b', 
-                  padding: '1px 5px', 
-                  borderRadius: '8px', 
+                <span style={{
+                  marginRight: '4px',
+                  background: '#f59e0b',
+                  color: '#1e293b',
+                  padding: '1px 5px',
+                  borderRadius: '8px',
                   fontSize: '10px',
                   fontWeight: 'bold'
                 }}>
@@ -5344,55 +5338,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       </div>
 
-      {/* LEFT panel — Transfer sectors */}
-      <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
-        <div style={HDR}>📤 העברה</div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {transferSectors.length === 0 && <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>}
-          {transferSectors.map(sec => {
-            const isDrop = leftDragOver === sec.id;
-            return (
-              <div key={sec.id} style={{ marginBottom: '6px', border: `2px solid ${isDrop ? '#22c55e' : border}`, borderRadius: '8px', overflow: 'hidden', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'all 0.15s' }}
-                onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
-                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
-                onDrop={e => {
-                  e.preventDefault();
-                  setLeftDragOver(null);
-                  try {
-                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                    if (!data.stripId) return;
-                    const strip = strips.find(s => String(s.id) === String(data.stripId));
-                    if (data.all) {
-                      // Whole-formation drag → transfer the whole strip directly (no dialog).
-                      onTransfer(String(data.stripId), sec.id);
-                    } else if (data.idx) {
-                      // Single aircraft drag → ask whether to transfer this aircraft or the whole strip.
-                      const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
-                      setTransferPending({ stripId: String(data.stripId), sectorId: sec.id, aircraftIdx: data.idx, stripName: strip?.callSign || strip?.callsign || '?', totalCount });
-                    }
-                  } catch {}
-                }}
-              >
-                <div style={{ padding: '6px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : headerBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : headerColor, fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {sec.label_he || sec.name}
-                  {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
-                </div>
-                {/* Pending outgoing transfers to this sector */}
-                {(singleTransfers || []).filter(t => t.sectorId === sec.id).map((t, i) => (
-                  <div key={`single-${i}`} style={{ padding: '3px 6px', fontSize: '11px', color: '#93c5fd', background: '#1e3a5f', borderTop: `1px solid ${border}` }}>
-                    ✈️ {t.callSign}#{t.aircraftIdx} ({t.aircraftIdx}/{t.totalCount}) ↗ הועבר
-                  </div>
-                ))}
-                {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
-                  <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
-                    📋 {t.callsign || '?'} (כל הפמ"מ) ↗ ממתין
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Taxi Instructions Modal */}
       {taxiInstModal && (() => {
@@ -10892,7 +10837,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
                 >◀</button>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '4px' }}>
                 {allSectors.map(n => (
                   <DraggableNeighborPanel
                     key={n.id}
