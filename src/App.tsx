@@ -5347,17 +5347,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       </div>
 
       {/* LEFT panel — Transfer sectors */}
-      <div style={{ ...PANEL, width: '150px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
-        <div style={{ ...HDR, fontSize: '11px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', letterSpacing: '0.04em', padding: '5px 8px' }}>העברה</div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 6px' }}>
-          {transferSectors.length === 0 && <div style={{ color: lightMode ? '#94a3b8' : '#475569', fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים</div>}
+      <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
+        <div style={HDR}>📤 העברה</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {transferSectors.length === 0 && <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>}
           {transferSectors.map(sec => {
             const isDrop = leftDragOver === sec.id;
-            const pendingSingles = (singleTransfers || []).filter(t => t.sectorId === sec.id);
-            const pendingFull = outgoingTransfers.filter(t => t.to_sector_id === sec.id);
-            const hasPending = pendingSingles.length > 0 || pendingFull.length > 0;
             return (
-              <div key={sec.id} style={{ marginBottom: '5px' }}
+              <div key={sec.id} style={{ marginBottom: '6px', border: `2px solid ${isDrop ? '#22c55e' : border}`, borderRadius: '8px', overflow: 'hidden', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'all 0.15s' }}
                 onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
                 onDrop={e => {
@@ -5374,40 +5371,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   } catch {}
                 }}
               >
-                {/* Sector pill */}
-                <div style={{
-                  padding: '7px 10px',
-                  borderRadius: '7px',
-                  background: isDrop
-                    ? (lightMode ? '#dcfce7' : '#14532d')
-                    : (lightMode ? '#e2e8f0' : '#0f172a'),
-                  border: `1px solid ${isDrop ? '#22c55e' : (lightMode ? '#cbd5e1' : '#1e293b')}`,
-                  color: isDrop ? (lightMode ? '#166534' : '#86efac') : (lightMode ? '#334155' : '#94a3b8'),
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  textAlign: 'center',
-                  cursor: 'default',
-                  transition: 'all 0.12s',
-                  userSelect: 'none',
-                  boxShadow: isDrop ? '0 0 0 2px #22c55e33' : 'none',
-                }}>
-                  {isDrop ? '↓ שחרר' : (sec.label_he || sec.name)}
+                <div style={{ padding: '6px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : headerBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : headerColor, fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {sec.label_he || sec.name}
+                  {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
                 </div>
-                {/* Pending transfers */}
-                {hasPending && (
-                  <div style={{ marginTop: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {pendingSingles.map((t, i) => (
-                      <div key={`s-${i}`} style={{ padding: '2px 7px', fontSize: '10px', color: '#93c5fd', background: lightMode ? '#dbeafe' : '#1e3a5f', borderRadius: '5px', textAlign: 'center' }}>
-                        ✈️ {t.callSign}#{t.aircraftIdx}
-                      </div>
-                    ))}
-                    {pendingFull.map(t => (
-                      <div key={t.id} style={{ padding: '2px 7px', fontSize: '10px', color: '#fcd34d', background: lightMode ? '#fef3c7' : '#422006', borderRadius: '5px', textAlign: 'center' }}>
-                        📋 {t.callsign || '?'}
-                      </div>
-                    ))}
+                {(singleTransfers || []).filter(t => t.sectorId === sec.id).map((t, i) => (
+                  <div key={`single-${i}`} style={{ padding: '3px 6px', fontSize: '11px', color: '#93c5fd', background: '#1e3a5f', borderTop: `1px solid ${border}` }}>
+                    ✈️ {t.callSign}#{t.aircraftIdx} ({t.aircraftIdx}/{t.totalCount}) ↗ הועבר
                   </div>
-                )}
+                ))}
+                {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
+                  <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
+                    📋 {t.callsign || '?'} (כל הפמ"מ) ↗ ממתין
+                  </div>
+                ))}
               </div>
             );
           })}
