@@ -5601,7 +5601,6 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
             }}
             onMouseEnter={() => setHoveredRow(i)}
             onMouseLeave={() => setHoveredRow(null)}
-            onMouseDown={e => { if (editableField && onUpdateField) e.stopPropagation(); }}
             onClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
           >
             {isEditing ? (
