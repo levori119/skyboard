@@ -16979,20 +16979,46 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       });
                     }
 
-                    const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_\-]+/g, '');
+                    const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_\-\u05f3\u05f4"'`״׳]+/g, '');
                     const getField = (row: Record<string, string>, ...keys: string[]) => {
                       const rowKeys = Object.keys(row);
                       for (const k of keys) {
                         // Exact case-insensitive match first
                         const found = rowKeys.find(rk => rk.toLowerCase() === k.toLowerCase());
                         if (found && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
-                        // Normalized match (ignores spaces, underscores, hyphens)
+                        // Normalized match (ignores spaces, underscores, hyphens, Hebrew punctuation)
                         const normK = normalizeKey(k);
                         const foundNorm = rowKeys.find(rk => normalizeKey(rk) === normK);
                         if (foundNorm && row[foundNorm] !== undefined && String(row[foundNorm]).trim() !== '') return String(row[foundNorm]).trim();
                       }
                       return '';
                     };
+
+                    // --- Fill-down: propagate non-empty callSign to subsequent empty rows ---
+                    // Common pattern in military Excel files: the callSign appears only on the
+                    // first aircraft of a formation; sub-rows leave it blank.
+                    const callSignKeys = ['callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי',
+                      'ac', 'a/c', 'aircraft', 'call', 'שמקריאה', 'שם קריאה', 'קריאתזיהוי',
+                      'קריאת זיהוי', 'ת"ד', 'תד', 'id', 'מסמטוס', 'מ/ס', 'מספרמטוס'];
+                    const rowKeys0 = rows.length > 0 ? Object.keys(rows[0]) : [];
+                    const callSignColKey = callSignKeys
+                      .map(k => {
+                        const found = rowKeys0.find(rk => rk.toLowerCase() === k.toLowerCase());
+                        if (found) return found;
+                        const normK = normalizeKey(k);
+                        return rowKeys0.find(rk => normalizeKey(rk) === normK) || null;
+                      })
+                      .find(Boolean) || null;
+                    const detectedCols: string[] = rowKeys0;
+                    if (callSignColKey) {
+                      let lastCallSign = '';
+                      rows = rows.map(row => {
+                        const val = String(row[callSignColKey] ?? '').trim();
+                        if (val) { lastCallSign = val; return row; }
+                        if (lastCallSign) return { ...row, [callSignColKey]: lastCallSign };
+                        return row;
+                      });
+                    }
 
                     const parseTakeoffDatetime = (dateStr: string, timeStr: string): string | null => {
                       if (!dateStr && !timeStr) return null;
@@ -17029,13 +17055,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     };
 
                     const strips = rows
-                      .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה'))
+                      .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי', 'ac', 'a/c', 'aircraft', 'call', 'שם קריאה', 'קריאת זיהוי', 'ת"ד', 'תד', 'id'))
                       .map(row => {
                         const dateVal = getField(row, 'DATE', 'date', 'תאריך');
-                        const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה');
+                        const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה', 'שעת המראה', 'המראה', 'TAKEOFF');
                         const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
                         return {
-                          callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
+                          callSign: getField(row, 'callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי', 'ac', 'a/c', 'aircraft', 'call', 'שם קריאה', 'קריאת זיהוי', 'ת"ד', 'תד', 'id'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
                           numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך', 'מס"מ', 'מסמ', 'מס׳ מטוסים', 'מספר מטוסים', 'כמות מטוסים'),
                           alt: getField(row, 'alt', 'גובה'),
@@ -17058,7 +17084,13 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         body: JSON.stringify({ strips })
                       });
                       const result = await res.json();
-                      setCsvImportResult(result);
+                      setCsvImportResult({
+                        ...result,
+                        _detectedCols: detectedCols,
+                        _callSignCol: callSignColKey,
+                        _totalRows: rows.length,
+                        _matchedRows: strips.length,
+                      });
                     } catch (err) {
                       console.error('Import error:', err);
                       alert('שגיאה בטעינת הקובץ');
@@ -17091,9 +17123,39 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         ללא שינוי: {csvImportResult.skipped} פממים
                       </div>
                     )}
-                    {csvImportResult.errors.length > 0 && (
-                      <div style={{ color: '#dc2626', fontSize: '13px' }}>
+                    {csvImportResult.errors?.length > 0 && (
+                      <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '8px' }}>
                         שגיאות: {csvImportResult.errors.join(', ')}
+                      </div>
+                    )}
+                    {csvImportResult._totalRows > 0 && (
+                      <div style={{ marginTop: '10px', padding: '10px', background: '#0f172a', borderRadius: '6px', fontSize: '12px', color: '#94a3b8', direction: 'rtl' }}>
+                        <div style={{ marginBottom: '4px' }}>
+                          <span style={{ color: '#e2e8f0' }}>שורות בקובץ:</span> {csvImportResult._totalRows} |{' '}
+                          <span style={{ color: '#e2e8f0' }}>שורות שזוהו עם קריאה:</span>{' '}
+                          <span style={{ color: csvImportResult._matchedRows === csvImportResult._totalRows ? '#22c55e' : '#f59e0b' }}>
+                            {csvImportResult._matchedRows}
+                          </span>
+                          {csvImportResult._matchedRows < csvImportResult._totalRows && (
+                            <span style={{ color: '#f59e0b', marginRight: '6px' }}> — חלק מהשורות לא זוהו</span>
+                          )}
+                        </div>
+                        {csvImportResult._callSignCol && (
+                          <div style={{ marginBottom: '4px' }}>
+                            <span style={{ color: '#e2e8f0' }}>עמודת קריאה שזוהתה:</span>{' '}
+                            <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px', color: '#34d399' }}>{csvImportResult._callSignCol}</code>
+                          </div>
+                        )}
+                        {!csvImportResult._callSignCol && (
+                          <div style={{ color: '#ef4444', marginBottom: '4px' }}>
+                            לא זוהתה עמודת קריאה. עמודות בקובץ: {(csvImportResult._detectedCols || []).join(', ')}
+                          </div>
+                        )}
+                        {csvImportResult._detectedCols?.length > 0 && (
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            עמודות: {csvImportResult._detectedCols.join(' | ')}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
