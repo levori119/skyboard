@@ -6530,7 +6530,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           {strips.length === 0
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
-              <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+              <div key={s.id} data-classic-strip="true" draggable onDragStart={e => { e.dataTransfer.setData('text/plain', String(s.id)); e.dataTransfer.effectAllowed = 'move'; setDraggingStripId(String(s.id)); }} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
                 <ClassicStripCard strip={s} rows={rows} lightMode={effectiveLightMode} isDragging={draggingStripId === String(s.id)}
                   onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
               </div>
