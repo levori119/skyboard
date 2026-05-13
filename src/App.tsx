@@ -16879,7 +16879,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
-                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך'),
+                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך', 'מס"מ', 'מסמ', 'מס׳ מטוסים', 'מספר מטוסים', 'כמות מטוסים'),
                           alt: getField(row, 'alt', 'גובה'),
                           task: getField(row, 'task', 'משימה'),
                           weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
