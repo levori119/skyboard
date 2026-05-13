@@ -117,7 +117,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const raw = getQFieldValue(strip, leaf.field);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
-  const isBool = leaf.field === 'airborne';
+  const isBool = leaf.field === 'airborne' || leaf.field === 'in_table';
   const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
@@ -14290,7 +14290,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
-      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? 'באוויר' : '' }); }}
+      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? (e.target.value === 'in_table' ? 'כן' : 'באוויר') : '' }); }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
@@ -14300,11 +14300,19 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
       </select>
       {needsValue && (
         fieldDef.ftype === 'bool' ? (
-          <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
-            style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-            <option value="באוויר">✈ באוויר</option>
-            <option value="קרקע">⬛ קרקע</option>
-          </select>
+          leaf.field === 'in_table' ? (
+            <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+              <option value="כן">✅ כן</option>
+              <option value="לא">❌ לא</option>
+            </select>
+          ) : (
+            <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+              <option value="באוויר">✈ באוויר</option>
+              <option value="קרקע">⬛ קרקע</option>
+            </select>
+          )
         ) : (
           <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
             placeholder={leaf.compare === 'in' || leaf.compare === 'not_in' ? 'ערך1, ערך2, ...' : 'ערך...'}
