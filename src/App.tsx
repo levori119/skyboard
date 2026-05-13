@@ -76,6 +76,7 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'status', label: 'מצב', ftype: 'text' },
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
+  { key: 'transferred_to_me', label: 'הועבר אלי', ftype: 'bool' },
   // ── טקסט חופשי ──
   { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
   { key: 'notes', label: 'הערות', ftype: 'text' },
@@ -106,6 +107,7 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
 const getQFieldValue = (strip: any, field: string): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
+  if (field === 'transferred_to_me') return !!strip._transferred_to_me;
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
   if (field === 'notes') return strip.notes || '';
@@ -113,12 +115,14 @@ const getQFieldValue = (strip: any, field: string): any => {
   return strip[field] ?? '';
 };
 
+const Q_BOOL_FIELDS = new Set(['airborne', 'transferred_to_me']);
+
 const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const raw = getQFieldValue(strip, leaf.field);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
-  const isBool = leaf.field === 'airborne';
-  const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
+  const isBool = Q_BOOL_FIELDS.has(leaf.field);
+  const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp.includes('הועבר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
     case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
@@ -144,6 +148,11 @@ const evaluateQuery = (strip: any, node: QNode): boolean => {
     case 'none': return results.every(r => !r);
     default: return true;
   }
+};
+
+const queryUsesField = (node: QNode, field: string): boolean => {
+  if (node.type === 'leaf') return node.field === field;
+  return node.children.some(c => queryUsesField(c, field));
 };
 
 const getSession = (): WorkstationSession | null => {
@@ -8584,10 +8593,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
-  const myStrips = strips.filter(s =>
-    s.status !== 'pending_transfer' &&
-    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
+  // When the filter uses "transferred_to_me", pending incoming transfers are included as candidates.
+  const incomingStripIds = React.useMemo(
+    () => new Set(incomingTransfers.map((t: any) => String(t.strip_id))),
+    [incomingTransfers]
   );
+  const filterUsesTransferredToMe = effectiveFilter ? queryUsesField(effectiveFilter, 'transferred_to_me') : false;
+  const myStrips = strips.filter(s => {
+    const transferredToMe = incomingStripIds.has(String(s.id));
+    if (s.status === 'pending_transfer') {
+      if (!filterUsesTransferredToMe || !transferredToMe) return false;
+    }
+    if (!effectiveFilter) return true;
+    return evaluateQuery({ ...s, _transferred_to_me: transferredToMe }, effectiveFilter);
+  });
 
   // myTableStrips: same logic — query-driven, no inTable/preset restriction.
   // Every strip visible in the workstation is determined solely by the filter query.
@@ -14375,7 +14394,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
-      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? 'באוויר' : '' }); }}
+      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; const defBoolVal = fd.key === 'airborne' ? 'באוויר' : 'כן'; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? defBoolVal : '' }); }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
@@ -14385,11 +14404,19 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
       </select>
       {needsValue && (
         fieldDef.ftype === 'bool' ? (
-          <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
-            style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-            <option value="באוויר">✈ באוויר</option>
-            <option value="קרקע">⬛ קרקע</option>
-          </select>
+          fieldDef.key === 'airborne' ? (
+            <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+              <option value="באוויר">✈ באוויר</option>
+              <option value="קרקע">⬛ קרקע</option>
+            </select>
+          ) : (
+            <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+              <option value="כן">✔ כן</option>
+              <option value="לא">✘ לא</option>
+            </select>
+          )
         ) : (
           <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
             placeholder={leaf.compare === 'in' || leaf.compare === 'not_in' ? 'ערך1, ערך2, ...' : 'ערך...'}
