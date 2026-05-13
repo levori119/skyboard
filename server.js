@@ -1460,8 +1460,8 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
     }
     
     await pool.query(
-      'UPDATE strips SET status = $1 WHERE id = $2',
-      ['pending_transfer', stripId]
+      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
+      ['pending_transfer', resolvedToWorkstationId || null, stripId]
     );
     
     const result = await pool.query(

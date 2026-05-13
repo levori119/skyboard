@@ -106,9 +106,12 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
   if (field === 'in_table') {
-    if (!strip.in_table) return false;
-    if (ctx?.presetId != null) return Number(strip.workstation_preset_id) === Number(ctx.presetId);
-    return true;
+    // "הועבר אלי" = strip is destined for (or already accepted by) this workstation
+    const isForMe = ctx?.presetId != null
+      ? Number(strip.workstation_preset_id) === Number(ctx.presetId)
+      : !!strip.workstation_preset_id;
+    // Match both in-transit (pending_transfer) and accepted (in_table=true) strips
+    return isForMe && (!!strip.in_table || strip.status === 'pending_transfer');
   }
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
@@ -3122,6 +3125,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
+    // Track last hovered drop target so pointerup can use it as fallback
+    // (elementsFromPoint can fail during pointerup when capture is active)
+    const lastHover = { marker: null as Element | null, neighbor: null as Element | null };
+
     const handlePointerMove = (e: PointerEvent) => {
       setDragPos({ 
         x: e.clientX - startPosRef.current.x, 
@@ -3129,9 +3136,20 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       });
       clearAllDropHighlights();
       const markerTarget = findTopmostMarker(e.clientX, e.clientY);
-      if (markerTarget) { markerTarget.classList.add('strip-drag-active'); return; }
+      if (markerTarget) {
+        lastHover.marker = markerTarget;
+        lastHover.neighbor = null;
+        markerTarget.classList.add('strip-drag-active');
+        return;
+      }
+      lastHover.marker = null;
       const neighborTarget = findTopmostNeighborPanel(e.clientX, e.clientY);
-      if (neighborTarget) neighborTarget.classList.add('strip-drag-active');
+      if (neighborTarget) {
+        lastHover.neighbor = neighborTarget;
+        neighborTarget.classList.add('strip-drag-active');
+      } else {
+        lastHover.neighbor = null;
+      }
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -3147,7 +3165,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         const dropY = e.clientY - startPosRef.current.y;
 
         // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
-        const topMarker = findTopmostMarker(e.clientX, e.clientY);
+        //    use lastHover.marker as fallback if elementsFromPoint misses (pointer capture edge case)
+        const topMarker = findTopmostMarker(e.clientX, e.clientY) || lastHover.marker;
         if (topMarker) {
           const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
           const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
@@ -3159,8 +3178,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           }
         }
 
-        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
-        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
+        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד
+        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY) || lastHover.neighbor;
         if (topNeighborPanel) {
           const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
           if (sectorId && onTransfer) {
@@ -8571,10 +8590,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
   const _qCtx = session.presetId != null ? { presetId: session.presetId } : undefined;
-  const myStrips = strips.filter(s =>
-    s.status !== 'pending_transfer' &&
-    (!effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx))
-  );
+  const myStrips = strips.filter(s => {
+    // Include pending_transfer strips that are incoming to THIS workstation
+    if (s.status === 'pending_transfer') {
+      if (session.presetId == null) return false;
+      if (Number(s.workstation_preset_id) !== Number(session.presetId)) return false;
+      return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
+    }
+    return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
+  });
 
   // myTableStrips: same logic — query-driven, no inTable/preset restriction.
   // Every strip visible in the workstation is determined solely by the filter query.
