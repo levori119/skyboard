@@ -4609,9 +4609,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         const transferred = [...new Set((singleTransfers || []).filter(t => t.callSign === callSign).map(t => t.aircraftIdx))];
                         if (transferred.length === 0) return null;
                         const allDone = count > 0 && transferred.length >= count;
+                        const label = allDone
+                          ? callSign
+                          : `${callSign} ${transferred.sort((a, b) => a - b).map(i => `#${i}`).join('+')}`;
                         return (
                           <span style={{ fontSize: '10px', background: '#14532d', color: '#86efac', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                            ✈️ אוק{allDone ? '' : ' ' + transferred.sort((a, b) => a - b).join(' ')}
+                            ✈️ {label}
                           </span>
                         );
                       })()}
@@ -7517,7 +7520,7 @@ const getFormationDisplayName = (strip: any): string => {
   const base = strip.callSign || strip.callsign || '';
   const indices: number[] | null = Array.isArray(strip.aircraft_indices) ? strip.aircraft_indices : null;
   if (!indices || indices.length === 0) return base;
-  return `${base} ${[...indices].sort((a, b) => a - b).join('+')}`;
+  return `${base} ${[...indices].sort((a, b) => a - b).map(i => `#${i}`).join('+')}`;
 };
 
 const normalizeAlt = (raw: string): string => {
