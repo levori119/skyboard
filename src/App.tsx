@@ -4231,10 +4231,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
+  sessionFilter?: any | null;
+  personalFilter?: any | null;
+  adminFilterQuery?: any | null;
+  onShowFilter?: () => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [rightPanelPinned, setRightPanelPinned] = useState(true);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
@@ -4512,11 +4517,44 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
+      <div style={{ ...PANEL, width: rightPanelPinned ? '240px' : '36px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, transition: 'width 0.2s', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px' }}>
-          <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
-        </div>
+        {rightPanelPinned ? (
+          <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', gap: '4px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+              <button
+                onClick={() => setRightPanelPinned(false)}
+                title="סגור חלונית"
+                style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569' }}
+              >📌</button>
+              <button
+                onClick={onShowFilter}
+                title={sessionFilter ? 'סינון סשן פעיל — לחץ לעריכה' : personalFilter ? 'סינון אישי שמור — לחץ לעריכה' : adminFilterQuery ? 'סינון עמדה (מנהל) — לחץ לעריכה' : 'פתח סינון'}
+                style={{
+                  background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
+                  border: sessionFilter ? '1px solid #fb923c' : personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #cbd5e1',
+                  borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px',
+                  color: sessionFilter ? '#fed7aa' : personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#475569',
+                  fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal'
+                }}
+              >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
+            </div>
+            <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>✈️ פמ"מים ({strips.length})</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '6px', gap: '6px' }}>
+            <button
+              onClick={() => setRightPanelPinned(true)}
+              title="פתח חלונית"
+              style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}
+            >◀</button>
+            {strips.length > 0 && (
+              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setRightPanelPinned(true)}>
+                {strips.length} פמ"מ
+              </div>
+            )}
+          </div>
+        )}
 
 
         {/* Incoming transfers zone */}
@@ -10944,6 +10982,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
                 onMergePartial={handleMergePartial}
+                sessionFilter={sessionFilter}
+                personalFilter={personalFilter}
+                adminFilterQuery={adminFilterQuery}
+                onShowFilter={() => {
+                  setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null);
+                  setShowPersonalFilter(v => !v);
+                }}
               />
             );
           })()}
