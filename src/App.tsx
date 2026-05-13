@@ -3099,9 +3099,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Do NOT call setPointerCapture: the capture element (⋮ div) is unmounted on re-render
-    // when isDragging becomes true, causing the browser to fire pointercancel and
-    // immediately cancelling the drag. Without capture, events bubble to window normally.
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
       startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -3110,43 +3108,22 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     }
   };
 
-  // useLayoutEffect adds listeners synchronously after DOM update, before the browser
-  // can dispatch any queued pointer events (avoids race with early pointermove/pointerup).
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!isDragging) return;
 
-    // Use getBoundingClientRect on each candidate element for reliable hit-testing.
-    // elementsFromPoint is unreliable when the target has CSS transforms (scale) applied,
-    // because the layout box and the visual box diverge.
     const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
-      const markers = document.querySelectorAll('.marker-drop-zone[data-marker-sector]');
-      for (const el of Array.from(markers)) {
-        const rect = el.getBoundingClientRect();
-        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-          return el;
-        }
-      }
-      return null;
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
     };
 
     const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
-      const panels = document.querySelectorAll('.neighbor-drop-zone[data-sector-id]');
-      for (const el of Array.from(panels)) {
-        const rect = el.getBoundingClientRect();
-        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-          return el;
-        }
-      }
-      return null;
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
     };
 
     const clearAllDropHighlights = () => {
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
-
-    // Track last hovered drop target so pointerup can use it as fallback
-    // (elementsFromPoint can fail during pointerup when capture is active)
-    const lastHover = { marker: null as Element | null, neighbor: null as Element | null };
 
     const handlePointerMove = (e: PointerEvent) => {
       setDragPos({ 
@@ -3155,20 +3132,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       });
       clearAllDropHighlights();
       const markerTarget = findTopmostMarker(e.clientX, e.clientY);
-      if (markerTarget) {
-        lastHover.marker = markerTarget;
-        lastHover.neighbor = null;
-        markerTarget.classList.add('strip-drag-active');
-        return;
-      }
-      lastHover.marker = null;
+      if (markerTarget) { markerTarget.classList.add('strip-drag-active'); return; }
       const neighborTarget = findTopmostNeighborPanel(e.clientX, e.clientY);
-      if (neighborTarget) {
-        lastHover.neighbor = neighborTarget;
-        neighborTarget.classList.add('strip-drag-active');
-      } else {
-        lastHover.neighbor = null;
-      }
+      if (neighborTarget) neighborTarget.classList.add('strip-drag-active');
     };
 
     const handlePointerUp = (e: PointerEvent) => {
@@ -3184,8 +3150,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         const dropY = e.clientY - startPosRef.current.y;
 
         // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
-        //    use lastHover.marker as fallback if elementsFromPoint misses (pointer capture edge case)
-        const topMarker = findTopmostMarker(e.clientX, e.clientY) || lastHover.marker;
+        const topMarker = findTopmostMarker(e.clientX, e.clientY);
         if (topMarker) {
           const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
           const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
@@ -3197,8 +3162,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           }
         }
 
-        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד
-        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY) || lastHover.neighbor;
+        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
+        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
         if (topNeighborPanel) {
           const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
           if (sectorId && onTransfer) {
