@@ -1857,7 +1857,7 @@ const DraggableNeighborPanel = ({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
+              <div style={{ fontSize: '12px', fontWeight: '500', color: '#94a3b8', letterSpacing: '0.01em' }}>{neighbor.label_he || neighbor.name}</div>
               {hasConflict && (
                 <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                   ⚠️ קונפליקט גובה
@@ -10862,8 +10862,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
-        {/* Sector Panels - Far Left — collapsible, hidden in classic mode */}
-        {allSectors.length > 0 && !isClassicMode && (
+        {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
+        {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
             <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
