@@ -9103,6 +9103,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
+  // Keep allSectors in sync with the live preset config.
+  // Fixes stale sessions where session.relevantSectors was empty (e.g. logged in before sectors were added to the preset).
+  useEffect(() => {
+    if (!livePresetConfig) return;
+    const isClassic = livePresetConfig.preset_type === 'classic' || livePresetConfig.display_mode === 'classic';
+    let relevantIds: number[] = Array.isArray(livePresetConfig.relevant_sectors)
+      ? livePresetConfig.relevant_sectors
+      : (typeof livePresetConfig.relevant_sectors === 'string' ? JSON.parse(livePresetConfig.relevant_sectors) : []);
+    if (!isClassic) {
+      const tPts = (livePresetConfig.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+      const rPts = (livePresetConfig.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
+      relevantIds = [...new Set([...relevantIds, ...tPts, ...rPts])];
+    }
+    if (relevantIds.length === 0) return;
+    fetch(`${API_URL}/sectors`)
+      .then(r => r.ok ? r.json() : [])
+      .then((allSectorData: any[]) => {
+        const relevant = allSectorData.filter((s: any) => relevantIds.includes(Number(s.id)));
+        if (relevant.length === 0) return;
+        setAllSectors(prev => {
+          const prevKey = prev.map((s: any) => s.id).sort((a, b) => a - b).join(',');
+          const newKey = relevant.map((s: any) => s.id).sort((a, b) => a - b).join(',');
+          if (prevKey === newKey) return prev;
+          if (prev.length === 0) setNeighborPanelOpen(true);
+          return relevant;
+        });
+      })
+      .catch(() => {});
+  }, [livePresetConfig]);
+
   // Airfields + preset config must load regardless of primarySectorId (GROUND workstations may have no primary sector)
   useEffect(() => {
     const loadAirfieldsAndConfig = () => {
