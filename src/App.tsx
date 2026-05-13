@@ -6246,10 +6246,18 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   // When presetId changes, reload display prefs for the new preset.
   React.useEffect(() => { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs)); }, [displayPrefsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When crewMemberId changes (hot-swap), reload display prefs from the new crew member's saved preference.
+  // When crewMemberId changes (hot-swap), fetch the latest display prefs from the server.
   React.useEffect(() => {
     if (isFirstDisplayPrefsCrewSwap.current) { isFirstDisplayPrefsCrewSwap.current = false; return; }
-    setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs));
+    if (!crewMemberId) { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, null)); return; }
+    fetch(`${API_URL}/crew-members/${crewMemberId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(member => {
+        const presetKey = String(presetId ?? 'global');
+        const serverPrefs = member?.classic_display_prefs?.[presetKey] ?? null;
+        setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, serverPrefs));
+      })
+      .catch(() => { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, null)); });
   }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist display prefs to server and localStorage whenever they change (skip initial mount).
