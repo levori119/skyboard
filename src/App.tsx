@@ -8114,6 +8114,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditing, setPressureEditing] = useState(false);
+  const [pressureInputMode, setPressureInputMode] = useState<'inHg'|'mb'>('inHg');
+  const [pressureInputStr, setPressureInputStr] = useState('');
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -10026,36 +10028,71 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </span>
           )}
           {/* Pressure field */}
-          <div
-            onClick={() => !pressureEditing && (canUpdatePressure || !parentBaseId) && setPressureEditing(true)}
-            title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
-            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#0c1a30' : '#1e293b', border: `2px solid ${pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : 'pointer', minWidth: '130px' }}
-          >
-            <span style={{ fontSize: '12px' }}>🌡</span>
-            <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
-            {pressureEditing ? (
-              <input
-                autoFocus
-                type="text"
-                value={pressureInHg}
-                onChange={e => setPressureInHg(e.target.value)}
-                onBlur={() => setPressureEditing(false)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setPressureEditing(false); } }}
-                placeholder='29.92'
-                style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
-              />
-            ) : (
-              <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? parseFloat(pressureInHg).toFixed(2) : '—'}
-              </span>
-            )}
-            <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
-            <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
-            <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
-            </span>
-            <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
-          </div>
+          {(() => {
+            const hasValue = pressureInHg && !isNaN(parseFloat(pressureInHg));
+            const canEdit = canUpdatePressure || !parentBaseId;
+            const commitPressure = () => {
+              if (pressureInputMode === 'mb') {
+                const mb = parseFloat(pressureInputStr);
+                if (!isNaN(mb) && mb > 0) setPressureInHg((mb / 33.8639).toFixed(2));
+              } else {
+                if (pressureInputStr && !isNaN(parseFloat(pressureInputStr))) setPressureInHg(parseFloat(pressureInputStr).toFixed(2));
+              }
+              setPressureEditing(false);
+            };
+            const handlePressureChange = (raw: string) => {
+              if (pressureInputMode === 'inHg') {
+                const digits = raw.replace(/[^\d]/g, '');
+                const prev = pressureInputStr;
+                if (!raw.includes('.') && digits.length === 2 && prev.replace(/[^\d]/g, '').length < 2) {
+                  setPressureInputStr(digits + '.');
+                } else {
+                  setPressureInputStr(raw);
+                }
+              } else {
+                setPressureInputStr(raw.replace(/[^\d]/g, '').slice(0, 4));
+              }
+            };
+            return (
+              <div
+                onClick={() => { if (!pressureEditing && canEdit) { setPressureInputStr(pressureInputMode === 'mb' ? (hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '') : (pressureInHg || '')); setPressureEditing(true); } }}
+                title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: hasValue ? '#0c1a30' : '#1e293b', border: `2px solid ${hasValue ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : (canEdit ? 'pointer' : 'default'), minWidth: '140px' }}
+              >
+                <span style={{ fontSize: '12px' }}>🌡</span>
+                <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
+                {pressureEditing ? (
+                  <>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={pressureInputStr}
+                      onChange={e => handlePressureChange(e.target.value)}
+                      onBlur={commitPressure}
+                      onKeyDown={e => { if (e.key === 'Enter') commitPressure(); if (e.key === 'Escape') setPressureEditing(false); }}
+                      placeholder={pressureInputMode === 'mb' ? '1013' : '29.92'}
+                      style={{ width: pressureInputMode === 'mb' ? '40px' : '50px', background: 'transparent', border: 'none', outline: 'none', color: pressureInputMode === 'mb' ? '#c084fc' : '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+                    />
+                    <button
+                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
+                      onClick={e => { e.stopPropagation(); const next = pressureInputMode === 'inHg' ? 'mb' : 'inHg'; setPressureInputMode(next); setPressureInputStr(next === 'mb' ? (hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '') : (pressureInHg || '')); }}
+                      style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', border: '1px solid #475569', background: '#1e293b', color: pressureInputMode === 'mb' ? '#c084fc' : '#7dd3fc', cursor: 'pointer', flexShrink: 0, fontWeight: 'bold' }}
+                    >{pressureInputMode === 'mb' ? 'mb' : '"'}</button>
+                  </>
+                ) : (
+                  <span style={{ fontSize: '13px', color: hasValue ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                    {hasValue ? parseFloat(pressureInHg).toFixed(2) : '—'}
+                  </span>
+                )}
+                {!pressureEditing && <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>}
+                <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
+                <span style={{ fontSize: '13px', color: hasValue ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                  {hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
+                </span>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+              </div>
+            );
+          })()}
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
