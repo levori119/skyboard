@@ -1836,12 +1836,16 @@ const DraggableNeighborPanel = ({
           onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
-          onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
-          onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
-          onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
+          onDragOver={(dragStripId || onStripDrop) ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
+          onDragLeave={(dragStripId || onStripDrop) ? (() => setIsStripDragOver(false)) : undefined}
+          onDrop={onStripDrop ? (e => {
+            e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false);
+            const sid = dragStripId || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return String(d.stripId ?? d.strip_id ?? ''); } catch { return ''; } })();
+            if (sid) onStripDrop(sid, neighbor.id);
+          }) : undefined}
           style={{
             padding: '7px 10px',
-            background: isStripDragOver ? '#166534' : (dragStripId ? '#0f2a1a' : hasConflict ? '#2a0a0a' : 'transparent'),
+            background: isStripDragOver ? '#166534' : (dragStripId || onStripDrop ? '#0f2a1a' : hasConflict ? '#2a0a0a' : 'transparent'),
             color: isStripDragOver ? '#86efac' : '#cbd5e1',
             display: 'flex',
             justifyContent: 'space-between',
@@ -10891,7 +10895,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : undefined}
+                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : isGroundMode ? (stripId, sectorId) => handleGroundTransfer(stripId, sectorId) : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
