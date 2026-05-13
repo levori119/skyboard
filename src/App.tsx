@@ -4528,7 +4528,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569' }}
               >📌</button>
               <button
-                onClick={onShowFilter}
+                onClick={() => onShowFilter?.()}
                 title={sessionFilter ? 'סינון סשן פעיל — לחץ לעריכה' : personalFilter ? 'סינון אישי שמור — לחץ לעריכה' : adminFilterQuery ? 'סינון עמדה (מנהל) — לחץ לעריכה' : 'פתח סינון'}
                 style={{
                   background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
