@@ -680,7 +680,9 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER REFERENCES base_statuses(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
+  await pool.query(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
+  await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='workstation_presets_parent_base_id_fkey') THEN ALTER TABLE workstation_presets ADD CONSTRAINT workstation_presets_parent_base_id_fkey FOREIGN KEY (parent_base_id) REFERENCES aviation_bases(id) ON DELETE SET NULL; END IF; END $$`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
