@@ -198,7 +198,6 @@ async function initDb() {
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_status_filter JSONB`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_filter_mode VARCHAR(3)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_panel_orders JSONB`);
-  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_display_prefs JSONB`);
   
   // Junction table for crew member approved workstations
   await pool.query(`
@@ -680,12 +679,9 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_base_statuses BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS base_status_ids JSONB DEFAULT '[]'`);
-  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
-  await pool.query(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
-  await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='workstation_presets_parent_base_id_fkey') THEN ALTER TABLE workstation_presets ADD CONSTRAINT workstation_presets_parent_base_id_fkey FOREIGN KEY (parent_base_id) REFERENCES aviation_bases(id) ON DELETE SET NULL; END IF; END $$`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER REFERENCES base_statuses(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
-  await pool.query(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
   // Aviation bases — SID/STAR management
   await pool.query(`
@@ -799,26 +795,6 @@ app.post('/api/crew-members', async (req, res) => {
   }
 });
 
-app.get('/api/crew-members/:id', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT cm.*,
-        COALESCE(
-          (SELECT json_agg(cmw.workstation_preset_id)
-           FROM crew_member_workstations cmw
-           WHERE cmw.crew_member_id = cm.id), '[]'
-        ) as approved_workstations
-      FROM crew_members cm
-      WHERE cm.id = $1
-    `, [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Error fetching crew member:', err);
-    res.status(500).json({ error: 'Failed to fetch crew member' });
-  }
-});
-
 app.put('/api/crew-members/:id', async (req, res) => {
   try {
     const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;
@@ -848,7 +824,7 @@ app.put('/api/crew-members/:id', async (req, res) => {
 
 app.patch('/api/crew-members/:id/preferences', async (req, res) => {
   try {
-    const { undo_duration_ms, ground_datk_filter, ground_status_filter, ground_filter_mode, classic_panel_orders, classic_display_prefs } = req.body;
+    const { undo_duration_ms, ground_datk_filter, ground_status_filter, ground_filter_mode, classic_panel_orders } = req.body;
     const fields = [];
     const values = [];
     let idx = 1;
@@ -857,7 +833,6 @@ app.patch('/api/crew-members/:id/preferences', async (req, res) => {
     if ('ground_status_filter' in req.body) { fields.push(`ground_status_filter = $${idx++}`); values.push(ground_status_filter !== undefined ? JSON.stringify(ground_status_filter) : null); }
     if ('ground_filter_mode' in req.body) { fields.push(`ground_filter_mode = $${idx++}`); values.push(ground_filter_mode ?? null); }
     if ('classic_panel_orders' in req.body) { fields.push(`classic_panel_orders = COALESCE(classic_panel_orders, '{}'::jsonb) || $${idx++}::jsonb`); values.push(classic_panel_orders !== undefined ? JSON.stringify(classic_panel_orders) : '{}'); }
-    if ('classic_display_prefs' in req.body) { fields.push(`classic_display_prefs = COALESCE(classic_display_prefs, '{}'::jsonb) || $${idx++}::jsonb`); values.push(classic_display_prefs !== undefined ? JSON.stringify(classic_display_prefs) : '{}'); }
     if (fields.length > 0) {
       values.push(req.params.id);
       await pool.query(`UPDATE crew_members SET ${fields.join(', ')} WHERE id = $${idx}`, values);
@@ -3138,7 +3113,7 @@ app.post('/api/strips/:id/merge-partial', async (req, res) => {
     await client.query('DELETE FROM strips WHERE id=$1', [rawSourceId]);
 
     await client.query('COMMIT');
-    res.json({ success: true, isFull, combinedIndices: combinedIdx, datkmMismatch });
+    res.json({ success: true, isFull, combinedIndices: combinedIdx });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error merging partial strips:', err);
@@ -4227,11 +4202,10 @@ app.get('/api/bdh-preset-assignments', async (req, res) => {
 // --- Base Pressure API (shared atmospheric pressure per base) ---
 
 app.get('/api/base-pressure/:baseId', async (req, res) => {
-  // baseId references aviation_bases.id
   try {
     const id = parseInt(req.params.baseId);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid baseId' });
-    const r = await pool.query('SELECT pressure_inhg FROM aviation_bases WHERE id=$1', [id]);
+    const r = await pool.query('SELECT pressure_inhg FROM base_statuses WHERE id=$1', [id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Base not found' });
     res.json({ pressure_inhg: r.rows[0].pressure_inhg ?? null });
   } catch (err) { res.status(500).json({ error: 'Failed to fetch base pressure' }); }
@@ -4243,7 +4217,7 @@ app.put('/api/base-pressure/:baseId', async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid baseId' });
     const raw = req.body.pressure_inhg;
     const val = (raw !== null && raw !== '' && !isNaN(parseFloat(raw))) ? parseFloat(raw) : null;
-    await pool.query('UPDATE aviation_bases SET pressure_inhg=$1 WHERE id=$2', [val, id]);
+    await pool.query('UPDATE base_statuses SET pressure_inhg=$1 WHERE id=$2', [val, id]);
     res.json({ pressure_inhg: val });
   } catch (err) { res.status(500).json({ error: 'Failed to update base pressure' }); }
 });

@@ -21,8 +21,6 @@ interface CrewMember {
   ground_datk_filter?: number | null;
   ground_status_filter?: string[] | null;
   ground_filter_mode?: 'AND' | 'OR' | null;
-  classic_panel_orders?: Record<string, { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] }> | null;
-  classic_display_prefs?: Record<string, Record<string, unknown>> | null;
 }
 
 interface WorkstationSession {
@@ -76,7 +74,6 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'status', label: 'מצב', ftype: 'text' },
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
-  { key: 'transferred_to_me', label: 'הועבר אלי', ftype: 'bool' },
   // ── טקסט חופשי ──
   { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
   { key: 'notes', label: 'הערות', ftype: 'text' },
@@ -107,7 +104,6 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
 const getQFieldValue = (strip: any, field: string): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
-  if (field === 'transferred_to_me') return !!strip._transferred_to_me;
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
   if (field === 'notes') return strip.notes || '';
@@ -115,14 +111,12 @@ const getQFieldValue = (strip: any, field: string): any => {
   return strip[field] ?? '';
 };
 
-const Q_BOOL_FIELDS = new Set(['airborne', 'transferred_to_me']);
-
 const evalQLeaf = (strip: any, leaf: QLeaf): boolean => {
   const raw = getQFieldValue(strip, leaf.field);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
-  const isBool = Q_BOOL_FIELDS.has(leaf.field);
-  const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp.includes('הועבר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
+  const isBool = leaf.field === 'airborne';
+  const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
     case 'neq': return isBool ? (!!raw) !== boolCmp : val !== cmp;
@@ -148,11 +142,6 @@ const evaluateQuery = (strip: any, node: QNode): boolean => {
     case 'none': return results.every(r => !r);
     default: return true;
   }
-};
-
-const queryUsesField = (node: QNode, field: string): boolean => {
-  if (node.type === 'leaf') return node.field === field;
-  return node.children.some(c => queryUsesField(c, field));
 };
 
 const getSession = (): WorkstationSession | null => {
@@ -1838,65 +1827,62 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ marginBottom: '5px', border: `1px solid ${isStripDragOver ? '#22c55e' : hasConflict ? '#ef4444' : '#2d3f55'}`, borderRadius: '10px', overflow: 'hidden', background: isStripDragOver ? '#0a2010' : hasConflict ? '#2a0a0a' : '#131e2e', transition: 'all 0.15s' }}>
+      <div style={{ borderBottom: '1px solid #334155' }}>
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
           onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
-          onDragOver={(dragStripId || onStripDrop) ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
-          onDragLeave={(dragStripId || onStripDrop) ? (() => setIsStripDragOver(false)) : undefined}
-          onDrop={onStripDrop ? (e => {
-            e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false);
-            const sid = dragStripId || (() => {
-              const raw = e.dataTransfer.getData('text/plain');
-              if (!raw) return '';
-              try { const d = JSON.parse(raw); return String(d.stripId ?? d.strip_id ?? ''); }
-              catch { return raw; }
-            })();
-            if (sid) onStripDrop(sid, neighbor.id);
-          }) : undefined}
+          onDragOver={dragStripId ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); }) : undefined}
+          onDragLeave={dragStripId ? (() => setIsStripDragOver(false)) : undefined}
+          onDrop={dragStripId && onStripDrop ? (e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); onStripDrop(dragStripId, neighbor.id); }) : undefined}
           style={{
-            padding: '7px 10px',
-            background: isStripDragOver ? '#166534' : (dragStripId || onStripDrop ? '#0f2a1a' : hasConflict ? '#2a0a0a' : 'transparent'),
-            color: isStripDragOver ? '#86efac' : '#cbd5e1',
+            padding: '8px 12px',
+            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (hasConflict ? '#3b0000' : (isExpanded ? '#334155' : 'transparent'))),
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             cursor: dragStripId ? 'copy' : 'grab',
             userSelect: 'none',
             transition: 'background 0.15s',
+            border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '2px solid transparent'),
           }}
         >
-          <div style={{ flex: 1, userSelect: 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <div style={{ fontSize: '12px', fontWeight: '500', textAlign: 'center', letterSpacing: '0.01em' }}>{neighbor.label_he || neighbor.name}</div>
+          <div 
+            style={{ 
+              flex: 1, 
+              textAlign: 'right', 
+              userSelect: 'none'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold' }}>{neighbor.label_he || neighbor.name}</div>
               {hasConflict && (
-                <span style={{ fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', borderRadius: '6px', padding: '1px 5px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                  ⚠️ קונפליקט
+                <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                  ⚠️ קונפליקט גובה
                 </span>
               )}
             </div>
             {neighbor.notes && (
-              <div style={{ fontSize: '9px', color: '#64748b', fontStyle: 'italic', marginTop: '2px', textAlign: 'center' }}>
+              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
                 {neighbor.notes}
               </div>
             )}
           </div>
           {(hasSubSectors || hasTransfers) && (
-            <span
+            <span 
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px', flexShrink: 0 }}
+              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
             >
               {isExpanded ? '▼' : '◀'}
               {hasTransfers && !isExpanded && (
-                <span style={{
-                  marginRight: '4px',
-                  background: '#f59e0b',
-                  color: '#1e293b',
-                  padding: '1px 5px',
-                  borderRadius: '8px',
+                <span style={{ 
+                  marginRight: '4px', 
+                  background: '#f59e0b', 
+                  color: '#1e293b', 
+                  padding: '1px 5px', 
+                  borderRadius: '8px', 
                   fontSize: '10px',
                   fontWeight: 'bold'
                 }}>
@@ -3105,41 +3091,26 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    // Try containerRef first; fall back to .bt-strip ancestor or parent element
-    // (containerRef becomes null when isDragging=true due to ref={!isDragging ? containerRef : undefined})
-    const rect = containerRef.current?.getBoundingClientRect()
-      ?? (e.currentTarget as HTMLElement).closest('.bt-strip')?.getBoundingClientRect()
-      ?? (e.currentTarget as HTMLElement).parentElement?.getBoundingClientRect();
-    const ox = rect ? e.clientX - rect.left : 30;
-    const oy = rect ? e.clientY - rect.top : 15;
-    startPosRef.current = { x: ox, y: oy };
-    setDragPos({ x: e.clientX - ox, y: e.clientY - oy });
-    setIsDragging(true);
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
+      setIsDragging(true);
+    }
   };
 
   useEffect(() => {
     if (!isDragging) return;
 
-    // Find a drop target by class+attr — uses elementsFromPoint with getBoundingClientRect fallback
-    // (elementsFromPoint can fail with pointer-capture on iOS/iPad Safari)
-    const findDropTarget = (clientX: number, clientY: number, cls: string, attr: string): Element | null => {
-      const byPoint = document.elementsFromPoint(clientX, clientY);
-      const hit = byPoint.find(el => el.classList.contains(cls) && el.getAttribute(attr));
-      if (hit) return hit;
-      // Fallback: check all matching elements via bounding rect
-      const all = document.querySelectorAll(`.${cls}[${attr}]`);
-      for (const el of Array.from(all)) {
-        const r = el.getBoundingClientRect();
-        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return el;
-      }
-      return null;
+    const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
     };
 
-    const findTopmostMarker = (clientX: number, clientY: number): Element | null =>
-      findDropTarget(clientX, clientY, 'marker-drop-zone', 'data-marker-sector');
-
-    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null =>
-      findDropTarget(clientX, clientY, 'neighbor-drop-zone', 'data-sector-id');
+    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
+      const els = document.elementsFromPoint(clientX, clientY);
+      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
+    };
 
     const clearAllDropHighlights = () => {
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
@@ -3160,51 +3131,45 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const handlePointerUp = (e: PointerEvent) => {
       clearAllDropHighlights();
       setIsDragging(false);
-
-      // 1. בדיקת נקודת העברה (neighbor panel) — אינה דורשת mapArea/sidebar
-      const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
-      if (topNeighborPanel) {
-        const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
-        if (sectorId && onTransfer) {
-          onTransfer(s.id, sectorId);
-          return;
-        }
-      }
-
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
-
-      // 2. בדיקת סמן במפה — דורש mapArea לחישוב קואורדינטות
-      const topMarker = findTopmostMarker(e.clientX, e.clientY);
-      if (topMarker && mapArea) {
-        const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
-        const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
-        if (sectorId && onTransfer) {
-          const mapRect = mapArea.getBoundingClientRect();
-          const x = e.clientX - mapRect.left;
-          const y = e.clientY - mapRect.top;
-          onTransfer(s.id, sectorId, x, y, subLabel || undefined);
-          return;
-        }
-      }
-
-      if (mapArea) {
+      
+      if (mapArea && sidebar) {
         const mapRect = mapArea.getBoundingClientRect();
+        const sidebarRect = sidebar.getBoundingClientRect();
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
-        // 3. בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
-        if (sidebar) {
-          const sidebarRect = sidebar.getBoundingClientRect();
-          if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
-              e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
-            onMove(s.id, 0, 0, false);
+        // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
+        const topMarker = findTopmostMarker(e.clientX, e.clientY);
+        if (topMarker) {
+          const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
+          const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
+          if (sectorId && onTransfer) {
+            const x = e.clientX - mapRect.left;
+            const y = e.clientY - mapRect.top;
+            onTransfer(s.id, sectorId, x, y, subLabel || undefined);
             return;
           }
         }
 
+        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
+        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
+        if (topNeighborPanel) {
+          const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
+          if (sectorId && onTransfer) {
+            onTransfer(s.id, sectorId);
+            return;
+          }
+        }
+
+        // 3. בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
+        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
+            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+          onMove(s.id, 0, 0, false);
+        }
         // 4. בדיקה אם נשחרר בתוך אזור המפה
-        if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
+        else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
             e.clientY >= mapRect.top && e.clientY <= mapRect.bottom) {
           const x = dropX - mapRect.left;
           const y = dropY - mapRect.top;
@@ -3233,7 +3198,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const stripContent = (style: React.CSSProperties) => (
     <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
       <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
-        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'none' }}>⋮</div>
+        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
@@ -4237,7 +4202,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial, sessionFilter, personalFilter, adminFilterQuery, onShowFilter }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4270,15 +4235,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
-  sessionFilter?: any | null;
-  personalFilter?: any | null;
-  adminFilterQuery?: any | null;
-  onShowFilter?: () => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [rightPanelPinned, setRightPanelPinned] = useState(true);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
@@ -4556,44 +4516,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: rightPanelPinned ? '240px' : '36px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, transition: 'width 0.2s', overflow: 'hidden' }}>
+      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
         {/* Header */}
-        {rightPanelPinned ? (
-          <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', gap: '4px' }}>
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
-              <button
-                onClick={() => setRightPanelPinned(false)}
-                title="סגור חלונית"
-                style={{ background: 'transparent', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', padding: '2px 5px', color: '#475569' }}
-              >📌</button>
-              <button
-                onClick={() => onShowFilter?.()}
-                title={sessionFilter ? 'סינון סשן פעיל — לחץ לעריכה' : personalFilter ? 'סינון אישי שמור — לחץ לעריכה' : adminFilterQuery ? 'סינון עמדה (מנהל) — לחץ לעריכה' : 'פתח סינון'}
-                style={{
-                  background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent',
-                  border: sessionFilter ? '1px solid #fb923c' : personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #cbd5e1',
-                  borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '2px 6px',
-                  color: sessionFilter ? '#fed7aa' : personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#475569',
-                  fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal'
-                }}
-              >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
-            </div>
-            <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold', flex: 1, textAlign: 'center' }}>✈️ פמ"מים ({strips.length})</span>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '6px', gap: '6px' }}>
-            <button
-              onClick={() => setRightPanelPinned(true)}
-              title="פתח חלונית"
-              style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '4px 0 0 4px', fontSize: '12px', lineHeight: 1 }}
-            >◀</button>
-            {strips.length > 0 && (
-              <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setRightPanelPinned(true)}>
-                {strips.length} פמ"מ
-              </div>
-            )}
-          </div>
-        )}
+        <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 8px' }}>
+          <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
+        </div>
 
 
         {/* Incoming transfers zone */}
@@ -4676,19 +4603,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
                       {strip.aircraft_indices && <span style={{ fontSize: '9px', background: '#92400e', color: '#fcd34d', borderRadius: '4px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חלקי</span>}
-                      {(() => {
-                        const transferred = [...new Set((singleTransfers || []).filter(t => t.callSign === callSign).map(t => t.aircraftIdx))];
-                        if (transferred.length === 0) return null;
-                        const allDone = count > 0 && transferred.length >= count;
-                        const label = allDone
-                          ? callSign
-                          : `${callSign} ${transferred.sort((a, b) => a - b).join('+')}`;
-                        return (
-                          <span style={{ fontSize: '10px', background: '#14532d', color: '#86efac', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>
-                            ✈️ {label}
-                          </span>
-                        );
-                      })()}
                     </div>
                     {/* Per-aircraft datk/kipa badges shown in collapsed view */}
                     {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
@@ -4723,6 +4637,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       );
                     })()}
                   </div>
+                  {/* Partial sibling merge button */}
+                  {(() => {
+                    if (!strip.parent_strip_id || !onMergePartial) return null;
+                    const siblings = strips.filter(s => s.parent_strip_id && String(s.parent_strip_id) === String(strip.parent_strip_id) && String(s.id) !== String(strip.id));
+                    if (siblings.length === 0) return null;
+                    return (
+                      <button
+                        title={'מזג עם הפמ"מ החלקי האח'}
+                        onClick={e => { e.stopPropagation(); onMergePartial(String(siblings[0].id), String(strip.id)); }}
+                        style={{ padding: '4px 7px', background: '#1d4ed8', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
+                      >
+                        ⊕מזג
+                      </button>
+                    );
+                  })()}
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
                     style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
@@ -5415,62 +5344,54 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       </div>
 
-      {/* LEFT panel — Transfer Sector Drop Zones */}
-      {transferSectors.length > 0 && (
-        <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderRight: `1px solid ${border}` }}>
-          <div style={{ ...HDR }}>✈️ נקודות העברה</div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {transferSectors.map(sector => {
-              const isOver = leftDragOver === sector.id;
-              return (
-                <div
-                  key={sector.id}
-                  onDragOver={e => { e.preventDefault(); setLeftDragOver(sector.id); }}
-                  onDragLeave={() => { if (leftDragOver === sector.id) setLeftDragOver(null); }}
-                  onDrop={e => {
-                    e.preventDefault();
-                    setLeftDragOver(null);
-                    if (!dragging) return;
-                    const strip = strips.find(s => String(s.id) === String(dragging.stripId));
-                    if (!strip) return;
-                    const aircraft = getAircraftPositions(strip);
-                    const totalCount = aircraft.length;
-                    const stripName = strip.callSign || strip.callsign || '?';
-                    // idx=-1 means whole-formation drag — always transfer the full strip.
-                    // idx>=1 on a multi-aircraft strip — ask which aircraft to transfer.
-                    if (dragging.idx === -1 || totalCount <= 1) {
-                      onTransfer(String(dragging.stripId), sector.id);
-                    } else {
-                      setTransferPending({ stripId: String(dragging.stripId), sectorId: sector.id, aircraftIdx: dragging.idx, stripName, totalCount });
+      {/* LEFT panel — Transfer sectors */}
+      <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
+        <div style={HDR}>📤 העברה</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+          {transferSectors.length === 0 && <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>}
+          {transferSectors.map(sec => {
+            const isDrop = leftDragOver === sec.id;
+            return (
+              <div key={sec.id} style={{ marginBottom: '6px', border: `2px solid ${isDrop ? '#22c55e' : border}`, borderRadius: '8px', overflow: 'hidden', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'all 0.15s' }}
+                onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  setLeftDragOver(null);
+                  try {
+                    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                    if (!data.stripId) return;
+                    const strip = strips.find(s => String(s.id) === String(data.stripId));
+                    if (data.all) {
+                      // Whole-formation drag → transfer the whole strip directly (no dialog).
+                      onTransfer(String(data.stripId), sec.id);
+                    } else if (data.idx) {
+                      // Single aircraft drag → transfer directly as individual aircraft (no dialog).
+                      onTransfer(String(data.stripId), sec.id, data.idx);
                     }
-                    setDragging(null);
-                  }}
-                  style={{
-                    padding: '12px 8px',
-                    borderRadius: '8px',
-                    border: `2px dashed ${isOver ? '#22c55e' : (lightMode ? '#cbd5e1' : '#334155')}`,
-                    background: isOver ? (lightMode ? '#dcfce7' : '#14532d') : (lightMode ? '#f8fafc' : '#0f172a'),
-                    color: isOver ? (lightMode ? '#166534' : '#86efac') : headerColor,
-                    textAlign: 'center',
-                    cursor: 'default',
-                    transition: 'all 0.15s',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {isOver && <div style={{ fontSize: '16px', marginBottom: '4px' }}>📥</div>}
-                  {sector.name || sector.label || `סקטור ${sector.id}`}
+                  } catch {}
+                }}
+              >
+                <div style={{ padding: '6px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : headerBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : headerColor, fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                  {sec.label_he || sec.name}
+                  {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
                 </div>
-              );
-            })}
-            {transferSectors.length === 0 && (
-              <div style={{ color: '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px' }}>
-                אין סקטורים מוגדרים להעברה
+                {/* Pending outgoing transfers to this sector */}
+                {(singleTransfers || []).filter(t => t.sectorId === sec.id).map((t, i) => (
+                  <div key={`single-${i}`} style={{ padding: '3px 6px', fontSize: '11px', color: '#93c5fd', background: '#1e3a5f', borderTop: `1px solid ${border}` }}>
+                    ✈️ {t.callSign}#{t.aircraftIdx} ({t.aircraftIdx}/{t.totalCount}) ↗ הועבר
+                  </div>
+                ))}
+                {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
+                  <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
+                    📋 {t.callsign || '?'} (כל הפמ"מ) ↗ ממתין
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {/* Taxi Instructions Modal */}
       {taxiInstModal && (() => {
@@ -5692,6 +5613,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
             }}
             onMouseEnter={() => setHoveredRow(i)}
             onMouseLeave={() => setHoveredRow(null)}
+            onMouseDown={e => { if (editableField && onUpdateField) e.stopPropagation(); }}
             onClick={() => { if (editableField && onUpdateField) { setEditingRow(i); setEditVal(getVal(editableField)); } }}
           >
             {isEditing ? (
@@ -6230,7 +6152,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, initialDisplayPrefs, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
@@ -6238,7 +6160,6 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   presetId?: number | string;
   crewMemberId?: number | null;
   initialPanelOrder?: { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] } | null;
-  initialDisplayPrefs?: Record<string, unknown> | null;
   onTransfer: (stripId: string, toSectorId: number) => void;
   onTransferToPreset?: (stripId: string, toPresetId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
@@ -6274,18 +6195,10 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   // When presetId changes, reload order (server pref for this preset, then localStorage).
   React.useEffect(() => { setSavedOrder(loadOrder(orderKey, initialPanelOrder)); }, [orderKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When crewMemberId changes (hot-swap), fetch the latest panel order from the server.
+  // When crewMemberId changes (hot-swap), reload order from the new crew member's saved preference.
   React.useEffect(() => {
     if (isFirstCrewSwap.current) { isFirstCrewSwap.current = false; return; }
-    if (!crewMemberId) { setSavedOrder(loadOrder(orderKey, null)); return; }
-    fetch(`${API_URL}/crew-members/${crewMemberId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(member => {
-        const presetKey = String(presetId ?? 'global');
-        const serverOrder = member?.classic_panel_orders?.[presetKey] ?? null;
-        setSavedOrder(loadOrder(orderKey, serverOrder));
-      })
-      .catch(() => { setSavedOrder(loadOrder(orderKey, null)); });
+    setSavedOrder(loadOrder(orderKey, initialPanelOrder));
   }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist order to server and localStorage whenever it changes (skip initial mount).
@@ -6303,65 +6216,6 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   }, [savedOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const persistOrder = (next: typeof savedOrder) => { setSavedOrder(next); };
-
-  // Per-crew-member Classic display preferences (e.g. light/dark table override per preset).
-  // Stored as { [presetKey]: { [prefKey]: value } } via classic_display_prefs on the server,
-  // with localStorage as an immediate-write fallback — same pattern as classic_panel_orders.
-  const displayPrefsKey = `sky_classic_display_prefs_${presetId ?? 'global'}`;
-  const loadDisplayPrefs = (key: string, serverPrefs?: Record<string, unknown> | null): Record<string, unknown> => {
-    if (serverPrefs && typeof serverPrefs === 'object') return { ...serverPrefs };
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) return { ...JSON.parse(raw) };
-    } catch {}
-    return {};
-  };
-  const [displayPrefs, setDisplayPrefs] = useState<Record<string, unknown>>(() => loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs));
-  const isFirstDisplayPrefsMount = React.useRef(true);
-  const isFirstDisplayPrefsCrewSwap = React.useRef(true);
-
-  // When presetId changes, reload display prefs for the new preset.
-  React.useEffect(() => { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs)); }, [displayPrefsKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // When crewMemberId changes (hot-swap), fetch the latest display prefs from the server.
-  React.useEffect(() => {
-    if (isFirstDisplayPrefsCrewSwap.current) { isFirstDisplayPrefsCrewSwap.current = false; return; }
-    if (!crewMemberId) { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, null)); return; }
-    fetch(`${API_URL}/crew-members/${crewMemberId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(member => {
-        const presetKey = String(presetId ?? 'global');
-        const serverPrefs = member?.classic_display_prefs?.[presetKey] ?? null;
-        setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, serverPrefs));
-      })
-      .catch(() => { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, null)); });
-  }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Persist display prefs to server and localStorage whenever they change (skip initial mount).
-  React.useEffect(() => {
-    if (isFirstDisplayPrefsMount.current) { isFirstDisplayPrefsMount.current = false; return; }
-    try { localStorage.setItem(displayPrefsKey, JSON.stringify(displayPrefs)); } catch {}
-    if (crewMemberId) {
-      const presetKey = String(presetId ?? 'global');
-      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classic_display_prefs: { [presetKey]: displayPrefs } }),
-      }).catch(() => {});
-    }
-  }, [displayPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Helper: update a single display preference key and persist it.
-  const setDisplayPref = (key: string, value: unknown) => {
-    setDisplayPrefs(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Per-user strip card light/dark override: if the user has set a preference, use it;
-  // otherwise fall back to the global lightMode prop.
-  const effectiveLightMode: boolean = displayPrefs.stripLight !== undefined
-    ? Boolean(displayPrefs.stripLight)
-    : lightMode;
-
   const applyOrder = <I,>(items: I[], getKey: (item: I) => number, keys: number[]): I[] => {
     if (!keys.length) return items;
     const map = new Map<number, I>();
@@ -6471,11 +6325,10 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               setDraggingTransferMoveId(null);
                               return;
                             }
-                            const sid = draggingStripId || e.dataTransfer.getData('text/plain') || null;
-                            if (sid) {
-                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(sid).replace('s',''));
+                            if (draggingStripId) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
                               if (!alreadyTransferred && onTransferToPreset) {
-                                onTransferToPreset(sid, Number(pp.id));
+                                onTransferToPreset(draggingStripId, Number(pp.id));
                               }
                               setDraggingStripId(null);
                             }
@@ -6537,11 +6390,10 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               setDraggingTransferMoveId(null);
                               return;
                             }
-                            const sid = draggingStripId || e.dataTransfer.getData('text/plain') || null;
-                            if (sid) {
-                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(sid).replace('s','') || String('s' + t.strip_id) === String(sid));
+                            if (draggingStripId) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
                               if (!alreadyTransferred) {
-                                onTransfer(sid, pt.sector_id);
+                                onTransfer(draggingStripId, pt.sector_id);
                               }
                               setDraggingStripId(null);
                             }
@@ -6606,13 +6458,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           }
         }}
       >
-        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-          <span>🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}</span>
-          <button
-            title={effectiveLightMode ? 'עבור לתצוגת לילה בכרטיסי הסטריפ' : 'עבור לתצוגת יום בכרטיסי הסטריפ'}
-            onClick={e => { e.stopPropagation(); setDisplayPref('stripLight', !effectiveLightMode); }}
-            style={{ marginInlineStart: 'auto', padding: '1px 6px', borderRadius: '4px', border: `1px solid ${lightMode ? '#94a3b8' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
-          >{effectiveLightMode ? '🌙' : '☀️'}</button>
+        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
+          🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {!classicStripTable && (
@@ -6623,8 +6470,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           {strips.length === 0
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
-              <div key={s.id} data-classic-strip="true" draggable onDragStart={e => { e.dataTransfer.setData('text/plain', String(s.id)); e.dataTransfer.effectAllowed = 'move'; setDraggingStripId(String(s.id)); }} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                <ClassicStripCard strip={s} rows={rows} lightMode={effectiveLightMode} isDragging={draggingStripId === String(s.id)}
+              <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
                   onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
               </div>
             ))
@@ -8121,16 +7968,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
   const [pendingDeleteStrip, setPendingDeleteStrip] = React.useState<{ stripId: string; callSign: string; durationMs: number } | null>(null);
-  const [pressureToast, setPressureToast] = React.useState<string | null>(null);
-  const pressureToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [transferBlockedToast, setTransferBlockedToast] = React.useState<string | null>(null);
-  const transferBlockedToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showTransferBlockedToast = React.useCallback((callSign: string) => {
-    const msg = `⚠️ ${callSign} — נמצא בשלבי העברה ולא ניתן להעביר שוב`;
-    setTransferBlockedToast(msg);
-    if (transferBlockedToastTimerRef.current) clearTimeout(transferBlockedToastTimerRef.current);
-    transferBlockedToastTimerRef.current = setTimeout(() => setTransferBlockedToast(null), 4000);
-  }, []);
   const deleteStripUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => {
     return () => { if (deleteStripUndoTimerRef.current) clearTimeout(deleteStripUndoTimerRef.current); };
@@ -8217,8 +8054,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditing, setPressureEditing] = useState(false);
-  const [pressureInputMode, setPressureInputMode] = useState<'inHg'|'mb'>('inHg');
-  const [pressureInputStr, setPressureInputStr] = useState('');
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -8530,30 +8365,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
 
   // Load pressure from DB and poll every 5s when a parent base is configured
-  const prevPressureRef = React.useRef<string>('');
   useEffect(() => {
     if (!parentBaseId) return;
     let cancelled = false;
     const load = () => fetch(`${API_URL}/base-pressure/${parentBaseId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (cancelled || data?.pressure_inhg == null) return;
-        const newVal = parseFloat(data.pressure_inhg).toFixed(2);
-        if (!canUpdatePressure && prevPressureRef.current && prevPressureRef.current !== newVal) {
-          const mb = (parseFloat(newVal) * 33.8639).toFixed(0);
-          const msg = `עודכן לחץ ל-${newVal}" / ${mb} mb`;
-          setPressureToast(msg);
-          if (pressureToastTimerRef.current) clearTimeout(pressureToastTimerRef.current);
-          pressureToastTimerRef.current = setTimeout(() => setPressureToast(null), 4000);
-        }
-        prevPressureRef.current = newVal;
-        setPressureInHg(newVal);
-      })
+      .then(data => { if (!cancelled && data?.pressure_inhg != null) setPressureInHg(parseFloat(data.pressure_inhg).toFixed(2)); })
       .catch(() => {});
     load();
     const iv = setInterval(load, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [parentBaseId, canUpdatePressure]);
+  }, [parentBaseId]);
 
   // Save pressure to DB (debounced 800ms) when authorized updater changes it
   useEffect(() => {
@@ -8678,20 +8500,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
-  // When the filter uses "transferred_to_me", pending incoming transfers are included as candidates.
-  const incomingStripIds = React.useMemo(
-    () => new Set(incomingTransfers.map((t: any) => String(t.strip_id))),
-    [incomingTransfers]
+  const myStrips = strips.filter(s =>
+    s.status !== 'pending_transfer' &&
+    (!effectiveFilter || evaluateQuery(s, effectiveFilter))
   );
-  const filterUsesTransferredToMe = effectiveFilter ? queryUsesField(effectiveFilter, 'transferred_to_me') : false;
-  const myStrips = strips.filter(s => {
-    const transferredToMe = incomingStripIds.has(String(s.id));
-    if (s.status === 'pending_transfer') {
-      if (!filterUsesTransferredToMe || !transferredToMe) return false;
-    }
-    if (!effectiveFilter) return true;
-    return evaluateQuery({ ...s, _transferred_to_me: transferredToMe }, effectiveFilter);
-  });
 
   // myTableStrips: same logic — query-driven, no inTable/preset restriction.
   // Every strip visible in the workstation is determined solely by the filter query.
@@ -9103,36 +8915,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
-  // Keep allSectors in sync with the live preset config.
-  // Fixes stale sessions where session.relevantSectors was empty (e.g. logged in before sectors were added to the preset).
-  useEffect(() => {
-    if (!livePresetConfig) return;
-    const isClassic = livePresetConfig.preset_type === 'classic' || livePresetConfig.display_mode === 'classic';
-    let relevantIds: number[] = Array.isArray(livePresetConfig.relevant_sectors)
-      ? livePresetConfig.relevant_sectors
-      : (typeof livePresetConfig.relevant_sectors === 'string' ? JSON.parse(livePresetConfig.relevant_sectors) : []);
-    if (!isClassic) {
-      const tPts = (livePresetConfig.classic_transfer_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-      const rPts = (livePresetConfig.classic_receive_points || []).map((p: any) => Number(p.sector_id)).filter(Boolean);
-      relevantIds = [...new Set([...relevantIds, ...tPts, ...rPts])];
-    }
-    if (relevantIds.length === 0) return;
-    fetch(`${API_URL}/sectors`)
-      .then(r => r.ok ? r.json() : [])
-      .then((allSectorData: any[]) => {
-        const relevant = allSectorData.filter((s: any) => relevantIds.includes(Number(s.id)));
-        if (relevant.length === 0) return;
-        setAllSectors(prev => {
-          const prevKey = prev.map((s: any) => s.id).sort((a, b) => a - b).join(',');
-          const newKey = relevant.map((s: any) => s.id).sort((a, b) => a - b).join(',');
-          if (prevKey === newKey) return prev;
-          if (prev.length === 0) setNeighborPanelOpen(true);
-          return relevant;
-        });
-      })
-      .catch(() => {});
-  }, [livePresetConfig]);
-
   // Airfields + preset config must load regardless of primarySectorId (GROUND workstations may have no primary sector)
   useEffect(() => {
     const loadAirfieldsAndConfig = () => {
@@ -9333,11 +9115,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
-    const stripToCheck = strips.find((s: any) => String(s.id) === String(stripId));
-    if (stripToCheck?.status === 'pending_transfer') {
-      showTransferBlockedToast(stripToCheck.callSign || stripToCheck.callsign || String(stripId));
-      return;
-    }
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
@@ -9354,7 +9131,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       });
       // Optimistic update: immediately mark the strip as pending_transfer in local state
       // so the load count drops right away without waiting for the next poll cycle
-      setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, status: 'pending_transfer' } : s));
+      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
       const strip = strips.find((s: any) => String(s.id) === String(stripId));
       logActivity('transfer_sent', {
         stripId: String(stripId),
@@ -9370,15 +9147,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
-    if (strip?.status === 'pending_transfer') {
-      showTransferBlockedToast(strip.callSign || strip.callsign || String(stripId));
-      return;
-    }
-    const availableCount = Array.isArray(strip?.aircraft_indices)
-      ? (strip.aircraft_indices as number[]).length
-      : (parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1);
-    if (availableCount > 1) {
-      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: availableCount }, (_, i) => i + 1);
+    const count = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+    if (count > 1) {
+      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: count }, (_, i) => i + 1);
       setPartialSelectedIndices(indices);
       setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
     } else {
@@ -9412,9 +9183,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { partialStripId } = await res.json();
+      const { newStripId } = await res.json();
       await loadData();
-      await handleTransfer(String(partialStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
+      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
     } catch (err) {
       console.error('Partial create failed:', err);
     }
@@ -9428,11 +9199,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId })
       });
       if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
       await loadData();
-      if (data.datkmMismatch) {
-        alert('⚠️ לא כל המטוסים מעודכנים — ספרורים שונים בין חלקי המבנה');
-      }
     } catch (err) {
       console.error('Merge partial failed:', err);
     }
@@ -9449,11 +9216,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         console.error('handleGroundTransfer: invalid stripId or aircraftIdx', stripId, aircraftIdx);
         return;
       }
-
-      // Capture strip info before modifying state
-      const sourceStrip = strips.find(s => parseInt(String(s.id).replace(/^s/, '')) === sid);
-      const xferCallSign = sourceStrip?.callSign || sourceStrip?.callsign || '?';
-      const xferTotalCount = parseInt(sourceStrip?.numberOfFormation ?? sourceStrip?.number_of_formation ?? '1') || 1;
 
       // Create a real 1-aircraft strip from the ground strip, then transfer it
       const res = await fetch(`${API_URL}/strips/ground-single-transfer`, {
@@ -9474,14 +9236,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .map(r => r.idx > aidx ? { ...r, idx: r.idx - 1 } : r);
         return { ...prev, [String(sid)]: rows };
       });
-
-      // Track this aircraft as transferred (for the אוק indicator on the strip card)
-      if (sourceDeleted) {
-        // Whole strip is gone — clear all transfer indicators for it
-        setGroundSingleTransfers(prev => prev.filter(t => t.callSign !== xferCallSign));
-      } else {
-        setGroundSingleTransfers(prev => [...prev, { sectorId: toSectorId, callSign: xferCallSign, aircraftIdx: aidx, totalCount: xferTotalCount }]);
-      }
 
       // Optimistic UI: update source strip count (or remove it if deleted)
       if (sourceDeleted) {
@@ -9560,16 +9314,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
         classicMine.style.outline = over ? '3px solid #3b82f6' : 'none';
       }
-      // Highlight markers and neighbor panels — same visual feedback as Strip drag
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
-      const hlEls = document.elementsFromPoint(e.clientX, e.clientY);
-      const markerHl = hlEls.find((el: Element) => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector'));
-      if (markerHl) {
-        (markerHl as HTMLElement).classList.add('strip-drag-active');
-      } else {
-        const neighborHl = hlEls.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
-        if (neighborHl) (neighborHl as HTMLElement).classList.add('strip-drag-active');
-      }
       setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
     const onUp = (e: PointerEvent) => {
@@ -9578,7 +9322,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
       const classicMineEl = document.getElementById('classic-mine-panel');
       if (classicMineEl) classicMineEl.style.outline = 'none';
       // Check if dropped on ClassicView "שלי" center panel
@@ -9589,29 +9332,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           classicMinePanelDropRef.current?.(String(id));
           return;
         }
-      }
-      // Check if dropped on a map marker (transfer point) or neighbor drop zone
-      // Uses elementsFromPoint with getBoundingClientRect fallback for iOS/iPad pointer-capture
-      const findDrop = (cls: string, attr: string): Element | null => {
-        const byPoint = document.elementsFromPoint(e.clientX, e.clientY);
-        const hit = byPoint.find((el: Element) => el.classList.contains(cls) && el.getAttribute(attr));
-        if (hit) return hit;
-        const all = document.querySelectorAll(`.${cls}[${attr}]`);
-        for (const el of Array.from(all)) {
-          const r = el.getBoundingClientRect();
-          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return el;
-        }
-        return null;
-      };
-      const markerEl = findDrop('marker-drop-zone', 'data-marker-sector');
-      if (markerEl) {
-        const sectorId = Number(markerEl.getAttribute('data-marker-sector'));
-        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
-      }
-      const neighborEl = findDrop('neighbor-drop-zone', 'data-sector-id');
-      if (neighborEl) {
-        const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
-        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
       }
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
@@ -9640,7 +9360,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
-      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
       const el = document.getElementById('classic-mine-panel');
       if (el) el.style.outline = 'none';
     };
@@ -9708,20 +9427,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         handleMoveRef.current(String(id), 0, 0, false);
         return;
       }
+      const els = document.elementsFromPoint(e.clientX, e.clientY);
       // Dropped on neighbor panel → initiate transfer
-      // Uses elementsFromPoint with getBoundingClientRect fallback for iOS/iPad pointer-capture
-      const findNeighbor = (): Element | null => {
-        const byPoint = document.elementsFromPoint(e.clientX, e.clientY);
-        const hit = byPoint.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
-        if (hit) return hit;
-        const all = document.querySelectorAll('.neighbor-drop-zone[data-sector-id]');
-        for (const el of Array.from(all)) {
-          const r = el.getBoundingClientRect();
-          if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return el;
-        }
-        return null;
-      };
-      const neighborEl = findNeighbor();
+      const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
       if (neighborEl) {
         const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
         handleTransferRef.current(id, sectorId);
@@ -10019,12 +9727,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const getUndoDurationMs = () => {
     const VALID_DURATIONS = [3000, 6000, 10000];
-    const cmDur = session?.crewMember?.undo_duration_ms;
-    if (cmDur && VALID_DURATIONS.includes(cmDur)) return cmDur;
     try {
       const v = localStorage.getItem('groundUndoDurationMs');
       if (v) { const n = Number(v); if (VALID_DURATIONS.includes(n)) return n; }
     } catch { /* ignore */ }
+    const cmDur = session?.crewMember?.undo_duration_ms;
+    if (cmDur && VALID_DURATIONS.includes(cmDur)) return cmDur;
     return 6000;
   };
 
@@ -10239,71 +9947,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </span>
           )}
           {/* Pressure field */}
-          {(() => {
-            const hasValue = pressureInHg && !isNaN(parseFloat(pressureInHg));
-            const canEdit = canUpdatePressure || !parentBaseId;
-            const commitPressure = () => {
-              if (pressureInputMode === 'mb') {
-                const mb = parseFloat(pressureInputStr);
-                if (!isNaN(mb) && mb > 0) setPressureInHg((mb / 33.8639).toFixed(2));
-              } else {
-                if (pressureInputStr && !isNaN(parseFloat(pressureInputStr))) setPressureInHg(parseFloat(pressureInputStr).toFixed(2));
-              }
-              setPressureEditing(false);
-            };
-            const handlePressureChange = (raw: string) => {
-              if (pressureInputMode === 'inHg') {
-                const digits = raw.replace(/[^\d]/g, '');
-                const prev = pressureInputStr;
-                if (!raw.includes('.') && digits.length === 2 && prev.replace(/[^\d]/g, '').length < 2) {
-                  setPressureInputStr(digits + '.');
-                } else {
-                  setPressureInputStr(raw);
-                }
-              } else {
-                setPressureInputStr(raw.replace(/[^\d]/g, '').slice(0, 4));
-              }
-            };
-            return (
-              <div
-                onClick={() => { if (!pressureEditing && canEdit) { setPressureInputStr(pressureInputMode === 'mb' ? (hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '') : (pressureInHg || '')); setPressureEditing(true); } }}
-                title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: hasValue ? '#0c1a30' : '#1e293b', border: `2px solid ${hasValue ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : (canEdit ? 'pointer' : 'default'), minWidth: '140px' }}
-              >
-                <span style={{ fontSize: '12px' }}>🌡</span>
-                <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
-                {pressureEditing ? (
-                  <>
-                    <input
-                      autoFocus
-                      type="text"
-                      value={pressureInputStr}
-                      onChange={e => handlePressureChange(e.target.value)}
-                      onBlur={commitPressure}
-                      onKeyDown={e => { if (e.key === 'Enter') commitPressure(); if (e.key === 'Escape') setPressureEditing(false); }}
-                      placeholder={pressureInputMode === 'mb' ? '1013' : '29.92'}
-                      style={{ width: pressureInputMode === 'mb' ? '40px' : '50px', background: 'transparent', border: 'none', outline: 'none', color: pressureInputMode === 'mb' ? '#c084fc' : '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
-                    />
-                    <button
-                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); }}
-                      onClick={e => { e.stopPropagation(); const next = pressureInputMode === 'inHg' ? 'mb' : 'inHg'; setPressureInputMode(next); setPressureInputStr(next === 'mb' ? (hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '') : (pressureInHg || '')); }}
-                      style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', border: '1px solid #475569', background: '#1e293b', color: pressureInputMode === 'mb' ? '#c084fc' : '#7dd3fc', cursor: 'pointer', flexShrink: 0, fontWeight: 'bold' }}
-                    >{pressureInputMode === 'mb' ? 'mb' : '"'}</button>
-                  </>
-                ) : (
-                  <span style={{ fontSize: '13px', color: hasValue ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                    {hasValue ? parseFloat(pressureInHg).toFixed(2) : '—'}
-                  </span>
-                )}
-                {!pressureEditing && <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>}
-                <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
-                <span style={{ fontSize: '13px', color: hasValue ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                  {hasValue ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
-                </span>
-                <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
-              </div>
-            );
-          })()}
+          <div
+            onClick={() => !pressureEditing && (canUpdatePressure || !parentBaseId) && setPressureEditing(true)}
+            title={parentBaseId && !canUpdatePressure ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי — לחץ לעריכה'}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', background: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#0c1a30' : '#1e293b', border: `2px solid ${pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', cursor: pressureEditing ? 'default' : 'pointer', minWidth: '130px' }}
+          >
+            <span style={{ fontSize: '12px' }}>🌡</span>
+            <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
+            {pressureEditing ? (
+              <input
+                autoFocus
+                type="text"
+                value={pressureInHg}
+                onChange={e => setPressureInHg(e.target.value)}
+                onBlur={() => setPressureEditing(false)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') { setPressureEditing(false); } }}
+                placeholder='29.92'
+                style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+              />
+            ) : (
+              <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? parseFloat(pressureInHg).toFixed(2) : '—'}
+              </span>
+            )}
+            <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
+            <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
+            <span style={{ fontSize: '13px', color: pressureInHg && !isNaN(parseFloat(pressureInHg)) ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold' }}>
+              {pressureInHg && !isNaN(parseFloat(pressureInHg)) ? (parseFloat(pressureInHg) * 33.8639).toFixed(0) : '—'}
+            </span>
+            <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+          </div>
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
@@ -11126,7 +10799,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
                 >◀</button>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '4px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 {allSectors.map(n => (
                   <DraggableNeighborPanel
                     key={n.id}
@@ -11142,7 +10815,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={(stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); if (tableMode) setTableDragRow(null); }}
+                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
@@ -11233,13 +10906,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
                 onMergePartial={handleMergePartial}
-                sessionFilter={sessionFilter}
-                personalFilter={personalFilter}
-                adminFilterQuery={adminFilterQuery}
-                onShowFilter={() => {
-                  setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null);
-                  setShowPersonalFilter(v => !v);
-                }}
               />
             );
           })()}
@@ -11297,8 +10963,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 presetId={session.presetId}
                 crewMemberId={session?.crewMember?.id ?? null}
                 initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
-                initialDisplayPrefs={session?.crewMember?.classic_display_prefs?.[String(session.presetId ?? 'global')] ?? null}
-                onTransfer={(stripId, toSectorId) => handleTransferWithPartialCheck(stripId, toSectorId)}
+                onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
                 onUpdateStripField={handleUpdateStripField}
@@ -11443,9 +11108,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>
-                        {getFormationDisplayName(s)}{!s.aircraft_indices && s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
-                      </span>
+                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
                     </td>
                   );
                 }
@@ -11948,7 +11611,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         value=""
                         onChange={async e => {
                           const secId = Number(e.target.value);
-                          if (secId) handleTransferWithPartialCheck(String(s.id), secId);
+                          if (secId) await handleTransfer(s.id, secId);
                           setTableTransferOpen(null);
                         }}
                         style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
@@ -12945,7 +12608,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -13858,32 +13521,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         document.body
       )}
 
-      {/* Pressure update toast — shown on non-updater workstations */}
-      {pressureToast && (
-        <div style={{
-          position: 'fixed', top: '24px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px',
-          background: '#0c1a30', border: '2px solid #3b82f6', borderRadius: '10px',
-          padding: '8px 16px', boxShadow: '0 4px 20px rgba(59,130,246,0.4)', direction: 'rtl',
-          animation: 'fadeIn 0.2s ease', pointerEvents: 'none',
-        }}>
-          <span style={{ fontSize: '16px' }}>🌡</span>
-          <span style={{ fontSize: '13px', color: '#7dd3fc', fontWeight: 'bold' }}>{pressureToast}</span>
-        </div>
-      )}
-      {/* Transfer blocked toast — strip already in pending transfer */}
-      {transferBlockedToast && (
-        <div style={{
-          position: 'fixed', top: pressureToast ? '72px' : '24px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 10002, display: 'flex', alignItems: 'center', gap: '10px',
-          background: '#1c0a00', border: '2px solid #f97316', borderRadius: '10px',
-          padding: '10px 20px', boxShadow: '0 4px 24px rgba(249,115,22,0.5)', direction: 'rtl',
-          animation: 'fadeIn 0.2s ease', pointerEvents: 'none',
-        }}>
-          <span style={{ fontSize: '18px' }}>🚫</span>
-          <span style={{ fontSize: '13px', color: '#fed7aa', fontWeight: 'bold' }}>{transferBlockedToast}</span>
-        </div>
-      )}
       {/* Pending strip delete undo toast */}
       {pendingDeleteStrip && (
         <div style={{
@@ -14565,7 +14202,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
-      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; const defBoolVal = fd.key === 'airborne' ? 'באוויר' : 'כן'; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? defBoolVal : '' }); }}
+      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? 'באוויר' : '' }); }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
@@ -14575,19 +14212,11 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
       </select>
       {needsValue && (
         fieldDef.ftype === 'bool' ? (
-          fieldDef.key === 'airborne' ? (
-            <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
-              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-              <option value="באוויר">✈ באוויר</option>
-              <option value="קרקע">⬛ קרקע</option>
-            </select>
-          ) : (
-            <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
-              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-              <option value="כן">✔ כן</option>
-              <option value="לא">✘ לא</option>
-            </select>
-          )
+          <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+            style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+            <option value="באוויר">✈ באוויר</option>
+            <option value="קרקע">⬛ קרקע</option>
+          </select>
         ) : (
           <input type="text" value={leaf.value} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
             placeholder={leaf.compare === 'in' || leaf.compare === 'not_in' ? 'ערך1, ערך2, ...' : 'ערך...'}
@@ -15536,19 +15165,6 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
           <button onClick={() => { const p = Math.min(totalPages - 1, page + 1); setPage(p); fetchLog(p); }} disabled={page >= totalPages - 1} style={{ ...inputStyle, cursor: page >= totalPages - 1 ? 'default' : 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1, padding: '4px 10px' }}>▶</button>
         </div>
       )}
-
-      {/* Partial Formation Transfer Modal */}
-      {partialTransferModal && (
-        <PartialTransferModal
-          strip={partialTransferModal.strip}
-          selectedIndices={partialSelectedIndices}
-          onToggleIndex={(idx: number) => setPartialSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
-          onCancel={() => setPartialTransferModal(null)}
-          onTransferAll={handlePartialTransferAll}
-          onSubmit={handlePartialTransferSubmit}
-        />
-      )}
-
     </div>
   );
 };
@@ -16404,7 +16020,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '13px', marginBottom: '8px' }}
                   >
                     <option value="">— ללא בסיס אב —</option>
-                    {adminAviationBases.map((bs: any) => (
+                    {adminBaseStatuses.map((bs: any) => (
                       <option key={bs.id} value={bs.id}>{bs.name}{bs.code ? ` (${bs.code})` : ''}</option>
                     ))}
                   </select>
@@ -16880,7 +16496,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       {[
                         { label: 'קריאה *', key: 'callSign' },
                         { label: 'טייסת', key: 'sq' },
-                        { label: 'מס"מ', key: 'numberOfFormation' },
+                        { label: "מ' מערך", key: 'numberOfFormation' },
                         { label: 'גובה', key: 'alt' },
                         { label: 'משימה', key: 'task' },
                         { label: 'כותרת', key: 'koteret' },
@@ -16928,7 +16544,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
                       <thead>
                         <tr style={{ background: '#1e293b', color: '#94a3b8', textAlign: 'right' }}>
-                          {['קריאה', 'מס"מ', 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
+                          {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
                             <th key={i} style={{ padding: '8px 10px', fontWeight: '600', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -17102,46 +16718,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       });
                     }
 
-                    const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_\-\u05f3\u05f4"'`״׳]+/g, '');
+                    const normalizeKey = (k: string) => k.toLowerCase().replace(/[\s_\-]+/g, '');
                     const getField = (row: Record<string, string>, ...keys: string[]) => {
                       const rowKeys = Object.keys(row);
                       for (const k of keys) {
                         // Exact case-insensitive match first
                         const found = rowKeys.find(rk => rk.toLowerCase() === k.toLowerCase());
                         if (found && row[found] !== undefined && String(row[found]).trim() !== '') return String(row[found]).trim();
-                        // Normalized match (ignores spaces, underscores, hyphens, Hebrew punctuation)
+                        // Normalized match (ignores spaces, underscores, hyphens)
                         const normK = normalizeKey(k);
                         const foundNorm = rowKeys.find(rk => normalizeKey(rk) === normK);
                         if (foundNorm && row[foundNorm] !== undefined && String(row[foundNorm]).trim() !== '') return String(row[foundNorm]).trim();
                       }
                       return '';
                     };
-
-                    // --- Fill-down: propagate non-empty callSign to subsequent empty rows ---
-                    // Common pattern in military Excel files: the callSign appears only on the
-                    // first aircraft of a formation; sub-rows leave it blank.
-                    const callSignKeys = ['callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי',
-                      'ac', 'a/c', 'aircraft', 'call', 'שמקריאה', 'שם קריאה', 'קריאתזיהוי',
-                      'קריאת זיהוי', 'ת"ד', 'תד', 'id', 'מסמטוס', 'מ/ס', 'מספרמטוס'];
-                    const rowKeys0 = rows.length > 0 ? Object.keys(rows[0]) : [];
-                    const callSignColKey = callSignKeys
-                      .map(k => {
-                        const found = rowKeys0.find(rk => rk.toLowerCase() === k.toLowerCase());
-                        if (found) return found;
-                        const normK = normalizeKey(k);
-                        return rowKeys0.find(rk => normalizeKey(rk) === normK) || null;
-                      })
-                      .find(Boolean) || null;
-                    const detectedCols: string[] = rowKeys0;
-                    if (callSignColKey) {
-                      let lastCallSign = '';
-                      rows = rows.map(row => {
-                        const val = String(row[callSignColKey] ?? '').trim();
-                        if (val) { lastCallSign = val; return row; }
-                        if (lastCallSign) return { ...row, [callSignColKey]: lastCallSign };
-                        return row;
-                      });
-                    }
 
                     const parseTakeoffDatetime = (dateStr: string, timeStr: string): string | null => {
                       if (!dateStr && !timeStr) return null;
@@ -17178,15 +16768,15 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     };
 
                     const strips = rows
-                      .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי', 'ac', 'a/c', 'aircraft', 'call', 'שם קריאה', 'קריאת זיהוי', 'ת"ד', 'תד', 'id'))
+                      .filter(row => getField(row, 'callSign', 'call_sign', 'קריאה'))
                       .map(row => {
                         const dateVal = getField(row, 'DATE', 'date', 'תאריך');
-                        const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה', 'שעת המראה', 'המראה', 'TAKEOFF');
+                        const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה');
                         const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
                         return {
-                          callSign: getField(row, 'callSign', 'call_sign', 'קריאה', 'כינוי', 'שם', 'זיהוי', 'ac', 'a/c', 'aircraft', 'call', 'שם קריאה', 'קריאת זיהוי', 'ת"ד', 'תד', 'id'),
+                          callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
-                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך', 'מס"מ', 'מסמ', 'מס׳ מטוסים', 'מספר מטוסים', 'כמות מטוסים'),
+                          numberOfFormation: getField(row, 'numberOfFormation', 'number_of_formation', 'NUMBEROFFORMATION', 'NUMBER OF FORMATION', 'numberofformation', 'מספר_מערך', 'מספר מערך', 'מ׳ מערך', 'מ\' מערך'),
                           alt: getField(row, 'alt', 'גובה'),
                           task: getField(row, 'task', 'משימה'),
                           weapons: parseWeapons(getField(row, 'weapons', 'חימושים')),
@@ -17207,13 +16797,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         body: JSON.stringify({ strips })
                       });
                       const result = await res.json();
-                      setCsvImportResult({
-                        ...result,
-                        _detectedCols: detectedCols,
-                        _callSignCol: callSignColKey,
-                        _totalRows: rows.length,
-                        _matchedRows: strips.length,
-                      });
+                      setCsvImportResult(result);
                     } catch (err) {
                       console.error('Import error:', err);
                       alert('שגיאה בטעינת הקובץ');
@@ -17246,39 +16830,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         ללא שינוי: {csvImportResult.skipped} פממים
                       </div>
                     )}
-                    {csvImportResult.errors?.length > 0 && (
-                      <div style={{ color: '#dc2626', fontSize: '13px', marginBottom: '8px' }}>
+                    {csvImportResult.errors.length > 0 && (
+                      <div style={{ color: '#dc2626', fontSize: '13px' }}>
                         שגיאות: {csvImportResult.errors.join(', ')}
-                      </div>
-                    )}
-                    {csvImportResult._totalRows > 0 && (
-                      <div style={{ marginTop: '10px', padding: '10px', background: '#0f172a', borderRadius: '6px', fontSize: '12px', color: '#94a3b8', direction: 'rtl' }}>
-                        <div style={{ marginBottom: '4px' }}>
-                          <span style={{ color: '#e2e8f0' }}>שורות בקובץ:</span> {csvImportResult._totalRows} |{' '}
-                          <span style={{ color: '#e2e8f0' }}>שורות שזוהו עם קריאה:</span>{' '}
-                          <span style={{ color: csvImportResult._matchedRows === csvImportResult._totalRows ? '#22c55e' : '#f59e0b' }}>
-                            {csvImportResult._matchedRows}
-                          </span>
-                          {csvImportResult._matchedRows < csvImportResult._totalRows && (
-                            <span style={{ color: '#f59e0b', marginRight: '6px' }}> — חלק מהשורות לא זוהו</span>
-                          )}
-                        </div>
-                        {csvImportResult._callSignCol && (
-                          <div style={{ marginBottom: '4px' }}>
-                            <span style={{ color: '#e2e8f0' }}>עמודת קריאה שזוהתה:</span>{' '}
-                            <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px', color: '#34d399' }}>{csvImportResult._callSignCol}</code>
-                          </div>
-                        )}
-                        {!csvImportResult._callSignCol && (
-                          <div style={{ color: '#ef4444', marginBottom: '4px' }}>
-                            לא זוהתה עמודת קריאה. עמודות בקובץ: {(csvImportResult._detectedCols || []).join(', ')}
-                          </div>
-                        )}
-                        {csvImportResult._detectedCols?.length > 0 && (
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>
-                            עמודות: {csvImportResult._detectedCols.join(' | ')}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -17294,7 +16848,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <div><strong style={{color:'white'}}>עמודות אופציונליות:</strong></div>
                   <div style={{paddingRight:'16px'}}>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>sq</code> — טייסת (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>SQ</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>squadron</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>טייסת</code>)<br/>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>NUMBEROFFORMATION</code> — מס"מ (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>numberOfFormation</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>number_of_formation</code>)<br/>
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>NUMBEROFFORMATION</code> — מספר מערך (גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>numberOfFormation</code>, <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>number_of_formation</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>alt</code> — גובה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>DATE</code> — תאריך המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DD/MM/YYYY</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DDMMYYYY</code><br/>
@@ -19339,6 +18893,18 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
+
+      {/* Partial Formation Transfer Modal */}
+      {partialTransferModal && (
+        <PartialTransferModal
+          strip={partialTransferModal.strip}
+          selectedIndices={partialSelectedIndices}
+          onToggleIndex={(idx: number) => setPartialSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
+          onCancel={() => setPartialTransferModal(null)}
+          onTransferAll={handlePartialTransferAll}
+          onSubmit={handlePartialTransferSubmit}
+        />
+      )}
 
     </div>
   );
