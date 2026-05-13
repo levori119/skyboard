@@ -16599,7 +16599,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       {[
                         { label: 'קריאה *', key: 'callSign' },
                         { label: 'טייסת', key: 'sq' },
-                        { label: "מ' מערך", key: 'numberOfFormation' },
+                        { label: 'מס"מ', key: 'numberOfFormation' },
                         { label: 'גובה', key: 'alt' },
                         { label: 'משימה', key: 'task' },
                         { label: 'כותרת', key: 'koteret' },
@@ -16647,7 +16647,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}>
                       <thead>
                         <tr style={{ background: '#1e293b', color: '#94a3b8', textAlign: 'right' }}>
-                          {['קריאה', "מ' מערך", 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
+                          {['קריאה', 'מס"מ', 'טייסת', 'גובה', 'משימה', 'כותרת', 'זמן המראה', 'סטטוס', 'סטטוס אוירי', ''].map((h, i) => (
                             <th key={i} style={{ padding: '8px 10px', fontWeight: '600', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
