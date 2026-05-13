@@ -8054,6 +8054,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditing, setPressureEditing] = useState(false);
+  const [pressureAlert, setPressureAlert] = useState<string | null>(null);
+  const lastPolledPressureRef = React.useRef<string | null>(null);
+  const pressureSavedLocallyRef = React.useRef(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
@@ -8370,7 +8373,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     let cancelled = false;
     const load = () => fetch(`${API_URL}/base-pressure/${parentBaseId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (!cancelled && data?.pressure_inhg != null) setPressureInHg(parseFloat(data.pressure_inhg).toFixed(2)); })
+      .then(data => {
+        if (!cancelled && data?.pressure_inhg != null) {
+          const newVal = parseFloat(data.pressure_inhg).toFixed(2);
+          const prevVal = lastPolledPressureRef.current;
+          lastPolledPressureRef.current = newVal;
+          setPressureInHg(newVal);
+          // Fire alert only when value changed and the change came from a remote workstation
+          if (prevVal !== null && prevVal !== newVal) {
+            if (pressureSavedLocallyRef.current) {
+              pressureSavedLocallyRef.current = false; // our own update — suppress alert
+            } else {
+              const mb = (parseFloat(newVal) * 33.8639).toFixed(0);
+              setPressureAlert(`${newVal}" / ${mb} mb`);
+            }
+          }
+        }
+      })
       .catch(() => {});
     load();
     const iv = setInterval(load, 5000);
@@ -8381,6 +8400,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     if (!parentBaseId || !canUpdatePressure || !pressureInHg || isNaN(parseFloat(pressureInHg))) return;
     const t = setTimeout(() => {
+      pressureSavedLocallyRef.current = true;
       fetch(`${API_URL}/base-pressure/${parentBaseId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -8389,6 +8409,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 800);
     return () => clearTimeout(t);
   }, [pressureInHg, parentBaseId, canUpdatePressure]);
+
+  // Auto-dismiss pressure alert after 5s
+  useEffect(() => {
+    if (!pressureAlert) return;
+    const t = setTimeout(() => setPressureAlert(null), 5000);
+    return () => clearTimeout(t);
+  }, [pressureAlert]);
 
   // Cross-sector altitude conflict detection: compare ALL transfers (outgoing + incoming)
   // against each other across all sectors. Any pair within conflict_alt_delta → both flagged.
@@ -13519,6 +13546,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Pressure update alert — fires when a remote workstation changes the shared base pressure */}
+      {pressureAlert && (
+        <div style={{
+          position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 10001, display: 'flex', alignItems: 'center', gap: '10px',
+          background: '#0c1a30', border: '2px solid #3b82f6', borderRadius: '10px',
+          padding: '10px 18px', boxShadow: '0 4px 24px rgba(59,130,246,0.5)', direction: 'rtl',
+          animation: 'fadeIn 0.2s ease', minWidth: '220px', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: '18px' }}>🌡</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>לחץ אטמוספרי עודכן</span>
+            <span style={{ fontSize: '16px', color: '#7dd3fc', fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: '0.5px' }}>{pressureAlert}</span>
+          </div>
+          <button onClick={() => setPressureAlert(null)}
+            style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '16px', padding: '0 2px', lineHeight: 1 }}>✕</button>
+        </div>
       )}
 
       {/* Pending strip delete undo toast */}
