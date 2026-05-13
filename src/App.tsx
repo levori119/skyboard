@@ -21,6 +21,8 @@ interface CrewMember {
   ground_datk_filter?: number | null;
   ground_status_filter?: string[] | null;
   ground_filter_mode?: 'AND' | 'OR' | null;
+  classic_panel_orders?: Record<string, { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] }> | null;
+  classic_display_prefs?: Record<string, Record<string, unknown>> | null;
 }
 
 interface WorkstationSession {
@@ -6148,7 +6150,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, initialDisplayPrefs, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
@@ -6156,6 +6158,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   presetId?: number | string;
   crewMemberId?: number | null;
   initialPanelOrder?: { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] } | null;
+  initialDisplayPrefs?: Record<string, unknown> | null;
   onTransfer: (stripId: string, toSectorId: number) => void;
   onTransferToPreset?: (stripId: string, toPresetId: number) => void;
   onAcceptTransfer: (transferId: string) => void;
@@ -6212,6 +6215,57 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   }, [savedOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const persistOrder = (next: typeof savedOrder) => { setSavedOrder(next); };
+
+  // Per-crew-member Classic display preferences (e.g. light/dark table override per preset).
+  // Stored as { [presetKey]: { [prefKey]: value } } via classic_display_prefs on the server,
+  // with localStorage as an immediate-write fallback — same pattern as classic_panel_orders.
+  const displayPrefsKey = `sky_classic_display_prefs_${presetId ?? 'global'}`;
+  const loadDisplayPrefs = (key: string, serverPrefs?: Record<string, unknown> | null): Record<string, unknown> => {
+    if (serverPrefs && typeof serverPrefs === 'object') return { ...serverPrefs };
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) return { ...JSON.parse(raw) };
+    } catch {}
+    return {};
+  };
+  const [displayPrefs, setDisplayPrefs] = useState<Record<string, unknown>>(() => loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs));
+  const isFirstDisplayPrefsMount = React.useRef(true);
+  const isFirstDisplayPrefsCrewSwap = React.useRef(true);
+
+  // When presetId changes, reload display prefs for the new preset.
+  React.useEffect(() => { setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs)); }, [displayPrefsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When crewMemberId changes (hot-swap), reload display prefs from the new crew member's saved preference.
+  React.useEffect(() => {
+    if (isFirstDisplayPrefsCrewSwap.current) { isFirstDisplayPrefsCrewSwap.current = false; return; }
+    setDisplayPrefs(loadDisplayPrefs(displayPrefsKey, initialDisplayPrefs));
+  }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist display prefs to server and localStorage whenever they change (skip initial mount).
+  React.useEffect(() => {
+    if (isFirstDisplayPrefsMount.current) { isFirstDisplayPrefsMount.current = false; return; }
+    try { localStorage.setItem(displayPrefsKey, JSON.stringify(displayPrefs)); } catch {}
+    if (crewMemberId) {
+      const presetKey = String(presetId ?? 'global');
+      fetch(`${API_URL}/crew-members/${crewMemberId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classic_display_prefs: { [presetKey]: displayPrefs } }),
+      }).catch(() => {});
+    }
+  }, [displayPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Helper: update a single display preference key and persist it.
+  const setDisplayPref = (key: string, value: unknown) => {
+    setDisplayPrefs(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Per-user strip card light/dark override: if the user has set a preference, use it;
+  // otherwise fall back to the global lightMode prop.
+  const effectiveLightMode: boolean = displayPrefs.stripLight !== undefined
+    ? Boolean(displayPrefs.stripLight)
+    : lightMode;
+
   const applyOrder = <I,>(items: I[], getKey: (item: I) => number, keys: number[]): I[] => {
     if (!keys.length) return items;
     const map = new Map<number, I>();
@@ -6454,8 +6508,13 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           }
         }}
       >
-        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}
+        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <span>🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}</span>
+          <button
+            title={effectiveLightMode ? 'עבור לתצוגת לילה בכרטיסי הסטריפ' : 'עבור לתצוגת יום בכרטיסי הסטריפ'}
+            onClick={e => { e.stopPropagation(); setDisplayPref('stripLight', !effectiveLightMode); }}
+            style={{ marginInlineStart: 'auto', padding: '1px 6px', borderRadius: '4px', border: `1px solid ${lightMode ? '#94a3b8' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}
+          >{effectiveLightMode ? '🌙' : '☀️'}</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {!classicStripTable && (
@@ -6467,7 +6526,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
             ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
               <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
+                <ClassicStripCard strip={s} rows={rows} lightMode={effectiveLightMode} isDragging={draggingStripId === String(s.id)}
                   onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
               </div>
             ))
@@ -10972,6 +11031,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 presetId={session.presetId}
                 crewMemberId={session?.crewMember?.id ?? null}
                 initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
+                initialDisplayPrefs={session?.crewMember?.classic_display_prefs?.[String(session.presetId ?? 'global')] ?? null}
                 onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
