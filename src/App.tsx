@@ -3111,14 +3111,29 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   useEffect(() => {
     if (!isDragging) return;
 
+    // Use getBoundingClientRect on each candidate element for reliable hit-testing.
+    // elementsFromPoint is unreliable when the target has CSS transforms (scale) applied,
+    // because the layout box and the visual box diverge.
     const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
-      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
+      const markers = document.querySelectorAll('.marker-drop-zone[data-marker-sector]');
+      for (const el of Array.from(markers)) {
+        const rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+          return el;
+        }
+      }
+      return null;
     };
 
     const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
-      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
+      const panels = document.querySelectorAll('.neighbor-drop-zone[data-sector-id]');
+      for (const el of Array.from(panels)) {
+        const rect = el.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+          return el;
+        }
+      }
+      return null;
     };
 
     const clearAllDropHighlights = () => {
