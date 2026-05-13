@@ -5348,15 +5348,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       </div>
 
-      {/* LEFT panel — Transfer sectors */}
-      <div style={{ ...PANEL, width: '160px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
-        <div style={HDR}>📤 העברה</div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
-          {transferSectors.length === 0 && <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>}
+      {/* LEFT panel — Transfer sectors (מוסר/מקבל) */}
+      <div style={{ ...PANEL, width: '180px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
+        <div style={HDR}>⇄ נקודות העברה</div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 4px 8px' }}>
+          {transferSectors.length === 0 && (
+            <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '16px 4px', opacity: 0.5 }}>אין סקטורים מוגדרים</div>
+          )}
           {transferSectors.map(sec => {
             const isDrop = leftDragOver === sec.id;
+            const secOutgoing = outgoingTransfers.filter(t => t.to_sector_id === sec.id);
+            const secIncoming = incomingTransfers.filter(t => t.from_sector_id === sec.id);
+            const secSingles = (singleTransfers || []).filter(t => t.sectorId === sec.id);
             return (
-              <div key={sec.id} style={{ marginBottom: '6px', border: `2px solid ${isDrop ? '#22c55e' : border}`, borderRadius: '8px', overflow: 'hidden', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'all 0.15s' }}
+              <div key={sec.id}
+                style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${isDrop ? '#22c55e' : (lightMode ? '#cbd5e1' : '#334155')}`, background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : (lightMode ? '#f8fafc' : '#0f172a'), transition: 'all 0.15s' }}
                 onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
                 onDrop={e => {
@@ -5373,20 +5379,52 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   } catch {}
                 }}
               >
-                <div style={{ padding: '6px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : headerBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : headerColor, fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                  {sec.label_he || sec.name}
-                  {isDrop && <div style={{ fontSize: '10px', fontWeight: 'normal', marginTop: '2px' }}>↓ שחרר להעביר</div>}
+                {/* Sector name header */}
+                <div style={{ padding: '7px 10px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : (lightMode ? '#1e3a5f' : '#1e293b'), color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#f1f5f9', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
+                  {isDrop ? '↓ שחרר להעביר' : (sec.label_he || sec.name)}
                 </div>
-                {(singleTransfers || []).filter(t => t.sectorId === sec.id).map((t, i) => (
-                  <div key={`single-${i}`} style={{ padding: '3px 6px', fontSize: '11px', color: '#93c5fd', background: '#1e3a5f', borderTop: `1px solid ${border}` }}>
-                    ✈️ {t.callSign}#{t.aircraftIdx} ({t.aircraftIdx}/{t.totalCount}) ↗ הועבר
+
+                {/* מוסר — outgoing to this sector */}
+                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                  <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
+                    📤 מוסר ({secOutgoing.length + secSingles.length})
                   </div>
-                ))}
-                {outgoingTransfers.filter(t => t.to_sector_id === sec.id).map(t => (
-                  <div key={t.id} style={{ padding: '3px 6px', fontSize: '11px', color: '#fcd34d', background: '#422006', borderTop: `1px solid ${border}` }}>
-                    📋 {t.callsign || '?'} (כל הפמ"מ) ↗ ממתין
+                  {secOutgoing.map(t => (
+                    <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#fde68a' : '#292009'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
+                      <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
+                    </div>
+                  ))}
+                  {secSingles.map((t, i) => (
+                    <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#fde68a' : '#292009'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>({t.aircraftIdx}/{t.totalCount})</span></span>
+                      <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
+                    </div>
+                  ))}
+                  {secOutgoing.length === 0 && secSingles.length === 0 && (
+                    <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
+                  )}
+                </div>
+
+                {/* מקבל — incoming from this sector */}
+                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                  <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
+                    📥 מקבל ({secIncoming.length})
                   </div>
-                ))}
+                  {secIncoming.map(t => (
+                    <div key={t.id}
+                      style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#bbf7d0' : '#0a2010'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'grab' }}
+                      onClick={() => onAcceptTransfer(String(t.id))}
+                      title="לחץ לקבלה"
+                    >
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
+                      <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
+                    </div>
+                  ))}
+                  {secIncoming.length === 0 && (
+                    <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
+                  )}
+                </div>
               </div>
             );
           })}
