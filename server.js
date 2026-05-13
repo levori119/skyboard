@@ -3135,7 +3135,7 @@ app.post('/api/strips/:id/merge-partial', async (req, res) => {
     await client.query('DELETE FROM strips WHERE id=$1', [rawSourceId]);
 
     await client.query('COMMIT');
-    res.json({ success: true, isFull, combinedIndices: combinedIdx });
+    res.json({ success: true, isFull, combinedIndices: combinedIdx, datkmMismatch });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error merging partial strips:', err);

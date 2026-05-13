@@ -4611,7 +4611,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         const allDone = count > 0 && transferred.length >= count;
                         const label = allDone
                           ? callSign
-                          : `${callSign} ${transferred.sort((a, b) => a - b).map(i => `#${i}`).join('+')}`;
+                          : `${callSign} ${transferred.sort((a, b) => a - b).join('+')}`;
                         return (
                           <span style={{ fontSize: '10px', background: '#14532d', color: '#86efac', borderRadius: '4px', padding: '1px 6px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>
                             ✈️ {label}
@@ -7528,7 +7528,7 @@ const getFormationDisplayName = (strip: any): string => {
   const base = strip.callSign || strip.callsign || '';
   const indices: number[] | null = Array.isArray(strip.aircraft_indices) ? strip.aircraft_indices : null;
   if (!indices || indices.length === 0) return base;
-  return `${base} ${[...indices].sort((a, b) => a - b).map(i => `#${i}`).join('+')}`;
+  return `${base} ${[...indices].sort((a, b) => a - b).join('+')}`;
 };
 
 const normalizeAlt = (raw: string): string => {
@@ -9249,9 +9249,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { newStripId } = await res.json();
+      const { partialStripId } = await res.json();
       await loadData();
-      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
+      await handleTransfer(String(partialStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
     } catch (err) {
       console.error('Partial create failed:', err);
     }
@@ -9265,7 +9265,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId })
       });
       if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
       await loadData();
+      if (data.datkmMismatch) {
+        alert('⚠️ לא כל המטוסים מעודכנים — ספרורים שונים בין חלקי המבנה');
+      }
     } catch (err) {
       console.error('Merge partial failed:', err);
     }
@@ -11043,7 +11047,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 crewMemberId={session?.crewMember?.id ?? null}
                 initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
                 initialDisplayPrefs={session?.crewMember?.classic_display_prefs?.[String(session.presetId ?? 'global')] ?? null}
-                onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
+                onTransfer={(stripId, toSectorId) => handleTransferWithPartialCheck(stripId, toSectorId)}
                 onTransferToPreset={handleClassicTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
                 onUpdateStripField={handleUpdateStripField}
@@ -11186,9 +11190,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </td>
                     );
                   }
+                  const partialSibling = Array.isArray(s.aircraft_indices) && s.parent_strip_id
+                    ? myTableStrips.find(t => String(t.id) !== String(s.id) && String(t.parent_strip_id) === String(s.parent_strip_id) && Array.isArray(t.aircraft_indices))
+                    : null;
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>
+                          {getFormationDisplayName(s)}{!s.aircraft_indices && s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                        </span>
+                        {partialSibling && (
+                          <button
+                            onClick={() => handleMergePartial(String(s.id), String(partialSibling.id))}
+                            title={`מזג עם ${getFormationDisplayName(partialSibling)}`}
+                            style={{ background: '#1d4ed8', border: '1px solid #3b82f6', color: 'white', borderRadius: '4px', padding: '2px 7px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                          >⊕ מזג</button>
+                        )}
+                      </div>
                     </td>
                   );
                 }
@@ -11691,7 +11709,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         value=""
                         onChange={async e => {
                           const secId = Number(e.target.value);
-                          if (secId) await handleTransfer(s.id, secId);
+                          if (secId) handleTransferWithPartialCheck(String(s.id), secId);
                           setTableTransferOpen(null);
                         }}
                         style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', cursor: 'pointer', width: '100%', direction: 'rtl' }}
