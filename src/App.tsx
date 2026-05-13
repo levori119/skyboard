@@ -3145,45 +3145,51 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const handlePointerUp = (e: PointerEvent) => {
       clearAllDropHighlights();
       setIsDragging(false);
+
+      // 1. בדיקת נקודת העברה (neighbor panel) — אינה דורשת mapArea/sidebar
+      const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
+      if (topNeighborPanel) {
+        const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
+        if (sectorId && onTransfer) {
+          onTransfer(s.id, sectorId);
+          return;
+        }
+      }
+
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
-      
-      if (mapArea && sidebar) {
+
+      // 2. בדיקת סמן במפה — דורש mapArea לחישוב קואורדינטות
+      const topMarker = findTopmostMarker(e.clientX, e.clientY);
+      if (topMarker && mapArea) {
+        const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
+        const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
+        if (sectorId && onTransfer) {
+          const mapRect = mapArea.getBoundingClientRect();
+          const x = e.clientX - mapRect.left;
+          const y = e.clientY - mapRect.top;
+          onTransfer(s.id, sectorId, x, y, subLabel || undefined);
+          return;
+        }
+      }
+
+      if (mapArea) {
         const mapRect = mapArea.getBoundingClientRect();
-        const sidebarRect = sidebar.getBoundingClientRect();
         const dropX = e.clientX - startPosRef.current.x;
         const dropY = e.clientY - startPosRef.current.y;
 
-        // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
-        const topMarker = findTopmostMarker(e.clientX, e.clientY);
-        if (topMarker) {
-          const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
-          const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
-          if (sectorId && onTransfer) {
-            const x = e.clientX - mapRect.left;
-            const y = e.clientY - mapRect.top;
-            onTransfer(s.id, sectorId, x, y, subLabel || undefined);
-            return;
-          }
-        }
-
-        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
-        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
-        if (topNeighborPanel) {
-          const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
-          if (sectorId && onTransfer) {
-            onTransfer(s.id, sectorId);
-            return;
-          }
-        }
-
         // 3. בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
-        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
-            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
-          onMove(s.id, 0, 0, false);
+        if (sidebar) {
+          const sidebarRect = sidebar.getBoundingClientRect();
+          if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
+              e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
+            onMove(s.id, 0, 0, false);
+            return;
+          }
         }
+
         // 4. בדיקה אם נשחרר בתוך אזור המפה
-        else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
+        if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
             e.clientY >= mapRect.top && e.clientY <= mapRect.bottom) {
           const x = dropX - mapRect.left;
           const y = dropY - mapRect.top;
@@ -9247,7 +9253,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       });
       // Optimistic update: immediately mark the strip as pending_transfer in local state
       // so the load count drops right away without waiting for the next poll cycle
-      setStrips(prev => prev.map(s => s.id === stripId ? { ...s, status: 'pending_transfer' } : s));
+      setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, status: 'pending_transfer' } : s));
       const strip = strips.find((s: any) => String(s.id) === String(stripId));
       logActivity('transfer_sent', {
         stripId: String(stripId),
@@ -9453,6 +9459,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
         classicMine.style.outline = over ? '3px solid #3b82f6' : 'none';
       }
+      // Highlight markers and neighbor panels — same visual feedback as Strip drag
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+      const hlEls = document.elementsFromPoint(e.clientX, e.clientY);
+      const markerHl = hlEls.find((el: Element) => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector'));
+      if (markerHl) {
+        (markerHl as HTMLElement).classList.add('strip-drag-active');
+      } else {
+        const neighborHl = hlEls.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+        if (neighborHl) (neighborHl as HTMLElement).classList.add('strip-drag-active');
+      }
       setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
     const onUp = (e: PointerEvent) => {
@@ -9461,6 +9477,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
       const classicMineEl = document.getElementById('classic-mine-panel');
       if (classicMineEl) classicMineEl.style.outline = 'none';
       // Check if dropped on ClassicView "שלי" center panel
@@ -9511,6 +9528,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
       const el = document.getElementById('classic-mine-panel');
       if (el) el.style.outline = 'none';
     };
