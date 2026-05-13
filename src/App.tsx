@@ -6380,10 +6380,11 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               setDraggingTransferMoveId(null);
                               return;
                             }
-                            if (draggingStripId) {
-                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s',''));
+                            const sid = draggingStripId || e.dataTransfer.getData('text/plain') || null;
+                            if (sid) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(sid).replace('s',''));
                               if (!alreadyTransferred && onTransferToPreset) {
-                                onTransferToPreset(draggingStripId, Number(pp.id));
+                                onTransferToPreset(sid, Number(pp.id));
                               }
                               setDraggingStripId(null);
                             }
@@ -6445,10 +6446,11 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               setDraggingTransferMoveId(null);
                               return;
                             }
-                            if (draggingStripId) {
-                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(draggingStripId).replace('s','') || String('s' + t.strip_id) === String(draggingStripId));
+                            const sid = draggingStripId || e.dataTransfer.getData('text/plain') || null;
+                            if (sid) {
+                              const alreadyTransferred = outgoingTransfers.some(t => String(t.strip_id) === String(sid).replace('s','') || String('s' + t.strip_id) === String(sid));
                               if (!alreadyTransferred) {
-                                onTransfer(draggingStripId, pt.sector_id);
+                                onTransfer(sid, pt.sector_id);
                               }
                               setDraggingStripId(null);
                             }
