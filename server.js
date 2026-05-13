@@ -796,6 +796,26 @@ app.post('/api/crew-members', async (req, res) => {
   }
 });
 
+app.get('/api/crew-members/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT cm.*,
+        COALESCE(
+          (SELECT json_agg(cmw.workstation_preset_id)
+           FROM crew_member_workstations cmw
+           WHERE cmw.crew_member_id = cm.id), '[]'
+        ) as approved_workstations
+      FROM crew_members cm
+      WHERE cm.id = $1
+    `, [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error fetching crew member:', err);
+    res.status(500).json({ error: 'Failed to fetch crew member' });
+  }
+});
+
 app.put('/api/crew-members/:id', async (req, res) => {
   try {
     const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;

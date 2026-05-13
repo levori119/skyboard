@@ -6197,10 +6197,18 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   // When presetId changes, reload order (server pref for this preset, then localStorage).
   React.useEffect(() => { setSavedOrder(loadOrder(orderKey, initialPanelOrder)); }, [orderKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When crewMemberId changes (hot-swap), reload order from the new crew member's saved preference.
+  // When crewMemberId changes (hot-swap), fetch the latest panel order from the server.
   React.useEffect(() => {
     if (isFirstCrewSwap.current) { isFirstCrewSwap.current = false; return; }
-    setSavedOrder(loadOrder(orderKey, initialPanelOrder));
+    if (!crewMemberId) { setSavedOrder(loadOrder(orderKey, null)); return; }
+    fetch(`${API_URL}/crew-members/${crewMemberId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(member => {
+        const presetKey = String(presetId ?? 'global');
+        const serverOrder = member?.classic_panel_orders?.[presetKey] ?? null;
+        setSavedOrder(loadOrder(orderKey, serverOrder));
+      })
+      .catch(() => { setSavedOrder(loadOrder(orderKey, null)); });
   }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist order to server and localStorage whenever it changes (skip initial mount).
