@@ -16066,7 +16066,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '13px', marginBottom: '8px' }}
                   >
                     <option value="">— ללא בסיס אב —</option>
-                    {adminBaseStatuses.map((bs: any) => (
+                    {adminAviationBases.map((bs: any) => (
                       <option key={bs.id} value={bs.id}>{bs.name}{bs.code ? ` (${bs.code})` : ''}</option>
                     ))}
                   </select>
