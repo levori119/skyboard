@@ -5436,7 +5436,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     const aircraft = getAircraftPositions(strip);
                     const totalCount = aircraft.length;
                     const stripName = strip.callSign || strip.callsign || '?';
-                    if (totalCount <= 1) {
+                    // idx=-1 means whole-formation drag — always transfer the full strip.
+                    // idx>=1 on a multi-aircraft strip — ask which aircraft to transfer.
+                    if (dragging.idx === -1 || totalCount <= 1) {
                       onTransfer(String(dragging.stripId), sector.id);
                     } else {
                       setTransferPending({ stripId: String(dragging.stripId), sectorId: sector.id, aircraftIdx: dragging.idx, stripName, totalCount });
