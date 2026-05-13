@@ -1840,7 +1840,12 @@ const DraggableNeighborPanel = ({
           onDragLeave={(dragStripId || onStripDrop) ? (() => setIsStripDragOver(false)) : undefined}
           onDrop={onStripDrop ? (e => {
             e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false);
-            const sid = dragStripId || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return String(d.stripId ?? d.strip_id ?? ''); } catch { return ''; } })();
+            const sid = dragStripId || (() => {
+              const raw = e.dataTransfer.getData('text/plain');
+              if (!raw) return '';
+              try { const d = JSON.parse(raw); return String(d.stripId ?? d.strip_id ?? ''); }
+              catch { return raw; }
+            })();
             if (sid) onStripDrop(sid, neighbor.id);
           }) : undefined}
           style={{
@@ -9431,6 +9436,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           return;
         }
       }
+      // Check if dropped on a map marker (transfer point) or neighbor drop zone
+      const dropEls = document.elementsFromPoint(e.clientX, e.clientY);
+      const markerEl = dropEls.find((el: Element) => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector'));
+      if (markerEl) {
+        const sectorId = Number(markerEl.getAttribute('data-marker-sector'));
+        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+      }
+      const neighborEl = dropEls.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
+      if (neighborEl) {
+        const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
+        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+      }
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
@@ -10948,7 +10965,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : isGroundMode ? (stripId, sectorId) => handleGroundTransfer(stripId, sectorId) : undefined}
+                    onStripDrop={(stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); if (tableMode) setTableDragRow(null); }}
                     crossSectorConflictIds={crossSectorConflictIds}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
