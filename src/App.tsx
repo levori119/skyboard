@@ -15251,6 +15251,19 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
           <button onClick={() => { const p = Math.min(totalPages - 1, page + 1); setPage(p); fetchLog(p); }} disabled={page >= totalPages - 1} style={{ ...inputStyle, cursor: page >= totalPages - 1 ? 'default' : 'pointer', opacity: page >= totalPages - 1 ? 0.4 : 1, padding: '4px 10px' }}>â–¶</button>
         </div>
       )}
+
+      {/* Partial Formation Transfer Modal */}
+      {partialTransferModal && (
+        <PartialTransferModal
+          strip={partialTransferModal.strip}
+          selectedIndices={partialSelectedIndices}
+          onToggleIndex={(idx: number) => setPartialSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
+          onCancel={() => setPartialTransferModal(null)}
+          onTransferAll={handlePartialTransferAll}
+          onSubmit={handlePartialTransferSubmit}
+        />
+      )}
+
     </div>
   );
 };
@@ -18979,18 +18992,6 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
-
-      {/* Partial Formation Transfer Modal */}
-      {partialTransferModal && (
-        <PartialTransferModal
-          strip={partialTransferModal.strip}
-          selectedIndices={partialSelectedIndices}
-          onToggleIndex={(idx: number) => setPartialSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx])}
-          onCancel={() => setPartialTransferModal(null)}
-          onTransferAll={handlePartialTransferAll}
-          onSubmit={handlePartialTransferSubmit}
-        />
-      )}
 
     </div>
   );
