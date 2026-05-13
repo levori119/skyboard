@@ -685,6 +685,7 @@ async function initDb() {
   await pool.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name='workstation_presets_parent_base_id_fkey') THEN ALTER TABLE workstation_presets ADD CONSTRAINT workstation_presets_parent_base_id_fkey FOREIGN KEY (parent_base_id) REFERENCES aviation_bases(id) ON DELETE SET NULL; END IF; END $$`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  await pool.query(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
   // Aviation bases — SID/STAR management
   await pool.query(`
@@ -4226,10 +4227,11 @@ app.get('/api/bdh-preset-assignments', async (req, res) => {
 // --- Base Pressure API (shared atmospheric pressure per base) ---
 
 app.get('/api/base-pressure/:baseId', async (req, res) => {
+  // baseId references aviation_bases.id
   try {
     const id = parseInt(req.params.baseId);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid baseId' });
-    const r = await pool.query('SELECT pressure_inhg FROM base_statuses WHERE id=$1', [id]);
+    const r = await pool.query('SELECT pressure_inhg FROM aviation_bases WHERE id=$1', [id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Base not found' });
     res.json({ pressure_inhg: r.rows[0].pressure_inhg ?? null });
   } catch (err) { res.status(500).json({ error: 'Failed to fetch base pressure' }); }
@@ -4241,7 +4243,7 @@ app.put('/api/base-pressure/:baseId', async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid baseId' });
     const raw = req.body.pressure_inhg;
     const val = (raw !== null && raw !== '' && !isNaN(parseFloat(raw))) ? parseFloat(raw) : null;
-    await pool.query('UPDATE base_statuses SET pressure_inhg=$1 WHERE id=$2', [val, id]);
+    await pool.query('UPDATE aviation_bases SET pressure_inhg=$1 WHERE id=$2', [val, id]);
     res.json({ pressure_inhg: val });
   } catch (err) { res.status(500).json({ error: 'Failed to update base pressure' }); }
 });
