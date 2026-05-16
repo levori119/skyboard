@@ -6273,6 +6273,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   };
   // section drag-token: { panel: 'right'|'left', kind: 'partner'|'point', id: number }
   const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
+  // Per-session toggle: force center panel to day mode regardless of global lightMode
+  const [centerDayMode, setCenterDayMode] = useState(false);
   const reorderSection = (panel: 'right' | 'left', kind: 'partner' | 'point', srcId: number, dstId: number, currentList: number[]) => {
     if (srcId === dstId) return;
     const arr = [...currentList];
@@ -6285,12 +6287,20 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
     persistOrder({ ...savedOrder, [fieldKey]: arr });
   };
 
+  // centerLight = true when global lightMode is on OR center-panel day-mode is toggled on
+  const centerLight = lightMode || centerDayMode;
+
   const border = lightMode ? '#cbd5e1' : '#1e3a5f';
   const headerBg = lightMode ? '#e2e8f0' : '#1e293b';
   const headerColor = lightMode ? '#374151' : '#94a3b8';
   const sectorHeaderBg = lightMode ? '#dbeafe' : '#1e3a5f';
   const sectorHeaderColor = lightMode ? '#1e40af' : '#93c5fd';
   const panelBg = lightMode ? '#f8fafc' : '#0b1220';
+  // Colors for center panel when centerDayMode is independently on
+  const cBorder = centerLight ? '#cbd5e1' : '#1e3a5f';
+  const cHeaderBg = centerLight ? '#e2e8f0' : '#1e293b';
+  const cHeaderColor = centerLight ? '#374151' : '#94a3b8';
+  const cPanelBg = centerLight ? '#f8fafc' : '#0b1220';
 
   const PANEL_STYLE: React.CSSProperties = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderInlineStart: `1px solid ${border}`, background: panelBg, position: 'relative' };
   const PANEL_HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
@@ -6491,7 +6501,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       </div>
 
       {/* CENTER panel — My Strips (שלי) — same as before */}
-      <div id="classic-mine-panel" style={{ ...PANEL_STYLE, background: dropTarget === 'mine' ? (lightMode ? '#eff6ff' : '#0f1f3a') : panelBg, transition: 'background 0.15s' }}
+      <div id="classic-mine-panel" style={{ ...PANEL_STYLE, borderInlineStart: `1px solid ${cBorder}`, background: dropTarget === 'mine' ? (centerLight ? '#eff6ff' : '#0f1f3a') : cPanelBg, transition: 'background 0.15s' }}
         onDragOver={e => { e.preventDefault(); setDropTarget('mine'); }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null); }}
         onDrop={e => {
@@ -6504,26 +6514,36 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           }
         }}
       >
-        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (lightMode ? '#bfdbfe' : '#1e3a5f') : headerBg }}>
-          🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}
+        <div data-panel-header="true" style={{ ...PANEL_HDR, background: dropTarget === 'mine' ? (centerLight ? '#bfdbfe' : '#1e3a5f') : cHeaderBg, color: cHeaderColor, borderBottom: `1px solid ${cBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <span>🎯 שלי ({strips.length}) {dropTarget === 'mine' ? (draggingTransferId ? '← שחרר לקבל' : '← שחרר להוסיף') : ''}</span>
+          {/* Toggle day/night mode for center column only — hidden when global lightMode is on */}
+          {!lightMode && (
+            <button
+              onClick={e => { e.stopPropagation(); setCenterDayMode(v => !v); }}
+              title={centerDayMode ? 'עבור למצב לילה בעמודה' : 'האר את העמודה (מצב יום)'}
+              style={{ background: 'transparent', border: `1px solid ${cBorder}`, borderRadius: '4px', cursor: 'pointer', fontSize: '13px', padding: '1px 5px', color: centerDayMode ? '#f59e0b' : '#94a3b8', flexShrink: 0, lineHeight: 1 }}
+            >
+              {centerDayMode ? '☀️' : '🌙'}
+            </button>
+          )}
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px', background: cPanelBg }}>
           {!classicStripTable && (
             <div style={{ background: '#78350f', color: '#fde68a', padding: '8px 12px', borderRadius: '6px', margin: '6px 4px', fontSize: '12px', textAlign: 'center' }}>
               ⚠️ לא הוגדרה תבנית סטריפ לעמדה זו — ערוך את הגדרות העמדה
             </div>
           )}
           {strips.length === 0
-            ? <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
+            ? <div style={{ color: cHeaderColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
             : strips.map((s: any) => (
               <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                <ClassicStripCard strip={s} rows={rows} lightMode={lightMode} isDragging={draggingStripId === String(s.id)}
+                <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)}
                   onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
               </div>
             ))
           }
         </div>
-        <FreehandCanvas lightMode={lightMode} />
+        <FreehandCanvas lightMode={centerLight} />
       </div>
 
       {/* Arrow: ממי מקבל → אלי */}
