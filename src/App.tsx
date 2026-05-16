@@ -916,7 +916,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
       {!editingZone && (
         <div style={{ background: '#1e293b', borderRadius: '6px', padding: '12px' }}>
           <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>
-            {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות פוליגון' : `${draftPoints.length} נקודות — לחץ שוב ליד הנקודה הראשונה לסגירה, או לחץ פעמיים`}
+            {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות פוליגון' : `${draftPoints.length} נקודות — לחץ שוב ליד הנקודה הראשונה לסגירה, ואז לחץ "שמור אזור"`}
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
             <input
@@ -9476,6 +9476,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           return;
         }
       }
+      const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
@@ -13343,11 +13344,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    title="דאבל קליק לפתיחה"
-                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', cursor: 'pointer', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl' }}
+                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
-                                    📋 {doc.name}
-                                    <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים — דאבל קליק לפתיחה</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
+                                      <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים</div>
+                                    </div>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
+                                      style={{ background: lightMode ? '#1e40af' : '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
+                                    >פתח</button>
                                   </div>
                                 ))}
                               </div>
