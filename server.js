@@ -1519,6 +1519,15 @@ app.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
 app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
+
+    // Get the preset's relevant_sectors so we can show shared-sector transfers to all sharing workstations
+    const presetRes = await pool.query('SELECT relevant_sectors FROM workstation_presets WHERE id = $1', [presetId]);
+    let relevantSectors = [];
+    if (presetRes.rows.length > 0) {
+      const rs = presetRes.rows[0].relevant_sectors;
+      relevantSectors = Array.isArray(rs) ? rs : (typeof rs === 'string' ? JSON.parse(rs || '[]') : []);
+    }
+
     const result = await pool.query(`
       SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
@@ -1528,9 +1537,13 @@ app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
       JOIN strips s ON t.strip_id = s.id
       LEFT JOIN sectors sec_from ON t.from_sector_id = sec_from.id
       LEFT JOIN sectors sec_to ON t.to_sector_id = sec_to.id
-      WHERE t.to_workstation_id = $1 AND t.status = 'pending'
+      WHERE t.status = 'pending'
+        AND (
+          t.to_workstation_id = $1
+          OR (t.to_sector_id = ANY($2::int[]) AND t.from_workstation_id != $1)
+        )
       ORDER BY t.created_at
-    `, [presetId]);
+    `, [presetId, relevantSectors]);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching workstation incoming transfers:', err);
