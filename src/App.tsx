@@ -1765,14 +1765,20 @@ const DraggableNeighborPanel = ({
         }
       }
     }
-    // Cross-sector: compare each of MY sector's transfers against ALL transfers from OTHER sectors
+    // Cross-sector: compare each of MY sector's transfers against transfers from OTHER markers.
+    // Rule: skip outgoing×outgoing to DIFFERENT sectors — they diverge and don't share airspace.
+    // Only flag: incoming×outgoing or incoming×incoming (both share this sector's airspace).
     const sectorIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
     const allOther = [...outgoingTransfers, ...incomingTransfers].filter(t => !sectorIds.has(String(t.id)));
+    const outgoingIdSet = new Set(outgoingTransfers.map(t => String(t.id)));
     for (const mine of [...sectorOutgoing, ...sectorIncoming]) {
+      const mineIsOutgoing = outgoingIdSet.has(String(mine.id));
       const mineAlt = parseAlt(mine.alt);
       if (mineAlt == null) continue;
       for (const other of allOther) {
         if (String(other.id) === String(mine.id)) continue;
+        // Skip outgoing×outgoing — two strips leaving to different sectors don't conflict
+        if (mineIsOutgoing && outgoingIdSet.has(String(other.id))) continue;
         const otherAlt = parseAlt(other.alt);
         if (otherAlt == null) continue;
         if (Math.abs(mineAlt - otherAlt) * 100 <= delta) {
@@ -2507,16 +2513,21 @@ const DraggableMapMarker = ({
         }
       }
     }
-    // Cross-sector: compare each of THIS marker's transfers against transfers from ALL OTHER markers/sectors
+    // Cross-sector: compare each of THIS marker's transfers against transfers from ALL OTHER markers/sectors.
+    // Rule: skip outgoing×outgoing to DIFFERENT sectors — they diverge after leaving and don't share airspace.
     const markerIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
     const allOtherMarker = [...(outgoingTransfers || []), ...(incomingTransfers || [])].filter(
       (t: any) => !markerIds.has(String(t.id))
     );
+    const outgoingMarkerIdSet = new Set((outgoingTransfers || []).map((t: any) => String(t.id)));
     for (const mine of [...markerOutgoing, ...markerIncoming]) {
+      const mineIsOutgoing = outgoingMarkerIdSet.has(String(mine.id));
       const mineAlt = parseAlt(mine.alt);
       if (mineAlt == null) continue;
       for (const other of allOtherMarker) {
         if (String(other.id) === String(mine.id)) continue;
+        // Skip outgoing×outgoing — two strips leaving to different sectors don't conflict
+        if (mineIsOutgoing && outgoingMarkerIdSet.has(String(other.id))) continue;
         const otherAlt = parseAlt(other.alt);
         if (otherAlt == null) continue;
         if (Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
@@ -8591,12 +8602,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const tid = String(t.id);
       if (!seenIds.has(tid)) { seenIds.add(tid); allTransfers.push(t); }
     }
+    // Build outgoing ID set: outgoing×outgoing at DIFFERENT markers shouldn't conflict
+    const outgoingGlobalIdSet = new Set(outgoingTransfers.map(t => String(t.id)));
     for (let i = 0; i < allTransfers.length; i++) {
       const a = allTransfers[i];
+      const aIsOutgoing = outgoingGlobalIdSet.has(String(a.id));
       const altA = parseAltVal(a.alt);
       if (altA == null) continue;
       for (let j = i + 1; j < allTransfers.length; j++) {
         const b = allTransfers[j];
+        // Skip outgoing×outgoing — diverge after leaving sector, no shared airspace
+        if (aIsOutgoing && outgoingGlobalIdSet.has(String(b.id))) continue;
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (Math.abs(altA - altB) * 100 <= delta) {
