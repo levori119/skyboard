@@ -4,6 +4,7 @@ import { motion, useDragControls } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
+import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
 
 const API_URL = '/api';
 
@@ -2161,11 +2162,16 @@ const DraggableIncomingTransferMini = ({
               style={{ width: '44px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '9px', padding: '1px 3px', outline: 'none' }}
             />
           ) : (
-            <span
-              title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-              onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setAltVal(transfer.alt || ''); setEditingAlt(true); } }}
-              style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
-            >{transfer.alt || '—'}</span>
+            <>
+              <span
+                title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+                onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setAltVal(transfer.alt || ''); setEditingAlt(true); } }}
+                style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
+              >{transfer.alt || '—'}</span>
+              {onUpdateStripField && (
+                <VKTrigger value={transfer.alt || ''} onChange={v => { const n = normalizeAlt(v); setAltVal(n); onUpdateStripField(String(transfer.strip_id), 'alt', n); }} mode="numeric" label="גובה" size={10} style={{ marginRight: '2px' }} />
+              )}
+            </>
           )}
         </div>
         <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
@@ -2706,11 +2712,16 @@ const DraggableMapMarker = ({
                     style={{ width: '40px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '8px', padding: '1px 3px', outline: 'none' }}
                   />
                 ) : (
-                  <span
-                    title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-                    onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); } }}
-                    style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
-                  >{t.alt || '—'}</span>
+                  <>
+                    <span
+                      title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+                      onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); } }}
+                      style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
+                    >{t.alt || '—'}</span>
+                    {onUpdateStripField && (
+                      <VKTrigger value={t.alt || ''} onChange={v => { const n = normalizeAlt(v); setEditingAltVal(n); setEditingAltId(null); onUpdateStripField(String(t.strip_id), 'alt', n); }} mode="numeric" label="גובה" size={9} style={{ marginRight: '2px' }} />
+                    )}
+                  </>
                 )}
               </div>
               <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
@@ -2755,13 +2766,16 @@ const DraggableMapMarker = ({
         <div style={{ background: '#1e293b', padding: '6px', borderTop: '1px solid #334155' }}>
           {editingNotes ? (
             <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
-              <textarea
-                value={tempNotes}
-                onChange={(e) => setTempNotes(e.target.value)}
-                style={{ width: '100%', padding: '4px', border: '1px solid #475569', borderRadius: '4px', background: '#0f172a', color: 'white', fontSize: '10px', resize: 'none', boxSizing: 'border-box' }}
-                rows={2}
-                autoFocus
-              />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                <textarea
+                  value={tempNotes}
+                  onChange={(e) => setTempNotes(e.target.value)}
+                  style={{ flex: 1, padding: '4px', border: '1px solid #475569', borderRadius: '4px', background: '#0f172a', color: 'white', fontSize: '10px', resize: 'none', boxSizing: 'border-box' }}
+                  rows={2}
+                  autoFocus
+                />
+                <VKTrigger value={tempNotes} onChange={v => setTempNotes(v)} mode="full" label="הערה" size={14} />
+              </div>
               <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
                 <button 
                   onClick={() => { 
@@ -3360,13 +3374,16 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         {(s.notes || editingNotes) ? (
           editingNotes ? (
             <div onClick={(e) => e.stopPropagation()}>
-              <textarea
-                value={tempNotes}
-                onChange={(e) => setTempNotes(e.target.value)}
-                style={{ width: '100%', padding: '2px', border: '1px solid #cbd5e1', borderRadius: '2px', fontSize: '8px', resize: 'none', boxSizing: 'border-box' }}
-                rows={2}
-                autoFocus
-              />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2px' }}>
+                <textarea
+                  value={tempNotes}
+                  onChange={(e) => setTempNotes(e.target.value)}
+                  style={{ flex: 1, padding: '2px', border: '1px solid #cbd5e1', borderRadius: '2px', fontSize: '8px', resize: 'none', boxSizing: 'border-box' }}
+                  rows={2}
+                  autoFocus
+                />
+                <VKTrigger value={tempNotes} onChange={v => setTempNotes(v)} mode="full" label="הערה" size={14} />
+              </div>
               <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
                 <button 
                   onClick={() => { 
@@ -4831,6 +4848,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 onChange={e => { const v = e.target.value === '' ? null : parseInt(e.target.value); onUpdateStripAircraft(sid, ac.idx, v, acRow.kipa); }}
                                 placeholder='—'
                                 style={{ width: '36px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', textAlign: 'center' }} />
+                              <VKTrigger
+                                value={String(acRow.datk ?? '')}
+                                onChange={v => { const n = v === '' ? null : parseInt(v); onUpdateStripAircraft(sid, ac.idx, n, acRow.kipa); }}
+                                mode="numeric" label='דת"ק' size={13}
+                              />
                               <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>כיפה</span>
                               <input type="text"
                                 value={acRow.kipa ?? ''}
@@ -4840,6 +4862,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 onChange={e => { onUpdateStripAircraft(sid, ac.idx, acRow.datk, e.target.value || null); }}
                                 placeholder='—'
                                 style={{ width: '44px', padding: '1px 4px', borderRadius: '4px', border: `1px solid ${border}`, background: lightMode ? '#f8fafc' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px' }} />
+                              <VKTrigger
+                                value={acRow.kipa ?? ''}
+                                onChange={v => { onUpdateStripAircraft(sid, ac.idx, acRow.datk, v || null); }}
+                                mode="full" label="כיפה" size={13}
+                              />
                             </div>
                           </div>
                           {/* Status button */}
@@ -5795,9 +5822,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </div>
                 <div>
                   <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>הערה</label>
-                  <textarea value={elemEditModal.note} onChange={e => setElemEditModal(p => p ? { ...p, note: e.target.value } : p)}
-                    rows={2} placeholder="הערה אופציונלית..."
-                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                    <textarea value={elemEditModal.note} onChange={e => setElemEditModal(p => p ? { ...p, note: e.target.value } : p)}
+                      rows={2} placeholder="הערה אופציונלית..."
+                      style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
+                    <VKTrigger value={elemEditModal.note || ''} onChange={v => setElemEditModal(p => p ? { ...p, note: v } : p)} mode="full" label="הערה" size={16} />
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -10524,6 +10554,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   >{mbDisplay}</span>
                 )}
                 <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+                {canEdit && (
+                  <VKTrigger
+                    value={pressureInHg}
+                    onChange={v => setPressureInHg(v)}
+                    mode="numeric"
+                    label="לחץ אטמוספרי (inHg)"
+                    size={13}
+                    style={{ marginRight: '2px' }}
+                  />
+                )}
               </div>
             );
           })()}
@@ -11664,6 +11704,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                            <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
@@ -11718,6 +11759,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => setTableEditingCell(sqCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: currentSq ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
+                            <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(sqCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
@@ -11791,6 +11833,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => setTableEditingCell(altCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>גובה</span>}</span>
+                            <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(altCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
                         )}
@@ -19612,5 +19655,5 @@ export default function App() {
     return <WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} />;
   }
 
-  return <SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} />;
+  return <VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider>;
 }
