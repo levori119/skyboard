@@ -4916,8 +4916,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 <button
                                   onClick={() => setElemEditModal({ el, name: el.name, category: el.category || '', status: el.status || 'תקין', note: el.note || '' })}
                                   title="עריכת אלמנט"
-                                  style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, cursor: 'pointer', fontSize: '9px', background: 'transparent', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}
-                                >✏️</button>
+                                  style={{ padding: '2px 6px', borderRadius: '4px', border: `1px solid ${lightMode ? '#3b82f6' : '#3b82f6'}`, cursor: 'pointer', fontSize: '9px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', flexShrink: 0, fontWeight: 'bold' }}
+                                >ערוך</button>
                               </div>
                             );
                           })}
@@ -18707,7 +18707,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                                   <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
                                     {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
-                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏</button>
+                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
                                     <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
                                 </div>
