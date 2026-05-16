@@ -740,6 +740,7 @@ async function initDb() {
     y_pct FLOAT,
     created_at TIMESTAMP DEFAULT NOW()
   )`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
 
   // Partial formation support
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
@@ -2612,20 +2613,20 @@ app.get('/api/airfield-elements', async (req, res) => {
 });
 app.post('/api/airfield-elements', async (req, res) => {
   try {
-    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct } = req.body;
+    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct, category } = req.body;
     const r = await pool.query(
-      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null]
+      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '']
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 app.put('/api/airfield-elements/:id', async (req, res) => {
   try {
-    const { element_type_id, name, status, note, x_pct, y_pct } = req.body;
+    const { element_type_id, name, status, note, x_pct, y_pct, category } = req.body;
     const r = await pool.query(
-      'UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6 WHERE id=$7 RETURNING *',
-      [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, req.params.id]
+      'UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=$7 WHERE id=$8 RETURNING *',
+      [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '', req.params.id]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
