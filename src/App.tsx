@@ -4302,7 +4302,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onMergePartial, headerButtons }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, headerButtons }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4334,6 +4334,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
+  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string }) => Promise<void>;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
   headerButtons?: React.ReactNode;
 }) => {
@@ -4346,6 +4347,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
+  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string } | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
@@ -4901,7 +4903,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
-                                  {el.type_name && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{el.type_name}</div>}
+                                  {el.note && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{el.note}</div>}
+                                  {!el.note && el.type_name && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{el.type_name}</div>}
                                 </div>
                                 <button
                                   onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, nextStatus); }}
@@ -4910,6 +4913,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 >
                                   {el.status || 'לא ידוע'}
                                 </button>
+                                <button
+                                  onClick={() => setElemEditModal({ el, name: el.name, category: el.category || '', status: el.status || 'תקין', note: el.note || '' })}
+                                  title="עריכת אלמנט"
+                                  style={{ padding: '1px 4px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, cursor: 'pointer', fontSize: '9px', background: 'transparent', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}
+                                >✏️</button>
                               </div>
                             );
                           })}
@@ -5647,6 +5655,69 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 }}
                   style={{ padding: '8px 20px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                   שמור
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Element edit modal */}
+      {elemEditModal && (() => {
+        const ELEM_STATUS_OPTS = ['תקין', 'לא תקין', 'חלקי'];
+        const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+        const el = elemEditModal.el;
+        const save = async () => {
+          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note });
+          setElemEditModal(null);
+        };
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setElemEditModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', maxWidth: '320px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: el.type_color || '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', flexShrink: 0 }}>{el.type_icon || '🔧'}</span>
+                עריכת אלמנט
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>שם</label>
+                  <input value={elemEditModal.name} onChange={e => setElemEditModal(p => p ? { ...p, name: e.target.value } : p)}
+                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>קטגוריה</label>
+                  <input value={elemEditModal.category} onChange={e => setElemEditModal(p => p ? { ...p, category: e.target.value } : p)}
+                    placeholder="לדוגמה: תאורה, דלק, כביש"
+                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>סטטוס</label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {ELEM_STATUS_OPTS.map(s => (
+                      <button key={s} onClick={() => setElemEditModal(p => p ? { ...p, status: s } : p)}
+                        style={{ flex: 1, padding: '6px', borderRadius: '6px', border: `1px solid ${elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : '#334155'}`, background: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] + '22' : 'transparent', color: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: elemEditModal.status === s ? 'bold' : 'normal' }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>הערה</label>
+                  <textarea value={elemEditModal.note} onChange={e => setElemEditModal(p => p ? { ...p, note: e.target.value } : p)}
+                    rows={2} placeholder="הערה אופציונלית..."
+                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={save}
+                  style={{ flex: 2, padding: '9px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                  שמור
+                </button>
+                <button onClick={() => setElemEditModal(null)}
+                  style={{ flex: 1, padding: '9px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  ביטול
                 </button>
               </div>
             </div>
@@ -9887,7 +9958,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status, note: el.note, x_pct: el.x_pct, y_pct: el.y_pct }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status, note: el.note, category: el.category || '', x_pct: el.x_pct, y_pct: el.y_pct }) });
+    } catch (e) { console.error(e); }
+  };
+
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string }) => {
+    setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
+    try {
+      const el = airfieldElements.find(e => e.id === elementId);
+      if (!el) return;
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct }) });
     } catch (e) { console.error(e); }
   };
 
@@ -11280,6 +11360,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
                 onUpdateElementStatus={handleUpdateElementStatus}
+                onUpdateElement={handleUpdateElement}
                 onMergePartial={handleMergePartial}
                 headerButtons={<>
                   <button
