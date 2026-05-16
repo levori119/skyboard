@@ -1712,8 +1712,8 @@ const DraggableNeighborPanel = ({
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dragLabel, setDragLabel] = useState<string | null>(null);
 
-  const sectorOutgoing = outgoingTransfers.filter(t => t.to_sector_id === neighbor.id);
-  const sectorIncoming = incomingTransfers.filter(t => t.to_sector_id === neighbor.id);
+  const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
+  const sectorIncoming = incomingTransfers.filter(t => Number(t.from_sector_id) === Number(neighbor.id));
 
   const parseAlt = (alt: string | null | undefined): number | null => {
     if (!alt) return null;
@@ -1766,9 +1766,8 @@ const DraggableNeighborPanel = ({
       }
     }
     // Cross-sector: compare each of MY sector's transfers against ALL transfers from OTHER sectors
-    const allOther = [...outgoingTransfers, ...incomingTransfers].filter(
-      t => Number(t.to_sector_id) !== Number(neighbor.id)
-    );
+    const sectorIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
+    const allOther = [...outgoingTransfers, ...incomingTransfers].filter(t => !sectorIds.has(String(t.id)));
     for (const mine of [...sectorOutgoing, ...sectorIncoming]) {
       const mineAlt = parseAlt(mine.alt);
       if (mineAlt == null) continue;
@@ -2445,15 +2444,15 @@ const DraggableMapMarker = ({
 
   const availableStrips = strips.filter((s: any) => !s.onMap && s.status !== 'pending_transfer');
   
-  // Filter outgoing transfers for this marker
+  // Filter outgoing transfers for this marker (outgoing: to_sector_id = neighbor sector)
   const markerOutgoing = (outgoingTransfers || []).filter((t: any) => 
-    t.to_sector_id === marker.sectorId && 
+    Number(t.to_sector_id) === Number(marker.sectorId) && 
     (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label)
   );
   
-  // Filter incoming transfers for this marker
+  // Filter incoming transfers for this marker (incoming: from_sector_id = neighbor sector)
   const markerIncoming = (incomingTransfers || []).filter((t: any) => 
-    t.to_sector_id === marker.sectorId && 
+    Number(t.from_sector_id) === Number(marker.sectorId) && 
     (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label)
   );
   
@@ -2509,11 +2508,10 @@ const DraggableMapMarker = ({
       }
     }
     // Cross-sector: compare each of THIS marker's transfers against transfers from ALL OTHER markers/sectors
-    const allOtherMarker = [...(outgoingTransfers || []), ...(incomingTransfers || [])].filter((t: any) => {
-      const sameMarker = Number(t.to_sector_id) === Number(marker.sectorId) &&
-        (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label);
-      return !sameMarker;
-    });
+    const markerIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
+    const allOtherMarker = [...(outgoingTransfers || []), ...(incomingTransfers || [])].filter(
+      (t: any) => !markerIds.has(String(t.id))
+    );
     for (const mine of [...markerOutgoing, ...markerIncoming]) {
       const mineAlt = parseAlt(mine.alt);
       if (mineAlt == null) continue;
@@ -8088,6 +8086,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
+  const [allPendingTransfers, setAllPendingTransfers] = useState<any[]>([]);
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
@@ -8581,11 +8580,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const m = alt.match(/\d+/);
       return m ? parseInt(m[0]) : null;
     };
-    // Deduplicate: a transfer that matches both outgoing and incoming conditions
-    // would appear twice and falsely conflict with itself.
+    // Deduplicate across all sources: global pool (cross-workstation) + local outgoing/incoming.
+    // Global pool takes precedence so cross-workstation conflicts are detected.
     const seenIds = new Set<string>();
     const allTransfers: any[] = [];
-    for (const t of [...outgoingTransfers, ...incomingTransfers]) {
+    const pool = allPendingTransfers.length > 0
+      ? allPendingTransfers
+      : [...outgoingTransfers, ...incomingTransfers];
+    for (const t of pool) {
       const tid = String(t.id);
       if (!seenIds.has(tid)) { seenIds.add(tid); allTransfers.push(t); }
     }
@@ -8604,7 +8606,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [outgoingTransfers, incomingTransfers, myPresetConfig?.conflict_alt_delta, allSectors]);
+  }, [outgoingTransfers, incomingTransfers, allPendingTransfers, myPresetConfig?.conflict_alt_delta, allSectors]);
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -9003,6 +9005,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
+      fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => setAllPendingTransfers(data)).catch(() => {});
       // Load classic (preset-based) transfers when presetId is set
       if (session.presetId) {
         fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)

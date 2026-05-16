@@ -1558,6 +1558,25 @@ app.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
   }
 });
 
+// Global pending transfers — used for cross-workstation altitude conflict detection
+app.get('/api/transfers/pending-all', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT t.id, t.strip_id, t.from_sector_id, t.to_sector_id,
+             t.from_workstation_id, t.to_workstation_id, t.sub_sector_label,
+             s.alt, s.callsign
+      FROM strip_transfers t
+      JOIN strips s ON t.strip_id = s.id
+      WHERE t.status = 'pending'
+      ORDER BY t.created_at
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching all pending transfers:', err);
+    res.status(500).json({ error: 'Failed to fetch transfers' });
+  }
+});
+
 // Classic preset-to-preset transfer initiation
 app.post('/api/strips/:id/transfer-to-preset', async (req, res) => {
   try {
