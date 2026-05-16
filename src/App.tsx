@@ -4597,12 +4597,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const headerColor = lightMode ? '#374151' : '#94a3b8';
 
   const points: any[] = airfield?.points || [];
-  const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
-
   const parseAirfieldSids = (raw: any): { label: string; sector_id: number | null }[] => {
     const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
     return arr.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
   };
+
+  const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
+  const airfieldSidList = parseAirfieldSids(airfield?.sids);
+  const sidTransferEntries: { sidLabel: string; sector: any }[] = airfieldSidList
+    .filter(s => s.sector_id != null)
+    .map(s => ({ sidLabel: s.label, sector: allSectors.find(sec => sec.id === s.sector_id) }))
+    .filter(e => e.sector != null);
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
@@ -5590,6 +5595,80 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               </div>
             );
           })}
+
+          {/* SID transfer entries */}
+          {sidTransferEntries.length > 0 && (
+            <>
+              <div style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 'bold', color: '#7dd3fc', background: lightMode ? '#0c2540' : '#0a1929', borderRadius: '4px', margin: '6px 2px 4px', textAlign: 'center', letterSpacing: '0.05em' }}>
+                ✈️ SID
+              </div>
+              {sidTransferEntries.map(({ sidLabel, sector }) => {
+                const isDrop = leftDragOver === sector.id;
+                const secOutgoing = outgoingTransfers.filter(t => t.to_sector_id === sector.id);
+                const secIncoming = incomingTransfers.filter(t => t.from_sector_id === sector.id);
+                const secSingles = (singleTransfers || []).filter(t => t.sectorId === sector.id);
+                return (
+                  <div key={`sid-${sector.id}`}
+                    style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${isDrop ? '#22c55e' : '#1d4ed8'}`, background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : (lightMode ? '#eff6ff' : '#040d1a'), transition: 'all 0.15s' }}
+                    onDragOver={e => { e.preventDefault(); setLeftDragOver(sector.id); }}
+                    onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
+                    onDrop={e => {
+                      e.preventDefault();
+                      setLeftDragOver(null);
+                      try {
+                        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                        if (!data.stripId) return;
+                        if (data.all) { onTransfer(String(data.stripId), sector.id); }
+                        else if (data.idx) { onTransfer(String(data.stripId), sector.id, data.idx); }
+                      } catch {}
+                    }}
+                  >
+                    <div style={{ padding: '5px 10px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : '#1e3a5f', color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
+                      {isDrop ? '↓ שחרר להעביר' : sidLabel}
+                    </div>
+                    <div style={{ borderTop: '1px solid #1e3a5f' }}>
+                      <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
+                        📤 מוסר ({secOutgoing.length + secSingles.length})
+                      </div>
+                      {secOutgoing.map(t => (
+                        <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #292009', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'}</span>
+                          <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
+                        </div>
+                      ))}
+                      {secSingles.map((t, i) => (
+                        <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #292009', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx}</span>
+                          <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
+                        </div>
+                      ))}
+                      {secOutgoing.length === 0 && secSingles.length === 0 && (
+                        <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
+                      )}
+                    </div>
+                    <div style={{ borderTop: '1px solid #1e3a5f' }}>
+                      <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
+                        📥 מקבל ({secIncoming.length})
+                      </div>
+                      {secIncoming.map(t => (
+                        <div key={t.id}
+                          style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #0a2010', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'grab' }}
+                          onClick={() => onAcceptTransfer(String(t.id))}
+                          title="לחץ לקבלה"
+                        >
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'}</span>
+                          <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
+                        </div>
+                      ))}
+                      {secIncoming.length === 0 && (
+                        <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
 
