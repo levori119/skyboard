@@ -5406,7 +5406,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס לכל המבנה</div>
                         {GROUND_STATUSES.map(s => (
-                          <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => ({ ...x, status: s.key as GroundStatusKey })); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
+                          <button key={s.key} onClick={() => {
+                            if (s.key === 'takeoff' && airfield) {
+                              const sids = parseAirfieldSids(airfield.sids);
+                              if (sids.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
+                            }
+                            const positions = getAircraftPositions(strip); const updated = positions.map(x => ({ ...x, status: s.key as GroundStatusKey })); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
+                          }}
                             style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: acsAtPoint[0].status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${acsAtPoint[0].status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: acsAtPoint[0].status === s.key ? 'bold' : 'normal' }}>
                             {s.label}
                           </button>
@@ -5469,7 +5475,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
                         {GROUND_STATUSES.map(s => (
-                          <button key={s.key} onClick={() => { const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null); }}
+                          <button key={s.key} onClick={() => {
+                            if (s.key === 'takeoff' && airfield) {
+                              const sids = parseAirfieldSids(airfield.sids);
+                              if (sids.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }
+                            }
+                            const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
+                          }}
                             style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: ac.status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${ac.status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: ac.status === s.key ? 'bold' : 'normal' }}>
                             {s.label}
                           </button>
@@ -5730,17 +5742,22 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const sids = parseAirfieldSids(airfield?.sids);
         const strip = sidModal.strip;
         const callSign = strip.callSign || strip.call_sign || '';
+        const allAircraft = sidModal.idx === -1;
         const confirmSid = (sid: { label: string; sector_id: number | null }) => {
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
           const positions = getAircraftPositions(strip);
-          const updated = positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
+          const updated = allAircraft
+            ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
+            : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
           onUpdateAircraft(String(strip.id), updated);
           if (sid.sector_id) onTransfer(String(strip.id), sid.sector_id);
           setSidModal(null);
         };
         const skipSid = () => {
           const positions = getAircraftPositions(strip);
-          const updated = positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
+          const updated = allAircraft
+            ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
+            : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
           onUpdateAircraft(String(strip.id), updated);
           setSidModal(null);
         };
@@ -5751,7 +5768,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — בחר SID</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>
-                פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong> · מטוס #{sidModal.idx}
+                פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong>
+                {allAircraft ? <span> · כל המבנה</span> : <span> · מטוס #{sidModal.idx}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                 {sids.map(sid => (
