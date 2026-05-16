@@ -1765,8 +1765,24 @@ const DraggableNeighborPanel = ({
         }
       }
     }
+    // Cross-sector: compare each of MY sector's transfers against ALL transfers from OTHER sectors
+    const allOther = [...outgoingTransfers, ...incomingTransfers].filter(
+      t => Number(t.to_sector_id) !== Number(neighbor.id)
+    );
+    for (const mine of [...sectorOutgoing, ...sectorIncoming]) {
+      const mineAlt = parseAlt(mine.alt);
+      if (mineAlt == null) continue;
+      for (const other of allOther) {
+        if (String(other.id) === String(mine.id)) continue;
+        const otherAlt = parseAlt(other.alt);
+        if (otherAlt == null) continue;
+        if (Math.abs(mineAlt - otherAlt) * 100 <= delta) {
+          conflictingTransferIds.add(String(mine.id));
+        }
+      }
+    }
   }
-  // Merge cross-sector conflicts
+  // Merge cross-sector conflicts from parent (belt-and-suspenders)
   if (crossSectorConflictIds) {
     const sectorTransferIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
     crossSectorConflictIds.forEach(id => {
@@ -2492,8 +2508,26 @@ const DraggableMapMarker = ({
         }
       }
     }
+    // Cross-sector: compare each of THIS marker's transfers against transfers from ALL OTHER markers/sectors
+    const allOtherMarker = [...(outgoingTransfers || []), ...(incomingTransfers || [])].filter((t: any) => {
+      const sameMarker = Number(t.to_sector_id) === Number(marker.sectorId) &&
+        (marker.subLabel ? t.sub_sector_label === marker.subLabel : !t.sub_sector_label);
+      return !sameMarker;
+    });
+    for (const mine of [...markerOutgoing, ...markerIncoming]) {
+      const mineAlt = parseAlt(mine.alt);
+      if (mineAlt == null) continue;
+      for (const other of allOtherMarker) {
+        if (String(other.id) === String(mine.id)) continue;
+        const otherAlt = parseAlt(other.alt);
+        if (otherAlt == null) continue;
+        if (Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
+          markerConflictIds.add(String(mine.id));
+        }
+      }
+    }
   }
-  // Merge cross-sector conflicts
+  // Merge cross-sector conflicts from parent (belt-and-suspenders)
   if (crossSectorConflictIds) {
     const markerTransferIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
     crossSectorConflictIds.forEach(id => {
@@ -8487,7 +8521,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Cross-sector altitude conflict detection: compare ALL transfers (outgoing + incoming)
   // against each other across all sectors. Any pair within conflict_alt_delta → both flagged.
   const crossSectorConflictIds = React.useMemo(() => {
-    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    // Use the maximum delta across the preset AND all individual sectors so that
+    // if the preset delta is 0 but sectors have a non-zero value, cross-sector
+    // conflicts are still detected.
+    const presetDelta = myPresetConfig?.conflict_alt_delta ?? 0;
+    const sectorMaxDelta = allSectors.reduce((max: number, s: any) => Math.max(max, s.conflict_alt_delta ?? 0), 0);
+    const delta = Math.max(presetDelta, sectorMaxDelta, 500);
     const result = new Set<string>();
     if (delta <= 0) return result;
     const parseAltVal = (alt: string | null | undefined): number | null => {
@@ -8518,7 +8557,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [outgoingTransfers, incomingTransfers, myPresetConfig?.conflict_alt_delta]);
+  }, [outgoingTransfers, incomingTransfers, myPresetConfig?.conflict_alt_delta, allSectors]);
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
@@ -10990,6 +11029,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     dragStripId={tableMode ? tableDragRow : null}
                     onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
+                    conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
                     mapPan={mapPan}
