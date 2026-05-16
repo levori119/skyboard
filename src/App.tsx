@@ -3099,109 +3099,110 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Do NOT call setPointerCapture: it redirects elementsFromPoint inside CSS-transformed
+    // containers (contain:paint + scale) and can cause pointercancel on re-render.
+    // Instead, attach listeners immediately on window — no race with useEffect.
     const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
-      setIsDragging(true);
-    }
-  };
+    if (!rect) return;
+    startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
+    setIsDragging(true);
 
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const findTopmostMarker = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
-      return els.find(el => el.classList.contains('marker-drop-zone') && el.getAttribute('data-marker-sector')) || null;
+    // Use getBoundingClientRect for markers — reliable through CSS transforms (scale/translate).
+    // elementsFromPoint can miss elements inside contain:paint + CSS transform containers.
+    const findMarker = (cx: number, cy: number): Element | null => {
+      for (const el of Array.from(document.querySelectorAll('.marker-drop-zone[data-marker-sector]'))) {
+        const r = el.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return el;
+      }
+      return null;
     };
-
-    const findTopmostNeighborPanel = (clientX: number, clientY: number): Element | null => {
-      const els = document.elementsFromPoint(clientX, clientY);
+    const findNeighborPanel = (cx: number, cy: number): Element | null => {
+      const els = document.elementsFromPoint(cx, cy);
       return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
     };
-
-    const clearAllDropHighlights = () => {
+    const clearHighlights = () => {
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
-    const handlePointerMove = (e: PointerEvent) => {
-      setDragPos({ 
-        x: e.clientX - startPosRef.current.x, 
-        y: e.clientY - startPosRef.current.y 
-      });
-      clearAllDropHighlights();
-      const markerTarget = findTopmostMarker(e.clientX, e.clientY);
-      if (markerTarget) { markerTarget.classList.add('strip-drag-active'); return; }
-      const neighborTarget = findTopmostNeighborPanel(e.clientX, e.clientY);
-      if (neighborTarget) neighborTarget.classList.add('strip-drag-active');
+    const handleDragMove = (ev: PointerEvent) => {
+      setDragPos({ x: ev.clientX - startPosRef.current.x, y: ev.clientY - startPosRef.current.y });
+      clearHighlights();
+      const m = findMarker(ev.clientX, ev.clientY);
+      if (m) { m.classList.add('strip-drag-active'); return; }
+      const n = findNeighborPanel(ev.clientX, ev.clientY);
+      if (n) n.classList.add('strip-drag-active');
     };
 
-    const handlePointerUp = (e: PointerEvent) => {
-      clearAllDropHighlights();
+    const handleDragUp = (ev: PointerEvent) => {
+      clearHighlights();
       setIsDragging(false);
+      window.removeEventListener('pointermove', handleDragMove);
+      window.removeEventListener('pointerup', handleDragUp);
+      window.removeEventListener('pointercancel', handleDragCancel);
+
+      // 1. נקודת העברה (neighbor panel) — אינה דורשת mapArea
+      const topNeighbor = findNeighborPanel(ev.clientX, ev.clientY);
+      if (topNeighbor) {
+        const sectorId = parseInt(topNeighbor.getAttribute('data-sector-id') || '0');
+        if (sectorId && onTransfer) { onTransfer(s.id, sectorId); return; }
+      }
+
       const mapArea = document.getElementById('map-area');
       const sidebar = document.getElementById('sidebar-area');
-      
-      if (mapArea && sidebar) {
+
+      // 2. סמן מפה — getBoundingClientRect אמין דרך CSS transforms
+      const topMarker = findMarker(ev.clientX, ev.clientY);
+      if (topMarker && mapArea) {
+        const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
+        const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
+        if (sectorId && onTransfer) {
+          const mapRect = mapArea.getBoundingClientRect();
+          onTransfer(s.id, sectorId, ev.clientX - mapRect.left, ev.clientY - mapRect.top, subLabel || undefined);
+          return;
+        }
+      }
+
+      if (mapArea) {
         const mapRect = mapArea.getBoundingClientRect();
-        const sidebarRect = sidebar.getBoundingClientRect();
-        const dropX = e.clientX - startPosRef.current.x;
-        const dropY = e.clientY - startPosRef.current.y;
+        const dropX = ev.clientX - startPosRef.current.x;
+        const dropY = ev.clientY - startPosRef.current.y;
 
-        // 1. בדיקה אם נשחרר על סמן נקודת העברה במפה
-        const topMarker = findTopmostMarker(e.clientX, e.clientY);
-        if (topMarker) {
-          const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
-          const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
-          if (sectorId && onTransfer) {
-            const x = e.clientX - mapRect.left;
-            const y = e.clientY - mapRect.top;
-            onTransfer(s.id, sectorId, x, y, subLabel || undefined);
+        // 3. החזרה לרשימה (drop על סרגל הצד)
+        if (sidebar) {
+          const sr = sidebar.getBoundingClientRect();
+          if (ev.clientX >= sr.left && ev.clientX <= sr.right && ev.clientY >= sr.top && ev.clientY <= sr.bottom) {
+            onMove(s.id, 0, 0, false);
             return;
           }
         }
 
-        // 2. בדיקה אם נשחרר על פאנל נקודת העברה בסרגל הצד — שימוש ב-elementsFromPoint
-        const topNeighborPanel = findTopmostNeighborPanel(e.clientX, e.clientY);
-        if (topNeighborPanel) {
-          const sectorId = parseInt(topNeighborPanel.getAttribute('data-sector-id') || '0');
-          if (sectorId && onTransfer) {
-            onTransfer(s.id, sectorId);
-            return;
-          }
-        }
-
-        // 3. בדיקה אם נשחרר בתוך אזור התפריט - להחזיר לרשימה
-        if (e.clientX >= sidebarRect.left && e.clientX <= sidebarRect.right &&
-            e.clientY >= sidebarRect.top && e.clientY <= sidebarRect.bottom) {
-          onMove(s.id, 0, 0, false);
-        }
-        // 4. בדיקה אם נשחרר בתוך אזור המפה
-        else if (e.clientX >= mapRect.left && e.clientX <= mapRect.right &&
-            e.clientY >= mapRect.top && e.clientY <= mapRect.bottom) {
-          const x = dropX - mapRect.left;
-          const y = dropY - mapRect.top;
-          onMove(s.id, x, y, true);
+        // 4. מיקום על המפה
+        if (ev.clientX >= mapRect.left && ev.clientX <= mapRect.right &&
+            ev.clientY >= mapRect.top && ev.clientY <= mapRect.bottom) {
+          onMove(s.id, dropX - mapRect.left, dropY - mapRect.top, true);
         }
       }
     };
 
-    const handlePointerCancel = () => {
-      clearAllDropHighlights();
+    const handleDragCancel = () => {
+      clearHighlights();
       setIsDragging(false);
+      window.removeEventListener('pointermove', handleDragMove);
+      window.removeEventListener('pointerup', handleDragUp);
+      window.removeEventListener('pointercancel', handleDragCancel);
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerCancel);
+    window.addEventListener('pointermove', handleDragMove);
+    window.addEventListener('pointerup', handleDragUp);
+    window.addEventListener('pointercancel', handleDragCancel);
+  };
+
+  useEffect(() => {
     return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerCancel);
-      clearAllDropHighlights();
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
-  }, [isDragging, s.id, onMove, neighbors, onTransfer]);
+  }, []);
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
@@ -9377,6 +9378,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Pointer-event drag from sidebar to table — global move/up listeners
   useEffect(() => {
+    // getBoundingClientRect-based marker finder — reliable through CSS transforms
+    const findSidebarMarker = (cx: number, cy: number): Element | null => {
+      for (const el of Array.from(document.querySelectorAll('.marker-drop-zone[data-marker-sector]'))) {
+        const r = el.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return el;
+      }
+      return null;
+    };
+    const findSidebarNeighborPanel = (cx: number, cy: number): Element | null => {
+      const els = document.elementsFromPoint(cx, cy);
+      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
+    };
+    const clearSidebarHighlights = () => {
+      document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
+    };
+
     const onMove = (e: PointerEvent) => {
       if (!sidebarPointerDragRef.current) return;
       const mapArea = document.getElementById('map-area');
@@ -9396,6 +9413,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const over = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
         classicMine.style.outline = over ? '3px solid #3b82f6' : 'none';
       }
+      // Highlight marker or neighbor panel under cursor
+      clearSidebarHighlights();
+      const marker = findSidebarMarker(e.clientX, e.clientY);
+      if (marker) { marker.classList.add('strip-drag-active'); }
+      else {
+        const neighbor = findSidebarNeighborPanel(e.clientX, e.clientY);
+        if (neighbor) neighbor.classList.add('strip-drag-active');
+      }
       setSidebarPointerGhost(prev => prev ? { ...prev, x: ghostX, y: e.clientY } : null);
     };
     const onUp = (e: PointerEvent) => {
@@ -9404,8 +9429,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      clearSidebarHighlights();
       const classicMineEl = document.getElementById('classic-mine-panel');
       if (classicMineEl) classicMineEl.style.outline = 'none';
+
+      // 1. נקודת העברה (neighbor panel) — כל מוד
+      const neighborPanel = findSidebarNeighborPanel(e.clientX, e.clientY);
+      if (neighborPanel) {
+        const sectorId = Number(neighborPanel.getAttribute('data-sector-id'));
+        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+      }
+
+      // 2. סמן מפה — כל מוד (getBoundingClientRect אמין דרך CSS transforms)
+      const markerEl = findSidebarMarker(e.clientX, e.clientY);
+      if (markerEl) {
+        const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0');
+        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+      }
+
       // Check if dropped on ClassicView "שלי" center panel
       const classicMine = document.getElementById('classic-mine-panel');
       if (classicMine) {
@@ -9415,7 +9456,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           return;
         }
       }
-      const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
@@ -9442,6 +9482,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       sidebarPointerDragRef.current = null;
       setSidebarPointerGhost(null);
       setTableDragOver(false);
+      clearSidebarHighlights();
       const el = document.getElementById('classic-mine-panel');
       if (el) el.style.outline = 'none';
     };
