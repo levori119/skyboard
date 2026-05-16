@@ -3023,7 +3023,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -3142,8 +3142,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
     setIsDragging(true);
 
-    // Use getBoundingClientRect for markers — reliable through CSS transforms (scale/translate).
-    // elementsFromPoint can miss elements inside contain:paint + CSS transform containers.
+    // Use getBoundingClientRect for both markers and neighbor panels — reliable through CSS transforms.
+    // elementsFromPoint can be unreliable inside contain:paint contexts and CSS-scaled containers.
     const findMarker = (cx: number, cy: number): Element | null => {
       for (const el of Array.from(document.querySelectorAll('.marker-drop-zone[data-marker-sector]'))) {
         const r = el.getBoundingClientRect();
@@ -3152,14 +3152,37 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       return null;
     };
     const findNeighborPanel = (cx: number, cy: number): Element | null => {
-      const els = document.elementsFromPoint(cx, cy);
-      return els.find(el => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id')) || null;
+      for (const el of Array.from(document.querySelectorAll('.neighbor-drop-zone[data-sector-id]'))) {
+        const r = el.getBoundingClientRect();
+        if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return el;
+      }
+      return null;
     };
     const clearHighlights = () => {
       document.querySelectorAll('.marker-drop-zone.strip-drag-active, .neighbor-drop-zone.strip-drag-active').forEach(el => el.classList.remove('strip-drag-active'));
     };
 
+    // Helper: convert viewport coords to map-container coords (accounts for zoom + pan with center origin)
+    // pan is passed as prop: { x, y } translation applied to the map container before scale.
+    const viewportToMapCoords = (vx: number, vy: number, mapRect: DOMRect): { x: number; y: number } => {
+      const z = zoom || 1;
+      const px = pan?.x ?? 0;
+      const py = pan?.y ?? 0;
+      const cw = mapRect.width;
+      const ch = mapRect.height;
+      return {
+        x: (vx - mapRect.left - cw / 2 - px) / z + cw / 2,
+        y: (vy - mapRect.top  - ch / 2 - py) / z + ch / 2,
+      };
+    };
+
+    // Track last pointer position — used in handleDragCancel fallback (tablet pointercancel)
+    let lastCx = e.clientX;
+    let lastCy = e.clientY;
+
     const handleDragMove = (ev: PointerEvent) => {
+      lastCx = ev.clientX;
+      lastCy = ev.clientY;
       setDragPos({ x: ev.clientX - startPosRef.current.x, y: ev.clientY - startPosRef.current.y });
       clearHighlights();
       const m = findMarker(ev.clientX, ev.clientY);
@@ -3168,55 +3191,61 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       if (n) n.classList.add('strip-drag-active');
     };
 
-    const handleDragUp = (ev: PointerEvent) => {
-      clearHighlights();
-      setIsDragging(false);
-      window.removeEventListener('pointermove', handleDragMove);
-      window.removeEventListener('pointerup', handleDragUp);
-      window.removeEventListener('pointercancel', handleDragCancel);
+    const performDrop = (cx: number, cy: number) => {
+      const mapArea = document.getElementById('map-area');
+      const sidebar = document.getElementById('sidebar-area');
 
-      // 1. נקודת העברה (neighbor panel) — אינה דורשת mapArea
-      const topNeighbor = findNeighborPanel(ev.clientX, ev.clientY);
+      // 1. נקודת העברה (neighbor panel) — getBoundingClientRect, אמין דרך כל CSS transforms
+      const topNeighbor = findNeighborPanel(cx, cy);
       if (topNeighbor) {
         const sectorId = parseInt(topNeighbor.getAttribute('data-sector-id') || '0');
         if (sectorId && onTransfer) { onTransfer(s.id, sectorId); return; }
       }
 
-      const mapArea = document.getElementById('map-area');
-      const sidebar = document.getElementById('sidebar-area');
-
       // 2. סמן מפה — getBoundingClientRect אמין דרך CSS transforms
-      const topMarker = findMarker(ev.clientX, ev.clientY);
+      const topMarker = findMarker(cx, cy);
       if (topMarker && mapArea) {
         const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
         const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
         if (sectorId && onTransfer) {
           const mapRect = mapArea.getBoundingClientRect();
-          onTransfer(s.id, sectorId, ev.clientX - mapRect.left, ev.clientY - mapRect.top, subLabel || undefined);
+          const mc = viewportToMapCoords(cx, cy, mapRect);
+          onTransfer(s.id, sectorId, mc.x, mc.y, subLabel || undefined);
           return;
         }
       }
 
       if (mapArea) {
         const mapRect = mapArea.getBoundingClientRect();
-        const dropX = ev.clientX - startPosRef.current.x;
-        const dropY = ev.clientY - startPosRef.current.y;
 
         // 3. החזרה לרשימה (drop על סרגל הצד)
         if (sidebar) {
           const sr = sidebar.getBoundingClientRect();
-          if (ev.clientX >= sr.left && ev.clientX <= sr.right && ev.clientY >= sr.top && ev.clientY <= sr.bottom) {
+          if (cx >= sr.left && cx <= sr.right && cy >= sr.top && cy <= sr.bottom) {
             onMove(s.id, 0, 0, false);
             return;
           }
         }
 
-        // 4. מיקום על המפה
-        if (ev.clientX >= mapRect.left && ev.clientX <= mapRect.right &&
-            ev.clientY >= mapRect.top && ev.clientY <= mapRect.bottom) {
-          onMove(s.id, dropX - mapRect.left, dropY - mapRect.top, true);
+        // 4. מיקום על המפה — ממיר לקואורדינטות map-container (מתחשב בזום/פאן)
+        if (cx >= mapRect.left && cx <= mapRect.right &&
+            cy >= mapRect.top  && cy <= mapRect.bottom) {
+          // stripLeft/Top: viewport position of the strip's top-left corner at release
+          const stripLeft = cx - startPosRef.current.x;
+          const stripTop  = cy - startPosRef.current.y;
+          const mcStrip = viewportToMapCoords(stripLeft, stripTop, mapRect);
+          onMove(s.id, mcStrip.x, mcStrip.y, true);
         }
       }
+    };
+
+    const handleDragUp = (ev: PointerEvent) => {
+      clearHighlights();
+      setIsDragging(false);
+      window.removeEventListener('pointermove', handleDragMove);
+      window.removeEventListener('pointerup', handleDragUp);
+      window.removeEventListener('pointercancel', handleDragCancel);
+      performDrop(ev.clientX, ev.clientY);
     };
 
     const handleDragCancel = () => {
@@ -3225,6 +3254,24 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       window.removeEventListener('pointermove', handleDragMove);
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
+      // Tablet fallback: attempt transfer at last known position (neighbor panel / marker only).
+      // Does NOT reposition on map to avoid accidental moves on system-cancelled gestures.
+      const topNeighbor = findNeighborPanel(lastCx, lastCy);
+      if (topNeighbor) {
+        const sectorId = parseInt(topNeighbor.getAttribute('data-sector-id') || '0');
+        if (sectorId && onTransfer) { onTransfer(s.id, sectorId); return; }
+      }
+      const topMarker = findMarker(lastCx, lastCy);
+      const mapArea = document.getElementById('map-area');
+      if (topMarker && mapArea) {
+        const sectorId = parseInt(topMarker.getAttribute('data-marker-sector') || '0');
+        const subLabel = topMarker.getAttribute('data-marker-sublabel') || undefined;
+        if (sectorId && onTransfer) {
+          const mapRect = mapArea.getBoundingClientRect();
+          const mc = viewportToMapCoords(lastCx, lastCy, mapRect);
+          onTransfer(s.id, sectorId, mc.x, mc.y, subLabel || undefined);
+        }
+      }
     };
 
     window.addEventListener('pointermove', handleDragMove);
@@ -12521,6 +12568,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateNotes={handleUpdateStripNotes}
                 onUpdateDetails={handleUpdateStripDetails}
                 zoom={mapZoom}
+                pan={mapPan}
                 serials={relevantSerials}
                 serialSelections={stripSerialSelections}
                 onSerialSelect={handleSerialSelect}
