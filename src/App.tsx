@@ -4604,10 +4604,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
   const airfieldSidList = parseAirfieldSids(airfield?.sids);
-  const sidTransferEntries: { sidLabel: string; sector: any }[] = airfieldSidList
+  const sidTransferEntries: { sidLabel: string; sectorId: number }[] = airfieldSidList
     .filter(s => s.sector_id != null)
-    .map(s => ({ sidLabel: s.label, sector: allSectors.find(sec => sec.id === s.sector_id) }))
-    .filter(e => e.sector != null);
+    .map(s => ({ sidLabel: s.label, sectorId: s.sector_id! }));
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
@@ -5602,15 +5601,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               <div style={{ padding: '4px 8px', fontSize: '10px', fontWeight: 'bold', color: '#7dd3fc', background: lightMode ? '#0c2540' : '#0a1929', borderRadius: '4px', margin: '6px 2px 4px', textAlign: 'center', letterSpacing: '0.05em' }}>
                 ✈️ SID
               </div>
-              {sidTransferEntries.map(({ sidLabel, sector }) => {
-                const isDrop = leftDragOver === sector.id;
-                const secOutgoing = outgoingTransfers.filter(t => t.to_sector_id === sector.id);
-                const secIncoming = incomingTransfers.filter(t => t.from_sector_id === sector.id);
-                const secSingles = (singleTransfers || []).filter(t => t.sectorId === sector.id);
+              {sidTransferEntries.map(({ sidLabel, sectorId }) => {
+                const isDrop = leftDragOver === sectorId;
+                const secOutgoing = outgoingTransfers.filter(t => t.to_sector_id === sectorId);
+                const secIncoming = incomingTransfers.filter(t => t.from_sector_id === sectorId);
+                const secSingles = (singleTransfers || []).filter(t => t.sectorId === sectorId);
                 return (
-                  <div key={`sid-${sector.id}`}
+                  <div key={`sid-${sectorId}`}
                     style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${isDrop ? '#22c55e' : '#1d4ed8'}`, background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : (lightMode ? '#eff6ff' : '#040d1a'), transition: 'all 0.15s' }}
-                    onDragOver={e => { e.preventDefault(); setLeftDragOver(sector.id); }}
+                    onDragOver={e => { e.preventDefault(); setLeftDragOver(sectorId); }}
                     onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
                     onDrop={e => {
                       e.preventDefault();
@@ -5618,8 +5617,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       try {
                         const data = JSON.parse(e.dataTransfer.getData('text/plain'));
                         if (!data.stripId) return;
-                        if (data.all) { onTransfer(String(data.stripId), sector.id); }
-                        else if (data.idx) { onTransfer(String(data.stripId), sector.id, data.idx); }
+                        if (data.all) { onTransfer(String(data.stripId), sectorId); }
+                        else if (data.idx) { onTransfer(String(data.stripId), sectorId, data.idx); }
                       } catch {}
                     }}
                   >
