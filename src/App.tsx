@@ -4634,7 +4634,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}` }}>
+      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1 }}>
         {/* Header */}
         <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', gap: '6px' }}>
           <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
@@ -4869,11 +4869,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         }
         const cats = Object.keys(catMap).sort();
         return (
-          <div style={{ width: elemsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderRight: `2px solid ${border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
+          <div style={{ width: elemsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderRight: `2px solid ${border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative', order: 0 }}>
             <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: elemsPinned ? `1px solid ${border}` : 'none', flexShrink: 0, minWidth: elemsPinned ? 'auto' : 0 }}>
-              {elemsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>🔧 אלמנטים ({airfieldElements.length})</span>}
+              {elemsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>📌 אלמנטים ({airfieldElements.length})</span>}
               <button onClick={() => setElemsPinned(v => !v)} title={elemsPinned ? 'סגור' : 'פתח אלמנטים'}
-                style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>🔧</button>
+                style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
             </div>
             {elemsPinned && (
               <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
@@ -4930,7 +4930,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             )}
             {!elemsPinned && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>🔧 אלמנטים</span>
+                <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>📌 אלמנטים</span>
               </div>
             )}
           </div>
@@ -4938,7 +4938,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       })()}
 
       {/* CENTER — Airfield map */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 2 }}>
         <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
 
         {/* datk filter bar */}
@@ -18666,27 +18666,43 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           {!showElementForm && <button onClick={() => { setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setShowElementForm(true); }} style={{ padding: '3px 10px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף</button>}
                         </div>
                         <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                          {adminAirfieldElements.map(el => {
+                          {(() => {
                             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
-                            const sColor = statusColors[el.status] || '#94a3b8';
-                            return (
-                              <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>
-                                  <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
-                                  <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
+                            const catMap: Record<string, any[]> = {};
+                            for (const el of adminAirfieldElements) {
+                              const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
+                              if (!catMap[cat]) catMap[cat] = [];
+                              catMap[cat].push(el);
+                            }
+                            const cats = Object.keys(catMap).sort();
+                            const renderEl = (el: any) => {
+                              const sColor = statusColors[el.status] || '#94a3b8';
+                              return (
+                                <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>
+                                    <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
+                                    <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
+                                  </div>
+                                  {el.type_name && <div style={{ fontSize: '9px', color: el.type_color || '#f59e0b', marginTop: '1px' }}>{el.type_name}</div>}
+                                  {el.note && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.note}</div>}
+                                  <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
+                                    <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
+                                    {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
+                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏</button>
+                                    <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                                  </div>
                                 </div>
-                                {el.type_name && <div style={{ fontSize: '9px', color: el.type_color || '#f59e0b', marginTop: '1px' }}>{el.type_name}</div>}
-                                {el.note && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.note}</div>}
-                                <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
-                                  <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
-                                  {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
-                                  <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏</button>
-                                  <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
-                                </div>
+                              );
+                            };
+                            if (cats.length <= 1) return adminAirfieldElements.map(renderEl);
+                            return cats.map(cat => (
+                              <div key={cat}>
+                                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#be185d', background: '#2d0a1e', padding: '2px 6px', borderRadius: '3px', marginBottom: '3px', direction: 'rtl' }}>{cat}</div>
+                                {catMap[cat].map(renderEl)}
                               </div>
-                            );
-                          })}
+                            ));
+                          })()}
                           {showElementForm && (
                             <div style={{ padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                               <input value={elementForm.name} onChange={e => setElementForm(p => ({ ...p, name: e.target.value }))} placeholder="שם האלמנט" style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
