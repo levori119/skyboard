@@ -13480,6 +13480,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         )}
 
+        {/* Partial Transfer Modal — בחירת מטוסים להעברה חלקית */}
+        {partialTransferModal && (
+          <PartialTransferModal
+            strip={partialTransferModal.strip}
+            selectedIndices={partialSelectedIndices}
+            onToggleIndex={(idx) => setPartialSelectedIndices(prev =>
+              prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+            )}
+            onCancel={() => setPartialTransferModal(null)}
+            onTransferAll={handlePartialTransferAll}
+            onSubmit={handlePartialTransferSubmit}
+          />
+        )}
+
         {/* Floating Notepad */}
         {showNotepad && (
           <div
