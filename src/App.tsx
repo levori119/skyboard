@@ -19002,7 +19002,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,×
                       } else if (placingElementMode && placingElementId) {
                         const el = adminAirfieldElements.find((e: any) => e.id === placingElementId);
                         if (el) {
-                          await fetch(`${API_URL}/airfield-elements/${placingElementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, x_pct, y_pct }) });
+                          await fetch(`${API_URL}/airfield-elements/${placingElementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct, y_pct }) });
                           loadAirfieldElements(selectedAdminAirfieldId!);
                         }
                         setPlacingElementMode(false); setPlacingElementId(null);
