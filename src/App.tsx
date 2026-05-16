@@ -5499,7 +5499,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       </div>
 
       {/* LEFT panel — Transfer sectors (מוסר/מקבל) */}
-      <div style={{ ...PANEL, width: '180px', flexShrink: 0, borderInlineStart: `1px solid ${border}` }}>
+      <div style={{ ...PANEL, width: '180px', flexShrink: 0, borderInlineStart: `1px solid ${border}`, order: 3 }}>
         <div style={HDR}>⇄ נקודות העברה</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 4px 8px' }}>
           {transferSectors.length === 0 && (
