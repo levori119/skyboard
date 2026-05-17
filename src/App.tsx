@@ -16564,7 +16564,18 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
         {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={tabStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
         {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={tabStyle(activeTab === 'value_lists')}>📋 רשימות ערכים</button>}
-        {availableTabs.includes('contacts') && <button onClick={() => setActiveTab('contacts')} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
+        {availableTabs.includes('contacts') && <button onClick={() => {
+          setActiveTab('contacts');
+          fetch(`${API_URL}/workstation-contacts/all`)
+            .then(r => r.ok ? r.json() : [])
+            .then((data: any[]) => {
+              const grouped: Record<number, any[]> = {};
+              data.forEach((c: any) => { if (!grouped[c.preset_id]) grouped[c.preset_id] = []; grouped[c.preset_id].push({ ...c, _key: c.id }); });
+              const ids = Object.keys(grouped).map(Number);
+              setAdminContactsShown(prev => { const existing = new Set(prev); ids.forEach(id => existing.add(id)); return Array.from(existing); });
+              setAdminContactsData(prev => ({ ...prev, ...grouped }));
+            }).catch(() => {});
+        }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -19932,7 +19943,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             )}
                           </tbody>
                         </table>
-                        <div style={{ padding: '8px 10px', borderTop: '1px solid #1e293b' }}>
+                        <div style={{ padding: '8px 10px', borderTop: '1px solid #1e293b', display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <button
                             onClick={() => {
                               const newRow = { mahut: '', oketz: '', frequency: '', note: '', device_type: '', sort_order: rows.length, _key: Date.now(), _unsaved: true };
@@ -19941,6 +19952,15 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                             }}
                             style={{ padding: '4px 14px', background: 'transparent', color: '#38bdf8', border: '1px dashed #1e40af', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}
                           >+ הוסף קשר</button>
+                          <button
+                            onClick={async () => {
+                              const currentRows = adminContactsData[presetId] || [];
+                              for (const row of currentRows) {
+                                await saveContactRow(presetId, { ...row, _unsaved: true });
+                              }
+                            }}
+                            style={{ padding: '4px 14px', background: '#0369a1', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                          >💾 שמור</button>
                         </div>
                       </>
                     )}
