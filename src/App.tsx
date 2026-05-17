@@ -8700,7 +8700,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(true);
   const [contactsPanelOpen, setContactsPanelOpen] = useState(true);
-  const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; sort_order: number; _key: number }[]>([]);
+  const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
@@ -10958,15 +10958,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                       <thead>
                         <tr style={{ color: '#64748b' }}>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '25%' }}>עורק/תדר</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '16%' }}>סוג</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>עורק/תדר</th>
                           <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '25%' }}>מהות</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '15%' }}>{'או"ק'}</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '13%' }}>{'או"ק'}</th>
                           <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>הערה</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((r, ri) => (
                           <tr key={ri} style={{ borderBottom: '1px solid #0f172a' }}>
+                            <td style={{ padding: '3px 4px', color: '#a78bfa', fontSize: '10px' }}>{r.device_type || ''}</td>
                             <td style={{ padding: '3px 4px', color: '#7dd3fc', fontWeight: 'bold' }}>{r.frequency || '—'}</td>
                             <td style={{ padding: '3px 4px', color: '#e2e8f0' }}>{r.mahut || '—'}</td>
                             <td style={{ padding: '3px 4px', color: '#94a3b8' }}>{r.oketz || '—'}</td>
@@ -13824,12 +13826,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {/* Contact rows */}
                             {sessionContacts.map((c, idx) => (
                               <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '11px', direction: 'rtl' }}>
-                                <div style={{ display: 'flex', gap: '4px', marginBottom: '2px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+                                  <select
+                                    value={c.device_type || ''}
+                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, device_type: e.target.value } : x))}
+                                    style={{ flex: '0 0 60px', padding: '2px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', direction: 'rtl' }}
+                                  >
+                                    {['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'].map(dt => <option key={dt} value={dt}>{dt || 'סוג'}</option>)}
+                                  </select>
                                   <input
                                     value={c.frequency}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, frequency: e.target.value } : x))}
                                     placeholder="תדר/עורק"
-                                    style={{ flex: '0 0 70px', padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', direction: 'rtl' }}
+                                    style={{ flex: '0 0 64px', padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', direction: 'rtl' }}
                                   />
                                   <input
                                     value={c.mahut}
@@ -13859,7 +13868,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </div>
                             ))}
                             <button
-                              onClick={() => setSessionContacts(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', sort_order: prev.length, _key: Date.now() }])}
+                              onClick={() => setSessionContacts(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', device_type: '', sort_order: prev.length, _key: Date.now() }])}
                               style={{ width: '100%', padding: '3px', background: lightMode ? '#e0f2fe' : '#0a1929', color: lightMode ? '#0369a1' : '#38bdf8', border: `1px dashed ${lightMode ? '#7dd3fc' : '#1e4976'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
                             >+ הוסף קשר</button>
                           </div>
@@ -16191,18 +16200,41 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [baseStatusForm, setBaseStatusForm] = useState({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' });
   const loadAdminBaseStatuses = () => fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
 
-  // Contacts admin state
-  const [adminContactsPreset, setAdminContactsPreset] = useState<number | null>(null);
-  const [adminContactsRows, setAdminContactsRows] = useState<any[]>([]);
-  const [adminContactsLoading, setAdminContactsLoading] = useState(false);
-  const [adminContactsSaving, setAdminContactsSaving] = useState(false);
+  // Contacts admin state — multi-preset
+  const [adminContactsShown, setAdminContactsShown] = useState<number[]>([]);
+  const [adminContactsData, setAdminContactsData] = useState<Record<number, any[]>>({});
+  const [adminContactsPicker, setAdminContactsPicker] = useState<string>('');
+  const [adminContactsSavingId, setAdminContactsSavingId] = useState<number | null>(null);
+  const DEVICE_TYPES = ['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'];
   const loadAdminContacts = (presetId: number) => {
-    setAdminContactsLoading(true);
     fetch(`${API_URL}/workstation-contacts?preset_id=${presetId}`)
       .then(r => r.ok ? r.json() : [])
-      .then((data: any[]) => setAdminContactsRows(data.map(c => ({ ...c, _key: c.id, _dirty: false }))))
-      .catch(() => setAdminContactsRows([]))
-      .finally(() => setAdminContactsLoading(false));
+      .then((data: any[]) => setAdminContactsData(prev => ({ ...prev, [presetId]: data.map(c => ({ ...c, _key: c.id })) })))
+      .catch(() => {});
+  };
+  const saveContactRow = async (presetId: number, row: any): Promise<any> => {
+    setAdminContactsSavingId(row._key);
+    try {
+      const body = { mahut: row.mahut, oketz: row.oketz, frequency: row.frequency, note: row.note, sort_order: row.sort_order, device_type: row.device_type || '' };
+      if (row.id) {
+        const r = await fetch(`${API_URL}/workstation-contacts/${row.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const updated = await r.json();
+        setAdminContactsData(prev => ({ ...prev, [presetId]: (prev[presetId] || []).map(x => x._key === row._key ? { ...updated, _key: updated.id } : x) }));
+        return updated;
+      } else {
+        const r = await fetch(`${API_URL}/workstation-contacts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: presetId, ...body }) });
+        const created = await r.json();
+        setAdminContactsData(prev => ({ ...prev, [presetId]: (prev[presetId] || []).map(x => x._key === row._key ? { ...created, _key: created.id } : x) }));
+        return created;
+      }
+    } finally { setAdminContactsSavingId(null); }
+  };
+  const deleteContactRow = async (presetId: number, row: any) => {
+    if (row.id) await fetch(`${API_URL}/workstation-contacts/${row.id}`, { method: 'DELETE' });
+    setAdminContactsData(prev => ({ ...prev, [presetId]: (prev[presetId] || []).filter(x => x._key !== row._key) }));
+  };
+  const updateContactLocal = (presetId: number, key: number, field: string, val: string) => {
+    setAdminContactsData(prev => ({ ...prev, [presetId]: (prev[presetId] || []).map(r => r._key === key ? { ...r, [field]: val, _unsaved: true } : r) }));
   };
 
   // BDH state
@@ -19761,93 +19793,165 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
         })()}
 
         {activeTab === 'contacts' && (() => {
-          const saveRow = async (row: any) => {
-            setAdminContactsSaving(true);
-            try {
-              if (row.id) {
-                const r = await fetch(`${API_URL}/workstation-contacts/${row.id}`, {
-                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ mahut: row.mahut, oketz: row.oketz, frequency: row.frequency, note: row.note, sort_order: row.sort_order })
-                });
-                const updated = await r.json();
-                setAdminContactsRows(prev => prev.map(x => x._key === row._key ? { ...updated, _key: updated.id, _dirty: false } : x));
-              } else {
-                const r = await fetch(`${API_URL}/workstation-contacts`, {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ preset_id: adminContactsPreset, mahut: row.mahut, oketz: row.oketz, frequency: row.frequency, note: row.note, sort_order: row.sort_order })
-                });
-                const created = await r.json();
-                setAdminContactsRows(prev => prev.map(x => x._key === row._key ? { ...created, _key: created.id, _dirty: false } : x));
-              }
-            } finally { setAdminContactsSaving(false); }
-          };
-          const deleteRow = async (row: any) => {
-            if (row.id) await fetch(`${API_URL}/workstation-contacts/${row.id}`, { method: 'DELETE' });
-            setAdminContactsRows(prev => prev.filter(x => x._key !== row._key));
-          };
-          const updateLocal = (key: number, field: string, val: string) => {
-            setAdminContactsRows(prev => prev.map(r => r._key === key ? { ...r, [field]: val, _dirty: true } : r));
-          };
-          const tdS: React.CSSProperties = { padding: '4px 6px', borderBottom: '1px solid #1e293b', verticalAlign: 'middle' };
-          const inpS: React.CSSProperties = { width: '100%', padding: '4px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' };
+          const tdS: React.CSSProperties = { padding: '3px 5px', borderBottom: '1px solid #1e293b', verticalAlign: 'middle' };
+          const inpS: React.CSSProperties = { width: '100%', padding: '3px 5px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '3px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', outline: 'none' };
+          const inpFocusStyle = '1px solid #3b82f6';
+          const availableToAdd = presets.filter((p: any) => !adminContactsShown.includes(Number(p.id)));
           return (
-            <div style={{ padding: '20px', direction: 'rtl', maxWidth: '900px' }}>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#38bdf8' }}>📡 ניהול קשרים לעמדות</h2>
+            <div style={{ padding: '20px', direction: 'rtl', maxWidth: '1000px' }}>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#38bdf8' }}>📡 ניהול קשרים לעמדות</h2>
               <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '16px' }}>
-                הגדרת קשרי ברירת מחדל לכל עמדה. בעליית עמדה המשתמש יכול לעדכן את הקשרים לsession בלבד — בכניסה מחדש יחזרו הב"מ.
+                הגדרת קשרי ברירת מחדל לכל עמדה. עריכה נשמרת אוטומטית בצאת מהשדה. בעליית עמדה מבצעית הקשרים נטענים לsession — עדכונים אישיים אינם נשמרים.
               </p>
-              <div style={{ marginBottom: '16px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <label style={{ color: '#94a3b8', fontSize: '13px', flexShrink: 0 }}>בחר עמדה:</label>
+
+              {/* Add workstation row */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px' }}>
                 <select
-                  value={adminContactsPreset ?? ''}
-                  onChange={e => { const id = Number(e.target.value); setAdminContactsPreset(id || null); if (id) loadAdminContacts(id); else setAdminContactsRows([]); }}
-                  style={{ flex: 1, maxWidth: '300px', padding: '6px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}
+                  value={adminContactsPicker}
+                  onChange={e => setAdminContactsPicker(e.target.value)}
+                  style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', minWidth: '200px' }}
                 >
-                  <option value="">— בחר עמדה —</option>
-                  {presets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">— בחר עמדה להוסיף —</option>
+                  {availableToAdd.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-                {adminContactsLoading && <span style={{ color: '#64748b', fontSize: '12px' }}>טוען...</span>}
-                {adminContactsSaving && <span style={{ color: '#38bdf8', fontSize: '12px' }}>שומר...</span>}
+                <button
+                  disabled={!adminContactsPicker}
+                  onClick={() => {
+                    const id = Number(adminContactsPicker);
+                    if (!id) return;
+                    setAdminContactsShown(prev => [...prev, id]);
+                    if (!adminContactsData[id]) loadAdminContacts(id);
+                    setAdminContactsPicker('');
+                  }}
+                  style={{ padding: '7px 18px', background: adminContactsPicker ? '#0369a1' : '#1e293b', color: adminContactsPicker ? 'white' : '#475569', border: 'none', borderRadius: '6px', cursor: adminContactsPicker ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
+                >+ הוסף עמדה</button>
+                {adminContactsShown.length === 0 && availableToAdd.length === 0 && (
+                  <span style={{ color: '#64748b', fontSize: '12px' }}>כל העמדות מוצגות</span>
+                )}
               </div>
-              {adminContactsPreset && (
-                <>
-                  <div style={{ background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f', overflow: 'hidden', marginBottom: '12px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                      <thead>
-                        <tr style={{ background: '#1e3a5f', color: '#7dd3fc' }}>
-                          <th style={{ ...tdS, width: '20%', textAlign: 'right' }}>תדר/עורק</th>
-                          <th style={{ ...tdS, width: '25%', textAlign: 'right' }}>מהות</th>
-                          <th style={{ ...tdS, width: '15%', textAlign: 'right' }}>{'או"ק'}</th>
-                          <th style={{ ...tdS, textAlign: 'right' }}>הערה</th>
-                          <th style={{ ...tdS, width: '80px', textAlign: 'center' }}>פעולות</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {adminContactsRows.map(row => (
-                          <tr key={row._key} style={{ background: row._dirty ? '#0c1f33' : 'transparent' }}>
-                            <td style={tdS}><input value={row.frequency} onChange={e => updateLocal(row._key, 'frequency', e.target.value)} style={{ ...inpS, color: '#38bdf8', fontWeight: 'bold' }} placeholder="123.45" /></td>
-                            <td style={tdS}><input value={row.mahut} onChange={e => updateLocal(row._key, 'mahut', e.target.value)} style={inpS} placeholder="מהות הקשר" /></td>
-                            <td style={tdS}><input value={row.oketz} onChange={e => updateLocal(row._key, 'oketz', e.target.value)} style={inpS} placeholder={'או"ק'} /></td>
-                            <td style={tdS}><input value={row.note} onChange={e => updateLocal(row._key, 'note', e.target.value)} style={inpS} placeholder="הערה" /></td>
-                            <td style={{ ...tdS, textAlign: 'center' }}>
-                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                {row._dirty && <button onClick={() => saveRow(row)} style={{ padding: '3px 8px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>💾</button>}
-                                <button onClick={() => deleteRow(row)} style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                        {adminContactsRows.length === 0 && (
-                          <tr><td colSpan={5} style={{ textAlign: 'center', color: '#475569', padding: '20px', fontSize: '12px' }}>אין קשרים מוגדרים לעמדה זו</td></tr>
+
+              {/* Per-preset sections */}
+              {adminContactsShown.map(presetId => {
+                const preset = presets.find((p: any) => Number(p.id) === presetId);
+                const rows = adminContactsData[presetId];
+                return (
+                  <div key={presetId} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '10px', marginBottom: '18px', overflow: 'hidden' }}>
+                    {/* Preset header */}
+                    <div style={{ background: '#1e3a5f', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#38bdf8', fontWeight: 'bold', fontSize: '14px' }}>🖥 {preset?.name || `עמדה ${presetId}`}</span>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {adminContactsSavingId !== null && (adminContactsData[presetId] || []).some((r: any) => r._key === adminContactsSavingId) && (
+                          <span style={{ color: '#38bdf8', fontSize: '11px' }}>שומר...</span>
                         )}
-                      </tbody>
-                    </table>
+                        <button
+                          onClick={() => setAdminContactsShown(prev => prev.filter(id => id !== presetId))}
+                          style={{ padding: '2px 8px', background: '#0f172a', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                        >הסתר ✕</button>
+                      </div>
+                    </div>
+
+                    {/* Contacts table */}
+                    {rows === undefined ? (
+                      <div style={{ padding: '16px', color: '#475569', fontSize: '12px', textAlign: 'center' }}>טוען...</div>
+                    ) : (
+                      <>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ background: '#0c1824', color: '#64748b' }}>
+                              <th style={{ ...tdS, width: '14%', textAlign: 'right' }}>סוג מכשיר</th>
+                              <th style={{ ...tdS, width: '18%', textAlign: 'right' }}>תדר/עורק</th>
+                              <th style={{ ...tdS, width: '22%', textAlign: 'right' }}>מהות</th>
+                              <th style={{ ...tdS, width: '14%', textAlign: 'right' }}>{'או"ק'}</th>
+                              <th style={{ ...tdS, textAlign: 'right' }}>הערה</th>
+                              <th style={{ ...tdS, width: '36px', textAlign: 'center' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row: any) => (
+                              <tr key={row._key} style={{ background: row._unsaved ? '#0c1f33' : 'transparent' }}>
+                                <td style={tdS}>
+                                  <select
+                                    value={row.device_type || ''}
+                                    onChange={e => updateContactLocal(presetId, row._key, 'device_type', e.target.value)}
+                                    onBlur={() => saveContactRow(presetId, row)}
+                                    style={{ ...inpS, color: row.device_type ? '#7dd3fc' : '#475569' }}
+                                  >
+                                    {DEVICE_TYPES.map(dt => <option key={dt} value={dt}>{dt || '— בחר —'}</option>)}
+                                  </select>
+                                </td>
+                                <td style={tdS}>
+                                  <input
+                                    value={row.frequency || ''}
+                                    onChange={e => updateContactLocal(presetId, row._key, 'frequency', e.target.value)}
+                                    onBlur={() => saveContactRow(presetId, row)}
+                                    onFocus={e => (e.target.style.border = inpFocusStyle)}
+                                    style={{ ...inpS, color: '#38bdf8', fontWeight: 'bold' }}
+                                    placeholder="123.45"
+                                  />
+                                </td>
+                                <td style={tdS}>
+                                  <input
+                                    value={row.mahut || ''}
+                                    onChange={e => updateContactLocal(presetId, row._key, 'mahut', e.target.value)}
+                                    onBlur={() => saveContactRow(presetId, row)}
+                                    onFocus={e => (e.target.style.border = inpFocusStyle)}
+                                    style={inpS}
+                                    placeholder="מהות הקשר"
+                                  />
+                                </td>
+                                <td style={tdS}>
+                                  <input
+                                    value={row.oketz || ''}
+                                    onChange={e => updateContactLocal(presetId, row._key, 'oketz', e.target.value)}
+                                    onBlur={() => saveContactRow(presetId, row)}
+                                    onFocus={e => (e.target.style.border = inpFocusStyle)}
+                                    style={inpS}
+                                    placeholder={'או"ק'}
+                                  />
+                                </td>
+                                <td style={tdS}>
+                                  <input
+                                    value={row.note || ''}
+                                    onChange={e => updateContactLocal(presetId, row._key, 'note', e.target.value)}
+                                    onBlur={() => saveContactRow(presetId, row)}
+                                    onFocus={e => (e.target.style.border = inpFocusStyle)}
+                                    style={{ ...inpS, color: '#94a3b8' }}
+                                    placeholder="הערה"
+                                  />
+                                </td>
+                                <td style={{ ...tdS, textAlign: 'center' }}>
+                                  <button
+                                    onClick={() => deleteContactRow(presetId, row)}
+                                    style={{ padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}
+                                  >✕</button>
+                                </td>
+                              </tr>
+                            ))}
+                            {rows.length === 0 && (
+                              <tr><td colSpan={6} style={{ textAlign: 'center', color: '#334155', padding: '14px', fontSize: '12px' }}>אין קשרים — לחץ "+ הוסף קשר" למטה</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                        <div style={{ padding: '8px 10px', borderTop: '1px solid #1e293b' }}>
+                          <button
+                            onClick={() => {
+                              const newRow = { mahut: '', oketz: '', frequency: '', note: '', device_type: '', sort_order: rows.length, _key: Date.now(), _unsaved: true };
+                              setAdminContactsData(prev => ({ ...prev, [presetId]: [...(prev[presetId] || []), newRow] }));
+                              setTimeout(() => saveContactRow(presetId, newRow), 0);
+                            }}
+                            style={{ padding: '4px 14px', background: 'transparent', color: '#38bdf8', border: '1px dashed #1e40af', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}
+                          >+ הוסף קשר</button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <button
-                    onClick={() => setAdminContactsRows(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', sort_order: prev.length, _key: Date.now(), _dirty: true }])}
-                    style={{ padding: '8px 18px', background: '#1e3a5f', color: '#38bdf8', border: '1px dashed #1e40af', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
-                  >+ הוסף שורת קשר</button>
-                </>
+                );
+              })}
+
+              {adminContactsShown.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#334155', fontSize: '13px', padding: '40px' }}>
+                  בחר עמדה מהרשימה למעלה ולחץ "הוסף עמדה"
+                </div>
               )}
             </div>
           );

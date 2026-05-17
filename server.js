@@ -721,6 +721,7 @@ async function initDb() {
       sort_order INTEGER DEFAULT 0
     )
   `);
+  await pool.query(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS device_type VARCHAR(50) DEFAULT ''`);
   // Strip SID/STAR and departure/landing base fields
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
@@ -4414,11 +4415,11 @@ app.get('/api/workstation-contacts/all', async (req, res) => {
 
 app.post('/api/workstation-contacts', async (req, res) => {
   try {
-    const { preset_id, mahut, oketz, frequency, note, sort_order } = req.body;
+    const { preset_id, mahut, oketz, frequency, note, sort_order, device_type } = req.body;
     const result = await pool.query(
-      `INSERT INTO workstation_contacts (preset_id, mahut, oketz, frequency, note, sort_order)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [preset_id, mahut || '', oketz || '', frequency || '', note || '', sort_order || 0]
+      `INSERT INTO workstation_contacts (preset_id, mahut, oketz, frequency, note, sort_order, device_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [preset_id, mahut || '', oketz || '', frequency || '', note || '', sort_order || 0, device_type || '']
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create contact' }); }
@@ -4426,11 +4427,11 @@ app.post('/api/workstation-contacts', async (req, res) => {
 
 app.put('/api/workstation-contacts/:id', async (req, res) => {
   try {
-    const { mahut, oketz, frequency, note, sort_order } = req.body;
+    const { mahut, oketz, frequency, note, sort_order, device_type } = req.body;
     const result = await pool.query(
-      `UPDATE workstation_contacts SET mahut=$1, oketz=$2, frequency=$3, note=$4, sort_order=$5
-       WHERE id=$6 RETURNING *`,
-      [mahut || '', oketz || '', frequency || '', note || '', sort_order || 0, req.params.id]
+      `UPDATE workstation_contacts SET mahut=$1, oketz=$2, frequency=$3, note=$4, sort_order=$5, device_type=$6
+       WHERE id=$7 RETURNING *`,
+      [mahut || '', oketz || '', frequency || '', note || '', sort_order || 0, device_type || '', req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update contact' }); }
