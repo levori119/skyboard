@@ -8700,7 +8700,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(true);
   const [contactsPanelOpen, setContactsPanelOpen] = useState(true);
-  const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; sort_order: number; _key: number }[]>([]);
+  const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
@@ -10958,16 +10958,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                       <thead>
                         <tr style={{ color: '#64748b' }}>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '16%' }}>סוג</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>עורק/תדר</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '25%' }}>מהות</th>
-                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '13%' }}>{'או"ק'}</th>
+                          <th style={{ textAlign: 'center', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '12%' }}>ר/מ</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '14%' }}>סוג</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '20%' }}>עורק/תדר</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '22%' }}>מהות</th>
+                          <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b', width: '11%' }}>{'או"ק'}</th>
                           <th style={{ textAlign: 'right', padding: '2px 4px', borderBottom: '1px solid #1e293b' }}>הערה</th>
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((r, ri) => (
                           <tr key={ri} style={{ borderBottom: '1px solid #0f172a' }}>
+                            <td style={{ padding: '3px 4px', textAlign: 'center' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 'bold', color: r.priority === 'משני' ? '#475569' : '#38bdf8' }}>{r.priority === 'משני' ? 'משני' : 'ראשי'}</span>
+                            </td>
                             <td style={{ padding: '3px 4px', color: '#a78bfa', fontSize: '10px' }}>{r.device_type || ''}</td>
                             <td style={{ padding: '3px 4px', color: '#7dd3fc', fontWeight: 'bold' }}>{r.frequency || '—'}</td>
                             <td style={{ padding: '3px 4px', color: '#e2e8f0' }}>{r.mahut || '—'}</td>
@@ -13827,10 +13831,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {sessionContacts.map((c, idx) => (
                               <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '11px', direction: 'rtl' }}>
                                 <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+                                  <button
+                                    onClick={() => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, priority: x.priority === 'משני' ? 'ראשי' : 'משני' } : x))}
+                                    style={{ flexShrink: 0, padding: '1px 5px', background: c.priority === 'משני' ? 'transparent' : (lightMode ? '#bfdbfe' : '#0c3460'), color: c.priority === 'משני' ? (lightMode ? '#94a3b8' : '#475569') : (lightMode ? '#1d4ed8' : '#38bdf8'), border: `1px solid ${c.priority === 'משני' ? (lightMode ? '#e2e8f0' : '#334155') : (lightMode ? '#93c5fd' : '#1e40af')}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                                  >{c.priority === 'משני' ? 'משני' : 'ראשי'}</button>
                                   <select
                                     value={c.device_type || ''}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, device_type: e.target.value } : x))}
-                                    style={{ flex: '0 0 60px', padding: '2px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', direction: 'rtl' }}
+                                    style={{ flex: '0 0 58px', padding: '2px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', direction: 'rtl' }}
                                   >
                                     {['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'].map(dt => <option key={dt} value={dt}>{dt || 'סוג'}</option>)}
                                   </select>
@@ -13868,7 +13876,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </div>
                             ))}
                             <button
-                              onClick={() => setSessionContacts(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', device_type: '', sort_order: prev.length, _key: Date.now() }])}
+                              onClick={() => setSessionContacts(prev => [...prev, { mahut: '', oketz: '', frequency: '', note: '', device_type: '', priority: 'ראשי', sort_order: prev.length, _key: Date.now() }])}
                               style={{ width: '100%', padding: '3px', background: lightMode ? '#e0f2fe' : '#0a1929', color: lightMode ? '#0369a1' : '#38bdf8', border: `1px dashed ${lightMode ? '#7dd3fc' : '#1e4976'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
                             >+ הוסף קשר</button>
                           </div>
@@ -16215,7 +16223,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const saveContactRow = async (presetId: number, row: any): Promise<any> => {
     setAdminContactsSavingId(row._key);
     try {
-      const body = { mahut: row.mahut, oketz: row.oketz, frequency: row.frequency, note: row.note, sort_order: row.sort_order, device_type: row.device_type || '' };
+      const body = { mahut: row.mahut, oketz: row.oketz, frequency: row.frequency, note: row.note, sort_order: row.sort_order, device_type: row.device_type || '', priority: row.priority || 'ראשי' };
       if (row.id) {
         const r = await fetch(`${API_URL}/workstation-contacts/${row.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const updated = await r.json();
@@ -19869,10 +19877,11 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                           <thead>
                             <tr style={{ background: '#0c1824', color: '#64748b' }}>
-                              <th style={{ ...tdS, width: '14%', textAlign: 'right' }}>סוג מכשיר</th>
-                              <th style={{ ...tdS, width: '18%', textAlign: 'right' }}>תדר/עורק</th>
-                              <th style={{ ...tdS, width: '22%', textAlign: 'right' }}>מהות</th>
-                              <th style={{ ...tdS, width: '14%', textAlign: 'right' }}>{'או"ק'}</th>
+                              <th style={{ ...tdS, width: '80px', textAlign: 'center' }}>ראשי/משני</th>
+                              <th style={{ ...tdS, width: '13%', textAlign: 'right' }}>סוג מכשיר</th>
+                              <th style={{ ...tdS, width: '17%', textAlign: 'right' }}>תדר/עורק</th>
+                              <th style={{ ...tdS, width: '20%', textAlign: 'right' }}>מהות</th>
+                              <th style={{ ...tdS, width: '12%', textAlign: 'right' }}>{'או"ק'}</th>
                               <th style={{ ...tdS, textAlign: 'right' }}>הערה</th>
                               <th style={{ ...tdS, width: '36px', textAlign: 'center' }}></th>
                             </tr>
@@ -19880,6 +19889,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                           <tbody>
                             {rows.map((row: any) => (
                               <tr key={row._key} style={{ background: row._unsaved ? '#0c1f33' : 'transparent' }}>
+                                <td style={{ ...tdS, textAlign: 'center' }}>
+                                  <button
+                                    onClick={() => { updateContactLocal(presetId, row._key, 'priority', row.priority === 'משני' ? 'ראשי' : 'משני'); setTimeout(() => saveContactRow(presetId, { ...row, priority: row.priority === 'משני' ? 'ראשי' : 'משני' }), 0); }}
+                                    style={{ padding: '2px 8px', background: row.priority === 'משני' ? '#1e293b' : '#0c4a6e', color: row.priority === 'משני' ? '#64748b' : '#38bdf8', border: `1px solid ${row.priority === 'משני' ? '#334155' : '#0369a1'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}
+                                  >{row.priority === 'משני' ? 'משני' : 'ראשי'}</button>
+                                </td>
                                 <td style={tdS}>
                                   <select
                                     value={row.device_type || ''}
@@ -19946,7 +19961,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                         <div style={{ padding: '8px 10px', borderTop: '1px solid #1e293b', display: 'flex', gap: '8px', alignItems: 'center' }}>
                           <button
                             onClick={() => {
-                              const newRow = { mahut: '', oketz: '', frequency: '', note: '', device_type: '', sort_order: rows.length, _key: Date.now(), _unsaved: true };
+                              const newRow = { mahut: '', oketz: '', frequency: '', note: '', device_type: '', priority: 'ראשי', sort_order: rows.length, _key: Date.now(), _unsaved: true };
                               setAdminContactsData(prev => ({ ...prev, [presetId]: [...(prev[presetId] || []), newRow] }));
                               setTimeout(() => saveContactRow(presetId, newRow), 0);
                             }}
