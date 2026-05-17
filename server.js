@@ -710,6 +710,17 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS workstation_contacts (
+      id SERIAL PRIMARY KEY,
+      preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      mahut VARCHAR(200) DEFAULT '',
+      oketz VARCHAR(100) DEFAULT '',
+      frequency VARCHAR(100) DEFAULT '',
+      note VARCHAR(300) DEFAULT '',
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
   // Strip SID/STAR and departure/landing base fields
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
@@ -4374,6 +4385,62 @@ app.delete('/api/airfield-routes/:id', async (req, res) => {
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
+});
+
+// ── Workstation Contacts ─────────────────────────────────────────────────────
+app.get('/api/workstation-contacts', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.json([]);
+    const result = await pool.query(
+      'SELECT * FROM workstation_contacts WHERE preset_id=$1 ORDER BY sort_order, id',
+      [preset_id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch contacts' }); }
+});
+
+app.get('/api/workstation-contacts/all', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT wc.*, wp.name AS preset_name, wp.relevant_sectors, wp.classic_transfer_points
+       FROM workstation_contacts wc
+       JOIN workstation_presets wp ON wp.id = wc.preset_id
+       ORDER BY wp.name, wc.sort_order, wc.id`
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch all contacts' }); }
+});
+
+app.post('/api/workstation-contacts', async (req, res) => {
+  try {
+    const { preset_id, mahut, oketz, frequency, note, sort_order } = req.body;
+    const result = await pool.query(
+      `INSERT INTO workstation_contacts (preset_id, mahut, oketz, frequency, note, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [preset_id, mahut || '', oketz || '', frequency || '', note || '', sort_order || 0]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create contact' }); }
+});
+
+app.put('/api/workstation-contacts/:id', async (req, res) => {
+  try {
+    const { mahut, oketz, frequency, note, sort_order } = req.body;
+    const result = await pool.query(
+      `UPDATE workstation_contacts SET mahut=$1, oketz=$2, frequency=$3, note=$4, sort_order=$5
+       WHERE id=$6 RETURNING *`,
+      [mahut || '', oketz || '', frequency || '', note || '', sort_order || 0, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update contact' }); }
+});
+
+app.delete('/api/workstation-contacts/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM workstation_contacts WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete contact' }); }
 });
 
 const PORT = process.env.PORT || 3001;
