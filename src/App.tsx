@@ -19804,7 +19804,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
                   style={{ flex: 1, maxWidth: '300px', padding: '6px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}
                 >
                   <option value="">— בחר עמדה —</option>
-                  {workstationPresets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {presets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 {adminContactsLoading && <span style={{ color: '#64748b', fontSize: '12px' }}>טוען...</span>}
                 {adminContactsSaving && <span style={{ color: '#38bdf8', fontSize: '12px' }}>שומר...</span>}
