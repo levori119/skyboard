@@ -5008,15 +5008,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <button title='פ"מ אב — פרטי תצורה' onClick={e => { e.stopPropagation(); setFormationPanelStripId(prev => prev === sid ? null : sid); }}
                     style={{ padding: '6px 6px', background: 'transparent', border: 'none', cursor: 'pointer', color: formationPanelStripId === sid ? '#f59e0b' : headerColor, fontSize: '12px', flexShrink: 0 }}>
                     📋</button>
-                  {/* Expand toggle */}
-                  <button onClick={toggleExpand}
-                    style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
-                    {isExpanded ? '▲' : '▼'}
-                  </button>
                 </div>
 
-                {/* Expanded aircraft rows */}
-                {isExpanded && (
+                {/* Expanded aircraft rows — hidden per user request (show formations only, no per-aircraft rows) */}
+                {false && (
                   <div>
                     {/* Formation header row */}
                     <div style={{ padding: '4px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, direction: 'rtl' }}>
