@@ -18471,6 +18471,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                           erka: getField(row, 'erka', 'ערכה', 'ERKA'),
                           koteret: getField(row, 'koteret', 'כותרת', 'KOTERET'),
                           mivtza: getField(row, 'mivtza', 'מבצע', 'MIVTZA'),
+                          parent_callsign: getField(row, 'parent_callsign', 'חלק מפ"מ', 'חלק מפמ', 'PARENT_CALLSIGN', 'parent callsign', 'חלק_מפמ'),
                           takeoff_time
                         };
                       });
@@ -18491,12 +18492,30 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   }}
                 />
                 
-                <button
-                  onClick={() => document.getElementById('csvFileInput')?.click()}
-                  style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
-                >
-                  בחר קובץ Excel / CSV
-                </button>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    onClick={() => document.getElementById('csvFileInput')?.click()}
+                    style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
+                  >
+                    בחר קובץ Excel / CSV
+                  </button>
+                  <button
+                    onClick={() => {
+                      const headers = ['callSign', 'sq', 'NUMBEROFFORMATION', 'alt', 'task', 'DATE', 'TAKEOFF TIME', 'חלק מפ"מ', 'weapons', 'targets', 'systems', 'shkadia', 'erka', 'koteret', 'mivtza'];
+                      const example1 = ['BLUE01', '69', '2', 'FL350', 'CAP', '23/03/2026', '0630', '', 'AIM120:4; AIM9:2', 'TANGO1:IP_NORTH', 'LANTIRN; EW', '', '', '', ''];
+                      const example2 = ['BLUE02', '69', '2', 'FL350', 'CAP', '23/03/2026', '0630', 'BLUE01', 'AIM120:4; AIM9:2', 'TANGO1:IP_NORTH', 'LANTIRN; EW', '', '', '', ''];
+                      const example3 = ['HAWK23', '105', '1', 'FL280', 'ESCORT', '23/03/2026', '0800', '', '', '', 'FLIR', '', '', '', ''];
+                      const wb = XLSX.utils.book_new();
+                      const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2, example3]);
+                      ws['!cols'] = headers.map((h, i) => ({ wch: i === 7 ? 14 : Math.max(h.length + 2, 12) }));
+                      XLSX.utils.book_append_sheet(wb, ws, 'מטוסים');
+                      XLSX.writeFile(wb, 'תבנית_טעינת_מטוסים.xlsx');
+                    }}
+                    style={{ padding: '12px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                  >
+                    📥 הורד תבנית Excel
+                  </button>
+                </div>
                 
                 {csvImportResult && (
                   <div style={{ marginTop: '20px', padding: '15px', background: '#1e293b', borderRadius: '8px' }}>
@@ -18538,19 +18557,26 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>task</code> — משימה<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>DATE</code> — תאריך המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DD/MM/YYYY</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>DDMMYYYY</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>TAKEOFF TIME</code> — שעת המראה, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HHMM</code> או <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>HH:MM</code><br/>
+                    <code style={{background:'#16a34a', color:'white', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>חלק מפ"מ</code> — <strong style={{color:'#86efac'}}>או"ק הפ"מ המקורי שאליו שייך המטוס</strong> (ריק = מבנה עצמאי; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>parent_callsign</code>)<br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> — חימושים, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> — מטרות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> — מערכות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> — שקדיה (טקסט חופשי)
                   </div>
+                  <div style={{marginTop:'10px', padding:'10px 14px', background:'#0c2218', border:'1px solid #16a34a', borderRadius:'6px', fontSize:'12px', color:'#86efac', lineHeight:'1.7'}}>
+                    <strong>💡 שימוש בעמודת "חלק מפ"מ":</strong><br/>
+                    כדי לייבא מבנה שבו BLUE01 ו-BLUE02 שייכים לאותו פ"מ — מלא בשורת BLUE02 את הערך <code style={{background:'#1a3a28', padding:'1px 5px', borderRadius:'3px'}}>BLUE01</code> בעמודת "חלק מפ"מ".<br/>
+                    מבנה שאינו שייך לאף פ"מ יסתר ריק.
+                  </div>
                 </div>
 
                 <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
                 <pre style={{ background: '#1e293b', padding: '15px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left' }}>
-{`callSign,sq,NUMBEROFFORMATION,alt,task,DATE,TAKEOFF TIME,weapons,targets,systems,shkadia
-BLUE01,69,1,FL350,CAP,23/03/2026,0630,AIM120:4; AIM9:2,TANGO1:IP_NORTH; TANGO2:IP_EAST,LANTIRN; EW,מטוס 2
-HAWK23,105,2,FL280,ESCORT,23/03/2026,0800,,,FLIR,
-VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,מטוס 1`}
+{`callSign,sq,NUMBEROFFORMATION,alt,task,DATE,TAKEOFF TIME,חלק מפ"מ,weapons,targets,systems,shkadia
+BLUE01,69,2,FL350,CAP,23/03/2026,0630,,AIM120:4; AIM9:2,TANGO1:IP_NORTH,LANTIRN; EW,
+BLUE02,69,2,FL350,CAP,23/03/2026,0630,BLUE01,AIM120:4; AIM9:2,TANGO1:IP_NORTH,LANTIRN; EW,
+HAWK23,105,1,FL280,ESCORT,23/03/2026,0800,,,, FLIR,
+VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,`}
                 </pre>
 
                 <h4 style={{ margin: '15px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (Excel):</h4>

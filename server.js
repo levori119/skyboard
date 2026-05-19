@@ -1202,6 +1202,7 @@ app.post('/api/strips/import', async (req, res) => {
         addField('erka', strip.erka);
         addField('koteret', strip.koteret);
         addField('mivtza', strip.mivtza);
+        addField('parent_callsign', strip.parent_callsign);
         if (strip.weapons && strip.weapons.length > 0) { updateParts.push(`weapons = $${pi++}`); updateVals.push(JSON.stringify(strip.weapons)); }
         if (strip.targets && strip.targets.length > 0) { updateParts.push(`targets = $${pi++}`); updateVals.push(JSON.stringify(strip.targets)); }
         if (strip.systems && strip.systems.length > 0) { updateParts.push(`systems = $${pi++}`); updateVals.push(JSON.stringify(strip.systems)); }
@@ -1220,7 +1221,7 @@ app.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
             [
               strip.callSign,
               strip.sq || '',
@@ -1235,7 +1236,8 @@ app.post('/api/strips/import', async (req, res) => {
               strip.numberOfFormation || null,
               strip.erka || null,
               strip.koteret || null,
-              strip.mivtza || null
+              strip.mivtza || null,
+              strip.parent_callsign || null
             ]
           );
           existingMap.set(strip.callSign.toLowerCase(), true);
@@ -1467,7 +1469,8 @@ app.delete('/api/sub-sectors/:id', async (req, res) => {
 // --- Transfer API ---
 app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
-    const stripId = parseInt(req.params.id.replace('s', ''));
+    const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
+    if (isNaN(stripId)) return res.status(400).json({ error: 'Invalid strip id' });
     const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId } = req.body;
     
     const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
