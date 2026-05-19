@@ -16903,7 +16903,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
-  const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[]; colMap?: string } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
   const [stripsSearch, setStripsSearch] = useState('');
@@ -18763,30 +18763,54 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                           return row;
                         });
                       }
-                      const norm = (k: string) => k.toLowerCase().replace(/[\s_\-]+/g, '');
-                      const getF = (row: Record<string, string>, ...keys: string[]) => {
-                        const rks = Object.keys(row);
+                      const detectedCols = rows.length > 0 ? Object.keys(rows[0]) : [];
+                      const norm = (k: string) => k.toLowerCase().replace(/[\s_\-"'״׳]+/g, '');
+                      // find column: exact norm match first, then contains match
+                      const findCol = (rks: string[], ...keys: string[]): string | undefined => {
                         for (const k of keys) {
-                          const found = rks.find(rk => norm(rk) === norm(k));
-                          if (found && String(row[found]).trim() !== '') return String(row[found]).trim();
+                          const nk = norm(k);
+                          const exact = rks.find(rk => norm(rk) === nk);
+                          if (exact) return exact;
                         }
-                        return '';
+                        for (const k of keys) {
+                          const nk = norm(k);
+                          const partial = rks.find(rk => norm(rk).includes(nk) || nk.includes(norm(rk)));
+                          if (partial) return partial;
+                        }
+                        return undefined;
                       };
+                      const rks = detectedCols;
+                      const colCallsign = findCol(rks, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'אוק', 'פמ', 'formationcallsign', 'formation');
+                      const colIdx     = findCol(rks, 'idx', 'מספר', 'index', 'מטוס', 'מסמטוס', 'num');
+                      const colDatk    = findCol(rks, 'datk', 'דתק', 'דתק', 'דת');
+                      const colKipa    = findCol(rks, 'kipa', 'כיפה');
+                      if (!colCallsign || !colIdx) {
+                        alert(`לא זוהו עמודות חובה.\n\nעמודות שנמצאו בקובץ:\n${detectedCols.join(', ')}\n\nנדרש:\n• עמודת קריאה (callsign / קריאה)\n• עמודת מספר מטוס (idx / מספר)`);
+                        e.target.value = '';
+                        return;
+                      }
+                      const getF = (row: Record<string, string>, col: string | undefined) =>
+                        col ? String(row[col] ?? '').trim() : '';
                       const mapped = rows.map(row => ({
-                        formation_callsign: getF(row, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'formationcallsign'),
-                        idx: getF(row, 'idx', 'מספר', 'index', 'מטוס'),
-                        datk: getF(row, 'datk', 'דתק', 'דת"ק'),
-                        kipa: getF(row, 'kipa', 'כיפה'),
+                        formation_callsign: getF(row, colCallsign),
+                        idx: getF(row, colIdx),
+                        datk: getF(row, colDatk),
+                        kipa: getF(row, colKipa),
                       })).filter(r => r.formation_callsign && r.idx);
-                      if (mapped.length === 0) { alert('לא נמצאו שורות תקינות בקובץ'); return; }
+                      if (mapped.length === 0) {
+                        alert(`זוהו עמודות אך לא נמצאו שורות עם נתונים.\nעמודות שזוהו: קריאה="${colCallsign}", idx="${colIdx}"`);
+                        e.target.value = '';
+                        return;
+                      }
                       try {
+                        const colMap = `קריאה→"${colCallsign}" | מספר→"${colIdx}"${colDatk ? ` | דת"ק→"${colDatk}"` : ''}${colKipa ? ` | כיפה→"${colKipa}"` : ''}`;
                         const res = await fetch(`${API_URL}/strip-aircraft/bulk-import`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ rows: mapped }),
                         });
                         const result = await res.json();
-                        setAcImportResult(result);
+                        setAcImportResult({ ...result, colMap });
                       } catch (err) {
                         alert('שגיאה בטעינה: ' + err);
                       }
@@ -18819,13 +18843,15 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
 
                   {acImportResult && (
                     <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px' }}>
-                      {acImportResult.imported > 0 && <div style={{ color: '#22c55e', fontSize: '15px', marginBottom: '6px' }}>נטענו: {acImportResult.imported} מטוסים</div>}
+                      {acImportResult.colMap && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', fontFamily: 'monospace' }}>מיפוי עמודות: {acImportResult.colMap}</div>}
+                      {acImportResult.imported > 0 && <div style={{ color: '#22c55e', fontSize: '15px', marginBottom: '6px' }}>✅ נטענו: {acImportResult.imported} מטוסים</div>}
                       {acImportResult.skipped > 0 && <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>דולגו: {acImportResult.skipped}</div>}
                       {acImportResult.errors.length > 0 && (
                         <div style={{ color: '#f87171', fontSize: '12px' }}>
-                          <strong>שגיאות:</strong>
+                          <strong>שגיאות ({acImportResult.errors.length}):</strong>
                           <ul style={{ margin: '4px 0 0 0', paddingRight: '18px' }}>
-                            {acImportResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                            {acImportResult.errors.slice(0, 10).map((e, i) => <li key={i}>{e}</li>)}
+                            {acImportResult.errors.length > 10 && <li style={{ color: '#64748b' }}>...ועוד {acImportResult.errors.length - 10}</li>}
                           </ul>
                         </div>
                       )}
