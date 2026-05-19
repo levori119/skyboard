@@ -634,6 +634,26 @@ async function initDb() {
     )
   `);
 
+  // strip_aircraft_armaments — per-aircraft armament/payload configuration
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_aircraft_armaments (
+      id SERIAL PRIMARY KEY,
+      strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
+      armament_name VARCHAR(200) NOT NULL DEFAULT '',
+      quantity INTEGER DEFAULT 1
+    )
+  `);
+
+  // strip_aircraft_systems — per-aircraft systems with operational status
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_aircraft_systems (
+      id SERIAL PRIMARY KEY,
+      strip_aircraft_id INTEGER REFERENCES strip_aircraft(id) ON DELETE CASCADE,
+      system_name VARCHAR(200) NOT NULL DEFAULT '',
+      status VARCHAR(20) DEFAULT 'שמיש'
+    )
+  `);
+
   // map_zones — named polygon zones on any map
   await pool.query(`
     CREATE TABLE IF NOT EXISTS map_zones (
@@ -2975,6 +2995,163 @@ app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to remove aircraft' });
   }
+});
+
+// ─── Strip Aircraft Armaments API ─────────────────────────────────────────
+app.get('/api/strip-aircraft-armaments', async (req, res) => {
+  try {
+    const { aircraft_id } = req.query;
+    if (!aircraft_id) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT * FROM strip_aircraft_armaments WHERE strip_aircraft_id=$1 ORDER BY id',
+      [aircraft_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch armaments' }); }
+});
+
+// Bulk fetch: ?aircraft_ids=1,2,3
+app.get('/api/strip-aircraft-armaments/bulk', async (req, res) => {
+  try {
+    const ids = String(req.query.aircraft_ids || '').split(',').map(Number).filter(Boolean);
+    if (ids.length === 0) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT * FROM strip_aircraft_armaments WHERE strip_aircraft_id = ANY($1) ORDER BY strip_aircraft_id, id',
+      [ids]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch armaments' }); }
+});
+
+app.post('/api/strip-aircraft-armaments', async (req, res) => {
+  try {
+    const { strip_aircraft_id, armament_name, quantity } = req.body;
+    const { rows } = await pool.query(
+      'INSERT INTO strip_aircraft_armaments (strip_aircraft_id, armament_name, quantity) VALUES ($1,$2,$3) RETURNING *',
+      [strip_aircraft_id, armament_name || '', quantity || 1]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to add armament' }); }
+});
+
+app.put('/api/strip-aircraft-armaments/:id', async (req, res) => {
+  try {
+    const { armament_name, quantity } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE strip_aircraft_armaments SET armament_name=$1, quantity=$2 WHERE id=$3 RETURNING *',
+      [armament_name || '', quantity || 1, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update armament' }); }
+});
+
+app.delete('/api/strip-aircraft-armaments/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_aircraft_armaments WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete armament' }); }
+});
+
+// ─── Strip Aircraft Systems API ────────────────────────────────────────────
+app.get('/api/strip-aircraft-systems', async (req, res) => {
+  try {
+    const { aircraft_id } = req.query;
+    if (!aircraft_id) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT * FROM strip_aircraft_systems WHERE strip_aircraft_id=$1 ORDER BY id',
+      [aircraft_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch systems' }); }
+});
+
+// Bulk fetch: ?aircraft_ids=1,2,3
+app.get('/api/strip-aircraft-systems/bulk', async (req, res) => {
+  try {
+    const ids = String(req.query.aircraft_ids || '').split(',').map(Number).filter(Boolean);
+    if (ids.length === 0) return res.json([]);
+    const { rows } = await pool.query(
+      'SELECT * FROM strip_aircraft_systems WHERE strip_aircraft_id = ANY($1) ORDER BY strip_aircraft_id, id',
+      [ids]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch systems' }); }
+});
+
+app.post('/api/strip-aircraft-systems', async (req, res) => {
+  try {
+    const { strip_aircraft_id, system_name, status } = req.body;
+    const { rows } = await pool.query(
+      "INSERT INTO strip_aircraft_systems (strip_aircraft_id, system_name, status) VALUES ($1,$2,$3) RETURNING *",
+      [strip_aircraft_id, system_name || '', status || 'שמיש']
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to add system' }); }
+});
+
+app.put('/api/strip-aircraft-systems/:id', async (req, res) => {
+  try {
+    const { system_name, status } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE strip_aircraft_systems SET system_name=$1, status=$2 WHERE id=$3 RETURNING *',
+      [system_name || '', status || 'שמיש', req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update system' }); }
+});
+
+app.delete('/api/strip-aircraft-systems/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_aircraft_systems WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete system' }); }
+});
+
+// ─── Formation Summary for a strip (פ"מ אב) ───────────────────────────────
+// Returns: { hasShakadia, armaments: [{name,totalQty,aircraftNums}], systemsByAircraft: [{idx,systems}] }
+app.get('/api/strips/:id/formation-summary', async (req, res) => {
+  try {
+    const stripId = req.params.id;
+    const saRows = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 ORDER BY idx', [stripId]);
+    const aircraftRows = saRows.rows;
+    if (aircraftRows.length === 0) return res.json({ hasShakadia: false, armaments: [], systemsByAircraft: [] });
+
+    const acIds = aircraftRows.map(r => r.id);
+
+    const [armRes, sysRes] = await Promise.all([
+      pool.query('SELECT * FROM strip_aircraft_armaments WHERE strip_aircraft_id = ANY($1) ORDER BY strip_aircraft_id, id', [acIds]),
+      pool.query('SELECT * FROM strip_aircraft_systems WHERE strip_aircraft_id = ANY($1) ORDER BY strip_aircraft_id, id', [acIds])
+    ]);
+
+    // Map aircraft id → idx
+    const idToIdx = {};
+    aircraftRows.forEach(r => { idToIdx[r.id] = r.idx; });
+
+    // Compute armament summary
+    const armMap = {};
+    armRes.rows.forEach(r => {
+      const idx = idToIdx[r.strip_aircraft_id];
+      if (!armMap[r.armament_name]) armMap[r.armament_name] = { totalQty: 0, aircraftNums: [] };
+      armMap[r.armament_name].totalQty += r.quantity;
+      if (!armMap[r.armament_name].aircraftNums.includes(idx)) armMap[r.armament_name].aircraftNums.push(idx);
+    });
+    const armaments = Object.entries(armMap).map(([name, v]) => ({ name, totalQty: v.totalQty, aircraftNums: v.aircraftNums.sort((a,b)=>a-b) }));
+
+    // Compute שקדיה: any aircraft with system matching שקד with status שמיש
+    const SHAKADIA_NAMES = ['שקדיה', 'שקדייה', 'שקדה', 'שקדיה '];
+    const hasShakadia = sysRes.rows.some(r =>
+      SHAKADIA_NAMES.some(n => r.system_name.trim().toLowerCase() === n.trim().toLowerCase()) &&
+      r.status === 'שמיש'
+    );
+
+    // Systems by aircraft
+    const systemsByAircraft = aircraftRows.map(ar => ({
+      idx: ar.idx,
+      systems: sysRes.rows.filter(r => r.strip_aircraft_id === ar.id)
+    }));
+
+    res.json({ hasShakadia, armaments, systemsByAircraft });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to get formation summary' }); }
 });
 
 // ─── Partial Formation API ─────────────────────────────────────────────────

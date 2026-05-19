@@ -4299,7 +4299,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
   });
 };
 
-interface GroundAircraftRow { idx: number; datk: number | null; kipa: string | null; }
+interface GroundAircraftRow { id?: number; idx: number; datk: number | null; kipa: string | null; }
 interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
 
 // --- Vector map types + helpers ---
@@ -4520,6 +4520,75 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     setUndoDurationMs(newUndo);
   }, [crewMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [clearSnapshot, setClearSnapshot] = React.useState<{ datkFilter: number | null; statusFilter: string[]; filterMode: 'AND' | 'OR' } | null>(null);
+
+  // ─── פ"מ אב state — armaments, systems, formation summary ───────────────
+  const [acArmaments, setAcArmaments] = React.useState<Record<number, any[]>>({});
+  const [acSystems, setAcSystems] = React.useState<Record<number, any[]>>({});
+  const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
+  const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
+
+  // Load armaments + systems for all visible aircraft
+  React.useEffect(() => {
+    const allAcIds: number[] = [];
+    Object.values(stripAircraftData).forEach(rows => {
+      rows.forEach((r: GroundAircraftRow) => { if (r.id) allAcIds.push(r.id); });
+    });
+    if (allAcIds.length === 0) return;
+    Promise.all([
+      fetch(`${API_URL}/strip-aircraft-armaments/bulk?aircraft_ids=${allAcIds.join(',')}`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/strip-aircraft-systems/bulk?aircraft_ids=${allAcIds.join(',')}`).then(r => r.ok ? r.json() : [])
+    ]).then(([arms, syss]) => {
+      const armsByAc: Record<number, any[]> = {};
+      arms.forEach((a: any) => { if (!armsByAc[a.strip_aircraft_id]) armsByAc[a.strip_aircraft_id] = []; armsByAc[a.strip_aircraft_id].push(a); });
+      const sysByAc: Record<number, any[]> = {};
+      syss.forEach((s: any) => { if (!sysByAc[s.strip_aircraft_id]) sysByAc[s.strip_aircraft_id] = []; sysByAc[s.strip_aircraft_id].push(s); });
+      setAcArmaments(armsByAc);
+      setAcSystems(sysByAc);
+    }).catch(console.error);
+  }, [stripAircraftData]);
+
+  // Load formation summary for all visible strips
+  React.useEffect(() => {
+    strips.forEach((strip: any) => {
+      fetch(`${API_URL}/strips/${strip.id}/formation-summary`)
+        .then(r => r.ok ? r.json() : null)
+        .then((data: any) => { if (data) setFormationSummary(prev => ({ ...prev, [String(strip.id)]: data })); })
+        .catch(() => {});
+    });
+  }, [strips.length]);
+
+  const refreshFormationSummary = (stripId: string) => {
+    fetch(`${API_URL}/strips/${stripId}/formation-summary`)
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (data) setFormationSummary(prev => ({ ...prev, [stripId]: data })); })
+      .catch(() => {});
+  };
+  const addArmament = async (aircraftId: number) => {
+    const row = await fetch(`${API_URL}/strip-aircraft-armaments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_aircraft_id: aircraftId, armament_name: '', quantity: 1 }) }).then(r => r.json());
+    setAcArmaments(prev => ({ ...prev, [aircraftId]: [...(prev[aircraftId] || []), row] }));
+    return row;
+  };
+  const updateArmament = async (id: number, aircraftId: number, name: string, qty: number) => {
+    const row = await fetch(`${API_URL}/strip-aircraft-armaments/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ armament_name: name, quantity: qty }) }).then(r => r.json());
+    setAcArmaments(prev => ({ ...prev, [aircraftId]: (prev[aircraftId] || []).map((r: any) => r.id === id ? row : r) }));
+  };
+  const deleteArmament = async (id: number, aircraftId: number) => {
+    await fetch(`${API_URL}/strip-aircraft-armaments/${id}`, { method: 'DELETE' });
+    setAcArmaments(prev => ({ ...prev, [aircraftId]: (prev[aircraftId] || []).filter((r: any) => r.id !== id) }));
+  };
+  const addSystem = async (aircraftId: number) => {
+    const row = await fetch(`${API_URL}/strip-aircraft-systems`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_aircraft_id: aircraftId, system_name: '', status: 'שמיש' }) }).then(r => r.json());
+    setAcSystems(prev => ({ ...prev, [aircraftId]: [...(prev[aircraftId] || []), row] }));
+    return row;
+  };
+  const updateSystem = async (id: number, aircraftId: number, name: string, status: string) => {
+    const row = await fetch(`${API_URL}/strip-aircraft-systems/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ system_name: name, status }) }).then(r => r.json());
+    setAcSystems(prev => ({ ...prev, [aircraftId]: (prev[aircraftId] || []).map((r: any) => r.id === id ? row : r) }));
+  };
+  const deleteSystem = async (id: number, aircraftId: number) => {
+    await fetch(`${API_URL}/strip-aircraft-systems/${id}`, { method: 'DELETE' });
+    setAcSystems(prev => ({ ...prev, [aircraftId]: (prev[aircraftId] || []).filter((r: any) => r.id !== id) }));
+  };
   const undoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [taxiInstModal, setTaxiInstModal] = React.useState<{ stripId: string; idx: number | null } | null>(null);
   const [taxiDestRouteId, setTaxiDestRouteId] = React.useState<number | null>(null);
@@ -4743,7 +4812,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
                       {strip.aircraft_indices && <span style={{ fontSize: '9px', background: '#92400e', color: '#fcd34d', borderRadius: '4px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חלקי</span>}
+                      {/* שקדיה indicator */}
+                      {formationSummary[sid]?.hasShakadia && (
+                        <span title="שקדיה שמישה בתצורה" style={{ flexShrink: 0, fontSize: '12px', lineHeight: 1 }}>🌰</span>
+                      )}
                     </div>
+                    {/* Armament summary row (collapsed view) */}
+                    {(formationSummary[sid]?.armaments?.length > 0) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', paddingLeft: '18px', marginTop: '2px' }}>
+                        {formationSummary[sid].armaments.map((arm, i) => (
+                          <span key={i} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '9px', background: lightMode ? '#fef3c7' : '#292524', color: lightMode ? '#92400e' : '#fcd34d', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            🚀 {arm.name} ×{arm.totalQty}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {/* Per-aircraft datk/kipa badges shown in collapsed view */}
                     {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', paddingLeft: '18px' }}>
@@ -4828,8 +4911,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       const st = GROUND_STATUSES.find(s => s.key === ac.status) || GROUND_STATUSES[0];
                       const acRow = getAcRow(ac.idx);
                       const acCallSign = `${callSign}${ac.idx}`;
+                      const armPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'armaments';
+                      const sysPanelOpen = openAcPanel?.stripId === sid && openAcPanel?.idx === ac.idx && openAcPanel?.type === 'systems';
                       return (
-                        <div key={ac.idx}
+                        <React.Fragment key={ac.idx}>
+                        <div
                           draggable
                           onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: sid, idx: ac.idx }); }}
                           onDragEnd={() => setDragging(null)}
@@ -4869,6 +4955,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               />
                             </div>
                           </div>
+                          {/* פ"מ אב buttons — armaments + systems */}
+                          {acRow.id && (
+                            <>
+                              <button onClick={e => { e.stopPropagation(); setOpenAcPanel(armPanelOpen ? null : { stripId: sid, idx: ac.idx, type: 'armaments' }); }}
+                                title={`תצורה/חימושים${(acArmaments[acRow.id] || []).length > 0 ? ` (${(acArmaments[acRow.id] || []).length})` : ''}`}
+                                style={{ padding: '1px 5px', borderRadius: '4px', border: `1px solid ${armPanelOpen ? '#0369a1' : '#334155'}`, background: armPanelOpen ? '#0c4a6e' : (acArmaments[acRow.id] || []).length > 0 ? '#1c2030' : 'transparent', color: '#f59e0b', cursor: 'pointer', fontSize: '11px', flexShrink: 0, position: 'relative' }}>
+                                🚀{(acArmaments[acRow.id] || []).length > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#f59e0b', color: '#000', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{(acArmaments[acRow.id] || []).length}</span>}
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); setOpenAcPanel(sysPanelOpen ? null : { stripId: sid, idx: ac.idx, type: 'systems' }); }}
+                                title={`מערכות${(acSystems[acRow.id] || []).length > 0 ? ` (${(acSystems[acRow.id] || []).length})` : ''}`}
+                                style={{ padding: '1px 5px', borderRadius: '4px', border: `1px solid ${sysPanelOpen ? '#0f766e' : '#334155'}`, background: sysPanelOpen ? '#042f2e' : (acSystems[acRow.id] || []).length > 0 ? '#0a2520' : 'transparent', color: '#2dd4bf', cursor: 'pointer', fontSize: '11px', flexShrink: 0, position: 'relative' }}>
+                                ⚙{(acSystems[acRow.id] || []).length > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#2dd4bf', color: '#000', borderRadius: '50%', width: '12px', height: '12px', fontSize: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{(acSystems[acRow.id] || []).length}</span>}
+                              </button>
+                            </>
+                          )}
                           {/* Status button */}
                           <button onClick={e => { e.stopPropagation(); handleAircraftStatusCycle(strip, ac.idx); }}
                             title={st.label}
@@ -4876,6 +4977,64 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             {st.label.split(' ').slice(-2).join(' ')}
                           </button>
                         </div>
+                        {/* פ"מ אב data panel — armaments or systems editor */}
+                        {acRow.id && (armPanelOpen || sysPanelOpen) && (
+                          <div style={{ padding: '6px 10px 8px', background: lightMode ? '#f0f9ff' : '#071428', borderTop: `1px solid ${border}`, direction: 'rtl' }}>
+                            {armPanelOpen && (
+                              <div>
+                                <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px' }}>🚀 חימושים — {acCallSign}</div>
+                                {(acArmaments[acRow.id] || []).map((arm: any) => (
+                                  <div key={arm.id} style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
+                                    <input
+                                      value={arm.armament_name}
+                                      onChange={e => setAcArmaments(prev => ({ ...prev, [acRow.id!]: (prev[acRow.id!] || []).map((r: any) => r.id === arm.id ? { ...r, armament_name: e.target.value } : r) }))}
+                                      onBlur={() => updateArmament(arm.id, acRow.id!, arm.armament_name, arm.quantity).then(() => refreshFormationSummary(sid))}
+                                      onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                      placeholder="שם חימוש"
+                                      style={{ flex: 1, padding: '2px 6px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', direction: 'rtl' }} />
+                                    <input
+                                      type="number" min={0}
+                                      value={arm.quantity}
+                                      onChange={e => setAcArmaments(prev => ({ ...prev, [acRow.id!]: (prev[acRow.id!] || []).map((r: any) => r.id === arm.id ? { ...r, quantity: parseInt(e.target.value) || 0 } : r) }))}
+                                      onBlur={() => updateArmament(arm.id, acRow.id!, arm.armament_name, arm.quantity).then(() => refreshFormationSummary(sid))}
+                                      onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                      style={{ width: '44px', padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: '#f59e0b', fontSize: '11px', textAlign: 'center' }} />
+                                    <button onClick={e => { e.stopPropagation(); deleteArmament(arm.id, acRow.id!).then(() => refreshFormationSummary(sid)); }} style={{ padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                  </div>
+                                ))}
+                                <button onClick={e => { e.stopPropagation(); addArmament(acRow.id!).then(() => refreshFormationSummary(sid)); }} style={{ padding: '3px 10px', background: 'transparent', color: '#f59e0b', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', marginTop: '2px' }}>+ הוסף חימוש</button>
+                              </div>
+                            )}
+                            {sysPanelOpen && (
+                              <div>
+                                <div style={{ fontSize: '10px', color: '#2dd4bf', fontWeight: 'bold', marginBottom: '4px' }}>⚙ מערכות — {acCallSign}</div>
+                                {(acSystems[acRow.id] || []).map((sys: any) => (
+                                  <div key={sys.id} style={{ display: 'flex', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
+                                    <input
+                                      value={sys.system_name}
+                                      onChange={e => setAcSystems(prev => ({ ...prev, [acRow.id!]: (prev[acRow.id!] || []).map((r: any) => r.id === sys.id ? { ...r, system_name: e.target.value } : r) }))}
+                                      onBlur={() => updateSystem(sys.id, acRow.id!, sys.system_name, sys.status).then(() => refreshFormationSummary(sid))}
+                                      onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
+                                      placeholder="שם מערכת"
+                                      style={{ flex: 1, padding: '2px 6px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', direction: 'rtl' }} />
+                                    <select
+                                      value={sys.status}
+                                      onChange={e => { e.stopPropagation(); updateSystem(sys.id, acRow.id!, sys.system_name, e.target.value).then(() => refreshFormationSummary(sid)); }}
+                                      onPointerDown={e => e.stopPropagation()}
+                                      style={{ padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: sys.status === 'שמיש' ? '#22c55e' : sys.status === 'חלקי' ? '#f59e0b' : '#ef4444', fontSize: '10px', cursor: 'pointer' }}>
+                                      <option value="שמיש">שמיש</option>
+                                      <option value="חלקי">חלקי</option>
+                                      <option value="לא שמיש">לא שמיש</option>
+                                    </select>
+                                    <button onClick={e => { e.stopPropagation(); deleteSystem(sys.id, acRow.id!).then(() => refreshFormationSummary(sid)); }} style={{ padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                                  </div>
+                                ))}
+                                <button onClick={e => { e.stopPropagation(); addSystem(acRow.id!).then(() => refreshFormationSummary(sid)); }} style={{ padding: '3px 10px', background: 'transparent', color: '#2dd4bf', border: '1px dashed #0f766e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', marginTop: '2px' }}>+ הוסף מערכת</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                   </div>
@@ -10061,7 +10220,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ idx: r.idx, datk: r.datk, kipa: r.kipa });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk, kipa: r.kipa });
         });
         setGroundStripAircraft(byStrip);
       })
