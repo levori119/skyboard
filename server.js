@@ -2965,6 +2965,36 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   }
 });
 
+// POST /api/strip-aircraft/bulk-import — bulk upsert aircraft rows by formation callsign
+app.post('/api/strip-aircraft/bulk-import', async (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(400).json({ error: 'No rows provided' });
+    let imported = 0, skipped = 0;
+    const errors = [];
+    for (const row of rows) {
+      const callsign = String(row.formation_callsign || row.callsign || '').trim();
+      const idx = parseInt(row.idx);
+      const datk = (row.datk !== undefined && row.datk !== '') ? parseInt(row.datk) : null;
+      const kipa = (row.kipa !== undefined && String(row.kipa).trim() !== '') ? String(row.kipa).trim() : null;
+      if (!callsign || isNaN(idx) || idx < 1) { skipped++; continue; }
+      const stripResult = await pool.query('SELECT id FROM strips WHERE LOWER(callsign) = LOWER($1) LIMIT 1', [callsign]);
+      if (stripResult.rows.length === 0) { errors.push(`פ"מ "${callsign}" לא נמצא`); skipped++; continue; }
+      const strip_id = stripResult.rows[0].id;
+      await pool.query(
+        `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
+        [strip_id, idx, isNaN(datk) ? null : datk, kipa]
+      );
+      imported++;
+    }
+    res.json({ imported, skipped, errors });
+  } catch (err) {
+    console.error('[bulk-import aircraft]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // DELETE single aircraft from a strip (ground mode single-aircraft transfer)
 // Renumbers the remaining aircraft so indices stay sequential (1, 2, 3, ...)
 app.delete('/api/strip-aircraft/:stripId/:idx', async (req, res) => {

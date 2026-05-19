@@ -16903,6 +16903,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
+  const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
   const [stripsSearch, setStripsSearch] = useState('');
@@ -18714,6 +18715,165 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* ── Aircraft (strip_aircraft) Import ── */}
+              <div style={{ marginTop: '32px', borderTop: '2px solid #334155', paddingTop: '24px' }}>
+                <h2 style={{ margin: '0 0 16px 0', fontSize: '18px', color: '#e2e8f0' }}>
+                  ✈ טעינת מטוסים מקובץ
+                </h2>
+                <div style={{ background: '#0f172a', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
+                  <p style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '13px', lineHeight: '1.7' }}>
+                    טען נתוני מטוסים (דת"ק וכיפה) לפממים קיימים.<br/>
+                    <strong style={{ color: '#f59e0b' }}>הפממים חייבים להיות קיימים כבר במערכת לפני הטעינה.</strong><br/>
+                    קישור לפ"מ נעשה לפי עמודת <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>formation_callsign</code>.
+                  </p>
+
+                  <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#1e293b', borderRadius: '6px', fontSize: '12px', color: '#94a3b8', lineHeight: '2' }}>
+                    <strong style={{ color: 'white' }}>עמודות:</strong><br/>
+                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>formation_callsign</code> — או"ק הפ"מ שאליו שייך המטוס (חובה)<br/>
+                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>idx</code> — מספר המטוס בתצורה: 1, 2, 3... (חובה)<br/>
+                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>datk</code> — דת"ק (מספר, אופציונלי)<br/>
+                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>kipa</code> — כיפה (טקסט, אופציונלי)
+                  </div>
+
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    id="acFileInput"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      let rows: Record<string, string>[] = [];
+                      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                        const buffer = await file.arrayBuffer();
+                        const wb = XLSX.read(buffer, { type: 'array' });
+                        const ws = wb.Sheets[wb.SheetNames[0]];
+                        rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, string>[];
+                      } else {
+                        const text = await file.text();
+                        const lines = text.split('\n').filter(l => l.trim());
+                        if (lines.length < 2) { alert('הקובץ ריק או חסר נתונים'); return; }
+                        const headers = lines[0].split(',').map(h => h.trim());
+                        rows = lines.slice(1).map(line => {
+                          const vals = line.split(',').map(v => v.trim());
+                          const row: Record<string, string> = {};
+                          headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+                          return row;
+                        });
+                      }
+                      const norm = (k: string) => k.toLowerCase().replace(/[\s_\-]+/g, '');
+                      const getF = (row: Record<string, string>, ...keys: string[]) => {
+                        const rks = Object.keys(row);
+                        for (const k of keys) {
+                          const found = rks.find(rk => norm(rk) === norm(k));
+                          if (found && String(row[found]).trim() !== '') return String(row[found]).trim();
+                        }
+                        return '';
+                      };
+                      const mapped = rows.map(row => ({
+                        formation_callsign: getF(row, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'formationcallsign'),
+                        idx: getF(row, 'idx', 'מספר', 'index', 'מטוס'),
+                        datk: getF(row, 'datk', 'דתק', 'דת"ק'),
+                        kipa: getF(row, 'kipa', 'כיפה'),
+                      })).filter(r => r.formation_callsign && r.idx);
+                      if (mapped.length === 0) { alert('לא נמצאו שורות תקינות בקובץ'); return; }
+                      try {
+                        const res = await fetch(`${API_URL}/strip-aircraft/bulk-import`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ rows: mapped }),
+                        });
+                        const result = await res.json();
+                        setAcImportResult(result);
+                      } catch (err) {
+                        alert('שגיאה בטעינה: ' + err);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      onClick={() => document.getElementById('acFileInput')?.click()}
+                      style={{ padding: '12px 28px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}
+                    >✈ בחר קובץ CSV / Excel</button>
+                    <button
+                      onClick={() => {
+                        const headers = ['formation_callsign', 'idx', 'datk', 'kipa'];
+                        const ex1 = ['ALPHA', '1', '101', 'אדום'];
+                        const ex2 = ['ALPHA', '2', '102', 'כחול'];
+                        const ex3 = ['ALPHA', '3', '103', 'ירוק'];
+                        const ex4 = ['BRAVO', '1', '201', ''];
+                        const ex5 = ['BRAVO', '2', '202', 'כחול'];
+                        const wb = XLSX.utils.book_new();
+                        const ws = XLSX.utils.aoa_to_sheet([headers, ex1, ex2, ex3, ex4, ex5]);
+                        ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 16) }));
+                        XLSX.utils.book_append_sheet(wb, ws, 'מטוסים');
+                        XLSX.writeFile(wb, 'תבנית_טעינת_מטוסים.xlsx');
+                      }}
+                      style={{ padding: '12px 20px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                    >📥 הורד תבנית Excel</button>
+                  </div>
+
+                  {acImportResult && (
+                    <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px' }}>
+                      {acImportResult.imported > 0 && <div style={{ color: '#22c55e', fontSize: '15px', marginBottom: '6px' }}>נטענו: {acImportResult.imported} מטוסים</div>}
+                      {acImportResult.skipped > 0 && <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '6px' }}>דולגו: {acImportResult.skipped}</div>}
+                      {acImportResult.errors.length > 0 && (
+                        <div style={{ color: '#f87171', fontSize: '12px' }}>
+                          <strong>שגיאות:</strong>
+                          <ul style={{ margin: '4px 0 0 0', paddingRight: '18px' }}>
+                            {acImportResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>דוגמה (CSV):</h4>
+                <pre style={{ background: '#1e293b', padding: '14px', borderRadius: '6px', fontSize: '12px', overflow: 'auto', color: '#e2e8f0', direction: 'ltr', textAlign: 'left', margin: 0 }}>
+{`formation_callsign,idx,datk,kipa
+ALPHA,1,101,אדום
+ALPHA,2,102,כחול
+ALPHA,3,103,ירוק
+ALPHA,4,104,צהוב
+BRAVO,1,201,אדום
+BRAVO,2,202,
+CHARLIE,1,301,`}
+                </pre>
+
+                <h4 style={{ margin: '14px 0 8px 0', fontSize: '14px', color: '#94a3b8' }}>מבנה הקובץ:</h4>
+                <div style={{ background: '#1e293b', borderRadius: '6px', overflow: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '12px', direction: 'ltr', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: '#334155' }}>
+                        {['formation_callsign', 'idx', 'datk', 'kipa'].map(h => (
+                          <th key={h} style={{ padding: '7px 12px', color: h === 'formation_callsign' || h === 'idx' ? '#f87171' : '#60a5fa', borderBottom: '1px solid #475569', fontWeight: 'bold' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['ALPHA','1','101','אדום'],
+                        ['ALPHA','2','102','כחול'],
+                        ['BRAVO','1','201',''],
+                        ['BRAVO','2','202','כחול'],
+                      ].map((row, i) => (
+                        <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
+                          {row.map((cell, j) => (
+                            <td key={j} style={{ padding: '5px 12px', color: j < 2 ? '#f87171' : '#e2e8f0', borderBottom: '1px solid #1e293b' }}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                  🔴 אדום = שדה חובה &nbsp;|&nbsp; 🔵 כחול = שדה אופציונלי
+                </p>
               </div>
             </div>
           )}

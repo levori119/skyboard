@@ -1,0 +1,6 @@
+callsign,number_of_formation,squadron,task,alt,erka,koteret,mivtza,notes,takeoff_time,sid,parent_callsign
+ALPHA,4,119,תקיפה,FL200,A,כותרת ראשית,מבצע א',הערה כללית לפמ,14:30,,
+BRAVO,2,110,סיור,FL150,B,,,, 15:00,,
+CHARLIE,1,69,טנדם,FL100,C,,מבצע ב',,16:15,,
+DELTA,3,253,ליווי,FL180,A,,,הגנה על ALPHA,14:30,,ALPHA
+ECHO,2,253,ליווי,FL180,A,,,הגנה על ALPHA - חלק ב',14:30,,ALPHA
