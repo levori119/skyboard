@@ -634,6 +634,22 @@ async function initDb() {
     )
   `);
 
+  // default_armament_names / default_system_names — admin configurable quick-pick lists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS default_armament_names (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL UNIQUE,
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS default_system_names (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL UNIQUE,
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+
   // strip_aircraft_armaments — per-aircraft armament/payload configuration
   await pool.query(`
     CREATE TABLE IF NOT EXISTS strip_aircraft_armaments (
@@ -779,6 +795,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS aircraft_indices JSONB DEFAULT NULL`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS original_formation_count INTEGER DEFAULT NULL`);
+
+  // פ"מ אב — formation-level fields
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS formation_notes TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_callsign VARCHAR(100) DEFAULT ''`);
 
   console.log('Database initialized');
 }
@@ -3152,6 +3172,100 @@ app.get('/api/strips/:id/formation-summary', async (req, res) => {
 
     res.json({ hasShakadia, armaments, systemsByAircraft });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to get formation summary' }); }
+});
+
+// ─── Formation Meta Update (formation_notes + parent_callsign) ────────────
+app.put('/api/strips/:id/formation-meta', async (req, res) => {
+  try {
+    const { formation_notes, parent_callsign } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE strips SET
+        formation_notes = COALESCE($1, formation_notes),
+        parent_callsign = COALESCE($2, parent_callsign)
+       WHERE id=$3 RETURNING id, formation_notes, parent_callsign`,
+      [formation_notes ?? null, parent_callsign ?? null, req.params.id]
+    );
+    res.json(rows[0] || {});
+  } catch (err) { res.status(500).json({ error: 'Failed to update formation meta' }); }
+});
+
+// ─── Bulk Formation Summaries ─────────────────────────────────────────────
+app.get('/api/strips/formation-summaries', async (req, res) => {
+  try {
+    const ids = String(req.query.strip_ids || '').split(',').map(Number).filter(Boolean);
+    if (ids.length === 0) return res.json({});
+    const result = {};
+    const saRows = await pool.query(
+      'SELECT * FROM strip_aircraft WHERE strip_id = ANY($1) ORDER BY strip_id, idx', [ids]
+    );
+    const acIds = saRows.rows.map(r => r.id);
+    if (acIds.length === 0) {
+      ids.forEach(id => { result[id] = { hasShakadia: false, armaments: [] }; });
+      return res.json(result);
+    }
+    const [armRes, sysRes] = await Promise.all([
+      pool.query('SELECT * FROM strip_aircraft_armaments WHERE strip_aircraft_id = ANY($1)', [acIds]),
+      pool.query('SELECT * FROM strip_aircraft_systems WHERE strip_aircraft_id = ANY($1)', [acIds])
+    ]);
+    const SHAKADIA_NAMES = ['שקדיה', 'שקדייה', 'שקדה'];
+    ids.forEach(stripId => {
+      const stripAc = saRows.rows.filter(r => r.strip_id === stripId);
+      const stripAcIds = stripAc.map(r => r.id);
+      const idToIdx = {};
+      stripAc.forEach(r => { idToIdx[r.id] = r.idx; });
+      const arms = armRes.rows.filter(r => stripAcIds.includes(r.strip_aircraft_id));
+      const syss = sysRes.rows.filter(r => stripAcIds.includes(r.strip_aircraft_id));
+      const armMap = {};
+      arms.forEach(r => {
+        const idx = idToIdx[r.strip_aircraft_id];
+        if (!armMap[r.armament_name]) armMap[r.armament_name] = { totalQty: 0, aircraftNums: [] };
+        armMap[r.armament_name].totalQty += r.quantity;
+        if (!armMap[r.armament_name].aircraftNums.includes(idx)) armMap[r.armament_name].aircraftNums.push(idx);
+      });
+      const armaments = Object.entries(armMap).map(([name, v]) => ({ name, totalQty: v.totalQty, aircraftNums: v.aircraftNums.sort((a, b) => a - b) }));
+      const hasShakadia = syss.some(r =>
+        SHAKADIA_NAMES.some(n => r.system_name.trim().toLowerCase() === n.toLowerCase()) && r.status === 'שמיש'
+      );
+      result[stripId] = { hasShakadia, armaments };
+    });
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to get bulk summaries' }); }
+});
+
+// ─── Default Armament Names ────────────────────────────────────────────────
+app.get('/api/default-armament-names', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM default_armament_names ORDER BY sort_order, name'); res.json(rows); }
+  catch (err) { res.status(500).json({ error: 'Failed to fetch default armament names' }); }
+});
+app.post('/api/default-armament-names', async (req, res) => {
+  try { const { name } = req.body; const { rows } = await pool.query('INSERT INTO default_armament_names (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *', [name || '']); res.json(rows[0] || {}); }
+  catch (err) { res.status(500).json({ error: 'Failed to add armament name' }); }
+});
+app.put('/api/default-armament-names/:id', async (req, res) => {
+  try { const { name, sort_order } = req.body; const { rows } = await pool.query('UPDATE default_armament_names SET name=$1, sort_order=$2 WHERE id=$3 RETURNING *', [name || '', sort_order ?? 0, req.params.id]); res.json(rows[0]); }
+  catch (err) { res.status(500).json({ error: 'Failed to update armament name' }); }
+});
+app.delete('/api/default-armament-names/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM default_armament_names WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed to delete armament name' }); }
+});
+
+// ─── Default System Names ─────────────────────────────────────────────────
+app.get('/api/default-system-names', async (req, res) => {
+  try { const { rows } = await pool.query('SELECT * FROM default_system_names ORDER BY sort_order, name'); res.json(rows); }
+  catch (err) { res.status(500).json({ error: 'Failed to fetch default system names' }); }
+});
+app.post('/api/default-system-names', async (req, res) => {
+  try { const { name } = req.body; const { rows } = await pool.query('INSERT INTO default_system_names (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *', [name || '']); res.json(rows[0] || {}); }
+  catch (err) { res.status(500).json({ error: 'Failed to add system name' }); }
+});
+app.put('/api/default-system-names/:id', async (req, res) => {
+  try { const { name, sort_order } = req.body; const { rows } = await pool.query('UPDATE default_system_names SET name=$1, sort_order=$2 WHERE id=$3 RETURNING *', [name || '', sort_order ?? 0, req.params.id]); res.json(rows[0]); }
+  catch (err) { res.status(500).json({ error: 'Failed to update system name' }); }
+});
+app.delete('/api/default-system-names/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM default_system_names WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed to delete system name' }); }
 });
 
 // ─── Partial Formation API ─────────────────────────────────────────────────

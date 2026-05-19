@@ -4526,6 +4526,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [acSystems, setAcSystems] = React.useState<Record<number, any[]>>({});
   const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
   const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
+  const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
+  const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
+  const [defaultSystemNames, setDefaultSystemNames] = React.useState<string[]>([]);
+  const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
+  const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load armaments + systems for all visible aircraft
   React.useEffect(() => {
@@ -4556,6 +4561,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         .catch(() => {});
     });
   }, [strips.length]);
+
+  // Load default armament/system names for autocomplete
+  React.useEffect(() => {
+    Promise.all([
+      fetch(`${API_URL}/default-armament-names`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : [])
+    ]).then(([arms, syss]) => {
+      setDefaultArmamentNames((arms as any[]).map((a: any) => a.name));
+      setDefaultSystemNames((syss as any[]).map((s: any) => s.name));
+    }).catch(() => {});
+  }, []);
+
+  // Sync stripFormationMeta from strips prop (only init new strips, don't override editing state)
+  React.useEffect(() => {
+    setStripFormationMeta(prev => {
+      const next = { ...prev };
+      strips.forEach((strip: any) => {
+        const sid = String(strip.id);
+        if (next[sid] === undefined) {
+          next[sid] = { notes: strip.formation_notes || '', parentCallsign: strip.parent_callsign || '' };
+        }
+      });
+      return next;
+    });
+  }, [strips]);
 
   const refreshFormationSummary = (stripId: string) => {
     fetch(`${API_URL}/strips/${stripId}/formation-summary`)
@@ -4875,6 +4905,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </button>
                     );
                   })()}
+                  {/* פ"מ אב panel toggle */}
+                  <button title='פ"מ אב — פרטי תצורה' onClick={e => { e.stopPropagation(); setFormationPanelStripId(prev => prev === sid ? null : sid); }}
+                    style={{ padding: '6px 6px', background: 'transparent', border: 'none', cursor: 'pointer', color: formationPanelStripId === sid ? '#f59e0b' : headerColor, fontSize: '12px', flexShrink: 0 }}>
+                    📋</button>
                   {/* Expand toggle */}
                   <button onClick={toggleExpand}
                     style={{ padding: '6px 8px', background: 'transparent', border: 'none', cursor: 'pointer', color: headerColor, fontSize: '12px', flexShrink: 0 }}>
@@ -4886,9 +4920,28 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isExpanded && (
                   <div>
                     {/* Formation header row */}
-                    <div style={{ padding: '3px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{callSign} {count}</span>
-                      {sq && <span>- {sq}</span>}
+                    <div style={{ padding: '4px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, direction: 'rtl' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '3px' }}>
+                        <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{callSign} {count}</span>
+                        {sq && <span>- {sq}</span>}
+                        {(stripFormationMeta[sid]?.parentCallsign !== undefined ? stripFormationMeta[sid].parentCallsign : (strip.parent_callsign || '')) && (
+                          <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 600 }}>← {stripFormationMeta[sid]?.parentCallsign ?? strip.parent_callsign}</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                        <input
+                          value={stripFormationMeta[sid]?.parentCallsign !== undefined ? stripFormationMeta[sid].parentCallsign : (strip.parent_callsign || '')}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: v } })); if (formationMetaDebounceRef.current[`pc_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`pc_${sid}`]); formationMetaDebounceRef.current[`pc_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_callsign: v }) }).catch(() => {}); }, 700); }}
+                          placeholder='או"ק פמ מקורי'
+                          style={{ width: '90px', padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: '#f59e0b', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                        />
+                        <input
+                          value={stripFormationMeta[sid]?.notes !== undefined ? stripFormationMeta[sid].notes : (strip.formation_notes || '')}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), notes: v } })); if (formationMetaDebounceRef.current[`fn_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`fn_${sid}`]); formationMetaDebounceRef.current[`fn_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formation_notes: v }) }).catch(() => {}); }, 700); }}
+                          placeholder="הערה כללית לפמ"
+                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                        />
+                      </div>
                     </div>
                     {/* SID row — populated from airfield.sids */}
                     {airfield && (() => {
@@ -4991,6 +5044,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                       onBlur={() => updateArmament(arm.id, acRow.id!, arm.armament_name, arm.quantity).then(() => refreshFormationSummary(sid))}
                                       onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
                                       placeholder="שם חימוש"
+                                      list="ground-armament-names"
                                       style={{ flex: 1, padding: '2px 6px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', direction: 'rtl' }} />
                                     <input
                                       type="number" min={0}
@@ -5016,6 +5070,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                       onBlur={() => updateSystem(sys.id, acRow.id!, sys.system_name, sys.status).then(() => refreshFormationSummary(sid))}
                                       onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
                                       placeholder="שם מערכת"
+                                      list="ground-system-names"
                                       style={{ flex: 1, padding: '2px 6px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '11px', direction: 'rtl' }} />
                                     <select
                                       value={sys.status}
@@ -5045,6 +5100,116 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
 
       </div>
+
+      {/* Autocomplete datalists for armament/system names */}
+      <datalist id="ground-armament-names">
+        {defaultArmamentNames.map((n, i) => <option key={i} value={n} />)}
+      </datalist>
+      <datalist id="ground-system-names">
+        {defaultSystemNames.map((n, i) => <option key={i} value={n} />)}
+      </datalist>
+
+      {/* פ"מ אב floating panel */}
+      {formationPanelStripId && (() => {
+        const panelStrip = strips.find((s: any) => String(s.id) === formationPanelStripId);
+        if (!panelStrip) return null;
+        const panelSid = formationPanelStripId;
+        const panelSummary = formationSummary[panelSid];
+        const panelCallSign = panelStrip.callSign || panelStrip.callsign || '?';
+        const panelCount = parseInt(panelStrip.numberOfFormation ?? panelStrip.number_of_formation ?? '1') || 1;
+        const panelSq = panelStrip.sq || panelStrip.squadron || '';
+        const panelAcRows: GroundAircraftRow[] = stripAircraftData[panelSid] || [];
+        const panelMeta = stripFormationMeta[panelSid];
+        const panelNotes = panelMeta?.notes ?? (panelStrip.formation_notes || '');
+        const panelParentCallsign = panelMeta?.parentCallsign ?? (panelStrip.parent_callsign || '');
+        return (
+          <div style={{ position: 'fixed', top: '60px', right: '20px', width: '320px', maxHeight: '82vh', background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.55)', zIndex: 3100, display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+            {/* Panel header */}
+            <div style={{ padding: '10px 12px', background: lightMode ? '#e2e8f0' : '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>
+                  📋 פ"מ אב — {panelCallSign}
+                  {panelSummary?.hasShakadia && <span title="שקדיה שמישה" style={{ marginRight: '5px' }}>🌰</span>}
+                </span>
+                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{panelCount} מטוסים{panelSq ? ` / ${panelSq}` : ''}</span>
+              </div>
+              <button onClick={() => setFormationPanelStripId(null)} style={{ background: 'transparent', border: 'none', color: lightMode ? '#64748b' : '#94a3b8', cursor: 'pointer', fontSize: '16px', padding: '2px 6px', lineHeight: 1 }}>✕</button>
+            </div>
+            {/* Panel content */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Parent callsign + notes */}
+              {(panelParentCallsign || panelNotes) && (
+                <div style={{ padding: '7px 9px', background: lightMode ? '#fefce8' : '#1c1a08', borderRadius: '6px', border: `1px solid ${lightMode ? '#fde68a' : '#451a03'}` }}>
+                  {panelParentCallsign && (
+                    <div style={{ fontSize: '11px', color: '#f59e0b' }}>
+                      <span style={{ fontWeight: 600 }}>או"ק מקורי: </span>{panelParentCallsign}
+                    </div>
+                  )}
+                  {panelNotes && (
+                    <div style={{ fontSize: '11px', color: lightMode ? '#78350f' : '#fcd34d', marginTop: panelParentCallsign ? '3px' : 0 }}>{panelNotes}</div>
+                  )}
+                </div>
+              )}
+              {/* Armament summary table */}
+              {(panelSummary?.armaments?.length ?? 0) > 0 && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b', marginBottom: '5px' }}>🚀 חימושים מחושבים</div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                    <thead>
+                      <tr style={{ background: lightMode ? '#f1f5f9' : '#1e293b' }}>
+                        <th style={{ padding: '3px 6px', textAlign: 'right', color: lightMode ? '#64748b' : '#94a3b8', fontWeight: 'normal' }}>חימוש</th>
+                        <th style={{ padding: '3px 6px', textAlign: 'center', color: lightMode ? '#64748b' : '#94a3b8', fontWeight: 'normal' }}>סה"כ</th>
+                        <th style={{ padding: '3px 6px', textAlign: 'right', color: lightMode ? '#64748b' : '#94a3b8', fontWeight: 'normal' }}>מטוסים</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {panelSummary!.armaments.map((arm, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                          <td style={{ padding: '3px 6px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{arm.name || '—'}</td>
+                          <td style={{ padding: '3px 6px', textAlign: 'center', color: '#f59e0b', fontWeight: 'bold' }}>{arm.totalQty}</td>
+                          <td style={{ padding: '3px 6px', color: lightMode ? '#64748b' : '#94a3b8' }}>{arm.aircraftNums.map((n: number) => `#${n}`).join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* Per-aircraft breakdown */}
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#2dd4bf', marginBottom: '6px' }}>⚙ פירוט מערכות לפי מטוס</div>
+                {panelAcRows.map((acRow: GroundAircraftRow) => {
+                  const acCallSign = `${panelCallSign}${acRow.idx}`;
+                  const armaments: any[] = acRow.id ? (acArmaments[acRow.id] || []) : [];
+                  const systems: any[] = acRow.id ? (acSystems[acRow.id] || []) : [];
+                  if (armaments.length === 0 && systems.length === 0) return null;
+                  return (
+                    <div key={acRow.idx} style={{ marginBottom: '7px', padding: '6px 8px', background: lightMode ? '#f8fafc' : '#0c1824', borderRadius: '6px', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', marginBottom: '4px' }}>{acCallSign}</div>
+                      {armaments.length > 0 && (
+                        <div style={{ fontSize: '10px', color: '#f59e0b', marginBottom: '3px' }}>
+                          {armaments.map((a: any) => `${a.armament_name} ×${a.quantity}`).join(' | ')}
+                        </div>
+                      )}
+                      {systems.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                          {systems.map((s: any) => (
+                            <span key={s.id} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '8px', background: s.status === 'שמיש' ? '#14532d' : s.status === 'חלקי' ? '#451a03' : '#450a0a', color: s.status === 'שמיש' ? '#86efac' : s.status === 'חלקי' ? '#fdba74' : '#fca5a5' }}>
+                              {s.system_name}: {s.status}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {panelAcRows.every((r: GroundAircraftRow) => !r.id || ((!acArmaments[r.id] || acArmaments[r.id].length === 0) && (!acSystems[r.id] || acSystems[r.id].length === 0))) && (
+                  <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '10px' }}>אין מערכות/חימושים מוגדרים</div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ELEMENTS right panel — grouped by category, like aids panel */}
       {airfieldElements && airfieldElements.length > 0 && (() => {
@@ -8510,6 +8675,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
+  const [sectorFormationSummaries, setSectorFormationSummaries] = useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [dashboardBlockSpaces, setDashboardBlockSpaces] = useState<any[]>([]);
   const [dashboardBlockTables, setDashboardBlockTables] = useState<any[]>([]);
   const [dashboardBlocks, setDashboardBlocks] = useState<any[]>([]);
@@ -10226,6 +10392,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       })
       .catch(console.error);
   }, [isGroundMode, strips.length, session?.presetId]);
+
+  // Load formation summaries for all non-ground strips (for שקדיה / armaments display)
+  React.useEffect(() => {
+    if (isGroundMode || strips.length === 0) return;
+    const ids = strips.map((s: any) => s.id).filter(Boolean).join(',');
+    if (!ids) return;
+    fetch(`${API_URL}/strips/formation-summaries?strip_ids=${ids}`)
+      .then(r => r.ok ? r.json() : {})
+      .then((data: any) => setSectorFormationSummaries(data))
+      .catch(() => {});
+  }, [strips.length, isGroundMode]);
 
   // Debounce map for strip aircraft updates
   const groundAircraftDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -11974,6 +12151,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                            {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
                           </div>
@@ -11983,7 +12161,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
-                      <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                        {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px' }}>🌰</span>}
+                      </div>
                     </td>
                   );
                 }
@@ -16172,13 +16353,84 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
   );
 };
 
+// ─── Default Names Manager (admin tab component) ────────────────────────────
+const DefaultNamesManager = () => {
+  const [defArmNames, setDefArmNames] = useState<any[]>([]);
+  const [defSysNames, setDefSysNames] = useState<any[]>([]);
+  const [newArmName, setNewArmName] = useState('');
+  const [newSysName, setNewSysName] = useState('');
+  const [dnLoading, setDnLoading] = useState(true);
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API_URL}/default-armament-names`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/default-system-names`).then(r => r.ok ? r.json() : [])
+    ]).then(([arms, syss]) => { setDefArmNames(arms); setDefSysNames(syss); setDnLoading(false); }).catch(() => setDnLoading(false));
+  }, []);
+  const addArm = () => {
+    if (!newArmName.trim()) return;
+    fetch(`${API_URL}/default-armament-names`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newArmName.trim() }) })
+      .then(r => r.ok ? r.json() : null).then(row => { if (row?.id) setDefArmNames(prev => [...prev, row]); setNewArmName(''); }).catch(() => {});
+  };
+  const deleteArm = (id: number) => {
+    fetch(`${API_URL}/default-armament-names/${id}`, { method: 'DELETE' }).then(() => setDefArmNames(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
+  };
+  const addSys = () => {
+    if (!newSysName.trim()) return;
+    fetch(`${API_URL}/default-system-names`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newSysName.trim() }) })
+      .then(r => r.ok ? r.json() : null).then(row => { if (row?.id) setDefSysNames(prev => [...prev, row]); setNewSysName(''); }).catch(() => {});
+  };
+  const deleteSys = (id: number) => {
+    fetch(`${API_URL}/default-system-names/${id}`, { method: 'DELETE' }).then(() => setDefSysNames(prev => prev.filter((r: any) => r.id !== id))).catch(() => {});
+  };
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: '#0f172a', borderRadius: '6px', marginBottom: '4px' };
+  const inpStyle: React.CSSProperties = { flex: 1, padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl', outline: 'none' };
+  return (
+    <div style={{ padding: '20px', direction: 'rtl', color: 'white' }}>
+      <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#38bdf8' }}>🚀 שמות חימושים ומערכות — ברירת מחדל</h2>
+      <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 24px 0' }}>שמות אלה יופיעו כהצעות השלמה אוטומטית בעת הזנת חימושים ומערכות בעמדת מגרש.</p>
+      {dnLoading ? <div style={{ color: '#64748b' }}>טוען...</div> : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#f59e0b', margin: '0 0 12px 0' }}>🚀 שמות חימושים</h3>
+            {defArmNames.map((row: any) => (
+              <div key={row.id} style={rowStyle}>
+                <span style={{ flex: 1, fontSize: '13px' }}>{row.name}</span>
+                <button onClick={() => deleteArm(row.id)} style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              </div>
+            ))}
+            {defArmNames.length === 0 && <div style={{ fontSize: '12px', color: '#475569', padding: '8px' }}>אין שמות מוגדרים</div>}
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <input value={newArmName} onChange={e => setNewArmName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addArm()} placeholder="שם חימוש חדש" style={inpStyle} />
+              <button onClick={addArm} style={{ padding: '5px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף</button>
+            </div>
+          </div>
+          <div>
+            <h3 style={{ fontSize: '14px', color: '#2dd4bf', margin: '0 0 12px 0' }}>⚙ שמות מערכות</h3>
+            {defSysNames.map((row: any) => (
+              <div key={row.id} style={rowStyle}>
+                <span style={{ flex: 1, fontSize: '13px' }}>{row.name}</span>
+                <button onClick={() => deleteSys(row.id)} style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              </div>
+            ))}
+            {defSysNames.length === 0 && <div style={{ fontSize: '12px', color: '#475569', padding: '8px' }}>אין שמות מוגדרים</div>}
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <input value={newSysName} onChange={e => setNewSysName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSys()} placeholder="שם מערכת חדש" style={inpStyle} />
+              <button onClick={addSys} style={{ padding: '5px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -16743,6 +16995,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               setAdminContactsData(prev => ({ ...prev, ...grouped }));
             }).catch(() => {});
         }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
+        {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={tabStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -20150,6 +20403,8 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,�
             </div>
           );
         })()}
+
+        {activeTab === 'default_names' && <DefaultNamesManager />}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
