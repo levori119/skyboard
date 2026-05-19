@@ -4353,6 +4353,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdateElementStatus?: (elementId: number, status: string) => void;
   onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string }) => Promise<void>;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
+  onSplitPartial?: (sourceStripId: string, indices: number[]) => Promise<void>;
   headerButtons?: React.ReactNode;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
@@ -4531,6 +4532,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [defaultSystemNames, setDefaultSystemNames] = React.useState<string[]>([]);
   const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
   const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [groundSplitModal, setGroundSplitModal] = React.useState<{ strip: any } | null>(null);
+  const [groundSplitSelected, setGroundSplitSelected] = React.useState<number[]>([]);
+  const [groundMergeModal, setGroundMergeModal] = React.useState<{ strip: any; siblings: any[] } | null>(null);
+  const [groundMergeConfirm, setGroundMergeConfirm] = React.useState<{ targetId: string; sourceId: string; targetName: string; sourceName: string } | null>(null);
+  const [sidPreStep, setSidPreStep] = React.useState<boolean>(false);
+  const [sidPartialSelected, setSidPartialSelected] = React.useState<number[]>([]);
 
   // Load armaments + systems for all visible aircraft
   React.useEffect(() => {
@@ -4592,6 +4599,33 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => { if (data) setFormationSummary(prev => ({ ...prev, [stripId]: data })); })
       .catch(() => {});
+  };
+
+  const getFormationSiblings = (strip: any): any[] => {
+    const parentCs = (stripFormationMeta[String(strip.id)]?.parentCallsign) || strip.parent_callsign || '';
+    const parentId = strip.parent_strip_id;
+    return strips.filter((s: any) => {
+      if (String(s.id) === String(strip.id)) return false;
+      const sCs = (stripFormationMeta[String(s.id)]?.parentCallsign) || s.parent_callsign || '';
+      if (parentCs && sCs && parentCs === sCs) return true;
+      if (parentId && s.parent_strip_id && String(s.parent_strip_id) === String(parentId)) return true;
+      return false;
+    });
+  };
+
+  const doSplitFormation = async (strip: any, selectedIndices: number[]) => {
+    setGroundSplitModal(null);
+    if (onSplitPartial) {
+      await onSplitPartial(String(strip.id), selectedIndices);
+    }
+  };
+
+  const doMergeFormations = async (targetId: string, sourceId: string) => {
+    setGroundMergeConfirm(null);
+    setGroundMergeModal(null);
+    if (onMergePartial) {
+      await onMergePartial(targetId, sourceId);
+    }
   };
   const addArmament = async (aircraftId: number) => {
     const row = await fetch(`${API_URL}/strip-aircraft-armaments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_aircraft_id: aircraftId, armament_name: '', quantity: 1 }) }).then(r => r.json());
@@ -4890,19 +4924,37 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       );
                     })()}
                   </div>
-                  {/* Partial sibling merge button */}
+                  {/* Split button — visible when count > 1 */}
                   {(() => {
-                    if (!strip.parent_strip_id || !onMergePartial) return null;
-                    const siblings = strips.filter(s => s.parent_strip_id && String(s.parent_strip_id) === String(strip.parent_strip_id) && String(s.id) !== String(strip.id));
+                    if (!onSplitPartial) return null;
+                    const canSplit = count > 1;
+                    if (!canSplit) return null;
+                    return (
+                      <button
+                        title="פצל פ״מ — בחר מטוסים לסטריפ חדש"
+                        onClick={e => { e.stopPropagation(); setGroundSplitSelected([]); setGroundSplitModal({ strip }); }}
+                        style={{ padding: '4px 7px', background: '#7c3aed', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
+                      >✂ פצל</button>
+                    );
+                  })()}
+                  {/* Merge button — visible when siblings exist */}
+                  {(() => {
+                    if (!onMergePartial) return null;
+                    const siblings = getFormationSiblings(strip);
                     if (siblings.length === 0) return null;
                     return (
                       <button
-                        title={'מזג עם הפמ"מ החלקי האח'}
-                        onClick={e => { e.stopPropagation(); onMergePartial(String(siblings[0].id), String(strip.id)); }}
+                        title="אחד עם פ״מ בעל אותו או״ק מקורי"
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (siblings.length === 1) {
+                            setGroundMergeConfirm({ targetId: String(siblings[0].id), sourceId: sid, targetName: getFormationDisplayName(siblings[0]), sourceName: getFormationDisplayName(strip) });
+                          } else {
+                            setGroundMergeModal({ strip, siblings });
+                          }
+                        }}
                         style={{ padding: '4px 7px', background: '#1d4ed8', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
-                      >
-                        ⊕מזג
-                      </button>
+                      >⊕ אחד</button>
                     );
                   })()}
                   {/* פ"מ אב panel toggle */}
@@ -6175,33 +6227,97 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const strip = sidModal.strip;
         const callSign = strip.callSign || strip.call_sign || '';
         const allAircraft = sidModal.idx === -1;
+        const positions = getAircraftPositions(strip);
+        const totalCount = positions.length;
+        const activeIndices = sidPartialSelected.length > 0 ? sidPartialSelected : positions.map((p: any) => p.idx);
         const confirmSid = (sid: { label: string; sector_id: number | null }) => {
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
-          const positions = getAircraftPositions(strip);
-          const updated = allAircraft
+          const updated = allAircraft && sidPartialSelected.length === 0
             ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
-            : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
+            : allAircraft && sidPartialSelected.length > 0
+              ? positions.map((x: any) => sidPartialSelected.includes(x.idx) ? { ...x, status: 'takeoff' } : x)
+              : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
           onUpdateAircraft(String(strip.id), updated);
           if (sid.sector_id) onTransfer(String(strip.id), sid.sector_id);
-          setSidModal(null);
+          setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
         };
         const skipSid = () => {
-          const positions = getAircraftPositions(strip);
-          const updated = allAircraft
+          const updated = allAircraft && sidPartialSelected.length === 0
             ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
-            : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
+            : allAircraft && sidPartialSelected.length > 0
+              ? positions.map((x: any) => sidPartialSelected.includes(x.idx) ? { ...x, status: 'takeoff' } : x)
+              : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
           onUpdateAircraft(String(strip.id), updated);
-          setSidModal(null);
+          setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
         };
+
+        if (allAircraft && totalCount > 1 && sidPreStep) {
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}>
+              <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #fca5a5', direction: 'rtl' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — בחר מטוסים</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} מטוסים</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+                  {positions.map((p: any) => (
+                    <label key={p.idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: sidPartialSelected.includes(p.idx) ? '#1d3a5f' : '#0f172a', border: `1px solid ${sidPartialSelected.includes(p.idx) ? '#3b82f6' : '#334155'}` }}>
+                      <input type="checkbox" checked={sidPartialSelected.includes(p.idx)} onChange={ev => { setSidPartialSelected(prev => ev.target.checked ? [...prev, p.idx] : prev.filter(i => i !== p.idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                      <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{callSign}{p.idx}</span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{p.idx}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => { if (sidPartialSelected.length === 0) { setSidPartialSelected([]); } setSidPreStep(false); }}
+                    disabled={sidPartialSelected.length === 0}
+                    style={{ flex: 2, padding: '9px', background: sidPartialSelected.length > 0 ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: sidPartialSelected.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
+                  >המשך → בחר SID ({sidPartialSelected.length}/{totalCount})</button>
+                  <button onClick={() => { setSidPartialSelected([]); setSidPreStep(false); }} style={{ flex: 1, padding: '9px', background: '#475569', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>כל המבנה</button>
+                  <button onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }} style={{ flex: 1, padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (allAircraft && totalCount > 1 && !sidPreStep && sidPartialSelected.length === 0) {
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => setSidModal(null)}>
+              <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — כל המבנה או חלקי?</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong> · {totalCount} מטוסים</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <button onClick={() => { setSidPartialSelected([]); }}
+                    style={{ padding: '12px 16px', background: '#16a34a', color: 'white', border: '1px solid #22c55e', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right' }}>
+                    ✈️ כל המבנה ({totalCount} מטוסים)
+                  </button>
+                  <button onClick={() => { setSidPartialSelected(positions.map((p: any) => p.idx)); setSidPreStep(true); }}
+                    style={{ padding: '12px 16px', background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right' }}>
+                    ✂ מספרים ספציפיים...
+                  </button>
+                  <button onClick={() => setSidModal(null)}
+                    style={{ padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setSidModal(null)}>
+            onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — בחר SID</div>
               <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>
                 פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong>
-                {allAircraft ? <span> · כל המבנה</span> : <span> · מטוס #{sidModal.idx}</span>}
+                {allAircraft && sidPartialSelected.length > 0 ? <span> · מטוסים {sidPartialSelected.join(',')}</span> : allAircraft ? <span> · כל המבנה</span> : <span> · מטוס #{sidModal.idx}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                 {sids.map(sid => (
@@ -6217,7 +6333,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   style={{ flex: 1, padding: '8px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                   המרא ללא SID
                 </button>
-                <button onClick={() => setSidModal(null)}
+                <button onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}
                   style={{ flex: 1, padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                   ביטול
                 </button>
@@ -6251,6 +6367,90 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 style={{ padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
                 ביטול
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Split Formation Modal ─── */}
+      {groundSplitModal && (() => {
+        const sp = groundSplitModal.strip;
+        const spCallSign = sp.callSign || sp.call_sign || '';
+        const spCount = parseInt(sp.numberOfFormation ?? sp.number_of_formation ?? '1') || 1;
+        const spIndices: number[] = Array.isArray(sp.aircraft_indices) ? sp.aircraft_indices : Array.from({ length: spCount }, (_, i) => i + 1);
+        const canConfirm = groundSplitSelected.length > 0 && groundSplitSelected.length < spIndices.length;
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setGroundSplitModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את המטוסים שיועברו לסטריפ חדש:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+                {spIndices.map(idx => (
+                  <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: groundSplitSelected.includes(idx) ? '#2e1065' : '#0f172a', border: `1px solid ${groundSplitSelected.includes(idx) ? '#7c3aed' : '#334155'}` }}>
+                    <input type="checkbox" checked={groundSplitSelected.includes(idx)} onChange={ev => { setGroundSplitSelected(prev => ev.target.checked ? [...prev, idx] : prev.filter(i => i !== idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                    <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{spCallSign}{idx}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{idx}</span>
+                  </label>
+                ))}
+              </div>
+              {!canConfirm && groundSplitSelected.length > 0 && (
+                <div style={{ color: '#f87171', fontSize: '11px', marginBottom: '8px' }}>יש לבחור לפחות מטוס אחד, ולהשאיר לפחות מטוס אחד בסטריפ המקורי.</div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => doSplitFormation(sp, groundSplitSelected)} disabled={!canConfirm}
+                  style={{ flex: 2, padding: '10px', background: canConfirm ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: canConfirm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
+                  ✂ פצל ({groundSplitSelected.length}/{spIndices.length})
+                </button>
+                <button onClick={() => setGroundSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Merge Formation — Select Sibling Modal ─── */}
+      {groundMergeModal && (() => {
+        const mp = groundMergeModal.strip;
+        const mpName = getFormationDisplayName(mp);
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setGroundMergeModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>⊕ איחוד פ"מ — {mpName}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את הפ"מ שיאוחד לתוך {mpName}:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {groundMergeModal.siblings.map(sib => (
+                  <button key={sib.id} onClick={() => { setGroundMergeModal(null); setGroundMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: getFormationDisplayName(sib), sourceName: mpName }); }}
+                    style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{getFormationDisplayName(sib)}</span>
+                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setGroundMergeModal(null)} style={{ width: '100%', padding: '9px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Merge Confirm Dialog ─── */}
+      {groundMergeConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setGroundMergeConfirm(null)}>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #ef4444', direction: 'rtl' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>⚠️ אישור איחוד</div>
+            <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
+              מאחד <strong style={{ color: '#93c5fd' }}>{groundMergeConfirm.sourceName}</strong> לתוך <strong style={{ color: '#86efac' }}>{groundMergeConfirm.targetName}</strong>.<br />
+              <span style={{ color: '#f87171', fontSize: '12px' }}>הסטריפ המוזג יימחק. לא ניתן לבטל.</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => doMergeFormations(groundMergeConfirm.targetId, groundMergeConfirm.sourceId)}
+                style={{ flex: 2, padding: '10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>⊕ אחד</button>
+              <button onClick={() => setGroundMergeConfirm(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
             </div>
           </div>
         </div>
@@ -8676,6 +8876,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
   const [sectorFormationSummaries, setSectorFormationSummaries] = useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
+  const [sectorSplitModal, setSectorSplitModal] = useState<{ strip: any } | null>(null);
+  const [sectorSplitSelected, setSectorSplitSelected] = useState<number[]>([]);
+  const [sectorMergeModal, setSectorMergeModal] = useState<{ strip: any; siblings: any[] } | null>(null);
+  const [sectorMergeConfirm, setSectorMergeConfirm] = useState<{ targetId: string; sourceId: string; targetName: string; sourceName: string } | null>(null);
   const [dashboardBlockSpaces, setDashboardBlockSpaces] = useState<any[]>([]);
   const [dashboardBlockTables, setDashboardBlockTables] = useState<any[]>([]);
   const [dashboardBlocks, setDashboardBlocks] = useState<any[]>([]);
@@ -10044,6 +10248,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (err) {
       console.error('Merge partial failed:', err);
     }
+  };
+
+  const handleSplitPartial = async (sourceStripId: string, indices: number[]) => {
+    try {
+      const res = await fetch(`${API_URL}/strips/partial-create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceStripId, aircraftIndices: indices })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await loadData();
+    } catch (err) {
+      console.error('Split partial failed:', err);
+    }
+  };
+
+  const getSectorSiblings = (strip: any): any[] => {
+    const parentCs = strip.parent_callsign || '';
+    const parentId = strip.parent_strip_id;
+    return myTableStrips.filter((s: any) => {
+      if (String(s.id) === String(strip.id)) return false;
+      const sCs = s.parent_callsign || '';
+      if (parentCs && sCs && parentCs === sCs) return true;
+      if (parentId && s.parent_strip_id && String(s.parent_strip_id) === String(parentId)) return true;
+      return false;
+    });
   };
 
   const handleGroundTransfer = async (stripId: string, toSectorId: number, aircraftIdx?: number) => {
@@ -11945,6 +12175,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateElementStatus={handleUpdateElementStatus}
                 onUpdateElement={handleUpdateElement}
                 onMergePartial={handleMergePartial}
+                onSplitPartial={handleSplitPartial}
                 headerButtons={<>
                   <button
                     onClick={() => setSidebarPinned(v => !v)}
@@ -13159,6 +13390,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   )}
                 </>);
               })()}
+              {(() => {
+                const ctxSplit = myTableStrips.find((s: any) => String(s.id) === String(tableRowCtxMenu.stripId));
+                if (!ctxSplit) return null;
+                const ctxCount = parseInt(ctxSplit.numberOfFormation ?? ctxSplit.number_of_formation ?? '1') || 1;
+                const ctxSiblings = getSectorSiblings(ctxSplit);
+                if (ctxCount <= 1 && ctxSiblings.length === 0) return null;
+                return (<>
+                  <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
+                  {ctxCount > 1 && (
+                    <button
+                      onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: ctxSplit }); setTableRowCtxMenu(null); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#c4b5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >✂ פצל פ"מ</button>
+                  )}
+                  {ctxSiblings.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (ctxSiblings.length === 1) {
+                          const tName = ctxSiblings[0].callSign || ctxSiblings[0].call_sign || String(ctxSiblings[0].id);
+                          setSectorMergeConfirm({ targetId: String(ctxSiblings[0].id), sourceId: String(ctxSplit.id), targetName: tName, sourceName: ctxSplit.callSign || String(ctxSplit.id) });
+                        } else {
+                          setSectorMergeModal({ strip: ctxSplit, siblings: ctxSiblings });
+                        }
+                        setTableRowCtxMenu(null);
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#93c5fd', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >⊕ אחד פ"מ</button>
+                  )}
+                </>);
+              })()}
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
@@ -13815,6 +14076,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
                       );
                     })()}
+                    {(() => {
+                      const sCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                      const sSiblings = getSectorSiblings(s);
+                      if (sCount <= 1 && sSiblings.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
+                          {sCount > 1 && (
+                            <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>✂ פצל</button>
+                          )}
+                          {sSiblings.length > 0 && (
+                            <button onClick={e => { e.stopPropagation(); if (sSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings[0].id), sourceId: String(s.id), targetName: sSiblings[0].callSign || String(sSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings }); } }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>⊕ אחד</button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );})}
@@ -13902,6 +14180,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </span>
                             );
                           })}
+                        </div>
+                      );
+                    })()}
+                    {(() => {
+                      const sCount2 = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                      const sSiblings2 = getSectorSiblings(s);
+                      if (sCount2 <= 1 && sSiblings2.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()}>
+                          {sCount2 > 1 && (
+                            <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer' }}>✂ פצל</button>
+                          )}
+                          {sSiblings2.length > 0 && (
+                            <button onClick={e => { e.stopPropagation(); if (sSiblings2.length === 1) { setSectorMergeConfirm({ targetId: String(sSiblings2[0].id), sourceId: String(s.id), targetName: sSiblings2[0].callSign || String(sSiblings2[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: sSiblings2 }); } }}
+                              style={{ fontSize: '10px', padding: '2px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '3px', cursor: 'pointer' }}>⊕ אחד</button>
+                          )}
                         </div>
                       );
                     })()}
@@ -14694,6 +14989,91 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
           <button onClick={() => setPressureAlert(null)}
             style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '16px', padding: '0 2px', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
+
+      {/* ─── Sector Split Formation Modal ─── */}
+      {sectorSplitModal && (() => {
+        const sp = sectorSplitModal.strip;
+        const spCallSign = sp.callSign || sp.call_sign || '';
+        const spCount = parseInt(sp.numberOfFormation ?? sp.number_of_formation ?? '1') || 1;
+        const spIndices: number[] = Array.isArray(sp.aircraft_indices) ? sp.aircraft_indices : Array.from({ length: spCount }, (_, i) => i + 1);
+        const canConfirm = sectorSplitSelected.length > 0 && sectorSplitSelected.length < spIndices.length;
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setSectorSplitModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #7c3aed', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>✂ פיצול פ"מ — {spCallSign}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את המטוסים שיועברו לסטריפ חדש:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
+                {spIndices.map(idx => (
+                  <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '8px 10px', borderRadius: '6px', background: sectorSplitSelected.includes(idx) ? '#2e1065' : '#0f172a', border: `1px solid ${sectorSplitSelected.includes(idx) ? '#7c3aed' : '#334155'}` }}>
+                    <input type="checkbox" checked={sectorSplitSelected.includes(idx)} onChange={ev => { setSectorSplitSelected(prev => ev.target.checked ? [...prev, idx] : prev.filter(i => i !== idx)); }} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                    <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{spCallSign}{idx}</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>מטוס #{idx}</span>
+                  </label>
+                ))}
+              </div>
+              {!canConfirm && sectorSplitSelected.length > 0 && (
+                <div style={{ color: '#f87171', fontSize: '11px', marginBottom: '8px' }}>יש לבחור לפחות מטוס אחד, ולהשאיר לפחות מטוס אחד בסטריפ המקורי.</div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={async () => { await handleSplitPartial(String(sp.id), sectorSplitSelected); setSectorSplitModal(null); setSectorSplitSelected([]); }} disabled={!canConfirm}
+                  style={{ flex: 2, padding: '10px', background: canConfirm ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: canConfirm ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
+                  ✂ פצל ({sectorSplitSelected.length}/{spIndices.length})
+                </button>
+                <button onClick={() => setSectorSplitModal(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Sector Merge — Select Sibling Modal ─── */}
+      {sectorMergeModal && (() => {
+        const mp = sectorMergeModal.strip;
+        const mpName = mp.callSign || String(mp.id);
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setSectorMergeModal(null)}>
+            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '360px', width: '90%', border: '1px solid #1d4ed8', direction: 'rtl' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '4px' }}>⊕ איחוד פ"מ — {mpName}</div>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '14px' }}>בחר את הפ"מ שיאוחד לתוך {mpName}:</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {sectorMergeModal.siblings.map(sib => (
+                  <button key={sib.id}
+                    onClick={() => { setSectorMergeModal(null); setSectorMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: sib.callSign || String(sib.id), sourceName: mpName }); }}
+                    style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{sib.callSign || String(sib.id)}</span>
+                    <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setSectorMergeModal(null)} style={{ width: '100%', padding: '9px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Sector Merge Confirm ─── */}
+      {sectorMergeConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setSectorMergeConfirm(null)}>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #ef4444', direction: 'rtl' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '8px' }}>⚠️ אישור איחוד</div>
+            <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '18px' }}>
+              מאחד <strong style={{ color: '#93c5fd' }}>{sectorMergeConfirm.sourceName}</strong> לתוך <strong style={{ color: '#86efac' }}>{sectorMergeConfirm.targetName}</strong>.<br />
+              <span style={{ color: '#f87171', fontSize: '12px' }}>הסטריפ המוזג יימחק. לא ניתן לבטל.</span>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={async () => { await handleMergePartial(sectorMergeConfirm.targetId, sectorMergeConfirm.sourceId); setSectorMergeConfirm(null); }}
+                style={{ flex: 2, padding: '10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>⊕ אחד</button>
+              <button onClick={() => setSectorMergeConfirm(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+            </div>
+          </div>
         </div>
       )}
 

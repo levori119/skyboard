@@ -3131,7 +3131,8 @@ app.delete('/api/strip-aircraft-systems/:id', async (req, res) => {
 // Returns: { hasShakadia, armaments: [{name,totalQty,aircraftNums}], systemsByAircraft: [{idx,systems}] }
 app.get('/api/strips/:id/formation-summary', async (req, res) => {
   try {
-    const stripId = req.params.id;
+    const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
+    if (isNaN(stripId)) return res.json({ hasShakadia: false, armaments: [], systemsByAircraft: [] });
     const saRows = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 ORDER BY idx', [stripId]);
     const aircraftRows = saRows.rows;
     if (aircraftRows.length === 0) return res.json({ hasShakadia: false, armaments: [], systemsByAircraft: [] });
