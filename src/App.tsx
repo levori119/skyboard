@@ -16904,7 +16904,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[]; colMap?: string } | null>(null);
-  const [acDiag, setAcDiag] = useState<{ cols: string[]; colCallsign?: string; colIdx?: string; colDatk?: string; colKipa?: string; rowCount: number; mapped: any[] } | null>(null);
+  const [acDiag, setAcDiag] = useState<{ cols: string[]; colCallsign?: string; colIdx?: string; colDatk?: string; colKipa?: string; colArmaments?: string; colSystems?: string; rowCount: number; mapped: any[] } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
   const [stripsSearch, setStripsSearch] = useState('');
@@ -18735,7 +18735,9 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>formation_callsign</code> — או"ק הפ"מ שאליו שייך המטוס (חובה)<br/>
                     <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>idx</code> — מספר המטוס בתצורה: 1, 2, 3... (חובה)<br/>
                     <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>datk</code> — דת"ק (מספר, אופציונלי)<br/>
-                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>kipa</code> — כיפה (טקסט, אופציונלי)
+                    <code style={{ background: '#334155', padding: '1px 6px', borderRadius: '3px' }}>kipa</code> — כיפה (טקסט, אופציונלי)<br/>
+                    <code style={{ background: '#92400e', color: '#fcd34d', padding: '1px 6px', borderRadius: '3px' }}>armaments</code> — חימושים/תצורה, פורמט: <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>שם:כמות; שם2:כמות2</code><br/>
+                    <code style={{ background: '#0e3a4a', color: '#67e8f9', padding: '1px 6px', borderRadius: '3px' }}>systems</code> — מערכות, פורמט: <code style={{ background: '#1e293b', padding: '1px 5px', borderRadius: '3px' }}>שם:סטטוס; שם2:סטטוס2</code> (סטטוס: שמיש/חלקי/לא שמיש)
                   </div>
 
                   <input
@@ -18786,21 +18788,31 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                         }
                         return undefined;
                       };
-                      const colCallsign = findCol(detectedCols, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'אוק', 'פמ', 'formationcallsign', 'formation', 'call');
-                      const colIdx     = findCol(detectedCols, 'idx', 'מספר', 'index', 'מטוס', 'num', 'מסמטוס');
-                      const colDatk    = findCol(detectedCols, 'datk', 'דתק', 'דת', 'דתק');
-                      const colKipa    = findCol(detectedCols, 'kipa', 'כיפה');
+                      const colCallsign  = findCol(detectedCols, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'אוק', 'פמ', 'formationcallsign', 'formation', 'call');
+                      const colIdx       = findCol(detectedCols, 'idx', 'מספר', 'index', 'מטוס', 'num', 'מסמטוס');
+                      const colDatk      = findCol(detectedCols, 'datk', 'דתק', 'דת');
+                      const colKipa      = findCol(detectedCols, 'kipa', 'כיפה');
+                      const colArmaments = findCol(detectedCols, 'armaments', 'חימושים', 'תצורה', 'weapons', 'armament');
+                      const colSystems   = findCol(detectedCols, 'systems', 'מערכות', 'system');
                       const getF = (row: Record<string, any>, col: string | undefined) =>
                         col ? String(row[col] ?? '').trim() : '';
+                      const parseArm = (val: string) => val ? val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
+                        const p = s.split(':'); return { name: p[0].trim(), quantity: parseInt(p[1]) || 1 };
+                      }) : [];
+                      const parseSys = (val: string) => val ? val.split(';').map(s => s.trim()).filter(Boolean).map(s => {
+                        const p = s.split(':'); return { name: p[0].trim(), status: p[1]?.trim() || 'שמיש' };
+                      }) : [];
                       const mapped = rows
                         .map(row => ({
                           formation_callsign: getF(row, colCallsign),
                           idx: getF(row, colIdx),
                           datk: getF(row, colDatk),
                           kipa: getF(row, colKipa),
+                          armaments: parseArm(getF(row, colArmaments)),
+                          systems: parseSys(getF(row, colSystems)),
                         }))
                         .filter(r => r.formation_callsign && r.idx);
-                      setAcDiag({ cols: detectedCols, colCallsign, colIdx, colDatk, colKipa, rowCount: rows.length, mapped });
+                      setAcDiag({ cols: detectedCols, colCallsign, colIdx, colDatk, colKipa, colArmaments, colSystems, rowCount: rows.length, mapped });
                       e.target.value = '';
                     }}
                   />
@@ -18812,12 +18824,12 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     >✈ בחר קובץ CSV / Excel</button>
                     <button
                       onClick={() => {
-                        const headers = ['formation_callsign', 'idx', 'datk', 'kipa'];
-                        const ex1 = ['ALPHA', '1', '101', 'אדום'];
-                        const ex2 = ['ALPHA', '2', '102', 'כחול'];
-                        const ex3 = ['ALPHA', '3', '103', 'ירוק'];
-                        const ex4 = ['BRAVO', '1', '201', ''];
-                        const ex5 = ['BRAVO', '2', '202', 'כחול'];
+                        const headers = ['formation_callsign', 'idx', 'datk', 'kipa', 'armaments', 'systems'];
+                        const ex1 = ['ALPHA', '1', '101', 'אדום', 'AIM120:4; AIM9:2', 'LANTIRN:שמיש; EW:שמיש'];
+                        const ex2 = ['ALPHA', '2', '102', 'כחול', 'AIM120:4; AIM9:2', 'LANTIRN:שמיש'];
+                        const ex3 = ['ALPHA', '3', '103', 'ירוק', 'AIM120:2', 'EW:חלקי'];
+                        const ex4 = ['BRAVO', '1', '201', '', 'GBU12:2', 'FLIR:שמיש'];
+                        const ex5 = ['BRAVO', '2', '202', 'כחול', 'GBU12:2', ''];
                         const wb = XLSX.utils.book_new();
                         const ws = XLSX.utils.aoa_to_sheet([headers, ex1, ex2, ex3, ex4, ex5]);
                         ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 4, 16) }));
@@ -18839,8 +18851,10 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                         <strong style={{ color: '#e2e8f0' }}>מיפוי שזוהה:</strong><br/>
                         <span style={{ color: acDiag.colCallsign ? '#22c55e' : '#f87171' }}>קריאה (חובה): {acDiag.colCallsign ? `"${acDiag.colCallsign}"` : '❌ לא נמצא'}</span><br/>
                         <span style={{ color: acDiag.colIdx ? '#22c55e' : '#f87171' }}>מספר מטוס (חובה): {acDiag.colIdx ? `"${acDiag.colIdx}"` : '❌ לא נמצא'}</span><br/>
-                        <span style={{ color: acDiag.colDatk ? '#22c55e' : '#64748b' }}>דת"ק (אופציונלי): {acDiag.colDatk ? `"${acDiag.colDatk}"` : 'לא נמצא'}</span><br/>
-                        <span style={{ color: acDiag.colKipa ? '#22c55e' : '#64748b' }}>כיפה (אופציונלי): {acDiag.colKipa ? `"${acDiag.colKipa}"` : 'לא נמצא'}</span>
+                        <span style={{ color: acDiag.colDatk ? '#22c55e' : '#64748b' }}>דת"ק: {acDiag.colDatk ? `"${acDiag.colDatk}"` : 'לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colKipa ? '#22c55e' : '#64748b' }}>כיפה: {acDiag.colKipa ? `"${acDiag.colKipa}"` : 'לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colArmaments ? '#22c55e' : '#64748b' }}>חימושים/תצורה: {acDiag.colArmaments ? `"${acDiag.colArmaments}"` : 'לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colSystems ? '#22c55e' : '#64748b' }}>מערכות: {acDiag.colSystems ? `"${acDiag.colSystems}"` : 'לא נמצא'}</span>
                       </div>
                       <div style={{ marginBottom: '12px', color: acDiag.mapped.length > 0 ? '#22c55e' : '#f87171' }}>
                         שורות תקינות שזוהו: <strong>{acDiag.mapped.length}</strong> מתוך {acDiag.rowCount}
@@ -18848,14 +18862,19 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                       {acDiag.mapped.length > 0 && (
                         <div style={{ marginBottom: '12px' }}>
                           <div style={{ color: '#94a3b8', marginBottom: '5px' }}>תצוגה מקדימה (3 ראשונות):</div>
-                          <table style={{ borderCollapse: 'collapse', fontSize: '11px', direction: 'ltr' }}>
+                          <table style={{ borderCollapse: 'collapse', fontSize: '11px', direction: 'ltr', width: '100%' }}>
                             <thead><tr style={{ background: '#334155' }}>
-                              {['formation_callsign','idx','datk','kipa'].map(h => <th key={h} style={{ padding: '3px 8px', color: '#94a3b8', fontWeight: 'normal' }}>{h}</th>)}
+                              {['קריאה','מטוס','דת"ק','כיפה','חימושים','מערכות'].map(h => <th key={h} style={{ padding: '3px 8px', color: '#94a3b8', fontWeight: 'normal', whiteSpace: 'nowrap' }}>{h}</th>)}
                             </tr></thead>
                             <tbody>
                               {acDiag.mapped.slice(0, 3).map((r, i) => (
                                 <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
-                                  {['formation_callsign','idx','datk','kipa'].map(k => <td key={k} style={{ padding: '3px 8px', color: '#e2e8f0' }}>{r[k]}</td>)}
+                                  <td style={{ padding: '3px 8px', color: '#f87171' }}>{r.formation_callsign}</td>
+                                  <td style={{ padding: '3px 8px', color: '#f87171' }}>{r.idx}</td>
+                                  <td style={{ padding: '3px 8px', color: '#e2e8f0' }}>{r.datk}</td>
+                                  <td style={{ padding: '3px 8px', color: '#e2e8f0' }}>{r.kipa}</td>
+                                  <td style={{ padding: '3px 8px', color: '#fcd34d', fontSize: '10px' }}>{r.armaments.map((a: any) => `${a.name}×${a.quantity}`).join(', ') || '—'}</td>
+                                  <td style={{ padding: '3px 8px', color: '#67e8f9', fontSize: '10px' }}>{r.systems.map((s: any) => `${s.name}:${s.status}`).join(', ') || '—'}</td>
                                 </tr>
                               ))}
                             </tbody>

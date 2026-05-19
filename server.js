@@ -2986,6 +2986,29 @@ app.post('/api/strip-aircraft/bulk-import', async (req, res) => {
          ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
         [strip_id, idx, isNaN(datk) ? null : datk, kipa]
       );
+      // get strip_aircraft id for armaments/systems
+      const saRes = await pool.query('SELECT id FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [strip_id, idx]);
+      const sa_id = saRes.rows[0]?.id;
+      if (sa_id) {
+        if (Array.isArray(row.armaments) && row.armaments.length > 0) {
+          await pool.query('DELETE FROM strip_aircraft_armaments WHERE strip_aircraft_id=$1', [sa_id]);
+          for (const arm of row.armaments) {
+            if (arm.name) await pool.query(
+              'INSERT INTO strip_aircraft_armaments (strip_aircraft_id, armament_name, quantity) VALUES ($1,$2,$3)',
+              [sa_id, String(arm.name).trim(), parseInt(arm.quantity) || 1]
+            );
+          }
+        }
+        if (Array.isArray(row.systems) && row.systems.length > 0) {
+          await pool.query('DELETE FROM strip_aircraft_systems WHERE strip_aircraft_id=$1', [sa_id]);
+          for (const sys of row.systems) {
+            if (sys.name) await pool.query(
+              'INSERT INTO strip_aircraft_systems (strip_aircraft_id, system_name, status) VALUES ($1,$2,$3)',
+              [sa_id, String(sys.name).trim(), String(sys.status || 'שמיש').trim()]
+            );
+          }
+        }
+      }
       imported++;
     }
     res.json({ imported, skipped, errors });
