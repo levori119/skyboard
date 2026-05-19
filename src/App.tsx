@@ -16904,6 +16904,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
   const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[]; colMap?: string } | null>(null);
+  const [acDiag, setAcDiag] = useState<{ cols: string[]; colCallsign?: string; colIdx?: string; colDatk?: string; colKipa?: string; rowCount: number; mapped: any[] } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
   const [stripsLoading, setStripsLoading] = useState(false);
   const [stripsSearch, setStripsSearch] = useState('');
@@ -18745,75 +18746,61 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      let rows: Record<string, string>[] = [];
-                      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-                        const buffer = await file.arrayBuffer();
-                        const wb = XLSX.read(buffer, { type: 'array' });
-                        const ws = wb.Sheets[wb.SheetNames[0]];
-                        rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, string>[];
-                      } else {
-                        const text = await file.text();
-                        const lines = text.split('\n').filter(l => l.trim());
-                        if (lines.length < 2) { alert('הקובץ ריק או חסר נתונים'); return; }
-                        const headers = lines[0].split(',').map(h => h.trim());
-                        rows = lines.slice(1).map(line => {
-                          const vals = line.split(',').map(v => v.trim());
-                          const row: Record<string, string> = {};
-                          headers.forEach((h, i) => { row[h] = vals[i] || ''; });
-                          return row;
-                        });
+                      setAcImportResult(null);
+                      setAcDiag(null);
+                      let rows: Record<string, any>[] = [];
+                      try {
+                        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                          const buffer = await file.arrayBuffer();
+                          const wb = XLSX.read(buffer, { type: 'array' });
+                          const ws = wb.Sheets[wb.SheetNames[0]];
+                          rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false }) as Record<string, any>[];
+                        } else {
+                          const text = await file.text();
+                          const sep = text.includes('\t') ? '\t' : ',';
+                          const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+                          if (lines.length < 2) { setAcDiag({ cols: [], rowCount: 0, mapped: [] }); return; }
+                          const headers = lines[0].split(sep).map(h => h.trim().replace(/^\uFEFF/, ''));
+                          rows = lines.slice(1).map(line => {
+                            const vals = line.split(sep).map(v => v.trim());
+                            const row: Record<string, string> = {};
+                            headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+                            return row;
+                          });
+                        }
+                      } catch (err) {
+                        setAcDiag({ cols: [`שגיאה בקריאת הקובץ: ${err}`], rowCount: 0, mapped: [] });
+                        e.target.value = '';
+                        return;
                       }
                       const detectedCols = rows.length > 0 ? Object.keys(rows[0]) : [];
-                      const norm = (k: string) => k.toLowerCase().replace(/[\s_\-"'״׳]+/g, '');
-                      // find column: exact norm match first, then contains match
+                      const norm = (k: string) => String(k).toLowerCase().replace(/[\s_\-"'״׳`]+/g, '');
                       const findCol = (rks: string[], ...keys: string[]): string | undefined => {
                         for (const k of keys) {
-                          const nk = norm(k);
-                          const exact = rks.find(rk => norm(rk) === nk);
+                          const exact = rks.find(rk => norm(rk) === norm(k));
                           if (exact) return exact;
                         }
                         for (const k of keys) {
-                          const nk = norm(k);
-                          const partial = rks.find(rk => norm(rk).includes(nk) || nk.includes(norm(rk)));
+                          const partial = rks.find(rk => norm(rk).includes(norm(k)) || norm(k).includes(norm(rk)));
                           if (partial) return partial;
                         }
                         return undefined;
                       };
-                      const rks = detectedCols;
-                      const colCallsign = findCol(rks, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'אוק', 'פמ', 'formationcallsign', 'formation');
-                      const colIdx     = findCol(rks, 'idx', 'מספר', 'index', 'מטוס', 'מסמטוס', 'num');
-                      const colDatk    = findCol(rks, 'datk', 'דתק', 'דתק', 'דת');
-                      const colKipa    = findCol(rks, 'kipa', 'כיפה');
-                      if (!colCallsign || !colIdx) {
-                        alert(`לא זוהו עמודות חובה.\n\nעמודות שנמצאו בקובץ:\n${detectedCols.join(', ')}\n\nנדרש:\n• עמודת קריאה (callsign / קריאה)\n• עמודת מספר מטוס (idx / מספר)`);
-                        e.target.value = '';
-                        return;
-                      }
-                      const getF = (row: Record<string, string>, col: string | undefined) =>
+                      const colCallsign = findCol(detectedCols, 'formation_callsign', 'callsign', 'callSign', 'קריאה', 'אוק', 'פמ', 'formationcallsign', 'formation', 'call');
+                      const colIdx     = findCol(detectedCols, 'idx', 'מספר', 'index', 'מטוס', 'num', 'מסמטוס');
+                      const colDatk    = findCol(detectedCols, 'datk', 'דתק', 'דת', 'דתק');
+                      const colKipa    = findCol(detectedCols, 'kipa', 'כיפה');
+                      const getF = (row: Record<string, any>, col: string | undefined) =>
                         col ? String(row[col] ?? '').trim() : '';
-                      const mapped = rows.map(row => ({
-                        formation_callsign: getF(row, colCallsign),
-                        idx: getF(row, colIdx),
-                        datk: getF(row, colDatk),
-                        kipa: getF(row, colKipa),
-                      })).filter(r => r.formation_callsign && r.idx);
-                      if (mapped.length === 0) {
-                        alert(`זוהו עמודות אך לא נמצאו שורות עם נתונים.\nעמודות שזוהו: קריאה="${colCallsign}", idx="${colIdx}"`);
-                        e.target.value = '';
-                        return;
-                      }
-                      try {
-                        const colMap = `קריאה→"${colCallsign}" | מספר→"${colIdx}"${colDatk ? ` | דת"ק→"${colDatk}"` : ''}${colKipa ? ` | כיפה→"${colKipa}"` : ''}`;
-                        const res = await fetch(`${API_URL}/strip-aircraft/bulk-import`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ rows: mapped }),
-                        });
-                        const result = await res.json();
-                        setAcImportResult({ ...result, colMap });
-                      } catch (err) {
-                        alert('שגיאה בטעינה: ' + err);
-                      }
+                      const mapped = rows
+                        .map(row => ({
+                          formation_callsign: getF(row, colCallsign),
+                          idx: getF(row, colIdx),
+                          datk: getF(row, colDatk),
+                          kipa: getF(row, colKipa),
+                        }))
+                        .filter(r => r.formation_callsign && r.idx);
+                      setAcDiag({ cols: detectedCols, colCallsign, colIdx, colDatk, colKipa, rowCount: rows.length, mapped });
                       e.target.value = '';
                     }}
                   />
@@ -18841,6 +18828,71 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                     >📥 הורד תבנית Excel</button>
                   </div>
 
+                  {/* Diagnostics panel — shown after file is picked */}
+                  {acDiag && !acImportResult && (
+                    <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px', fontSize: '12px' }}>
+                      <div style={{ marginBottom: '10px', color: '#94a3b8' }}>
+                        <strong style={{ color: '#e2e8f0' }}>עמודות שנמצאו בקובץ ({acDiag.cols.length}):</strong><br/>
+                        <span style={{ fontFamily: 'monospace', color: '#60a5fa' }}>{acDiag.cols.join(' | ') || '—'}</span>
+                      </div>
+                      <div style={{ marginBottom: '10px', lineHeight: 2 }}>
+                        <strong style={{ color: '#e2e8f0' }}>מיפוי שזוהה:</strong><br/>
+                        <span style={{ color: acDiag.colCallsign ? '#22c55e' : '#f87171' }}>קריאה (חובה): {acDiag.colCallsign ? `"${acDiag.colCallsign}"` : '❌ לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colIdx ? '#22c55e' : '#f87171' }}>מספר מטוס (חובה): {acDiag.colIdx ? `"${acDiag.colIdx}"` : '❌ לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colDatk ? '#22c55e' : '#64748b' }}>דת"ק (אופציונלי): {acDiag.colDatk ? `"${acDiag.colDatk}"` : 'לא נמצא'}</span><br/>
+                        <span style={{ color: acDiag.colKipa ? '#22c55e' : '#64748b' }}>כיפה (אופציונלי): {acDiag.colKipa ? `"${acDiag.colKipa}"` : 'לא נמצא'}</span>
+                      </div>
+                      <div style={{ marginBottom: '12px', color: acDiag.mapped.length > 0 ? '#22c55e' : '#f87171' }}>
+                        שורות תקינות שזוהו: <strong>{acDiag.mapped.length}</strong> מתוך {acDiag.rowCount}
+                      </div>
+                      {acDiag.mapped.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ color: '#94a3b8', marginBottom: '5px' }}>תצוגה מקדימה (3 ראשונות):</div>
+                          <table style={{ borderCollapse: 'collapse', fontSize: '11px', direction: 'ltr' }}>
+                            <thead><tr style={{ background: '#334155' }}>
+                              {['formation_callsign','idx','datk','kipa'].map(h => <th key={h} style={{ padding: '3px 8px', color: '#94a3b8', fontWeight: 'normal' }}>{h}</th>)}
+                            </tr></thead>
+                            <tbody>
+                              {acDiag.mapped.slice(0, 3).map((r, i) => (
+                                <tr key={i} style={{ background: i % 2 === 0 ? '#0f172a' : '#162032' }}>
+                                  {['formation_callsign','idx','datk','kipa'].map(k => <td key={k} style={{ padding: '3px 8px', color: '#e2e8f0' }}>{r[k]}</td>)}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      {(!acDiag.colCallsign || !acDiag.colIdx) ? (
+                        <div style={{ color: '#f87171', padding: '8px', background: '#2d0f0f', borderRadius: '5px' }}>
+                          ❌ לא נמצאו עמודות חובה. שנה את שמות העמודות בקובץ ל: <strong>formation_callsign</strong> ו-<strong>idx</strong> (או: קריאה / מספר)
+                        </div>
+                      ) : acDiag.mapped.length === 0 ? (
+                        <div style={{ color: '#f87171', padding: '8px', background: '#2d0f0f', borderRadius: '5px' }}>
+                          ❌ אין שורות עם נתונים בעמודות שזוהו
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${API_URL}/strip-aircraft/bulk-import`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ rows: acDiag.mapped }),
+                              });
+                              const result = await res.json();
+                              const colMap = `קריאה→"${acDiag.colCallsign}" | מספר→"${acDiag.colIdx}"`;
+                              setAcImportResult({ ...result, colMap });
+                              setAcDiag(null);
+                            } catch (err) {
+                              setAcImportResult({ imported: 0, skipped: 0, errors: [`שגיאת רשת: ${err}`] });
+                            }
+                          }}
+                          style={{ padding: '10px 24px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                        >✅ אשר ייבוא {acDiag.mapped.length} מטוסים</button>
+                      )}
+                    </div>
+                  )}
+
                   {acImportResult && (
                     <div style={{ marginTop: '16px', padding: '14px', background: '#1e293b', borderRadius: '8px' }}>
                       {acImportResult.colMap && <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '10px', fontFamily: 'monospace' }}>מיפוי עמודות: {acImportResult.colMap}</div>}
@@ -18850,7 +18902,7 @@ VIPER07,117,1,FL400,STRIKE,23/03/2026,0945,,GBU12:2; GBU31:1,BRIDGE_A:IP_SOUTH,,
                         <div style={{ color: '#f87171', fontSize: '12px' }}>
                           <strong>שגיאות ({acImportResult.errors.length}):</strong>
                           <ul style={{ margin: '4px 0 0 0', paddingRight: '18px' }}>
-                            {acImportResult.errors.slice(0, 10).map((e, i) => <li key={i}>{e}</li>)}
+                            {acImportResult.errors.slice(0, 10).map((err, i) => <li key={i}>{err}</li>)}
                             {acImportResult.errors.length > 10 && <li style={{ color: '#64748b' }}>...ועוד {acImportResult.errors.length - 10}</li>}
                           </ul>
                         </div>
