@@ -4319,7 +4319,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, headerButtons }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, headerButtons, initialDatkShowMinutes, onUpdatePreset }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -4355,6 +4355,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => Promise<void>;
   headerButtons?: React.ReactNode;
+  initialDatkShowMinutes?: number | null;
+  onUpdatePreset?: (fields: Record<string, any>) => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [elemsPinned, setElemsPinned] = useState(true);
@@ -4690,6 +4692,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const getAircraftPositions = (strip: any): AircraftPos[] => normalizeAircraftPositions(strip);
 
+  const [datkShowMinutes, setDatkShowMinutes] = React.useState<number | null>(() => initialDatkShowMinutes ?? null);
+  const [nowMs, setNowMs] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const iv = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(iv);
+  }, []);
+
   // Track actual rendered image bounds (objectFit:contain letterboxing compensation)
   const airfieldImgRef = React.useRef<HTMLImageElement>(null);
   const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -4747,6 +4756,44 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const headerColor = lightMode ? '#374151' : '#94a3b8';
 
   const points: any[] = airfield?.points || [];
+
+  const autoDatkPlacements = React.useMemo((): Record<string, Record<number, number>> => {
+    if (!datkShowMinutes || datkShowMinutes <= 0) return {};
+    const windowMs = datkShowMinutes * 60 * 1000;
+    const result: Record<string, Record<number, number>> = {};
+    strips.forEach((strip: any) => {
+      if (!strip.takeoff_time) return;
+      const takeoffMs = new Date(strip.takeoff_time).getTime();
+      const diff = takeoffMs - nowMs;
+      if (diff < 0 || diff > windowMs) return;
+      const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
+      const existingPositions = normalizeAircraftPositions(strip);
+      acData.forEach((ac: GroundAircraftRow) => {
+        if (ac.datk == null) return;
+        const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
+        if (existing?.point_id) return;
+        const matchPt = points.find((p: any) => {
+          const n = parseInt(p.name);
+          return !isNaN(n) && n === ac.datk;
+        });
+        if (!matchPt) return;
+        if (!result[String(strip.id)]) result[String(strip.id)] = {};
+        result[String(strip.id)][ac.idx] = matchPt.id;
+      });
+    });
+    return result;
+  }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
+
+  const getEffectivePositions = (strip: any): (AircraftPos & { isAuto?: boolean })[] => {
+    const base = normalizeAircraftPositions(strip);
+    const autoForStrip = autoDatkPlacements[String(strip.id)] || {};
+    if (Object.keys(autoForStrip).length === 0) return base;
+    return base.map((ac: AircraftPos) =>
+      (ac.point_id == null && autoForStrip[ac.idx] != null)
+        ? { ...ac, point_id: autoForStrip[ac.idx], isAuto: true }
+        : ac
+    );
+  };
   const parseAirfieldSids = (raw: any): { label: string; sector_id: number | null }[] => {
     const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
     return arr.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
@@ -5350,6 +5397,29 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
         {/* datk filter bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
+          {/* Auto-show control */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px', paddingLeft: '8px', borderLeft: `1px solid ${border}` }}>
+            <span style={{ fontSize: '11px', color: datkShowMinutes ? '#34d399' : headerColor, fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>⏰ הצג ליד דת"ק:</span>
+            <input
+              type="number"
+              min={0}
+              max={999}
+              value={datkShowMinutes ?? ''}
+              placeholder="דק'"
+              onChange={e => {
+                const v = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                setDatkShowMinutes(v);
+                if (onUpdatePreset) onUpdatePreset({ datk_show_minutes: v });
+              }}
+              title={'כמה דקות לפני המראה להציג מטוס ליד הדת"ק שלו'}
+              style={{ width: '52px', padding: '2px 5px', borderRadius: '6px', border: `1px solid ${datkShowMinutes ? '#34d399' : border}`, background: datkShowMinutes ? '#052e16' : (lightMode ? '#f8fafc' : '#1e293b'), color: datkShowMinutes ? '#34d399' : headerColor, fontSize: '11px', textAlign: 'center' }}
+            />
+            <span style={{ fontSize: '10px', color: headerColor, flexShrink: 0 }}>דק'</span>
+            {datkShowMinutes != null && datkShowMinutes > 0 && (
+              <button onClick={() => { setDatkShowMinutes(null); if (onUpdatePreset) onUpdatePreset({ datk_show_minutes: null }); }}
+                style={{ padding: '1px 5px', borderRadius: '4px', border: '1px solid #6b7280', background: 'transparent', color: '#9ca3af', fontSize: '10px', cursor: 'pointer' }}>✕</button>
+            )}
+          </div>
           <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>סינון דת"ק:</span>
           {([null, 1, 2, 3, 4, 5, 6, 7, 8, 9] as (number | null)[]).map(val => {
             const active = datkFilter === val;
@@ -5726,11 +5796,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               Across strips, chips at the same point are stacked vertically so existing chips
               remain visible when a new aircraft is dropped on the same point. */}
           {(() => {
+            // Sort strips by takeoff_time ascending for stacking order (earliest takeoff = nearest slot to point)
+            const sortedStrips = [...strips].sort((a: any, b: any) => {
+              const tA = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
+              const tB = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
+              return tA !== tB ? tA - tB : (Number(a.id) - Number(b.id));
+            });
             // Pre-compute a global slot index for every chip at every point so chips from
             // *different* strips also stack instead of overlapping each other.
             const ptSlots: Record<number, string[]> = {};
-            strips.forEach(strip => {
-              const aircraft = getAircraftPositions(strip);
+            sortedStrips.forEach((strip: any) => {
+              const aircraft = getEffectivePositions(strip);
               const placed = aircraft.filter(ac => ac.point_id);
               if (placed.length === 0) return;
               const byPoint: Record<number, AircraftPos[]> = {};
@@ -5753,8 +5829,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               return i < 0 ? 0 : i;
             };
             const SLOT_GAP = 34; // px between stacked chips (~22px single-line, ~34px when sub-label present + 2px gap)
-            return strips.map(strip => {
-            const aircraft = getAircraftPositions(strip);
+            return sortedStrips.map((strip: any) => {
+            const aircraft = getEffectivePositions(strip);
             const placed = aircraft.filter(ac => ac.point_id);
             if (placed.length === 0) return null;
             const byPoint: Record<number, AircraftPos[]> = {};
@@ -5767,6 +5843,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               const pt = points.find(p => p.id === pid);
               if (!pt) return null;
               const allSameStatus = acsAtPoint.every(a => a.status === acsAtPoint[0].status);
+              const anyIsAutoMerged = acsAtPoint.some(a => (a as any).isAuto);
               // Only merge when there's actually >1 aircraft to merge — single-ship strips
               // should keep the per-aircraft visual ("#1") for consistency with their card.
               const merged = aircraft.length > 1 && acsAtPoint.length === aircraft.length && allSameStatus;
@@ -5796,7 +5873,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      title={anyIsAutoMerged ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
+                      style={{ background: st.bg, border: anyIsAutoMerged ? `2.5px dashed #34d399` : `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : anyIsAutoMerged ? '0 0 8px 2px #34d39944, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
                         <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
@@ -5863,7 +5941,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
-                      style={{ background: st.bg, border: `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      title={(ac as any).isAuto ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
+                      style={{ background: st.bg, border: (ac as any).isAuto ? `2px dashed #34d399` : `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : (ac as any).isAuto ? '0 0 8px 2px #34d39944, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
                         <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
@@ -12169,6 +12248,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 initialDatkFilter={session?.crewMember?.ground_datk_filter ?? null}
                 initialStatusFilter={session?.crewMember?.ground_status_filter ?? null}
                 initialFilterMode={session?.crewMember?.ground_filter_mode ?? null}
+                initialDatkShowMinutes={myPresetConfig?.datk_show_minutes ?? null}
+                onUpdatePreset={async (fields) => {
+                  if (!session?.presetId) return;
+                  try {
+                    const preset = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId));
+                    if (!preset) return;
+                    await fetch(`${API_URL}/workstation-presets/${session.presetId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ...preset, ...fields, relevant_sectors: preset.relevant_sectors || [], block_table_ids: preset.block_table_ids || [] })
+                    });
+                    setWorkstationPresets((prev: any[]) => prev.map((p: any) => Number(p.id) === Number(session.presetId) ? { ...p, ...fields } : p));
+                  } catch (e) { console.error(e); }
+                }}
                 vectorData={(() => { const vd = activeAirfield?.vector_data; return vd ? (typeof vd === 'string' ? JSON.parse(vd) : vd) : null; })()}
                 airfieldElements={airfieldElements}
                 elementTypes={airfieldElementTypes}
@@ -16912,6 +17005,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     preset_role: '' as string,
     parent_base_id: '' as string | number,
     can_update_pressure: false as boolean,
+    datk_show_minutes: '' as string | number,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -17229,6 +17323,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           preset_role: presetForm.preset_role || null,
           parent_base_id: presetForm.parent_base_id || null,
           can_update_pressure: presetForm.can_update_pressure === true,
+          datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
         })
       });
       if (!res.ok) {
@@ -17242,7 +17337,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' });
       } else if (saved) {
         editPreset(saved);
       }
@@ -17285,6 +17380,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       preset_role: preset.preset_role || '',
       parent_base_id: preset.parent_base_id?.toString() || '',
       can_update_pressure: preset.can_update_pressure === true,
+      datk_show_minutes: preset.datk_show_minutes ?? '',
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -17387,7 +17483,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], parent_base_id: '', can_update_pressure: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -17397,7 +17493,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -17440,6 +17536,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
+                    <div style={{ marginTop: '12px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <label style={{ display: 'block', marginBottom: '6px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>⏰ הצגת מטוס ליד דת"ק לפני המראה:</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="number"
+                          min={0}
+                          max={999}
+                          value={presetForm.datk_show_minutes}
+                          placeholder="ריק = כבוי"
+                          onChange={e => setPresetForm(p => ({ ...p, datk_show_minutes: e.target.value }))}
+                          style={{ width: '90px', padding: '7px 10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '14px', textAlign: 'center' }}
+                        />
+                        <span style={{ color: '#94a3b8', fontSize: '13px' }}>דקות לפני המראה</span>
+                      </div>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.5' }}>
+                        מטוס עם דת"ק שמספרו תואם שם נקודה בשדה יוצג אוטומטית ליד הנקודה כשמספר הדקות לפני המראה ≤ ערך זה.<br/>
+                        ניתן לשנות ערך זה גם ישירות מעמדת המגרש.
+                      </p>
+                    </div>
                   </div>
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
@@ -17958,7 +18073,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
