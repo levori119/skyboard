@@ -2782,8 +2782,8 @@ app.post('/api/airfields/:id/points', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
     const result = await pool.query(
-      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3]
+      'INSERT INTO airfield_points (airfield_id, name, x_pct, y_pct, display_order, color, marker, density_warn, point_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+      [req.params.id, name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -2796,8 +2796,8 @@ app.put('/api/airfield-points/:id', async (req, res) => {
   try {
     const { name, x_pct, y_pct, display_order } = req.body;
     const result = await pool.query(
-      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7 WHERE id=$8 RETURNING *',
-      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.params.id]
+      'UPDATE airfield_points SET name=$1, x_pct=$2, y_pct=$3, display_order=$4, color=$5, marker=$6, density_warn=$7, point_type=$8 WHERE id=$9 RETURNING *',
+      [name, x_pct ?? 50, y_pct ?? 50, display_order ?? 0, req.body.color || '#3b82f6', req.body.marker || 'circle', req.body.density_warn ?? 3, req.body.point_type || null, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {

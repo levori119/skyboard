@@ -17084,9 +17084,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
-  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3 });
+  const [airfieldPointForm, setAirfieldPointForm] = useState({ name: '', color: '#3b82f6', marker: 'circle', density_warn: 3, point_type: '' });
   const [placingPointMode, setPlacingPointMode] = useState(false);
-  const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number } | null>(null);
+  const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number; point_type: string } | null>(null);
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setAdminMapImgBounds(null); return; }
@@ -20148,7 +20148,7 @@ CHARLIE,1,301,`}
           };
           const addPointAt = async (x_pct: number, y_pct: number) => {
             if (!selectedAdminAirfieldId || !airfieldPointForm.name.trim()) return;
-            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn }) });
+            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn, point_type: airfieldPointForm.point_type || null }) });
             if (res.ok) { setAirfieldPointForm(p => ({ ...p, name: '' })); setPlacingPointMode(false); loadAirfieldPoints(selectedAdminAirfieldId); }
           };
           const deletePoint = async (pointId: number) => {
@@ -20163,6 +20163,7 @@ CHARLIE,1,301,`}
               name: editingPoint.name,
               x_pct: existing.x_pct,
               y_pct: existing.y_pct,
+              point_type: editingPoint.point_type || null,
               display_order: existing.display_order ?? 0,
               color: editingPoint.color,
               marker: editingPoint.marker,
@@ -20422,6 +20423,15 @@ CHARLIE,1,301,`}
                           <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px' }}>נקודה חדשה:</div>
                           <input value={airfieldPointForm.name} onChange={e => setAirfieldPointForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הנקודה"
                             style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }} />
+                          <select value={airfieldPointForm.point_type} onChange={e => setAirfieldPointForm(p => ({ ...p, point_type: e.target.value }))}
+                            style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: airfieldPointForm.point_type ? 'white' : '#64748b', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}>
+                            <option value=''>קטגוריה (אופציונלי)</option>
+                            <option value='alignment'>נקודת התיישורת</option>
+                            <option value='katsam'>קצ"מ</option>
+                            <option value='datk'>דת"ק</option>
+                            <option value='waiting'>המתנה</option>
+                            <option value='general'>כללי</option>
+                          </select>
                           <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
                             <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ התראת עומס (מטוסים):</label>
                             <input type="number" min={1} max={20} value={airfieldPointForm.density_warn}
@@ -20469,9 +20479,10 @@ CHARLIE,1,301,`}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', background: '#0f172a' }}>
                                     <GroundMarkerSVG marker={pt.marker || 'circle'} color={pt.color || '#3b82f6'} size={12} />
                                     <span style={{ color: '#e2e8f0', fontSize: '11px', flex: 1 }}>{pt.name}</span>
+                                    {pt.point_type && <span style={{ fontSize: '9px', color: '#a5b4fc', background: '#1e1b4b', border: '1px solid #4338ca', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>{{ alignment: 'התיישורת', katsam: 'קצ"מ', datk: 'דת"ק', waiting: 'המתנה', general: 'כללי' }[pt.point_type as string] ?? pt.point_type}</span>}
                                     <span title="סף התראת עומס" style={{ fontSize: '9px', color: '#f59e0b', background: '#1c1400', border: '1px solid #78350f', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', flexShrink: 0 }}>⚠️ {pt.density_warn ?? 3}</span>
                                     <button
-                                      onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3 })}
+                                      onClick={() => setEditingPoint(isEditing ? null : { id: pt.id, name: pt.name, color: pt.color || '#3b82f6', marker: pt.marker || 'circle', density_warn: pt.density_warn ?? 3, point_type: pt.point_type || '' })}
                                       style={{ padding: '1px 6px', background: isEditing ? '#1e3a5f' : '#1e293b', color: isEditing ? '#93c5fd' : '#94a3b8', border: `1px solid ${isEditing ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>
                                       {isEditing ? '▲' : '✏️'}
                                     </button>
@@ -20486,6 +20497,15 @@ CHARLIE,1,301,`}
                                         placeholder="שם הנקודה"
                                         style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
                                       />
+                                      <select value={editingPoint.point_type} onChange={e => setEditingPoint(p => p ? { ...p, point_type: e.target.value } : p)}
+                                        style={{ width: '100%', padding: '4px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: editingPoint.point_type ? 'white' : '#64748b', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}>
+                                        <option value=''>קטגוריה (אופציונלי)</option>
+                                        <option value='alignment'>נקודת התיישורת</option>
+                                        <option value='katsam'>קצ"מ</option>
+                                        <option value='datk'>דת"ק</option>
+                                        <option value='waiting'>המתנה</option>
+                                        <option value='general'>כללי</option>
+                                      </select>
                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                         <label style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>⚠️ עומס:</label>
                                         <input type="number" min={1} max={20} value={editingPoint.density_warn}
