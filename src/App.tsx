@@ -13390,6 +13390,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {isPendingTransfer && (
                               <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>ממתין ⏳</span>
                             )}
+                            {(() => {
+                              const rowCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                              const rowSiblings = getSectorSiblings(s);
+                              if (rowCount <= 1 && rowSiblings.length === 0) return null;
+                              return (
+                                <div style={{ display: 'flex', gap: '2px', flexDirection: 'column' }} onPointerDown={e => e.stopPropagation()}>
+                                  {rowCount > 1 && (
+                                    <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                                      title="פצל פ״מ" style={{ fontSize: '9px', padding: '1px 3px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✂</button>
+                                  )}
+                                  {rowSiblings.length > 0 && (
+                                    <button onClick={e => { e.stopPropagation(); if (rowSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(rowSiblings[0].id), sourceId: String(s.id), targetName: rowSiblings[0].callSign || String(rowSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: rowSiblings }); } }}
+                                      title="אחד פ״מ" style={{ fontSize: '9px', padding: '1px 3px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </td>
                         {columns.map((col, colIdx) => {
@@ -13752,24 +13769,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               />
             ))}
             
-            {/* Partial Formation Merge Overlay (T006) — merge button for map-mode sibling partial strips */}
+            {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {(() => {
-              const mapPartials = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && s.parent_strip_id && Array.isArray(s.aircraft_indices) && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
-              if (mapPartials.length < 2) return null;
-              return mapPartials.map(s => {
-                const siblings = mapPartials.filter(t => String(t.parent_strip_id) === String(s.parent_strip_id) && String(t.id) !== String(s.id));
-                if (siblings.length === 0) return null;
+              const onMapStrips = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
+              return onMapStrips.map(s => {
+                const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+                const mapSiblings = getSectorSiblings(s).filter((sib: any) => sib.onMap);
+                if (mapCount <= 1 && mapSiblings.length === 0) return null;
                 const px = (s.x || 0) * mapZoom + mapPan.x;
                 const py = (s.y || 0) * mapZoom + mapPan.y;
                 return (
-                  <div key={`merge-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 24, zIndex: 500, pointerEvents: 'all' }}>
-                    <button
-                      title={`מזג עם פמ"מ חלקי אח (${getFormationDisplayName(siblings[0])})`}
-                      onClick={() => handleMergePartial(String(siblings[0].id), String(s.id))}
-                      style={{ background: '#1d4ed8', border: '1px solid #3b82f6', color: 'white', borderRadius: '5px', padding: '2px 6px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
-                    >
-                      ⊕מזג
-                    </button>
+                  <div key={`fma-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 26, zIndex: 500, pointerEvents: 'all', display: 'flex', gap: '3px' }}>
+                    {mapCount > 1 && (
+                      <button
+                        title="פצל פ״מ"
+                        onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
+                        style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >✂פצל</button>
+                    )}
+                    {mapSiblings.length > 0 && (
+                      <button
+                        title="אחד פ״מ"
+                        onClick={() => { if (mapSiblings.length === 1) { setSectorMergeConfirm({ targetId: String(mapSiblings[0].id), sourceId: String(s.id), targetName: mapSiblings[0].callSign || String(mapSiblings[0].id), sourceName: s.callSign || String(s.id) }); } else { setSectorMergeModal({ strip: s, siblings: mapSiblings }); } }}
+                        style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '5px', padding: '2px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+                      >⊕אחד</button>
+                    )}
                   </div>
                 );
               });
