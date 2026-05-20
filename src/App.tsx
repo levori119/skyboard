@@ -4530,7 +4530,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
   const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
-  const [expandedStrips, setExpandedStrips] = React.useState<Set<string>>(new Set());
   const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
   const [defaultSystemNames, setDefaultSystemNames] = React.useState<string[]>([]);
   const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
