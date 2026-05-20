@@ -4918,11 +4918,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
-                      <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{callSign}</span>
+                      <span style={{ fontWeight: 'bold', fontSize: '13px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#1e293b' : '#e2e8f0'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getFormationDisplayName(strip)}</span>
                       <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {count > 0 ? `- ${count}` : ''}{sq ? ` / ${sq}` : ''}
+                        {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
-                      {strip.aircraft_indices && <span style={{ fontSize: '9px', background: '#92400e', color: '#fcd34d', borderRadius: '4px', padding: '0 4px', fontWeight: 'bold', flexShrink: 0 }}>חלקי</span>}
                       {/* שקדיה indicator */}
                       {formationSummary[sid]?.hasShakadia && (
                         <span title="שקדיה שמישה בתצורה" style={{ flexShrink: 0, fontSize: '12px', lineHeight: 1 }}>🌰</span>
@@ -4936,23 +4935,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             🚀 {arm.name} ×{arm.totalQty}
                           </span>
                         ))}
-                      </div>
-                    )}
-                    {/* Per-aircraft datk/kipa badges shown in collapsed view */}
-                    {aircraft.some(ac => { const r = getAcRow(ac.idx); return r.datk != null || !!r.kipa; }) && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', paddingLeft: '18px' }}>
-                        {aircraft.map(ac => {
-                          const r = getAcRow(ac.idx);
-                          if (r.datk == null && !r.kipa) return null;
-                          const parts: string[] = [];
-                          if (r.datk != null) parts.push(`דת"ק ${r.datk}`);
-                          if (r.kipa) parts.push(r.kipa);
-                          return (
-                            <span key={ac.idx} style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '9px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                              #{ac.idx} {parts.join(' · ')}
-                            </span>
-                          );
-                        })}
                       </div>
                     )}
                     {/* Taxi instructions badge */}
