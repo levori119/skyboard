@@ -5971,7 +5971,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       title={(ac as any).isAuto ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
                       style={{ background: st.bg, border: (ac as any).isAuto ? `2px dashed #34d399` : `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : (ac as any).isAuto ? '0 0 8px 2px #34d39944, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{getFormationDisplayName(strip)}{ac.idx}</span>
+                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                        <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
                       {(() => {
