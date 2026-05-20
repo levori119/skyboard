@@ -4723,7 +4723,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [datkShowMinutes, setDatkShowMinutes] = React.useState<number | null>(() => initialDatkShowMinutes ?? null);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   React.useEffect(() => {
-    const iv = setInterval(() => setNowMs(Date.now()), 30000);
+    const iv = setInterval(() => setNowMs(Date.now()), 10000);
     return () => clearInterval(iv);
   }, []);
 
@@ -4793,7 +4793,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       if (!strip.takeoff_time) return;
       const takeoffMs = new Date(strip.takeoff_time).getTime();
       const diff = takeoffMs - nowMs;
-      if (diff < 0 || diff > windowMs) return;
+      if (diff < -(5 * 60 * 1000) || diff > windowMs) return;
       const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
       const existingPositions = normalizeAircraftPositions(strip);
       acData.forEach((ac: GroundAircraftRow) => {
@@ -4946,7 +4946,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
                       <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
-                      <span style={{ fontWeight: 'bold', fontSize: '15px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
+                      <button
+                        title={expandedStrips.has(sid) ? 'כווץ מטוסים' : 'פתח מטוסים'}
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); setExpandedStrips(prev => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; }); }}
+                        style={{ padding: '0 2px', background: 'transparent', border: 'none', cursor: 'pointer', color: expandedStrips.has(sid) ? '#38bdf8' : headerColor, fontSize: '10px', flexShrink: 0, lineHeight: 1 }}>
+                        {expandedStrips.has(sid) ? '▼' : '▶'}
+                      </button>
+                      <span style={{ fontWeight: 'bold', fontSize: '12px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
                       <span style={{ fontSize: '12px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
@@ -5022,13 +5029,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </div>
                     );
                   })()}
-                  {/* expand/collapse aircraft rows toggle */}
-                  <button
-                    title={expandedStrips.has(sid) ? 'כווץ מטוסים' : 'פתח מטוסים'}
-                    onClick={e => { e.stopPropagation(); setExpandedStrips(prev => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; }); }}
-                    style={{ padding: '6px 5px', background: 'transparent', border: 'none', cursor: 'pointer', color: expandedStrips.has(sid) ? '#38bdf8' : headerColor, fontSize: '11px', flexShrink: 0, lineHeight: 1 }}>
-                    {expandedStrips.has(sid) ? '▼' : '▶'}
-                  </button>
                   {/* פ"מ אב panel toggle */}
                   <button title='פ"מ אב — פרטי תצורה' onClick={e => { e.stopPropagation(); setFormationPanelStripId(prev => prev === sid ? null : sid); }}
                     style={{ padding: '6px 6px', background: 'transparent', border: 'none', cursor: 'pointer', color: formationPanelStripId === sid ? '#f59e0b' : headerColor, fontSize: '12px', flexShrink: 0 }}>
@@ -5903,7 +5903,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       title={anyIsAutoMerged ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
                       style={{ background: st.bg, border: anyIsAutoMerged ? `2.5px dashed #34d399` : `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : anyIsAutoMerged ? '0 0 8px 2px #34d39944, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
+                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{getFormationDisplayName(strip)}</span>
                         <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
@@ -5971,8 +5971,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       title={(ac as any).isAuto ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
                       style={{ background: st.bg, border: (ac as any).isAuto ? `2px dashed #34d399` : `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : (ac as any).isAuto ? '0 0 8px 2px #34d39944, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
-                        <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
+                        <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{getFormationDisplayName(strip)}{ac.idx}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
                       {(() => {
