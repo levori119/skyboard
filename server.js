@@ -1105,7 +1105,6 @@ app.post('/api/strip-aircraft/ensure-all', async (req, res) => {
     const strips = await pool.query(
       `SELECT id, number_of_formation FROM strips WHERE number_of_formation IS NOT NULL AND number_of_formation != ''`
     );
-    const kipot = ['אדום', 'כחול', 'ירוק', 'צהוב', 'כתום', 'סגול', 'לבן', 'שחור'];
     let totalAircraft = 0;
     for (const strip of strips.rows) {
       const n = Math.max(1, Math.min(parseInt(strip.number_of_formation) || 0, 16));
@@ -1113,7 +1112,7 @@ app.post('/api/strip-aircraft/ensure-all', async (req, res) => {
       for (let i = 1; i <= n; i++) {
         if (randomize) {
           const datk = Math.floor(Math.random() * 4) + 1;
-          const kipa = kipot[Math.floor(Math.random() * kipot.length)];
+          const kipa = String(Math.floor(Math.random() * 8) + 1);
           await pool.query(
             `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
              ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
@@ -3004,11 +3003,10 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
     const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
     const { count, randomize } = req.body;
     const n = Math.max(1, Math.min(parseInt(count) || 1, 16));
-    const kipot = ['אדום', 'כחול', 'ירוק', 'צהוב', 'כתום', 'סגול', 'לבן', 'שחור'];
     for (let i = 1; i <= n; i++) {
       if (randomize) {
         const datk = Math.floor(Math.random() * 4) + 1;
-        const kipa = kipot[Math.floor(Math.random() * kipot.length)];
+        const kipa = String(Math.floor(Math.random() * 8) + 1);
         await pool.query(
           `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
            ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,

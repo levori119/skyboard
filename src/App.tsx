@@ -4530,6 +4530,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [openAcPanel, setOpenAcPanel] = React.useState<{ stripId: string; idx: number; type: 'armaments' | 'systems' } | null>(null);
   const [formationSummary, setFormationSummary] = React.useState<Record<string, { hasShakadia: boolean; armaments: { name: string; totalQty: number; aircraftNums: number[] }[] }>>({});
   const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
+  const [expandedStrips, setExpandedStrips] = React.useState<Set<string>>(new Set());
   const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
   const [defaultSystemNames, setDefaultSystemNames] = React.useState<string[]>([]);
   const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
@@ -5004,14 +5005,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       >⊕ אחד</button>
                     );
                   })()}
+                  {/* expand/collapse aircraft rows toggle */}
+                  <button
+                    title={expandedStrips.has(sid) ? 'כווץ מטוסים' : 'פתח מטוסים'}
+                    onClick={e => { e.stopPropagation(); setExpandedStrips(prev => { const n = new Set(prev); n.has(sid) ? n.delete(sid) : n.add(sid); return n; }); }}
+                    style={{ padding: '6px 5px', background: 'transparent', border: 'none', cursor: 'pointer', color: expandedStrips.has(sid) ? '#38bdf8' : headerColor, fontSize: '11px', flexShrink: 0, lineHeight: 1 }}>
+                    {expandedStrips.has(sid) ? '▼' : '▶'}
+                  </button>
                   {/* פ"מ אב panel toggle */}
                   <button title='פ"מ אב — פרטי תצורה' onClick={e => { e.stopPropagation(); setFormationPanelStripId(prev => prev === sid ? null : sid); }}
                     style={{ padding: '6px 6px', background: 'transparent', border: 'none', cursor: 'pointer', color: formationPanelStripId === sid ? '#f59e0b' : headerColor, fontSize: '12px', flexShrink: 0 }}>
                     📋</button>
                 </div>
 
-                {/* Expanded aircraft rows — hidden per user request (show formations only, no per-aircraft rows) */}
-                {false && (
+                {/* Expanded aircraft rows — shown when strip is expanded via triangle toggle */}
+                {expandedStrips.has(sid) && (
                   <div>
                     {/* Formation header row */}
                     <div style={{ padding: '4px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, direction: 'rtl' }}>
