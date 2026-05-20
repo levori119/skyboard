@@ -4379,6 +4379,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [datkFilter, setDatkFilter] = useState<number | null>(() => {
     if (initialDatkFilter !== undefined && initialDatkFilter !== null) return initialDatkFilter;
     try {
@@ -4980,37 +4981,45 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       );
                     })()}
                   </div>
-                  {/* Split button — visible when count > 1 */}
+                  {/* Actions dropdown (פצל + אחד) — single ⋮ button to save space */}
                   {(() => {
-                    if (!onSplitPartial) return null;
-                    const canSplit = count > 1;
-                    if (!canSplit) return null;
+                    const canSplit = count > 1 && !!onSplitPartial;
+                    const siblings = onMergePartial ? getFormationSiblings(strip) : [];
+                    const canMerge = siblings.length > 0;
+                    if (!canSplit && !canMerge) return null;
+                    const isOpen = openActionMenu === sid;
                     return (
-                      <button
-                        title="פצל פ״מ — בחר מטוסים לסטריפ חדש"
-                        onClick={e => { e.stopPropagation(); setGroundSplitSelected([]); setGroundSplitModal({ strip }); }}
-                        style={{ padding: '4px 7px', background: '#7c3aed', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
-                      >✂ פצל</button>
-                    );
-                  })()}
-                  {/* Merge button — visible when siblings exist */}
-                  {(() => {
-                    if (!onMergePartial) return null;
-                    const siblings = getFormationSiblings(strip);
-                    if (siblings.length === 0) return null;
-                    return (
-                      <button
-                        title="אחד עם פ״מ בעל אותו או״ק מקורי"
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (siblings.length === 1) {
-                            setGroundMergeConfirm({ targetId: String(siblings[0].id), sourceId: sid, targetName: getFormationDisplayName(siblings[0]), sourceName: getFormationDisplayName(strip) });
-                          } else {
-                            setGroundMergeModal({ strip, siblings });
-                          }
-                        }}
-                        style={{ padding: '4px 7px', background: '#1d4ed8', border: 'none', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, marginLeft: '2px' }}
-                      >⊕ אחד</button>
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <button
+                          title="פעולות פ״מ (פצל / אחד)"
+                          onClick={e => { e.stopPropagation(); setOpenActionMenu(prev => prev === sid ? null : sid); }}
+                          style={{ padding: '4px 7px', background: isOpen ? (lightMode ? '#e2e8f0' : '#374151') : 'transparent', border: `1px solid ${isOpen ? '#6b7280' : 'transparent'}`, color: isOpen ? (lightMode ? '#0f172a' : '#e2e8f0') : headerColor, cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
+                        >⋮</button>
+                        {isOpen && (<>
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={e => { e.stopPropagation(); setOpenActionMenu(null); }} />
+                          <div style={{ position: 'absolute', top: '100%', left: 0, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', zIndex: 999, minWidth: '110px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', overflow: 'hidden', direction: 'rtl' }}>
+                            {canSplit && (
+                              <button
+                                onClick={e => { e.stopPropagation(); setOpenActionMenu(null); setGroundSplitSelected([]); setGroundSplitModal({ strip }); }}
+                                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'transparent', border: 'none', borderBottom: canMerge ? `1px solid ${border}` : 'none', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}
+                              >✂ פצל פ"מ</button>
+                            )}
+                            {canMerge && (
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation(); setOpenActionMenu(null);
+                                  if (siblings.length === 1) {
+                                    setGroundMergeConfirm({ targetId: String(siblings[0].id), sourceId: sid, targetName: getFormationDisplayName(siblings[0]), sourceName: getFormationDisplayName(strip) });
+                                  } else {
+                                    setGroundMergeModal({ strip, siblings });
+                                  }
+                                }}
+                                style={{ display: 'block', width: '100%', padding: '9px 12px', background: 'transparent', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', textAlign: 'right' }}
+                              >⊕ אחד פ"מ</button>
+                            )}
+                          </div>
+                        </>)}
+                      </div>
                     );
                   })()}
                   {/* expand/collapse aircraft rows toggle */}
@@ -5032,8 +5041,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     {/* Formation header row */}
                     <div style={{ padding: '4px 10px', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${border}`, fontSize: '11px', color: headerColor, direction: 'rtl' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{callSign} {count}</span>
+                        <span style={{ fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>{getFormationDisplayName(strip)} {count}</span>
                         {sq && <span>- {sq}</span>}
+                        {strip.takeoff_time && (() => {
+                          const d = new Date(strip.takeoff_time);
+                          const hh = String(d.getUTCHours()).padStart(2, '0');
+                          const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                          const past = d.getTime() < Date.now();
+                          return <span style={{ fontSize: '11px', color: past ? '#f87171' : '#facc15', fontWeight: 700, letterSpacing: '0.5px' }}>🕐 {hh}:{mm}</span>;
+                        })()}
                         {(stripFormationMeta[sid]?.parentCallsign !== undefined ? stripFormationMeta[sid].parentCallsign : (strip.parent_callsign || '')) && (
                           <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 600 }}>← {stripFormationMeta[sid]?.parentCallsign ?? strip.parent_callsign}</span>
                         )}
