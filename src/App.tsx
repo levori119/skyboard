@@ -4292,8 +4292,12 @@ type AircraftPos = {
 const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
   const count = Math.max(1, parseInt(strip.numberOfFormation ?? strip.number_of_formation) || 1);
   const existing: AircraftPos[] = Array.isArray(strip.aircraft_positions) ? strip.aircraft_positions : [];
-  return Array.from({ length: count }, (_, i) => {
-    const idx = i + 1;
+  // Use aircraft_indices when present (split formations) so idx values match the original numbering
+  const indices: number[] | null = Array.isArray(strip.aircraft_indices) && strip.aircraft_indices.length > 0
+    ? [...strip.aircraft_indices].sort((a, b) => a - b)
+    : null;
+  const indexList = indices ?? Array.from({ length: count }, (_, i) => i + 1);
+  return indexList.map(idx => {
     const ex = existing.find(a => a.idx === idx);
     return ex || { idx, point_id: null, status: 'none' };
   });
