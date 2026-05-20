@@ -10411,6 +10411,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     if (aircraftIdx === undefined) {
       return handleTransfer(stripId, toSectorId);
     }
+    // If the strip is already a single-aircraft strip (split formation), just transfer it whole
+    const srcStrip = strips.find((s: any) => String(s.id) === String(stripId));
+    const srcCount = parseInt(srcStrip?.numberOfFormation ?? srcStrip?.number_of_formation ?? '2') || 2;
+    if (srcCount <= 1) {
+      return handleTransfer(stripId, toSectorId);
+    }
     try {
       const sid = parseInt(String(stripId).replace(/^s/, ''));
       const aidx = parseInt(String(aircraftIdx));
