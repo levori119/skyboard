@@ -18420,6 +18420,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                 </td>
                                 <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
                                   <button
+                                    onClick={async () => {
+                                      const n = parseInt(s.numberOfFormation);
+                                      if (!n || n < 1) return alert('לפמ"מ זה אין כמות מטוסים מוגדרת');
+                                      const res = await fetch(`${API_URL}/strip-aircraft/ensure/${s.id}`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ count: n }),
+                                      });
+                                      if (res.ok) {
+                                        const rows = await res.json();
+                                        alert(`✅ נוצרו ${rows.length} מטוסים לפ"מ ${s.callSign}`);
+                                      } else {
+                                        alert('שגיאה ביצירת מטוסים');
+                                      }
+                                    }}
+                                    title={`צור ${s.numberOfFormation || '?'} מטוסים אוטומטית`}
+                                    style={{ padding: '3px 10px', background: '#065f46', color: '#6ee7b7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}
+                                  >✈ מטוסים</button>
+                                  <button
                                     onClick={() => {
                                       setEditingStripId(s.id);
                                       setEditingStripForm({
