@@ -7211,7 +7211,7 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
@@ -7225,6 +7225,9 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   onUpdateStripField: (stripId: string, field: string, value: string) => void;
   onCancelTransfer?: (transferId: string) => void;
   onMoveTransfer?: (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => void;
+  onSplitPartial?: (sourceStripId: string, indices: number[]) => void;
+  onMergePartial?: (targetStripId: string, sourceStripId: string) => void;
+  getSiblings?: (strip: any) => any[];
 }) => {
   const isPresetMode = !!partnerPresets;
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
@@ -7548,12 +7551,32 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
           )}
           {strips.length === 0
             ? <div style={{ color: cHeaderColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>
-            : strips.map((s: any) => (
-              <div key={s.id} data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)}
-                  onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
-              </div>
-            ))
+            : strips.map((s: any) => {
+              const cCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
+              const cSiblings = getSiblings ? getSiblings(s) : [];
+              const showSplit = onSplitPartial && cCount > 1;
+              const showMerge = onMergePartial && cSiblings.length > 0;
+              return (
+                <div key={s.id} style={{ position: 'relative' }}>
+                  {(showSplit || showMerge) && (
+                    <div style={{ display: 'flex', gap: '3px', padding: '2px 4px 0', justifyContent: 'flex-end' }}>
+                      {showSplit && (
+                        <button onClick={e => { e.stopPropagation(); onSplitPartial!(String(s.id), []); }}
+                          style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>✂ פצל</button>
+                      )}
+                      {showMerge && (
+                        <button onClick={e => { e.stopPropagation(); onMergePartial!(String(cSiblings[0].id), String(s.id)); }}
+                          style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>⊕ אחד</button>
+                      )}
+                    </div>
+                  )}
+                  <div data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
+                    <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)}
+                      onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
+                  </div>
+                </div>
+              );
+            })
           }
         </div>
         <FreehandCanvas lightMode={centerLight} />
@@ -12373,6 +12396,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateStripField={handleUpdateStripField}
                 onCancelTransfer={handleCancelTransfer}
                 onMoveTransfer={handleMoveTransfer}
+                onSplitPartial={(sourceId, indices) => { setSectorSplitSelected(indices.length ? indices : []); setSectorSplitModal({ strip: strips.find((x: any) => String(x.id) === sourceId) || classicCenterStrips.find((x: any) => String(x.id) === sourceId) }); }}
+                onMergePartial={(targetId, sourceId) => { const src = classicCenterStrips.find((x: any) => String(x.id) === sourceId); const sibs = getSectorSiblings(src || {}); if (sibs.length === 1) { setSectorMergeConfirm({ targetId, sourceId, targetName: sibs[0]?.callSign || targetId, sourceName: src?.callSign || sourceId }); } else if (sibs.length > 1) { setSectorMergeModal({ strip: src, siblings: sibs }); } }}
+                getSiblings={getSectorSiblings}
               />
             );
           })()}
