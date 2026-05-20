@@ -4532,6 +4532,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [formationPanelStripId, setFormationPanelStripId] = React.useState<string | null>(null);
   const [defaultArmamentNames, setDefaultArmamentNames] = React.useState<string[]>([]);
   const [defaultSystemNames, setDefaultSystemNames] = React.useState<string[]>([]);
+
+  // Sort strips so split siblings appear together, ordered by their min aircraft index
+  const sortedStrips = React.useMemo(() => {
+    const groups = new Map<string, any[]>();
+    const groupOrder: string[] = [];
+    for (const strip of strips) {
+      const key = strip.parent_strip_id ? String(strip.parent_strip_id) : String(strip.id);
+      if (!groups.has(key)) { groups.set(key, []); groupOrder.push(key); }
+      groups.get(key)!.push(strip);
+    }
+    const result: any[] = [];
+    for (const key of groupOrder) {
+      const group = (groups.get(key) || []).slice().sort((a: any, b: any) => {
+        const aMin = Array.isArray(a.aircraft_indices) ? Math.min(...a.aircraft_indices) : 0;
+        const bMin = Array.isArray(b.aircraft_indices) ? Math.min(...b.aircraft_indices) : 0;
+        return aMin - bMin;
+      });
+      result.push(...group);
+    }
+    return result;
+  }, [strips]);
   const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
   const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [groundSplitModal, setGroundSplitModal] = React.useState<{ strip: any } | null>(null);
@@ -4889,7 +4910,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         {/* Strip cards list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
-          {strips.map(strip => {
+          {sortedStrips.map(strip => {
             const aircraft = getAircraftPositions(strip);
             const isWholeDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
             const isExpanded = expandedStrips.has(String(strip.id));
@@ -4918,8 +4939,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
-                      <span style={{ fontWeight: 'bold', fontSize: '13px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#1e293b' : '#e2e8f0'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getFormationDisplayName(strip)}</span>
-                      <span style={{ fontSize: '11px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '15px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px' }}>{getFormationDisplayName(strip)}</span>
+                      <span style={{ fontSize: '12px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
                       {/* שקדיה indicator */}
@@ -8498,7 +8519,7 @@ const getFormationDisplayName = (strip: any): string => {
   const base = strip.callSign || strip.callsign || '';
   const indices: number[] | null = Array.isArray(strip.aircraft_indices) ? strip.aircraft_indices : null;
   if (!indices || indices.length === 0) return base;
-  return `${base} ${[...indices].sort((a, b) => a - b).join('+')}`;
+  return `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
 };
 
 const normalizeAlt = (raw: string): string => {
