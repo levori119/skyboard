@@ -4293,8 +4293,10 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
   const count = Math.max(1, parseInt(strip.numberOfFormation ?? strip.number_of_formation) || 1);
   const existing: AircraftPos[] = Array.isArray(strip.aircraft_positions) ? strip.aircraft_positions : [];
   // Use aircraft_indices when present (split formations) so idx values match the original numbering
-  const indices: number[] | null = Array.isArray(strip.aircraft_indices) && strip.aircraft_indices.length > 0
-    ? [...strip.aircraft_indices].sort((a, b) => a - b)
+  let rawIdx = strip.aircraft_indices;
+  if (typeof rawIdx === 'string') { try { rawIdx = JSON.parse(rawIdx); } catch { rawIdx = null; } }
+  const indices: number[] | null = Array.isArray(rawIdx) && rawIdx.length > 0
+    ? [...rawIdx].sort((a, b) => a - b)
     : null;
   const indexList = indices ?? Array.from({ length: count }, (_, i) => i + 1);
   return indexList.map(idx => {
@@ -4941,9 +4943,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     onDragEnd={() => setDragging(null)}
                     title='גרור להעברת כל הפמ"מ'
                     style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
                       <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
-                      <span style={{ fontWeight: 'bold', fontSize: '15px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px' }}>{getFormationDisplayName(strip)}</span>
+                      <span style={{ fontWeight: 'bold', fontSize: '15px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
                       <span style={{ fontSize: '12px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
@@ -8521,8 +8523,10 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 // e.g. "FL340" → "340", "FL340 - FL360" → "340-360", "340  -  360" → "340-360"
 const getFormationDisplayName = (strip: any): string => {
   const base = strip.callSign || strip.callsign || '';
-  const indices: number[] | null = Array.isArray(strip.aircraft_indices) ? strip.aircraft_indices : null;
-  if (!indices || indices.length === 0) return base;
+  let raw = strip.aircraft_indices;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+  const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
+  if (!indices) return base;
   return `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
 };
 
