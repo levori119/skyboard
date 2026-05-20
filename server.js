@@ -2949,19 +2949,46 @@ app.post('/api/strips/ground-create', async (req, res) => {
 app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   try {
     const stripId = parseInt(req.params.stripId.replace(/^s/, ''));
-    const { count } = req.body;
+    const { count, randomize } = req.body;
     const n = Math.max(1, Math.min(parseInt(count) || 1, 16));
+    const kipot = ['אדום', 'כחול', 'ירוק', 'צהוב', 'כתום', 'סגול', 'לבן', 'שחור'];
     for (let i = 1; i <= n; i++) {
-      await pool.query(
-        `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [stripId, i]
-      );
+      if (randomize) {
+        const datk = Math.floor(Math.random() * 4) + 1;
+        const kipa = kipot[Math.floor(Math.random() * kipot.length)];
+        await pool.query(
+          `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
+          [stripId, i, datk, kipa]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [stripId, i]
+        );
+      }
     }
     const result = await pool.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 ORDER BY idx', [stripId]);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to ensure strip aircraft' });
+  }
+});
+
+// PUT /api/strips/update-takeoff-to-today — keep HH:MM but set date to today (server local date)
+app.put('/api/strips/update-takeoff-to-today', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE strips
+       SET takeoff_time = (CURRENT_DATE + takeoff_time::time)
+       WHERE takeoff_time IS NOT NULL
+       RETURNING id`
+    );
+    res.json({ updated: result.rowCount });
+  } catch (err) {
+    console.error('[update-takeoff-to-today]', err);
+    res.status(500).json({ error: String(err) });
   }
 });
 

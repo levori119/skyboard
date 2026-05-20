@@ -18277,6 +18277,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                   >+ פמם חדש</button>
                   <button onClick={loadGlobalStrips} style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⟳ רענן</button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('לעדכן את תאריך כל זמני ההמראה להיום (ולשמור את השעה)?')) return;
+                      const res = await fetch(`${API_URL}/strips/update-takeoff-to-today`, { method: 'PUT' });
+                      if (res.ok) {
+                        const { updated } = await res.json();
+                        await loadGlobalStrips();
+                        alert(`✅ עודכנו ${updated} פ"ממ להיום`);
+                      } else {
+                        alert('שגיאה בעדכון זמנים');
+                      }
+                    }}
+                    style={{ padding: '6px 14px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                  >📅 עדכן להיום</button>
                   <input
                     value={stripsSearch}
                     onChange={e => setStripsSearch(e.target.value)}
@@ -18426,7 +18440,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                       const res = await fetch(`${API_URL}/strip-aircraft/ensure/${s.id}`, {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ count: n }),
+                                        body: JSON.stringify({ count: n, randomize: true }),
                                       });
                                       if (res.ok) {
                                         const rows = await res.json();
