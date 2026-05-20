@@ -1098,6 +1098,22 @@ app.post('/api/strips', async (req, res) => {
   }
 });
 
+// PUT /api/strips/update-takeoff-to-today — keep HH:MM but set date to today
+app.put('/api/strips/update-takeoff-to-today', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE strips
+       SET takeoff_time = (CURRENT_DATE::timestamp + (takeoff_time AT TIME ZONE 'UTC')::time) AT TIME ZONE 'UTC'
+       WHERE takeoff_time IS NOT NULL
+       RETURNING id`
+    );
+    res.json({ updated: result.rowCount });
+  } catch (err) {
+    console.error('[update-takeoff-to-today]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 app.put('/api/strips/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id.replace('s', ''));
@@ -2976,21 +2992,6 @@ app.post('/api/strip-aircraft/ensure/:stripId', async (req, res) => {
   }
 });
 
-// PUT /api/strips/update-takeoff-to-today — keep HH:MM but set date to today (server local date)
-app.put('/api/strips/update-takeoff-to-today', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE strips
-       SET takeoff_time = (CURRENT_DATE + takeoff_time::time)
-       WHERE takeoff_time IS NOT NULL
-       RETURNING id`
-    );
-    res.json({ updated: result.rowCount });
-  } catch (err) {
-    console.error('[update-takeoff-to-today]', err);
-    res.status(500).json({ error: String(err) });
-  }
-});
 
 // POST /api/strip-aircraft/bulk-import — bulk upsert aircraft rows by formation callsign
 app.post('/api/strip-aircraft/bulk-import', async (req, res) => {
