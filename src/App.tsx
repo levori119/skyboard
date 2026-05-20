@@ -18291,6 +18291,23 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     }}
                     style={{ padding: '6px 14px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                   >📅 עדכן להיום</button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('לצור מטוסים לכל הפ"ממ לפי כמות המטוסים שלהם (כיפות ודת"קים אקראיים)?')) return;
+                      const res = await fetch(`${API_URL}/strip-aircraft/ensure-all`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ randomize: true }),
+                      });
+                      if (res.ok) {
+                        const { strips, aircraft } = await res.json();
+                        alert(`✅ נוצרו ${aircraft} מטוסים ב-${strips} פ"ממ`);
+                      } else {
+                        alert('שגיאה ביצירת מטוסים');
+                      }
+                    }}
+                    style={{ padding: '6px 14px', background: '#3b0764', color: '#d8b4fe', border: '1px solid #7c3aed', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                  >✈ מטוסים לכולם</button>
                   <input
                     value={stripsSearch}
                     onChange={e => setStripsSearch(e.target.value)}

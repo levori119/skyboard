@@ -1098,6 +1098,43 @@ app.post('/api/strips', async (req, res) => {
   }
 });
 
+// POST /api/strip-aircraft/ensure-all — create randomized aircraft for every strip that has number_of_formation
+app.post('/api/strip-aircraft/ensure-all', async (req, res) => {
+  try {
+    const { randomize } = req.body;
+    const strips = await pool.query(
+      `SELECT id, number_of_formation FROM strips WHERE number_of_formation IS NOT NULL AND number_of_formation != ''`
+    );
+    const kipot = ['אדום', 'כחול', 'ירוק', 'צהוב', 'כתום', 'סגול', 'לבן', 'שחור'];
+    let totalAircraft = 0;
+    for (const strip of strips.rows) {
+      const n = Math.max(1, Math.min(parseInt(strip.number_of_formation) || 0, 16));
+      if (!n) continue;
+      for (let i = 1; i <= n; i++) {
+        if (randomize) {
+          const datk = Math.floor(Math.random() * 4) + 1;
+          const kipa = kipot[Math.floor(Math.random() * kipot.length)];
+          await pool.query(
+            `INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1, $2, $3, $4)
+             ON CONFLICT (strip_id, idx) DO UPDATE SET datk=EXCLUDED.datk, kipa=EXCLUDED.kipa`,
+            [strip.id, i, datk, kipa]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO strip_aircraft (strip_id, idx) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [strip.id, i]
+          );
+        }
+        totalAircraft++;
+      }
+    }
+    res.json({ strips: strips.rowCount, aircraft: totalAircraft });
+  } catch (err) {
+    console.error('[ensure-all]', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 // PUT /api/strips/update-takeoff-to-today — keep HH:MM but set date to today
 app.put('/api/strips/update-takeoff-to-today', async (req, res) => {
   try {
