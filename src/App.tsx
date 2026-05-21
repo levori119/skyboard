@@ -15222,7 +15222,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* ─── Sector Merge — Select Sibling Modal ─── */}
       {sectorMergeModal && (() => {
         const mp = sectorMergeModal.strip;
-        const mpName = mp.callSign || String(mp.id);
+        const mpName = getFormationDisplayName(mp);
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setSectorMergeModal(null)}>
@@ -15233,9 +15233,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
                 {sectorMergeModal.siblings.map(sib => (
                   <button key={sib.id}
-                    onClick={() => { setSectorMergeModal(null); setSectorMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: sib.callSign || String(sib.id), sourceName: mpName }); }}
+                    onClick={() => { setSectorMergeModal(null); setSectorMergeConfirm({ targetId: String(sib.id), sourceId: String(mp.id), targetName: getFormationDisplayName(sib), sourceName: mpName }); }}
                     style={{ padding: '10px 14px', background: '#0f172a', border: '1px solid #1d4ed8', borderRadius: '8px', color: '#e2e8f0', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{sib.callSign || String(sib.id)}</span>
+                    <span>{getFormationDisplayName(sib)}</span>
                     <span style={{ fontSize: '11px', color: '#60a5fa' }}>{parseInt(sib.numberOfFormation ?? sib.number_of_formation ?? '1') || 1} מטוסים →</span>
                   </button>
                 ))}
