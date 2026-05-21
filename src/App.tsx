@@ -4380,6 +4380,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [rightPanelW, setRightPanelW] = useState(240);
+  const [leftPanelW, setLeftPanelW] = useState(180);
+  const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
+  const startPanelResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startW = which === 'right' ? rightPanelW : leftPanelW;
+    panelResizeRef.current = { which, startX: e.clientX, startW };
+    const onMove = (me: MouseEvent) => {
+      if (!panelResizeRef.current) return;
+      const dx = me.clientX - panelResizeRef.current.startX;
+      const newW = Math.max(80, Math.min(520, panelResizeRef.current.startW + (which === 'right' ? -dx : dx)));
+      if (which === 'right') setRightPanelW(newW);
+      else setLeftPanelW(newW);
+    };
+    const onUp = () => { panelResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const [datkFilter, setDatkFilter] = useState<number | null>(() => {
     if (initialDatkFilter !== undefined && initialDatkFilter !== null) return initialDatkFilter;
     try {
@@ -4863,7 +4881,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: '240px', flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1 }}>
+      <div style={{ ...PANEL, width: `${rightPanelW}px`, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1 }}>
         {/* Header */}
         <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', gap: '6px' }}>
           <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
@@ -5430,8 +5448,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         );
       })()}
 
+      {/* Resize handle: right panel ↔ center */}
+      <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />
       {/* CENTER — Airfield map */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 2 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 3 }}>
         <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
 
         {/* datk filter bar */}
@@ -6035,8 +6055,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       </div>
 
+      {/* Resize handle: center ↔ left panel */}
+      <div onMouseDown={startPanelResize('left')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 4, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />
       {/* LEFT panel — Transfer sectors (מוסר/מקבל) */}
-      <div style={{ ...PANEL, width: '180px', flexShrink: 0, borderInlineStart: `1px solid ${border}`, order: 3 }}>
+      <div style={{ ...PANEL, width: `${leftPanelW}px`, flexShrink: 0, borderInlineStart: `1px solid ${border}`, order: 5 }}>
         <div style={HDR}>⇄ נקודות העברה</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 4px 8px' }}>
           {transferSectors.length === 0 && (
@@ -7301,6 +7323,24 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   };
   // section drag-token: { panel: 'right'|'left', kind: 'partner'|'point', id: number }
   const [draggingSection, setDraggingSection] = useState<{ panel: 'right' | 'left'; kind: 'partner' | 'point'; id: number } | null>(null);
+  const [classicRightW, setClassicRightW] = useState(280);
+  const [classicLeftW, setClassicLeftW] = useState(280);
+  const classicResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
+  const startClassicResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startW = which === 'right' ? classicRightW : classicLeftW;
+    classicResizeRef.current = { which, startX: e.clientX, startW };
+    const onMove = (me: MouseEvent) => {
+      if (!classicResizeRef.current) return;
+      const dx = me.clientX - classicResizeRef.current.startX;
+      const newW = Math.max(80, Math.min(600, classicResizeRef.current.startW + (which === 'right' ? -dx : dx)));
+      if (which === 'right') setClassicRightW(newW);
+      else setClassicLeftW(newW);
+    };
+    const onUp = () => { classicResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   // Per-session toggle: force center panel to day mode regardless of global lightMode
   const [centerDayMode, setCenterDayMode] = useState(false);
   const reorderSection = (panel: 'right' | 'left', kind: 'partner' | 'point', srcId: number, dstId: number, currentList: number[]) => {
@@ -7368,7 +7408,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       {showHelp && <ClassicTransferHelpModal lightMode={lightMode} onClose={() => setShowHelp(false)} />}
 
       {/* RIGHT panel — Transfer (למי מעביר) */}
-      <div style={{ ...PANEL_STYLE, borderInlineStart: 'none' }}>
+      <div style={{ ...PANEL_STYLE, borderInlineStart: 'none', flex: 'none', width: `${classicRightW}px` }}>
         <div data-panel-header="true" style={PANEL_HDR}>📤 למי מעביר ({outgoingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
@@ -7519,8 +7559,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
         <FreehandCanvas lightMode={lightMode} />
       </div>
 
-      {/* Arrow: שלי → למי מעביר */}
-      <div style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}` }}>
+      {/* Arrow: שלי → למי מעביר — doubles as resize handle */}
+      <div onMouseDown={startClassicResize('right')} title="גרור לשינוי רוחב" style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממני</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -7594,8 +7634,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
         <FreehandCanvas lightMode={centerLight} />
       </div>
 
-      {/* Arrow: ממי מקבל → אלי */}
-      <div style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}` }}>
+      {/* Arrow: ממי מקבל → אלי — doubles as resize handle */}
+      <div onMouseDown={startClassicResize('left')} title="גרור לשינוי רוחב" style={{ width: 34, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, userSelect: 'none', direction: 'ltr', background: panelBg, borderInlineStart: `1px solid ${border}`, borderInlineEnd: `1px solid ${border}`, cursor: 'col-resize' }}>
         <span style={{ fontSize: '8px', color: '#22c55e', fontWeight: 700, textAlign: 'center', direction: 'rtl', lineHeight: 1.3 }}>ממי{'\u000A'}מקבל</span>
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
           <path d="M2 11H18M12 5l6 6-6 6" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -7604,7 +7644,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
       </div>
 
       {/* LEFT panel — Receive (ממי מקבל) */}
-      <div style={PANEL_STYLE}>
+      <div style={{ ...PANEL_STYLE, flex: 'none', width: `${classicLeftW}px` }}>
         <div data-panel-header="true" style={PANEL_HDR}>📥 ממי מקבל ({incomingTransfers.length})</div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {(() => {
