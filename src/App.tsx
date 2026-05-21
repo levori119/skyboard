@@ -3320,7 +3320,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         >{showDetails ? '▴' : '▾'}</button>
       </div>
       <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '2px 4px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
-        {/* שורה יחידה: שם + טייסת + משימה + גובה */}
+        {/* שורה 1: או"ק + טייסת + משימה */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'nowrap', overflow: 'hidden' }}>
           <div style={{
             fontWeight: 'bold',
@@ -3330,6 +3330,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>⬡חלקי</span> : null}</div>
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
           {s.task && <div style={{ fontSize: '9px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{s.task}</div>}
+        </div>
+        {/* שורה 2: גובה + הערה */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
           <div ref={altRef} onClick={handleEditClick}
             style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : ''}
@@ -3343,59 +3346,39 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
               style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0', lineHeight: 1, flexShrink: 0, color: '#f97316' }}
             >★</button>
           )}
+          {!editingNotes && s.notes && (() => { const np = parseNoteValue(s.notes || ''); return (
+            <div onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title="לחץ לעריכה">
+              {np.text && <span>📝 {np.text}</span>}
+              {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '14px', borderRadius: '2px', verticalAlign: 'middle' }} />}
+            </div>
+          ); })()}
+          {!editingNotes && !s.notes && onUpdateNotes && (
+            <button onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer', flexShrink: 0, padding: 0 }}>+ הערה</button>
+          )}
         </div>
-        {/* שורה 5: הערה (ללא רווח) */}
-        {(s.notes || editingNotes) ? (
-          editingNotes ? (
-            <div onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2px' }}>
-                <textarea
-                  value={tempNotes}
-                  onChange={(e) => setTempNotes(e.target.value)}
-                  style={{ flex: 1, padding: '2px', border: '1px solid #cbd5e1', borderRadius: '2px', fontSize: '8px', resize: 'none', boxSizing: 'border-box' }}
-                  rows={2}
-                  autoFocus
-                />
-                <VKTrigger value={tempNotes} onChange={v => setTempNotes(v)} mode="full" label="הערה" size={14} />
-              </div>
-              <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
-                <button 
-                  onClick={() => { 
-                    if (onUpdateNotes) onUpdateNotes(s.id, tempNotes);
-                    setEditingNotes(false);
-                  }} 
-                  style={{ flex: 1, padding: '1px', background: '#10b981', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-                >
-                  שמור
-                </button>
-                <button 
-                  onClick={() => { setTempNotes(s.notes || ''); setEditingNotes(false); }} 
-                  style={{ flex: 1, padding: '1px', background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-                >
-                  ביטול
-                </button>
-              </div>
+        {/* עריכת הערה — נפתח בלחיצה מהשורה השנייה */}
+        {editingNotes && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '2px' }}>
+              <textarea
+                value={tempNotes}
+                onChange={(e) => setTempNotes(e.target.value)}
+                style={{ flex: 1, padding: '2px', border: '1px solid #cbd5e1', borderRadius: '2px', fontSize: '8px', resize: 'none', boxSizing: 'border-box' }}
+                rows={2}
+                autoFocus
+              />
+              <VKTrigger value={tempNotes} onChange={v => setTempNotes(v)} mode="full" label="הערה" size={14} />
             </div>
-          ) : (
-            <div 
-              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
-              style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', lineHeight: 1.2 }}
-              title="לחץ לעריכה"
-            >
-              {(() => { const np = parseNoteValue(s.notes || ''); return (<>
-                {np.text && <div style={{ direction: 'rtl' }}>📝 {np.text}</div>}
-                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '24px', borderRadius: '2px', display: 'block' }} />}
-              </>); })()}
+            <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
+              <button
+                onClick={() => { if (onUpdateNotes) onUpdateNotes(s.id, tempNotes); setEditingNotes(false); }}
+                style={{ flex: 1, padding: '1px', background: '#10b981', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
+              >שמור</button>
+              <button
+                onClick={() => { setTempNotes(s.notes || ''); setEditingNotes(false); }}
+                style={{ flex: 1, padding: '1px', background: '#64748b', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
+              >ביטול</button>
             </div>
-          )
-        ) : onUpdateNotes && (
-          <div style={{ textAlign: 'center' }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
-              style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '8px', cursor: 'pointer' }}
-            >
-              + הערה
-            </button>
           </div>
         )}
 
