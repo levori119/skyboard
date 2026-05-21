@@ -1915,9 +1915,13 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
+    const stripId = transfer.rows[0].strip_id;
+    const stripRow = await pool.query('SELECT on_map FROM strips WHERE id = $1', [stripId]);
+    const wasOnMap = stripRow.rows.length > 0 && stripRow.rows[0].on_map;
+
     await pool.query(
       'UPDATE strips SET status = $1 WHERE id = $2',
-      ['queued', transfer.rows[0].strip_id]
+      [wasOnMap ? 'active' : 'queued', stripId]
     );
     
     await pool.query(
@@ -1995,9 +1999,13 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found' });
     }
     
+    const stripId = transfer.rows[0].strip_id;
+    const stripRow = await pool.query('SELECT on_map FROM strips WHERE id = $1', [stripId]);
+    const wasOnMap = stripRow.rows.length > 0 && stripRow.rows[0].on_map;
+    
     await pool.query(
       'UPDATE strips SET status = $1 WHERE id = $2',
-      ['queued', transfer.rows[0].strip_id]
+      [wasOnMap ? 'active' : 'queued', stripId]
     );
     
     await pool.query(
