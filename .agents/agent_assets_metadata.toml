@@ -30,3 +30,9 @@ id = "hNrK46Ml2OMzU9npAOQgU"
 uri = "file://public/sample-imports/aircraft_example.csv"
 type = "table"
 title = "תבנית מטוסים (CSV)"
+
+[[outputs]]
+id = "9sExwzEVniwAhNpj2DCwb"
+uri = "file://data-model.md"
+type = "text"
+title = "מבנה נתונים — SKY KING"
