@@ -1961,7 +1961,7 @@ const DraggableNeighborPanel = ({
                       fontSize: '9px'
                     }}>
                       <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#92400e' }}>
-                        {conflictingTransferIds.has(String(t.id)) && '⚠️ '}{t.callsign}
+                        {conflictingTransferIds.has(String(t.id)) && '⚠️ '}{getFormationDisplayName(t)}
                       </div>
                       <div style={{ color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#b45309' }}>גובה: {normalizeAlt(t.alt || '')}</div>
                       <button
@@ -2147,7 +2147,7 @@ const DraggableIncomingTransferMini = ({
         }}
       >
         <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>
-          {isConflict && '⚠️ '}{transfer.callsign}
+          {isConflict && '⚠️ '}{getFormationDisplayName(transfer)}
         </div>
         <div style={{ color: isConflict ? '#fca5a5' : '#15803d', display: 'flex', alignItems: 'center', gap: '2px' }}>
           גובה:&nbsp;

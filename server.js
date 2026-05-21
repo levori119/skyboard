@@ -1591,7 +1591,8 @@ app.get('/api/sectors/:id/incoming-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, sec.name as from_sector_name, sec.label_he as from_sector_label,
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices,
+             sec.name as from_sector_name, sec.label_he as from_sector_label,
              t.target_x, t.target_y, t.sub_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
@@ -1610,7 +1611,8 @@ app.get('/api/sectors/:id/outgoing-transfers', async (req, res) => {
   try {
     const sectorId = parseInt(req.params.id);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, sec.name as to_sector_name, sec.label_he as to_sector_label
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices,
+             sec.name as to_sector_name, sec.label_he as to_sector_label
       FROM strip_transfers t
       JOIN strips s ON t.strip_id = s.id
       LEFT JOIN sectors sec ON t.to_sector_id = sec.id
@@ -1638,7 +1640,7 @@ app.get('/api/workstations/:presetId/incoming-transfers', async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time,
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.airborne, s.takeoff_time, s.aircraft_indices,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label,
              t.target_x, t.target_y, t.sub_sector_label
@@ -1664,7 +1666,7 @@ app.get('/api/workstations/:presetId/outgoing-transfers', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, 
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.aircraft_indices,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
       FROM strip_transfers t
@@ -3435,12 +3437,18 @@ app.post('/api/strips/partial-create', async (req, res) => {
     // Merge notes helper
     const mergeNotes = (a, b) => [a, b].filter(Boolean).join('\n---\n');
 
+    // If source is on the map, place the new partial strip on the map offset slightly
+    const srcOnMap = !!src.on_map;
+    const newX = srcOnMap ? (parseFloat(src.x || 0) + 65) : 0;
+    const newY = srcOnMap ? (parseFloat(src.y || 0) + 45) : 0;
+
     // Create the partial strip (clone of source)
     const partialResult = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
         erka, koteret, mivtza, notes, status, workstation_preset_id, in_table,
-        parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,true,$14,$15,$16,$17)
+        parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
+        on_map, x, y)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,true,$14,$15,$16,$17,$18,$19,$20)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
@@ -3449,7 +3457,8 @@ app.post('/api/strips/partial-create', async (req, res) => {
         src.erka, src.koteret, src.mivtza, src.notes,
         workstation_preset_id || src.workstation_preset_id,
         rootParentId, JSON.stringify(validIndices), origCount,
-        JSON.stringify(partialPositions)
+        JSON.stringify(partialPositions),
+        srcOnMap, newX, newY
       ]
     );
     const partialStripId = partialResult.rows[0].id;
