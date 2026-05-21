@@ -1916,13 +1916,14 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
     }
     
     const stripId = transfer.rows[0].strip_id;
+    const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
     const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
     const sr = stripRow.rows[0];
     const wasOnMap = sr && sr.on_map && !sr.in_table;
 
     await pool.query(
-      'UPDATE strips SET status = $1 WHERE id = $2',
-      [wasOnMap ? 'active' : 'queued', stripId]
+      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
+      [wasOnMap ? 'active' : 'queued', fromWorkstationId, stripId]
     );
     
     await pool.query(
@@ -2001,13 +2002,14 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
     }
     
     const stripId = transfer.rows[0].strip_id;
+    const fromWorkstationId = transfer.rows[0].from_workstation_id ?? null;
     const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
     const sr = stripRow.rows[0];
     const wasOnMap = sr && sr.on_map && !sr.in_table;
     
     await pool.query(
-      'UPDATE strips SET status = $1 WHERE id = $2',
-      [wasOnMap ? 'active' : 'queued', stripId]
+      'UPDATE strips SET status = $1, workstation_preset_id = $2 WHERE id = $3',
+      [wasOnMap ? 'active' : 'queued', fromWorkstationId, stripId]
     );
     
     await pool.query(
