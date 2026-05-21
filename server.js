@@ -1746,7 +1746,7 @@ app.get('/api/presets/:presetId/classic-incoming', async (req, res) => {
       recvSectorIds = relSectors.map(Number).filter(Number.isFinite);
     }
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation, s.aircraft_indices,
              p.name as from_preset_name,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
@@ -1780,7 +1780,7 @@ app.get('/api/presets/:presetId/classic-outgoing', async (req, res) => {
   try {
     const presetId = parseInt(req.params.presetId);
     const result = await pool.query(`
-      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation,
+      SELECT t.*, s.callsign, s.sq, s.alt, s.task, s.squadron, s.takeoff_time, s.notes, s.erka, s.mivtza, s.koteret, s.number_of_formation, s.aircraft_indices,
              p.name as to_preset_name,
              sec_from.name as from_sector_name, sec_from.label_he as from_sector_label,
              sec_to.name as to_sector_name, sec_to.label_he as to_sector_label
@@ -1916,8 +1916,9 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
     }
     
     const stripId = transfer.rows[0].strip_id;
-    const stripRow = await pool.query('SELECT on_map FROM strips WHERE id = $1', [stripId]);
-    const wasOnMap = stripRow.rows.length > 0 && stripRow.rows[0].on_map;
+    const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
+    const sr = stripRow.rows[0];
+    const wasOnMap = sr && sr.on_map && !sr.in_table;
 
     await pool.query(
       'UPDATE strips SET status = $1 WHERE id = $2',
@@ -2000,8 +2001,9 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
     }
     
     const stripId = transfer.rows[0].strip_id;
-    const stripRow = await pool.query('SELECT on_map FROM strips WHERE id = $1', [stripId]);
-    const wasOnMap = stripRow.rows.length > 0 && stripRow.rows[0].on_map;
+    const stripRow = await pool.query('SELECT on_map, in_table FROM strips WHERE id = $1', [stripId]);
+    const sr = stripRow.rows[0];
+    const wasOnMap = sr && sr.on_map && !sr.in_table;
     
     await pool.query(
       'UPDATE strips SET status = $1 WHERE id = $2',
