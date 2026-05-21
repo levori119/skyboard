@@ -4957,6 +4957,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <span style={{ fontSize: '12px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
                       </span>
+                      {strip.takeoff_time && (() => {
+                        const d = new Date(strip.takeoff_time);
+                        const hh = String(d.getUTCHours()).padStart(2, '0');
+                        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                        const past = d.getTime() < Date.now();
+                        return <span style={{ fontSize: '10px', color: past ? '#f87171' : '#facc15', fontWeight: 700, letterSpacing: '0.5px', flexShrink: 0 }}>🕐 {hh}:{mm}</span>;
+                      })()}
                       {/* שקדיה indicator */}
                       {formationSummary[sid]?.hasShakadia && (
                         <span title="שקדיה שמישה בתצורה" style={{ flexShrink: 0, fontSize: '12px', lineHeight: 1 }}>🌰</span>
@@ -4990,7 +4997,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </div>
                   {/* Actions dropdown (פצל + אחד) — single ⋮ button to save space */}
                   {(() => {
-                    const formationCount = parseInt(strip.numberOfFormation ?? strip.number_of_formation ?? '1') || 1;
+                    const formationCount = Math.max(
+                      parseInt(strip.numberOfFormation ?? strip.number_of_formation ?? '0') || 0,
+                      acRows.length,
+                      1
+                    );
                     const canSplit = formationCount > 1 && !!onSplitPartial;
                     const siblings = onMergePartial ? getFormationSiblings(strip) : [];
                     const canMerge = siblings.length > 0;
@@ -20651,6 +20662,7 @@ CHARLIE,1,301,`}
                                 fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                 setDrawingRouteId(null); setRouteDraftPoints([]);
                               }} style={{ flex: 1, padding: '3px', background: '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור ({routeDraftPoints.length})</button>
+                              <button onClick={() => setRouteDraftPoints(prev => prev.slice(0, -1))} disabled={routeDraftPoints.length === 0} style={{ padding: '3px 6px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: routeDraftPoints.length === 0 ? 'not-allowed' : 'pointer', fontSize: '10px', opacity: routeDraftPoints.length === 0 ? 0.4 : 1 }}>⌫</button>
                               <button onClick={() => setRouteDraftPoints([])} style={{ padding: '3px 6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>נקה</button>
                               <button onClick={() => { setDrawingRouteId(null); setRouteDraftPoints([]); }} style={{ padding: '3px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
                             </div>
@@ -20668,6 +20680,8 @@ CHARLIE,1,301,`}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
+                                {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!confirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [] }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                  style={{ padding: '1px 5px', background: '#451a03', color: '#fb923c', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>}
                                 <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '' }); setShowAirfieldRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
                                 <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
