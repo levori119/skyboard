@@ -6600,7 +6600,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   };
   const getVal = (fieldKey: string) => {
     if (!fieldKey) return '';
-    if (fieldKey === 'callSign') return strip.callSign || strip.callsign || '';
+    if (fieldKey === 'callSign') return getFormationDisplayName(strip);
     if (fieldKey === 'sq') return strip.sq || strip.squadron || '';
     if (fieldKey === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
     if (fieldKey === 'takeoff_time') {
@@ -8177,7 +8177,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           return (
             <div key={s.id}
               className={isConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
+              title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${isConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${Math.max(xPct, 0)}%`, top: `${topPct}%`,
@@ -8199,7 +8199,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               )}
               <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
                   {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
                 </div>
               </div>
@@ -8232,7 +8232,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           return (
             <div key={s.id}
               className={ntConflict ? 'alt-conflict-flash' : (effectiveDeviation && !isDeviationAcknowledged) ? 'block-deviation-flash' : ''}
-              title={`${s.callSign}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
+              title={`${getFormationDisplayName(s)}${sq ? ' / ' + sq : ''} | גובה: ${normalizeAlt(s.alt || '')}${isDeviation ? ' ⚠️ חריגה מבלוק' : ''}${ntConflict ? ' ⚠️ חפיפת גובה' : ''}`}
               onContextMenu={onStripContextMenu ? (e) => { e.preventDefault(); e.stopPropagation(); onStripContextMenu(s.id, e.clientX, e.clientY); } : undefined}
               style={{
                 position: 'absolute', left: `${leftPct}%`, top: `${topPct}%`,
@@ -8254,7 +8254,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               )}
               <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{s.callSign || '—'}{sq ? ` / ${sq}` : ''}</span>
+                  <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
                   {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
                 </div>
               </div>
@@ -9813,7 +9813,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const getStripFieldValue = (s: any, colKey: string): string => {
     const sectorName = allSectors.find(sec => sec.id === s.sectorId)?.name || (s.sectorId ? `#${s.sectorId}` : '—');
     switch (colKey) {
-      case 'callSign': return s.callSign || '—';
+      case 'callSign': return getFormationDisplayName(s) || '—';
       case 'sq': case 'squadron': return s.sq || s.squadron || '—';
       case 'numberOfFormation': return s.numberOfFormation || '—';
       case 'sector': return sectorName;
@@ -12536,7 +12536,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         ) : (
                           <div onClick={() => setTableEditingCell(csCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                            <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />
                             {col.editable === 'both' && <button onClick={e => { e.stopPropagation(); setTableHandwritingId(csCellKey); }} title="כתב יד" style={{ padding: '2px 5px', background: '#4c1d95', color: '#a78bfa', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>✏️</button>}
@@ -12548,7 +12548,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</span>
+                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}</span>
                         {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px' }}>🌰</span>}
                       </div>
                     </td>
@@ -14219,7 +14219,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
-                          {s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                          {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
                       </div>
@@ -14326,7 +14326,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
                         <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
-                          {s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}
+                          {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
                       </div>
@@ -15124,7 +15124,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{s.callSign}{s.numberOfFormation ? ` / ${s.numberOfFormation}` : ''}</div>
+                    <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{getFormationDisplayName(s)}</div>
                     <div style={{ fontSize: '11px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{s.sq}</div>
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>גובה: {normalizeAlt(s.alt || '')} | {s.task}</div>
