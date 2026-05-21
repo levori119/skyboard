@@ -1607,7 +1607,7 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
       marginBottom: '6px' 
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
+        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{getFormationDisplayName(transfer)}</span>
         <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
       </div>
       {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
@@ -2224,7 +2224,7 @@ const DraggableIncomingTransferMini = ({
           pointerEvents: 'none',
           direction: 'rtl'
         }}>
-          {transfer.callsign}
+          {getFormationDisplayName(transfer)}
           <div style={{ fontSize: '9px', opacity: 0.8 }}>גרור למפה או לפ"מ פעילים</div>
         </div>,
         document.body
@@ -2655,7 +2655,7 @@ const DraggableMapMarker = ({
               fontSize: '9px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#92400e' }}>{t.callsign}</span>
+                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#92400e' }}>{getFormationDisplayName(t)}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
               <div style={{ color: isConflict ? '#fca5a5' : '#b45309', fontSize: '8px' }}>גובה: {normalizeAlt(t.alt || '')}</div>
@@ -2696,7 +2696,7 @@ const DraggableMapMarker = ({
               fontSize: '9px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>{t.callsign}</span>
+                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>{getFormationDisplayName(t)}</span>
                 <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
               </div>
               <div style={{ color: isConflict ? '#fca5a5' : '#15803d', fontSize: '8px', display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -2977,7 +2977,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
   const content = (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{transfer.callsign}</span>
+        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{getFormationDisplayName(transfer)}</span>
         <span style={{ fontSize: '10px', background: '#3b82f6', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
       </div>
       {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
@@ -4899,7 +4899,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 onDragEnd={() => setDraggingTransferId(null)}
                 style={{ padding: '4px 8px', marginBottom: '3px', borderRadius: '4px', background: lightMode ? '#dbeafe' : '#1e3a5f', cursor: 'grab', fontSize: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                  <span style={{ fontWeight: 'bold', color: lightMode ? '#1e40af' : '#93c5fd' }}>{t.callsign || '?'}</span>
+                  <span style={{ fontWeight: 'bold', color: lightMode ? '#1e40af' : '#93c5fd' }}>{getFormationDisplayName(t) || '?'}</span>
                   <span style={{ fontSize: '10px', color: lightMode ? '#3b82f6' : '#60a5fa', opacity: 0.8 }}>{t.from_sector_name || ''}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -6101,7 +6101,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </div>
                   {secOutgoing.map(t => (
                     <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#fde68a' : '#292009'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
                       <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
                     </div>
                   ))}
@@ -6127,7 +6127,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       onClick={() => onAcceptTransfer(String(t.id))}
                       title="לחץ לקבלה"
                     >
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
+                      <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
                       <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
                     </div>
                   ))}
@@ -6175,7 +6175,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </div>
                       {secOutgoing.map(t => (
                         <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #292009', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'}</span>
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</span>
                           <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
                         </div>
                       ))}
@@ -6199,7 +6199,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           onClick={() => onAcceptTransfer(String(t.id))}
                           title="לחץ לקבלה"
                         >
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callsign || '?'}</span>
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</span>
                           <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
                         </div>
                       ))}
