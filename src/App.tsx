@@ -3320,47 +3320,21 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
         >{showDetails ? '▴' : '▾'}</button>
       </div>
       <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '2px 4px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
-        {/* שורה 1: שם + טייסת */}
+        {/* שורה יחידה: שם + טייסת + משימה + גובה */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'nowrap', overflow: 'hidden' }}>
           <div style={{
             fontWeight: 'bold',
             fontSize: '11px',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1,
             ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '3px', padding: '0 3px' } : {})
           }}>{getFormationDisplayName(s)}{s.numberOfFormation && !s.aircraft_indices ? ` / ${s.numberOfFormation}` : ''}{s.aircraft_indices ? <span style={{ fontSize: '8px', color: '#fb923c', fontWeight: 'normal', marginRight: '3px' }}>⬡חלקי</span> : null}</div>
           {(s.sq || s.squadron) && <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</div>}
-        </div>
-        {/* שורה 2: משימה + זמן המראה */}
-        {(s.task || s.takeoff_time) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', lineHeight: 1.2 }}>
-            {s.task && <div style={{ fontSize: '9px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{s.task}</div>}
-            {s.takeoff_time && (() => {
-              const now = new Date();
-              const d = new Date(s.takeoff_time);
-              if (isNaN(d.getTime())) return null;
-              const past = d < now && !s.airborne;
-              const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-              const stripDayUTC = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-              const hh = d.getUTCHours().toString().padStart(2, '0');
-              const mm = d.getUTCMinutes().toString().padStart(2, '0');
-              const label = `${hh}:${mm}`;
-              return (
-                <div title={past ? 'זמן ההמראה חלף' : `המראה: ${label}`}
-                  style={{ fontSize: '9px', color: past ? '#dc2626' : '#64748b', fontWeight: past ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-                  {past && <span style={{ width: '5px', height: '5px', background: '#dc2626', borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />}
-                  🕐{label}
-                </div>
-              );
-            })()}
-          </div>
-        )}
-        {/* שורה 3: גובה (גדול יותר) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden' }}>
+          {s.task && <div style={{ fontSize: '9px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{s.task}</div>}
           <div ref={altRef} onClick={handleEditClick}
-            style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-            {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : '-'}
-            {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
-            {isAltConflict && <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ fontSize: '9px', marginRight: '3px' }}>⚠️</span>}
+            style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : ''}
+            {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '2px' }}>⚠️</span>}
+            {isAltConflict && <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ fontSize: '9px', marginRight: '2px' }}>⚠️</span>}
           </div>
           {isBlockDeviation && !blockDeviation && (
             <button
