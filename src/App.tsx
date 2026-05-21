@@ -7379,6 +7379,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
     callSign: t.callsign, sq: t.sq, alt: t.alt, task: t.task, squadron: t.squadron,
     takeoff_time: t.takeoff_time, notes: t.notes, erka: t.erka, mivtza: t.mivtza,
     koteret: t.koteret, numberOfFormation: t.number_of_formation,
+    aircraft_indices: t.aircraft_indices,
   });
 
   return (
