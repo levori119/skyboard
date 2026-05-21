@@ -1,0 +1,87 @@
+IMPORTANT: Wipe out, delete, or completely overwrite the previous database model, logic, and implementations regarding the "strips" and formation splitting/merging. Do NOT try to merge this with the old code. We are starting fresh with a completely rewritten specification. Please replace the old data-model.md and refactor all related code based strictly on the specification below:
+
+=======================================================
+
+# System Specification: Flight Control Architecture (Formation Splits & Merges)
+
+We are building a Flight Control Management System. The core entity is a **Formation** (called "פ"מ" or "מבנה"). A Formation consists of 1 or more individual **Aircraft** (מטוסים). 
+
+The application has multiple view modes: Airport Ground (מוד שדה תעופה), Strips (סטריפים), Map (מפה), and Table (טבלה). 
+
+You must implement a PostgreSQL database schema and the backend/frontend logic for **Formation Splitting and Merging** according to the strict business rules below. Do NOT use dynamic renumbering of aircraft during splits.
+
+---
+
+## 1. Core Concepts & Database Schema (PostgreSQL)
+
+### A. Formations Table (`strips`)
+Represents an active formation on the board (full or partial). If a formation splits, a new row is created for the split part because each part moves to different coordinates ($x,y$), transfer points, or workstations independently.
+* `id` (SERIAL PK)
+* `callsign` (VARCHAR) - Current operational name.
+* `original_callsign` (VARCHAR) - The root name of the formation (e.g., "בננה"). Used to identify split "siblings" belonging to the same original family.
+* `status` (VARCHAR) - `queued` / `active` / `pending_transfer`
+* `workstation_preset_id`, `sector_id` (INT)
+* `x`, `y` (REAL) - Map coordinates.
+* `takeoff_time` (TIMESTAMPTZ)
+* `notes`, `formation_notes` (TEXT) - Free text notes that must be preserved during merges.
+
+### B. Aircraft Table (`strip_aircraft`)
+* `id` (SERIAL PK)
+* `strip_id` (INT FK → `strips.id`) - Points to its current active formation.
+* `original_idx` (INT) - **STRICT RULE:** The permanent index of the aircraft within its original formation (1, 2, 3, 4...). **This never changes during a split!** If Aircraft #4 flies alone, its `original_idx` remains `4`.
+* `datk` (INT) - Parking spot number.
+* `kipa` (VARCHAR) - Parking shelter.
+* *Constraint:* `UNIQUE(strip_id, original_idx)`
+
+### C. Child Tables (Aircraft Specific)
+* `aircraft_armaments`: (`id`, `aircraft_id`, `armament_name`, `quantity`)
+* `aircraft_systems`: (`id`, `aircraft_id`, `system_name`, `status` [ENUM: שמיש, חלקי, לא שמיש])
+
+---
+
+## 2. Business Logic Rules & Computations
+
+### A. Formation Display Name (Computed Dynamically)
+The formation's display name (`getFormationDisplayName`) must **NEVER** be stored as a hardcoded string in the DB. It is computed in real-time (via SQL Join/View or Frontend logic) by combining `original_callsign` and the sorted `original_idx` list of its current aircraft:
+* **Full Formation (No missing aircraft):** Returns only the original callsign (e.g., `"בננה"`).
+* **Partial Formation:** Returns the callsign + sorted indexes separated by `+`.
+  * *Example (Aircraft 1 and 4 split together):* `"בננה 1+4"`
+  * *Example (Aircraft 3 flies solo):* `"בננה 3"`
+
+### B. Aggregate Computed Fields (Real-time View)
+The formation details panel must aggregate the following data dynamically from its underlying aircraft:
+1. **Shakedya Icon (`שקדיה`):** If any aircraft currently linked to the formation has a system named `"שקדיה"` (or `"שקדייה"`, `"שקדה"`) with `status = 'שמיש'`, display the Shakedya Icon on the formation.
+2. **Total Armaments Calculation:** Aggregate armaments from all currently linked aircraft. Sum up quantities of identical armaments. In the UI display, append a parenthesis indicating which aircraft possess it.
+   * *UI Example:* `פיתון 5: כמות 4 (מטוסים: 1, 4)`
+
+---
+
+## 3. Operations: Split & Merge Logic
+
+### A. Splitting a Formation (Partial Transfer / Takeoff)
+* Can occur anywhere: Ground, Map, Strips, or via a context menu ("פצל").
+* When a user selects specific aircraft to split/transfer (e.g., 1 and 4):
+  1. Create a **NEW row** in `strips`, copying spatial/metadata fields, setting `original_callsign` to the parent's `original_callsign`.
+  2. **UPDATE** the selected aircrafts' `strip_id` in `strip_aircraft` to point to the new formation ID.
+  3. The remaining aircraft stay under the old `strip_id`. Both update their computed display names instantly.
+
+### B. Merging Formations (No Data Loss Rule)
+* Occurs when dragging a partial formation onto another with the same `original_callsign` on the map/transfer point, or via the "אחד" (Merge) action.
+* **Text Merging Logic:** Free-text fields (`notes`, `formation_notes`) must be combined. 
+  * If the notes are different, append the incoming note to the target note, prefixing it with the source aircraft indexes.
+  * *Example:* `[Target Note Text] \n (מטוסים 1,4): [Incoming Note Text]`
+  * If the notes are identical, do not duplicate them; keep one copy without the aircraft index prefix.
+* **Database Cleanup:** Update all aircraft from the source formation to point to the target formation's `strip_id`. Then, **DELETE** the empty source formation row from `strips`.
+* **Discrepancy Warning:** If there is a mismatch/imbalance between the merged parts' settings, populate a warning in the numbering field: `"לא כל המטוסים מעודכנים"`.
+
+---
+
+## 4. Airport Ground View Sorting Logic
+* Individual aircraft are displayed next to their assigned `datk` (parking spot) based on a time parameter window configured in the settings ("כמה זמן להציג מטוס לפני המראה ליד דת"ק").
+* Aircraft must be sorted on the ground layout primarily by `takeoff_time` (ascending).
+* **CRITICAL SORTING CONSTRAINT:** If two different formations have the exact same `takeoff_time`, they must **NOT** interleave. The system must group all aircraft of one formation together before showing the aircraft of the next formation.
+  * *Correct SQL Sorting:* `ORDER BY s.takeoff_time ASC, s.id ASC, sa.original_idx ASC`
+
+---
+
+Please generate the updated database schema DDL, the backend APIs (Node.js/Express or Python depending on the project stack) handling the Split/Merge transactions, and the frontend function for computing the dynamic display name.
