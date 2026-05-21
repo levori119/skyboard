@@ -7444,7 +7444,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} data-classic-strip="true" style={{ marginBottom: '3px' }}
+                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative', marginBottom: '3px' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
@@ -7453,7 +7453,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ width: '100%', padding: '2px 0', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '0 0 4px 4px', fontSize: '10px', cursor: 'pointer', textAlign: 'center', display: 'block' }}>בטל העברה</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>בטל העברה</button>
                                 </div>
                               ))
                             }
@@ -7509,7 +7509,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} data-classic-strip="true" style={{ marginBottom: '3px' }}
+                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative', marginBottom: '3px' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
@@ -7518,7 +7518,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ width: '100%', padding: '2px 0', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '0 0 4px 4px', fontSize: '10px', cursor: 'pointer', textAlign: 'center', display: 'block' }}>בטל העברה</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '1px 5px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '3px', fontSize: '9px', cursor: 'pointer', lineHeight: 1.4, zIndex: 11, whiteSpace: 'nowrap' }}>בטל העברה</button>
                                 </div>
                               ))
                             }
