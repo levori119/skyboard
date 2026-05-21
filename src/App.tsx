@@ -4990,7 +4990,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </div>
                   {/* Actions dropdown (פצל + אחד) — single ⋮ button to save space */}
                   {(() => {
-                    const canSplit = count > 1 && !!onSplitPartial;
+                    const formationCount = parseInt(strip.numberOfFormation ?? strip.number_of_formation ?? '1') || 1;
+                    const canSplit = formationCount > 1 && !!onSplitPartial;
                     const siblings = onMergePartial ? getFormationSiblings(strip) : [];
                     const canMerge = siblings.length > 0;
                     if (!canSplit && !canMerge) return null;
