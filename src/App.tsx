@@ -7444,16 +7444,16 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative' }}
+                                <div key={t.id} data-classic-strip="true" style={{ marginBottom: '3px' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
-                                  <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
+                                  <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
+                                    style={{ width: '100%', padding: '2px 0', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '0 0 4px 4px', fontSize: '10px', cursor: 'pointer', textAlign: 'center', display: 'block' }}>בטל העברה</button>
                                 </div>
                               ))
                             }
@@ -7509,16 +7509,16 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             {ptOut.length === 0
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>{isDrop ? '↓ שחרר להעביר' : 'גרור פמ"מ לכאן'}</div>
                               : ptOut.map((t: any) => (
-                                <div key={t.id} data-classic-strip="true" style={{ position: 'relative' }}
+                                <div key={t.id} data-classic-strip="true" style={{ marginBottom: '3px' }}
                                   draggable
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
-                                  <button title="בטל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
+                                  <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '20px', height: '20px', borderRadius: '50%', background: '#7f1d1d', color: '#fecaca', border: 'none', fontSize: '12px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11, boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>✕</button>
+                                    style={{ width: '100%', padding: '2px 0', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '0 0 4px 4px', fontSize: '10px', cursor: 'pointer', textAlign: 'center', display: 'block' }}>בטל העברה</button>
                                 </div>
                               ))
                             }
