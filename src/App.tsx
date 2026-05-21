@@ -4380,7 +4380,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
-  const [rightPanelW, setRightPanelW] = useState(240);
+  const [rightPanelW, setRightPanelW] = useState(300);
   const [leftPanelW, setLeftPanelW] = useState(180);
   const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const startPanelResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
@@ -5018,6 +5018,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     const formationCount = Math.max(
                       parseInt(strip.numberOfFormation ?? strip.number_of_formation ?? '0') || 0,
                       acRows.length,
+                      aircraft.length,
                       1
                     );
                     const canSplit = formationCount > 1 && !!onSplitPartial;
