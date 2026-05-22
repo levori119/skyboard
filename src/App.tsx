@@ -7435,6 +7435,51 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   const [classicRightW, setClassicRightW] = useState(280);
   const [classicLeftW, setClassicLeftW] = useState(280);
   const classicResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
+  const [classicSectorContactsOpenId, setClassicSectorContactsOpenId] = useState<number | null>(null);
+  const [classicAllContactsCache, setClassicAllContactsCache] = useState<any[] | null>(null);
+  const getClassicContactsForSector = (sectorId: number) => {
+    if (!classicAllContactsCache) return [];
+    const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
+    for (const c of classicAllContactsCache) {
+      let sectors: number[] = [];
+      try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
+      if (!sectors.map(Number).includes(sectorId)) continue;
+      if (!byPreset.has(c.preset_id)) byPreset.set(c.preset_id, { presetName: c.preset_name || `עמדה ${c.preset_id}`, contacts: [] });
+      byPreset.get(c.preset_id)!.contacts.push(c);
+    }
+    return Array.from(byPreset.entries()).map(([pid, v]) => ({ presetId: pid, ...v }));
+  };
+  const openClassicSectorContacts = async (sectorId: number) => {
+    if (classicSectorContactsOpenId === sectorId) { setClassicSectorContactsOpenId(null); return; }
+    if (!classicAllContactsCache) {
+      const data = await fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).catch(() => []);
+      setClassicAllContactsCache(data);
+    }
+    setClassicSectorContactsOpenId(sectorId);
+  };
+  const renderClassicSectorContactsPanel = (sectorId: number) => {
+    if (classicSectorContactsOpenId !== sectorId || !classicAllContactsCache) return null;
+    const groups = getClassicContactsForSector(sectorId);
+    return (
+      <div style={{ borderTop: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, background: lightMode ? '#f0f9ff' : '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl' }}>
+        {groups.length === 0 ? (
+          <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>אין קשרים מוגדרים לסקטור זה</div>
+        ) : groups.map(g => (
+          <div key={g.presetId} style={{ marginBottom: '6px' }}>
+            <div style={{ fontWeight: 'bold', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}` }}>📍 {g.presetName}</div>
+            {g.contacts.map((c: any) => (
+              <div key={c.id} style={{ display: 'flex', gap: '5px', padding: '2px 4px', borderRadius: '3px', background: lightMode ? '#e0f2fe' : '#0a1e35', marginBottom: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {c.device_type && <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '9px', minWidth: '24px', flexShrink: 0 }}>{c.device_type}</span>}
+                {c.mahut && <span style={{ color: lightMode ? '#374151' : '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>{c.mahut}</span>}
+                {c.oketz && <span style={{ color: lightMode ? '#1d4ed8' : '#60a5fa', fontWeight: 'bold', fontSize: '10px', flexShrink: 0 }}>{c.oketz}</span>}
+                {c.frequency && <span style={{ color: '#22c55e', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>{c.frequency}</span>}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
   const startClassicResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
     e.preventDefault();
     const startW = which === 'right' ? classicRightW : classicLeftW;
@@ -7633,11 +7678,18 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             }
                           }}
                         >
-                          <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor }}>
+                          <div style={{ ...SEC_HDR, background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-point'); }} onDragEnd={() => setDraggingSection(null)}
                               style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
-                            📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length})
-                            {isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}
+                            <span style={{ flex: 1 }}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length}){isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}</span>
+                            {!isDrop && (
+                              <button
+                                onClick={e => { e.stopPropagation(); openClassicSectorContacts(Number(pt.sector_id)); }}
+                                title="הצג קשרי עמדות לנקודה זו"
+                                style={{ padding: '1px 5px', fontSize: '10px', background: classicSectorContactsOpenId === Number(pt.sector_id) ? '#0369a1' : 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                                📡 קשר
+                              </button>
+                            )}
                           </div>
                           <div style={{ padding: '3px', minHeight: '36px', background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : 'transparent', transition: 'background 0.15s' }}>
                             {ptOut.length === 0
@@ -7657,6 +7709,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               ))
                             }
                           </div>
+                          {renderClassicSectorContactsPanel(Number(pt.sector_id))}
                         </div>
                       );
                     })}
