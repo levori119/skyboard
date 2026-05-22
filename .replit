@@ -27,7 +27,7 @@ localPort = 5001
 externalPort = 3000
 
   [agent]
-  expertMode = true
+expertMode = true
   integrations = ["github:1.0.0"]
 
   [workflows]

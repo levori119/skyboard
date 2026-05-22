@@ -4337,6 +4337,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
+  const [actionMenuRect, setActionMenuRect] = useState<{ left: number; bottom: number } | null>(null);
   const [rightPanelW, setRightPanelW] = useState(300);
   const [leftPanelW, setLeftPanelW] = useState(180);
   const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
@@ -4987,12 +4988,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <div style={{ position: 'relative', flexShrink: 0 }}>
                         <button
                           title="פעולות פ״מ (פצל / אחד)"
-                          onClick={e => { e.stopPropagation(); setOpenActionMenu(prev => prev === sid ? null : sid); }}
+                          onClick={e => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setActionMenuRect({ left: r.left, bottom: r.bottom }); setOpenActionMenu(prev => prev === sid ? null : sid); }}
                           style={{ padding: '4px 7px', background: isOpen ? (lightMode ? '#e2e8f0' : '#374151') : 'transparent', border: `1px solid ${isOpen ? '#6b7280' : 'transparent'}`, color: isOpen ? (lightMode ? '#0f172a' : '#e2e8f0') : headerColor, cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
                         >⋮</button>
                         {isOpen && (<>
                           <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={e => { e.stopPropagation(); setOpenActionMenu(null); }} />
-                          <div style={{ position: 'absolute', top: '100%', left: 0, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', zIndex: 999, minWidth: '110px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', overflow: 'hidden', direction: 'rtl' }}>
+                          <div style={{ position: 'fixed', top: (actionMenuRect?.bottom ?? 0) + 2, left: actionMenuRect?.left ?? 0, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '6px', zIndex: 999, minWidth: '110px', boxShadow: '0 4px 12px rgba(0,0,0,0.35)', overflow: 'hidden', direction: 'rtl' }}>
                             {canSplit && (
                               <button
                                 onClick={e => { e.stopPropagation(); setOpenActionMenu(null); setGroundSplitSelected([]); setGroundSplitModal({ strip }); }}
