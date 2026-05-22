@@ -4617,9 +4617,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   // Display items: optionally grouped by squadron with header rows
   const groundDisplayItems = React.useMemo((): Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> => {
     if (!stripGroupBySquadron) return sortedStrips.map(s => ({ type: 'strip' as const, strip: s }));
+    // Re-sort by squadron first (stable), preserving the existing secondary sort within each squadron
+    const bySq = sortedStrips.slice().sort((a, b) => {
+      const sqA = a.sq || a.squadron || 'ללא טייסת';
+      const sqB = b.sq || b.squadron || 'ללא טייסת';
+      return sqA.localeCompare(sqB, 'he');
+    });
     const items: Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> = [];
     let lastSq: string | null = null;
-    for (const strip of sortedStrips) {
+    for (const strip of bySq) {
       const sq = strip.sq || strip.squadron || 'ללא טייסת';
       if (sq !== lastSq) { items.push({ type: 'header', label: sq }); lastSq = sq; }
       items.push({ type: 'strip', strip });
