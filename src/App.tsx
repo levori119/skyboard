@@ -4577,7 +4577,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const sortedStrips = React.useMemo(() => {
     const getTime = (s: any) => s.takeoffTime || s.takeoff_time || '';
     const getCs = (s: any) => s.callSign || s.callsign || '';
-    const getSq = (s: any) => s.squadron || '';
+    const getSq = (s: any) => s.sq || s.squadron || '';
 
     const primarySort = (a: any, b: any): number => {
       if (stripSortKey === 'time_asc') return getTime(a).localeCompare(getTime(b));
@@ -4620,7 +4620,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const items: Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> = [];
     let lastSq: string | null = null;
     for (const strip of sortedStrips) {
-      const sq = strip.squadron || 'ללא טייסת';
+      const sq = strip.sq || strip.squadron || 'ללא טייסת';
       if (sq !== lastSq) { items.push({ type: 'header', label: sq }); lastSq = sq; }
       items.push({ type: 'strip', strip });
     }
@@ -5096,15 +5096,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
             return (
               <div key={strip.id} style={{ marginBottom: '6px', border: `1px solid ${border}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#ffffff' : '#0f172a', opacity: isWholeDragging ? 0.4 : 1 }}>
-                {/* Collapsed header: "callSign - N / squadron" */}
-                <div style={{ display: 'flex', alignItems: 'center', background: lightMode ? '#e2e8f0' : '#1e293b' }}>
+                {/* Collapsed header — 2 rows: row1=callSign+count, row2=squadron+time+buttons */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', background: lightMode ? '#e2e8f0' : '#1e293b' }}>
                   {/* Drag handle (whole strip) */}
                   <div
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: sid, idx: -1 }); }}
                     onDragEnd={() => setDragging(null)}
                     title='גרור להעברת כל הפמ"מ'
-                    style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '3px', minWidth: 0 }}>
+                    style={{ padding: '5px 6px 5px 8px', cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', flex: 1, gap: '2px', minWidth: 0 }}>
+                    {/* Row 1: expand + callSign + count + shakadia */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
                       <span style={{ opacity: 0.45, fontSize: '13px', flexShrink: 0 }}>≡</span>
                       <button
@@ -5114,22 +5115,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         style={{ padding: '0 2px', background: 'transparent', border: 'none', cursor: 'pointer', color: expandedStrips.has(sid) ? '#38bdf8' : headerColor, fontSize: '10px', flexShrink: 0, lineHeight: 1 }}>
                         {expandedStrips.has(sid) ? '▼' : '▶'}
                       </button>
-                      <span style={{ fontWeight: 'bold', fontSize: '12px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
-                      <span style={{ fontSize: '12px', color: headerColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {count > 0 ? ` / ${count}` : ''}{sq ? ` / ${sq}` : ''}
-                      </span>
-                      {strip.takeoff_time && (() => {
-                        const d = new Date(strip.takeoff_time);
-                        const hh = String(d.getUTCHours()).padStart(2, '0');
-                        const mm = String(d.getUTCMinutes()).padStart(2, '0');
-                        const past = d.getTime() < Date.now();
-                        return <span style={{ fontSize: '10px', color: past ? '#f87171' : '#facc15', fontWeight: 700, letterSpacing: '0.5px', flexShrink: 0 }}>🕐 {hh}:{mm}</span>;
-                      })()}
+                      <span style={{ fontWeight: 'bold', fontSize: '13px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
+                      {count > 0 && <span style={{ fontSize: '12px', color: lightMode ? '#475569' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>×{count}</span>}
                       {/* שקדיה indicator */}
                       {formationSummary[sid]?.hasShakadia && (
                         <span title="שקדיה שמישה בתצורה" style={{ flexShrink: 0, fontSize: '12px', lineHeight: 1 }}>🌰</span>
                       )}
                     </div>
+                    {/* Row 2: squadron + takeoff time */}
+                    {(sq || strip.takeoff_time) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingRight: '18px' }}>
+                        {sq && <span style={{ fontSize: '11px', color: lightMode ? '#2563eb' : '#60a5fa', fontWeight: 600, whiteSpace: 'nowrap' }}>✈ {sq}</span>}
+                        {strip.takeoff_time && (() => {
+                          const d = new Date(strip.takeoff_time);
+                          const hh = String(d.getUTCHours()).padStart(2, '0');
+                          const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                          const past = d.getTime() < Date.now();
+                          return <span style={{ fontSize: '11px', color: past ? '#f87171' : '#facc15', fontWeight: 700, letterSpacing: '0.5px', flexShrink: 0 }}>🕐 {hh}:{mm}</span>;
+                        })()}
+                      </div>
+                    )}
+                    
                     {/* Armament summary row (collapsed view) */}
                     {(formationSummary[sid]?.armaments?.length > 0) && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', paddingLeft: '18px', marginTop: '2px' }}>
