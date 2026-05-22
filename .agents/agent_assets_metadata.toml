@@ -36,3 +36,9 @@ id = "9sExwzEVniwAhNpj2DCwb"
 uri = "file://data-model.md"
 type = "text"
 title = "מבנה נתונים — SKY KING"
+
+[[outputs]]
+id = "CP8ty512OO59DlAqWy6K6"
+uri = "file://skyking_export.zip"
+type = "unspecified"
+title = "SKY KING — קוד מלא (ZIP)"
