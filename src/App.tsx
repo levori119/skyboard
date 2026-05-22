@@ -4336,6 +4336,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
+  const [stripSortKey, setStripSortKey] = useState<'callsign' | 'time_asc' | 'time_desc' | 'squadron'>('callsign');
+  const [stripGroupBySquadron, setStripGroupBySquadron] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [actionMenuRect, setActionMenuRect] = useState<{ left: number; bottom: number } | null>(null);
   const [rightPanelW, setRightPanelW] = useState(300);
@@ -4518,16 +4520,36 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   // Sort strips so split siblings appear together, ordered by their min aircraft index
   const sortedStrips = React.useMemo(() => {
-    const groups = new Map<string, any[]>();
+    const getTime = (s: any) => s.takeoffTime || s.takeoff_time || '';
+    const getCs = (s: any) => s.callSign || s.callsign || '';
+    const getSq = (s: any) => s.squadron || '';
+
+    const primarySort = (a: any, b: any): number => {
+      if (stripSortKey === 'time_asc') return getTime(a).localeCompare(getTime(b));
+      if (stripSortKey === 'time_desc') return getTime(b).localeCompare(getTime(a));
+      if (stripSortKey === 'squadron') return getSq(a).localeCompare(getSq(b), 'he');
+      return getCs(a).localeCompare(getCs(b), 'he'); // 'callsign' default
+    };
+
+    // Within each formation group, keep partials together sorted by aircraft index
+    const groupsByParent = new Map<string, any[]>();
     const groupOrder: string[] = [];
     for (const strip of strips) {
       const key = strip.parent_strip_id ? String(strip.parent_strip_id) : String(strip.id);
-      if (!groups.has(key)) { groups.set(key, []); groupOrder.push(key); }
-      groups.get(key)!.push(strip);
+      if (!groupsByParent.has(key)) { groupsByParent.set(key, []); groupOrder.push(key); }
+      groupsByParent.get(key)!.push(strip);
     }
+
+    // Sort the group representatives (first strip in each group) then sort within groups
+    const sortedGroups = groupOrder.slice().sort((ka, kb) => {
+      const ra = groupsByParent.get(ka)![0];
+      const rb = groupsByParent.get(kb)![0];
+      return primarySort(ra, rb);
+    });
+
     const result: any[] = [];
-    for (const key of groupOrder) {
-      const group = (groups.get(key) || []).slice().sort((a: any, b: any) => {
+    for (const key of sortedGroups) {
+      const group = (groupsByParent.get(key) || []).slice().sort((a: any, b: any) => {
         const aMin = Array.isArray(a.aircraft_indices) ? Math.min(...a.aircraft_indices) : 0;
         const bMin = Array.isArray(b.aircraft_indices) ? Math.min(...b.aircraft_indices) : 0;
         return aMin - bMin;
@@ -4535,7 +4557,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       result.push(...group);
     }
     return result;
-  }, [strips]);
+  }, [strips, stripSortKey]);
+
+  // Display items: optionally grouped by squadron with header rows
+  const groundDisplayItems = React.useMemo((): Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> => {
+    if (!stripGroupBySquadron) return sortedStrips.map(s => ({ type: 'strip' as const, strip: s }));
+    const items: Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> = [];
+    let lastSq: string | null = null;
+    for (const strip of sortedStrips) {
+      const sq = strip.squadron || 'ללא טייסת';
+      if (sq !== lastSq) { items.push({ type: 'header', label: sq }); lastSq = sq; }
+      items.push({ type: 'strip', strip });
+    }
+    return items;
+  }, [sortedStrips, stripGroupBySquadron]);
   const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
   const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [groundSplitModal, setGroundSplitModal] = React.useState<{ strip: any } | null>(null);
@@ -4859,6 +4894,34 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
 
 
+        {/* Sort & Group toolbar */}
+        <div style={{ background: lightMode ? '#f1f5f9' : '#0f1a2e', borderBottom: `1px solid ${border}`, flexShrink: 0, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>מיון:</span>
+            {([
+              { key: 'callsign', label: 'או"ק' },
+              { key: 'squadron', label: 'טייסת' },
+              { key: 'time_asc', label: 'זמן ↑' },
+              { key: 'time_desc', label: 'זמן ↓' },
+            ] as { key: typeof stripSortKey; label: string }[]).map(opt => (
+              <button key={opt.key} onClick={() => setStripSortKey(opt.key)}
+                style={{ padding: '1px 6px', fontSize: '10px', borderRadius: '3px', border: 'none', cursor: 'pointer', flexShrink: 0,
+                  background: stripSortKey === opt.key ? '#6d28d9' : (lightMode ? '#cbd5e1' : '#1e293b'),
+                  color: stripSortKey === opt.key ? '#fff' : (lightMode ? '#334155' : '#94a3b8'),
+                  fontWeight: stripSortKey === opt.key ? 'bold' : 'normal' }}>
+                {opt.label}
+              </button>
+            ))}
+            <button onClick={() => setStripGroupBySquadron(v => !v)}
+              style={{ marginInlineStart: 'auto', padding: '1px 7px', fontSize: '10px', borderRadius: '3px', border: 'none', cursor: 'pointer', flexShrink: 0,
+                background: stripGroupBySquadron ? '#0369a1' : (lightMode ? '#cbd5e1' : '#1e293b'),
+                color: stripGroupBySquadron ? '#fff' : (lightMode ? '#334155' : '#94a3b8'),
+                fontWeight: stripGroupBySquadron ? 'bold' : 'normal' }}>
+              {stripGroupBySquadron ? '▤ קיבוץ: טייסת' : '▤ קבץ לפי טייסת'}
+            </button>
+          </div>
+        </div>
+
         {/* Incoming transfers zone */}
         {incomingTransfers.length > 0 && (
           <div style={{ padding: '4px', borderBottom: `1px solid ${border}`, background: lightMode ? '#eff6ff' : '#0f1f3a', flexShrink: 0 }}>
@@ -4905,7 +4968,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         {/* Strip cards list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
-          {sortedStrips.map(strip => {
+          {groundDisplayItems.map((item, itemIdx) => {
+            if (item.type === 'header') {
+              return (
+                <div key={`hdr-${item.label}-${itemIdx}`} style={{ padding: '3px 6px', marginTop: itemIdx === 0 ? 0 : '4px', marginBottom: '2px', borderRadius: '3px', background: lightMode ? '#e0f2fe' : '#0c2a45', color: lightMode ? '#0369a1' : '#38bdf8', fontSize: '11px', fontWeight: 'bold', borderRight: `3px solid ${lightMode ? '#0369a1' : '#0ea5e9'}` }}>
+                  ✈ {item.label}
+                </div>
+              );
+            }
+            const strip = item.strip;
             const aircraft = getAircraftPositions(strip);
             const isWholeDragging = dragging?.stripId === String(strip.id) && dragging?.idx === -1;
             const isExpanded = expandedStrips.has(String(strip.id));
