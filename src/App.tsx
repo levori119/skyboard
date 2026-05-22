@@ -4336,6 +4336,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
   const [groundQuickMenu, setGroundQuickMenu] = useState<{ stripId: string; idx: number; x: number; y: number } | null>(null);
   const [expandedStrips, setExpandedStrips] = useState<Set<string>>(new Set());
+  const [sectorContactsOpenId, setSectorContactsOpenId] = useState<number | null>(null);
+  const [allContactsCache, setAllContactsCache] = useState<any[] | null>(null);
   const [stripSortKey, setStripSortKey] = useState<'callsign' | 'time_asc' | 'time_desc' | 'squadron'>('callsign');
   const [stripGroupBySquadron, setStripGroupBySquadron] = useState(false);
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
@@ -4851,6 +4853,53 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   };
 
   const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
+
+  const getContactsForSector = (sectorId: number): { presetId: number; presetName: string; contacts: any[] }[] => {
+    if (!allContactsCache) return [];
+    const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
+    for (const c of allContactsCache) {
+      let sectors: number[] = [];
+      try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
+      if (!sectors.map(Number).includes(sectorId)) continue;
+      if (!byPreset.has(c.preset_id)) byPreset.set(c.preset_id, { presetName: c.preset_name || `עמדה ${c.preset_id}`, contacts: [] });
+      byPreset.get(c.preset_id)!.contacts.push(c);
+    }
+    return Array.from(byPreset.entries()).map(([presetId, v]) => ({ presetId, ...v }));
+  };
+
+  const openSectorContacts = async (sectorId: number) => {
+    if (sectorContactsOpenId === sectorId) { setSectorContactsOpenId(null); return; }
+    if (!allContactsCache) {
+      const data = await fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).catch(() => []);
+      setAllContactsCache(data);
+    }
+    setSectorContactsOpenId(sectorId);
+  };
+
+  const renderSectorContactsPanel = (sectorId: number) => {
+    if (sectorContactsOpenId !== sectorId || !allContactsCache) return null;
+    const groups = getContactsForSector(sectorId);
+    return (
+      <div style={{ borderTop: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, background: lightMode ? '#f0f9ff' : '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl' }}>
+        {groups.length === 0 ? (
+          <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>אין קשרים מוגדרים לסקטור זה</div>
+        ) : groups.map(g => (
+          <div key={g.presetId} style={{ marginBottom: '6px' }}>
+            <div style={{ fontWeight: 'bold', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}` }}>📍 {g.presetName}</div>
+            {g.contacts.map((c: any) => (
+              <div key={c.id} style={{ display: 'flex', gap: '5px', padding: '2px 4px', borderRadius: '3px', background: lightMode ? '#e0f2fe' : '#0a1e35', marginBottom: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {c.device_type && <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '9px', minWidth: '24px', flexShrink: 0 }}>{c.device_type}</span>}
+                {c.mahut && <span style={{ color: lightMode ? '#374151' : '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>{c.mahut}</span>}
+                {c.oketz && <span style={{ color: lightMode ? '#1d4ed8' : '#60a5fa', fontWeight: 'bold', fontSize: '10px', flexShrink: 0 }}>{c.oketz}</span>}
+                {c.frequency && <span style={{ color: '#22c55e', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>{c.frequency}</span>}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const airfieldSidList = parseAirfieldSids(airfield?.sids);
   const sidTransferEntries: { sidLabel: string; sectorId: number }[] = airfieldSidList
     .filter(s => s.sector_id != null)
@@ -6131,8 +6180,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 }}
               >
                 {/* Sector name header */}
-                <div style={{ padding: '7px 10px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : (lightMode ? '#1e3a5f' : '#1e293b'), color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#f1f5f9', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
-                  {isDrop ? '↓ שחרר להעביר' : (sec.label_he || sec.name)}
+                <div style={{ padding: '5px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : (lightMode ? '#1e3a5f' : '#1e293b'), color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#f1f5f9', fontSize: '12px', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ flex: 1, textAlign: 'center' }}>{isDrop ? '↓ שחרר להעביר' : (sec.label_he || sec.name)}</span>
+                  {!isDrop && (
+                    <button
+                      onClick={e => { e.stopPropagation(); openSectorContacts(sec.id); }}
+                      title="הצג קשרי עמדות לנקודה זו"
+                      style={{ padding: '2px 6px', fontSize: '10px', background: sectorContactsOpenId === sec.id ? '#0369a1' : 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                      📡 קשר
+                    </button>
+                  )}
                 </div>
 
                 {/* מוסר — outgoing to this sector */}
@@ -6176,6 +6233,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                   )}
                 </div>
+                {renderSectorContactsPanel(sec.id)}
               </div>
             );
           })}
@@ -6207,8 +6265,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       } catch {}
                     }}
                   >
-                    <div style={{ padding: '5px 10px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : '#1e3a5f', color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', direction: 'rtl' }}>
-                      {isDrop ? '↓ שחרר להעביר' : sidLabel}
+                    <div style={{ padding: '5px 8px', background: isDrop ? (lightMode ? '#dcfce7' : '#166534') : '#1e3a5f', color: isDrop ? (lightMode ? '#166534' : '#86efac') : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ flex: 1, textAlign: 'center' }}>{isDrop ? '↓ שחרר להעביר' : sidLabel}</span>
+                      {!isDrop && (
+                        <button
+                          onClick={e => { e.stopPropagation(); openSectorContacts(sectorId); }}
+                          title="הצג קשרי עמדות לנקודה זו"
+                          style={{ padding: '2px 6px', fontSize: '10px', background: sectorContactsOpenId === sectorId ? '#0369a1' : 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                          📡 קשר
+                        </button>
+                      )}
                     </div>
                     <div style={{ borderTop: '1px solid #1e3a5f' }}>
                       <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
@@ -6248,6 +6314,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                       )}
                     </div>
+                    {renderSectorContactsPanel(sectorId)}
                   </div>
                 );
               })}
