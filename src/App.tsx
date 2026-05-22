@@ -4610,11 +4610,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const getFormationSiblings = (strip: any): any[] => {
     const parentCs = (stripFormationMeta[String(strip.id)]?.parentCallsign) || strip.parent_callsign || '';
     const parentId = strip.parent_strip_id;
+    const baseCs = strip.callSign || strip.callsign || '';
+    const myIndices: number[] | null = Array.isArray(strip.aircraft_indices) && strip.aircraft_indices.length > 0
+      ? strip.aircraft_indices : null;
+    const myOrigCount = strip.original_formation_count;
     return strips.filter((s: any) => {
       if (String(s.id) === String(strip.id)) return false;
       const sCs = (stripFormationMeta[String(s.id)]?.parentCallsign) || s.parent_callsign || '';
       if (parentCs && sCs && parentCs === sCs) return true;
       if (parentId && s.parent_strip_id && String(s.parent_strip_id) === String(parentId)) return true;
+      // Fallback: same base callsign + both are partial formations (have aircraft_indices)
+      const theirIndices: number[] | null = Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0
+        ? s.aircraft_indices : null;
+      if (myIndices && theirIndices && baseCs && (s.callSign || s.callsign) === baseCs) {
+        const sameOrigCount = !myOrigCount || !s.original_formation_count ||
+          String(myOrigCount) === String(s.original_formation_count);
+        if (sameOrigCount) return true;
+      }
       return false;
     });
   };
@@ -10410,11 +10422,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const getSectorSiblings = (strip: any): any[] => {
     const parentCs = strip.parent_callsign || '';
     const parentId = strip.parent_strip_id;
+    const baseCs = strip.callSign || strip.callsign || '';
+    const myIndices: number[] | null = Array.isArray(strip.aircraft_indices) && strip.aircraft_indices.length > 0
+      ? strip.aircraft_indices : null;
+    const myOrigCount = strip.original_formation_count;
     return myTableStrips.filter((s: any) => {
       if (String(s.id) === String(strip.id)) return false;
       const sCs = s.parent_callsign || '';
       if (parentCs && sCs && parentCs === sCs) return true;
       if (parentId && s.parent_strip_id && String(s.parent_strip_id) === String(parentId)) return true;
+      // Fallback: same base callsign + both are partial formations (have aircraft_indices)
+      // This recovers sibling linkage when parent_strip_id tracking broke
+      const theirIndices: number[] | null = Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0
+        ? s.aircraft_indices : null;
+      if (myIndices && theirIndices && baseCs && (s.callSign || s.callsign) === baseCs) {
+        const sameOrigCount = !myOrigCount || !s.original_formation_count ||
+          String(myOrigCount) === String(s.original_formation_count);
+        if (sameOrigCount) return true;
+      }
       return false;
     });
   };

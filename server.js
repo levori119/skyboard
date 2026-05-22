@@ -2912,10 +2912,6 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
     }
     const src = srcRow.rows[0];
 
-    // Get the strip_aircraft row for this aircraft (datk/kipa)
-    const saRow = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, aidx]);
-    const sa = saRow.rows[0] || null;
-
     // Determine parent tracking
     const rootParentId = src.parent_strip_id || src.id;
     const origCount = src.original_formation_count || parseInt(src.number_of_formation || '1') || 1;
@@ -2923,6 +2919,16 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
       ? src.aircraft_indices
       : (src.aircraft_indices ? (() => { try { return JSON.parse(src.aircraft_indices); } catch { return null; } })() : null)
         || Array.from({ length: origCount }, (_, i) => i + 1);
+
+    // Map sequential aidx (strip_aircraft.idx, may be renumbered) to the original aircraft index.
+    // If aidx is already present in srcIndices (not renumbered), use it directly.
+    // Otherwise fall back to positional mapping using the sorted srcIndices array.
+    const sortedSrcIndices = [...srcIndices].sort((a, b) => a - b);
+    const originalIndex = sortedSrcIndices.includes(aidx) ? aidx : (sortedSrcIndices[aidx - 1] ?? aidx);
+
+    // Get the strip_aircraft row for this aircraft by original index
+    const saRow = await client.query('SELECT * FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, originalIndex]);
+    const sa = saRow.rows[0] || null;
 
     // Create new 1-aircraft strip (clone of source fields)
     const newRes = await client.query(
@@ -2936,22 +2942,21 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
         src.sector_id, src.takeoff_time,
         src.erka, src.koteret, src.mivtza, src.notes,
         src.workstation_preset_id,
-        rootParentId, JSON.stringify([aidx]), origCount
+        rootParentId, JSON.stringify([originalIndex]), origCount
       ]
     );
     const newStripId = newRes.rows[0].id;
 
-    // Copy strip_aircraft row to new strip with sequential idx=1
+    // Copy strip_aircraft row to new strip, preserving the original index
     if (sa) {
       await client.query(
-        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,1,$2,$3) ON CONFLICT DO NOTHING',
-        [newStripId, sa.datk, sa.kipa]
+        'INSERT INTO strip_aircraft (strip_id, idx, datk, kipa) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        [newStripId, originalIndex, sa.datk, sa.kipa]
       );
     }
 
-    // Remove the aircraft from the source strip_aircraft and renumber
-    await client.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, aidx]);
-    await client.query('UPDATE strip_aircraft SET idx = idx - 1 WHERE strip_id=$1 AND idx > $2', [rawId, aidx]);
+    // Remove the aircraft from the source strip_aircraft (no renumbering — preserve original indices)
+    await client.query('DELETE FROM strip_aircraft WHERE strip_id=$1 AND idx=$2', [rawId, originalIndex]);
 
     // Decrement source or delete if last aircraft
     const newCount = Math.max(0, (parseInt(src.number_of_formation || '1') || 1) - 1);
@@ -2960,13 +2965,11 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
       await client.query('DELETE FROM strips WHERE id=$1', [rawId]);
       sourceDeleted = true;
     } else {
-      const remainingIndices = srcIndices.filter(i => i !== aidx);
+      const remainingIndices = srcIndices.filter(i => i !== originalIndex);
       const srcPositions = Array.isArray(src.aircraft_positions)
         ? src.aircraft_positions
         : (src.aircraft_positions ? (() => { try { return JSON.parse(src.aircraft_positions); } catch { return []; } })() : []);
-      const remainingPositions = srcPositions
-        .filter(p => p.idx !== aidx)
-        .map((p, i) => ({ ...p, idx: i + 1 }));
+      const remainingPositions = srcPositions.filter(p => p.idx !== originalIndex);
       await client.query(
         `UPDATE strips SET number_of_formation=$1, aircraft_indices=$2, aircraft_positions=$3,
            parent_strip_id=$4, original_formation_count=$5 WHERE id=$6`,
