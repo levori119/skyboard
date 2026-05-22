@@ -2540,7 +2540,7 @@ const DraggableMapMarker = ({
         if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
-        if (outAlt !== incAlt && Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
+        if (Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(out.id));
           markerConflictIds.add(String(inc.id));
         }
@@ -2553,7 +2553,7 @@ const DraggableMapMarker = ({
       for (let j = i + 1; j < markerOutgoing.length; j++) {
         const altB = parseAlt(markerOutgoing[j].alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(markerOutgoing[i].id));
           markerConflictIds.add(String(markerOutgoing[j].id));
         }
@@ -2566,7 +2566,7 @@ const DraggableMapMarker = ({
       for (let j = i + 1; j < markerIncoming.length; j++) {
         const altB = parseAlt(markerIncoming[j].alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(markerIncoming[i].id));
           markerConflictIds.add(String(markerIncoming[j].id));
         }
@@ -2589,7 +2589,7 @@ const DraggableMapMarker = ({
         if (mineIsOutgoing && outgoingMarkerIdSet.has(String(other.id))) continue;
         const otherAlt = parseAlt(other.alt);
         if (otherAlt == null) continue;
-        if (mineAlt !== otherAlt && Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
+        if (Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(mine.id));
         }
       }
@@ -9858,7 +9858,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         if (aIsOutgoing && outgoingGlobalIdSet.has(String(b.id))) continue;
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+        if (Math.abs(altA - altB) * 100 <= delta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
