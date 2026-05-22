@@ -9425,6 +9425,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [lightMode]);
 
   const [tableMode, setTableMode] = useState(false);
+  const [mapSplitMergeMode, setMapSplitMergeMode] = useState(false);
   const [showMapDropdown, setShowMapDropdown] = useState(false);
   const [showTableDropdown, setShowTableDropdown] = useState(false);
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
@@ -11635,6 +11636,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
           </div>
 
+          {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
+          {!isClassicMode && !isGroundMode && !tableMode && (
+            <button
+              onClick={() => setMapSplitMergeMode(v => !v)}
+              title={mapSplitMergeMode ? 'סגור מצב פצל/אחד' : 'הפעל פצל/אחד פ"מ על המפה'}
+              style={{ background: mapSplitMergeMode ? '#4c1d95' : '#334155', border: `1px solid ${mapSplitMergeMode ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', color: mapSplitMergeMode ? '#c4b5fd' : '#94a3b8', fontWeight: mapSplitMergeMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+            >✂⊕ אחד/פצל</button>
+          )}
           {/* תפריט תצוגה — מוסתר בעמדת סטריפים קלאסית בלבד */}
           {!isClassicMode && (
           <div style={{ position: 'relative' }}>
@@ -14084,7 +14093,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             ))}
             
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
-            {(() => {
+            {mapSplitMergeMode && (() => {
               const onMapStrips = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
               return onMapStrips.map(s => {
                 const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
@@ -14535,7 +14544,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
                       );
                     })()}
-                    {(() => {
+                    {mapSplitMergeMode && (() => {
                       const sCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
                       const sSiblings = getSectorSiblings(s);
                       if (sCount <= 1 && sSiblings.length === 0) return null;
@@ -14642,7 +14651,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
                       );
                     })()}
-                    {(() => {
+                    {mapSplitMergeMode && (() => {
                       const sCount2 = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
                       const sSiblings2 = getSectorSiblings(s);
                       if (sCount2 <= 1 && sSiblings2.length === 0) return null;
