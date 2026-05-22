@@ -1758,7 +1758,7 @@ const DraggableNeighborPanel = ({
         if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
-        if (Math.abs(outAlt - incAlt) * 100 <= delta) {
+        if (outAlt !== incAlt && Math.abs(outAlt - incAlt) * 100 <= delta) {
           conflictingTransferIds.add(String(out.id));
           conflictingTransferIds.add(String(inc.id));
         }
@@ -1771,7 +1771,7 @@ const DraggableNeighborPanel = ({
       for (let j = i + 1; j < sectorOutgoing.length; j++) {
         const altB = parseAlt(sectorOutgoing[j].alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
           conflictingTransferIds.add(String(sectorOutgoing[i].id));
           conflictingTransferIds.add(String(sectorOutgoing[j].id));
         }
@@ -1784,7 +1784,7 @@ const DraggableNeighborPanel = ({
       for (let j = i + 1; j < sectorIncoming.length; j++) {
         const altB = parseAlt(sectorIncoming[j].alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
           conflictingTransferIds.add(String(sectorIncoming[i].id));
           conflictingTransferIds.add(String(sectorIncoming[j].id));
         }
@@ -1806,7 +1806,7 @@ const DraggableNeighborPanel = ({
         if (mineIsOutgoing && outgoingIdSet.has(String(other.id))) continue;
         const otherAlt = parseAlt(other.alt);
         if (otherAlt == null) continue;
-        if (Math.abs(mineAlt - otherAlt) * 100 <= delta) {
+        if (mineAlt !== otherAlt && Math.abs(mineAlt - otherAlt) * 100 <= delta) {
           conflictingTransferIds.add(String(mine.id));
         }
       }
@@ -2540,7 +2540,7 @@ const DraggableMapMarker = ({
         if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
-        if (Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
+        if (outAlt !== incAlt && Math.abs(outAlt - incAlt) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(out.id));
           markerConflictIds.add(String(inc.id));
         }
@@ -2553,7 +2553,7 @@ const DraggableMapMarker = ({
       for (let j = i + 1; j < markerOutgoing.length; j++) {
         const altB = parseAlt(markerOutgoing[j].alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(markerOutgoing[i].id));
           markerConflictIds.add(String(markerOutgoing[j].id));
         }
@@ -2566,7 +2566,7 @@ const DraggableMapMarker = ({
       for (let j = i + 1; j < markerIncoming.length; j++) {
         const altB = parseAlt(markerIncoming[j].alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= conflictAltDelta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(markerIncoming[i].id));
           markerConflictIds.add(String(markerIncoming[j].id));
         }
@@ -2589,7 +2589,7 @@ const DraggableMapMarker = ({
         if (mineIsOutgoing && outgoingMarkerIdSet.has(String(other.id))) continue;
         const otherAlt = parseAlt(other.alt);
         if (otherAlt == null) continue;
-        if (Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
+        if (mineAlt !== otherAlt && Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
           markerConflictIds.add(String(mine.id));
         }
       }
@@ -8110,7 +8110,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         const xOvlp = a._x < b._x + STRIP_W && b._x < a._x + STRIP_W;
         if (!xOvlp) continue;
         const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-        if (altGap < conflictAltDelta) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
+        if (altGap !== 0 && altGap < conflictAltDelta) { p[i]._hasConflict = true; p[j]._hasConflict = true; }
         if (!a._isRange && !b._isRange) {
           const yDiff = Math.abs(a._y - b._y);
           if (yDiff < STRIP_H) {
@@ -8133,7 +8133,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       for (let j = i + 1; j < list.length; j++) {
         const a = list[i], b = list[j];
         const altGap = Math.max(a._altLo, b._altLo) - Math.min(a._altHi, b._altHi);
-        if (altGap < conflictAltDelta) {
+        if (altGap !== 0 && altGap < conflictAltDelta) {
           conflictSet.add(String(a.id));
           conflictSet.add(String(b.id));
         }
@@ -9851,7 +9851,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         if (aIsOutgoing && outgoingGlobalIdSet.has(String(b.id))) continue;
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
@@ -9879,7 +9879,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const b = onMapStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
