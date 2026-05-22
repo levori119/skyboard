@@ -1712,6 +1712,30 @@ const DraggableNeighborPanel = ({
   const [isStripDragOver, setIsStripDragOver] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [dragLabel, setDragLabel] = useState<string | null>(null);
+  const [neighborContactsOpen, setNeighborContactsOpen] = useState(false);
+  const [neighborContactsCache, setNeighborContactsCache] = useState<any[] | null>(null);
+
+  const getNeighborContacts = () => {
+    if (!neighborContactsCache) return [];
+    const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
+    for (const c of neighborContactsCache) {
+      let sectors: number[] = [];
+      try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
+      if (!sectors.map(Number).includes(Number(neighbor.id))) continue;
+      if (!byPreset.has(c.preset_id)) byPreset.set(c.preset_id, { presetName: c.preset_name || `עמדה ${c.preset_id}`, contacts: [] });
+      byPreset.get(c.preset_id)!.contacts.push(c);
+    }
+    return Array.from(byPreset.entries()).map(([pid, v]) => ({ presetId: pid, ...v }));
+  };
+  const toggleNeighborContacts = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (neighborContactsOpen) { setNeighborContactsOpen(false); return; }
+    if (!neighborContactsCache) {
+      const data = await fetch('/api/workstation-contacts/all').then(r => r.ok ? r.json() : []).catch(() => []);
+      setNeighborContactsCache(data);
+    }
+    setNeighborContactsOpen(true);
+  };
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
   const sectorIncoming = incomingTransfers.filter(t => Number(t.from_sector_id) === Number(neighbor.id));
@@ -1894,6 +1918,13 @@ const DraggableNeighborPanel = ({
                   ⚠️ קונפליקט גובה
                 </span>
               )}
+              <button
+                onClick={toggleNeighborContacts}
+                onPointerDown={e => e.stopPropagation()}
+                title="הצג קשרי עמדות לנקודה זו"
+                style={{ padding: '1px 5px', fontSize: '10px', background: neighborContactsOpen ? '#0369a1' : 'rgba(255,255,255,0.12)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                📡
+              </button>
             </div>
             {neighbor.notes && (
               <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
@@ -2013,6 +2044,28 @@ const DraggableNeighborPanel = ({
             )}
           </div>
         )}
+        {neighborContactsOpen && neighborContactsCache !== null && (() => {
+          const groups = getNeighborContacts();
+          return (
+            <div style={{ borderTop: '1px solid #1e3a5f', background: '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl' }}>
+              {groups.length === 0 ? (
+                <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>אין קשרים מוגדרים לסקטור זה</div>
+              ) : groups.map(g => (
+                <div key={g.presetId} style={{ marginBottom: '6px' }}>
+                  <div style={{ fontWeight: 'bold', color: '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: '1px solid #1e3a5f' }}>📍 {g.presetName}</div>
+                  {g.contacts.map((c: any) => (
+                    <div key={c.id} style={{ display: 'flex', gap: '5px', padding: '2px 4px', borderRadius: '3px', background: '#0a1e35', marginBottom: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {c.device_type && <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '9px', minWidth: '24px', flexShrink: 0 }}>{c.device_type}</span>}
+                      {c.mahut && <span style={{ color: '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>{c.mahut}</span>}
+                      {c.oketz && <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '10px', flexShrink: 0 }}>{c.oketz}</span>}
+                      {c.frequency && <span style={{ color: '#22c55e', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>{c.frequency}</span>}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {isDragging && createPortal(
