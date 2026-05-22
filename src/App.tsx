@@ -4393,6 +4393,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [allContactsCache, setAllContactsCache] = useState<any[] | null>(null);
   const [stripSortKey, setStripSortKey] = useState<'callsign' | 'time_asc' | 'time_desc' | 'squadron'>('callsign');
   const [stripGroupBySquadron, setStripGroupBySquadron] = useState(false);
+  const [squadronCollapse, setSquadronCollapse] = React.useState<Record<string, 'open' | 'half' | 'closed'>>({});
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [actionMenuRect, setActionMenuRect] = useState<{ left: number; bottom: number } | null>(null);
   const [rightPanelW, setRightPanelW] = useState(300);
@@ -4615,20 +4616,32 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   }, [strips, stripSortKey]);
 
   // Display items: optionally grouped by squadron with header rows
-  const groundDisplayItems = React.useMemo((): Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> => {
-    if (!stripGroupBySquadron) return sortedStrips.map(s => ({ type: 'strip' as const, strip: s }));
+  const groundDisplayItems = React.useMemo((): Array<
+    { type: 'strip'; strip: any; squadronLabel: string; squadronIdx: number; squadronTotal: number } |
+    { type: 'header'; label: string; total: number }
+  > => {
+    if (!stripGroupBySquadron) return sortedStrips.map(s => ({ type: 'strip' as const, strip: s, squadronLabel: '', squadronIdx: 0, squadronTotal: 0 }));
     // Re-sort by squadron first (stable), preserving the existing secondary sort within each squadron
     const bySq = sortedStrips.slice().sort((a, b) => {
       const sqA = a.sq || a.squadron || 'ללא טייסת';
       const sqB = b.sq || b.squadron || 'ללא טייסת';
       return sqA.localeCompare(sqB, 'he');
     });
-    const items: Array<{ type: 'strip'; strip: any } | { type: 'header'; label: string }> = [];
-    let lastSq: string | null = null;
+    // First pass: count per squadron
+    const sqCounts: Record<string, number> = {};
     for (const strip of bySq) {
       const sq = strip.sq || strip.squadron || 'ללא טייסת';
-      if (sq !== lastSq) { items.push({ type: 'header', label: sq }); lastSq = sq; }
-      items.push({ type: 'strip', strip });
+      sqCounts[sq] = (sqCounts[sq] || 0) + 1;
+    }
+    // Second pass: build items with index/total
+    const items: Array<{ type: 'strip'; strip: any; squadronLabel: string; squadronIdx: number; squadronTotal: number } | { type: 'header'; label: string; total: number }> = [];
+    let lastSq: string | null = null;
+    const sqIdx: Record<string, number> = {};
+    for (const strip of bySq) {
+      const sq = strip.sq || strip.squadron || 'ללא טייסת';
+      if (sq !== lastSq) { items.push({ type: 'header', label: sq, total: sqCounts[sq] }); lastSq = sq; sqIdx[sq] = 0; }
+      items.push({ type: 'strip', strip, squadronLabel: sq, squadronIdx: sqIdx[sq]!, squadronTotal: sqCounts[sq] });
+      sqIdx[sq]!++;
     }
     return items;
   }, [sortedStrips, stripGroupBySquadron]);
@@ -5078,11 +5091,35 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
           {groundDisplayItems.map((item, itemIdx) => {
             if (item.type === 'header') {
+              const colState = squadronCollapse[item.label] ?? 'open';
+              const cycleCollapse = () => setSquadronCollapse(prev => {
+                const cur = prev[item.label] ?? 'open';
+                const next = cur === 'open' ? 'half' : cur === 'half' ? 'closed' : 'open';
+                return { ...prev, [item.label]: next };
+              });
+              const stateIcon = colState === 'open' ? '▼' : colState === 'half' ? '▶' : '▶▶';
+              const stateHint = colState === 'open' ? 'לחץ להצגת 5 ראשונים' : colState === 'half' ? 'לחץ לסגירה' : 'לחץ לפתיחה';
+              const visibleCount = colState === 'open' ? item.total : colState === 'half' ? Math.min(5, item.total) : 0;
               return (
-                <div key={`hdr-${item.label}-${itemIdx}`} style={{ padding: '3px 6px', marginTop: itemIdx === 0 ? 0 : '4px', marginBottom: '2px', borderRadius: '3px', background: lightMode ? '#e0f2fe' : '#0c2a45', color: lightMode ? '#0369a1' : '#38bdf8', fontSize: '11px', fontWeight: 'bold', borderRight: `3px solid ${lightMode ? '#0369a1' : '#0ea5e9'}` }}>
-                  ✈ {item.label}
+                <div key={`hdr-${item.label}-${itemIdx}`}
+                  onClick={cycleCollapse}
+                  title={stateHint}
+                  style={{ padding: '4px 8px', marginTop: itemIdx === 0 ? 0 : '6px', marginBottom: '2px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c2a45', color: lightMode ? '#0369a1' : '#38bdf8', fontSize: '11px', fontWeight: 'bold', borderRight: `3px solid ${lightMode ? '#0369a1' : '#0ea5e9'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}>
+                  <span>✈ {item.label}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', opacity: 0.85 }}>
+                    <span style={{ background: lightMode ? '#bae6fd' : '#0e3a5e', borderRadius: '9px', padding: '1px 7px', fontWeight: 700 }}>
+                      {visibleCount}/{item.total}
+                    </span>
+                    <span style={{ fontSize: '9px' }}>{stateIcon}</span>
+                  </span>
                 </div>
               );
+            }
+            // Strip visibility gating by squadron collapse state
+            if (stripGroupBySquadron) {
+              const colState = squadronCollapse[item.squadronLabel] ?? 'open';
+              if (colState === 'closed') return null;
+              if (colState === 'half' && item.squadronIdx >= 5) return null;
             }
             const strip = item.strip;
             const aircraft = getAircraftPositions(strip);
