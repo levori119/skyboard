@@ -11886,19 +11886,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* כפתור דש בורד מנהל */}
-          {(() => {
-            const myAdminGroups = allWorkGroups.filter(g => g.admin_preset_id && session.presetId && Number(g.admin_preset_id) === Number(session.presetId));
-            if (!session.crewMember?.is_admin || myAdminGroups.length === 0) return null;
-            return (
-              <button
-                onClick={() => setShowAdminDashboard(true)}
-                style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                title="דש בורד מנהל — סקירת עמדות"
-              >
-                📊 דש בורד
-              </button>
-            );
-          })()}
+          {session.crewMember?.is_admin && (
+            <button
+              onClick={() => setShowAdminDashboard(true)}
+              style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+              title="דש בורד מנהל — סקירת עמדות"
+            >
+              📊 דש בורד
+            </button>
+          )}
           {/* תפריט התראות */}
           <div style={{ position: 'relative' }}>
             {(() => {
@@ -12296,10 +12292,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {
         const myAdminGroups = allWorkGroups.filter(g => g.admin_preset_id && session.presetId && Number(g.admin_preset_id) === Number(session.presetId));
-        if (myAdminGroups.length === 0) { setShowAdminDashboard(false); return null; }
+        const groupsToShow = myAdminGroups.length > 0 ? myAdminGroups : allWorkGroups.length > 0 ? allWorkGroups : [{ id: -1, name: 'כל העמדות', admin_preset_id: session.presetId, members: workstationPresets.map((p: any) => ({ preset_id: p.id })) }];
         return (
           <AdminDashboard
-            groups={myAdminGroups}
+            groups={groupsToShow}
             presets={workstationPresets}
             lightMode={lightMode}
             onClose={() => setShowAdminDashboard(false)}
