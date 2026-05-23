@@ -9348,8 +9348,8 @@ const AdminDashboard: React.FC<{
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
-  const [drilldownId, setDrilldownId] = useState<number | null>(null);
-  const [drilldownStrips, setDrilldownStrips] = useState<any[]>([]);
+  const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
+  const [drilldownStripsMap, setDrilldownStripsMap] = useState<Record<number, any[]>>({});
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -9374,26 +9374,34 @@ const AdminDashboard: React.FC<{
     return () => clearInterval(t);
   }, []);
 
-  const getCount = (preset: any): number => {
+  const filterStripsForPreset = (strips: any[], preset: any): any[] => {
     const type = preset.preset_type || 'standard';
     const fq: QGroup | null = preset.filter_query || null;
     const hasFq = hasConditions(fq);
     const ctx = { presetId: preset.id };
-    return allStrips.filter(s => {
+    return strips.filter(s => {
       if (s.status !== 'active') return false;
       if (type === 'ground' || type === 'airfield') {
         return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
       }
       if (preset.map_id) {
+        // map workstation: only strips dragged onto the map
         if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
         return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
-      // only count strips actually in the table or on the map — not waiting in the right panel
-      if (!(s.inTable || s.onMap)) return false;
+      if (type === 'classic') {
+        // classic workstation: only strips already in the table (inTable = true)
+        if (!s.inTable) return false;
+        if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
+        return evaluateQuery(s, fq!, ctx);
+      }
+      // standard / normal tabular workstation: all active strips matching filter
       if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
       return evaluateQuery(s, fq!, ctx);
-    }).length;
+    });
   };
+
+  const getCount = (preset: any): number => filterStripsForPreset(allStrips, preset).length;
 
   const getPartial = (preset: any) => thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
   const getFull = (preset: any) => thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
@@ -9414,30 +9422,22 @@ const AdminDashboard: React.FC<{
     setSavingId(null);
   };
 
-  const openDrilldown = (presetId: number) => {
-    setDrilldownId(presetId);
-    const preset = localPresets.find(p => p.id === presetId);
-    const type = preset?.preset_type || 'standard';
-    const fq: QGroup | null = preset?.filter_query || null;
-    const hasFq = hasConditions(fq);
-    const ctx = { presetId };
-    const filtered = allStrips.filter((s: any) => {
-      if (s.status !== 'active') return false;
-      if (type === 'ground' || type === 'airfield') {
-        return Number(s.workstation_preset_id) === Number(presetId) && s.ground_status !== 'takeoff';
+  const toggleDrilldown = (presetId: number) => {
+    setOpenDrilldowns(prev => {
+      const next = new Set(prev);
+      if (next.has(presetId)) {
+        next.delete(presetId);
+      } else {
+        next.add(presetId);
+        const preset = localPresets.find(p => p.id === presetId);
+        if (preset) {
+          const filtered = filterStripsForPreset(allStrips, preset);
+          setDrilldownStripsMap(m => ({ ...m, [presetId]: filtered }));
+        }
       }
-      if (preset?.map_id) {
-        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(presetId);
-        return !!s.onMap && evaluateQuery(s, fq!, ctx);
-      }
-      if (!(s.inTable || s.onMap)) return false;
-      if (!hasFq) return Number(s.workstation_preset_id) === Number(presetId);
-      return evaluateQuery(s, fq!, ctx);
+      return next;
     });
-    setDrilldownStrips(filtered);
   };
-
-  const drilldownPreset = localPresets.find(p => p.id === drilldownId);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
@@ -9473,7 +9473,8 @@ const AdminDashboard: React.FC<{
           const borderColor = level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
-          const isOpen = drilldownId === preset.id;
+          const isOpen = openDrilldowns.has(preset.id);
+          const presetStrips = drilldownStripsMap[preset.id] || [];
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
@@ -9483,7 +9484,7 @@ const AdminDashboard: React.FC<{
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>{preset.name}</div>
                 {isOpen && (
-                  <button onClick={() => { setDrilldownId(null); setDrilldownStrips([]); }}
+                  <button onClick={() => toggleDrilldown(preset.id)}
                     style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
                     ✕
                   </button>
@@ -9494,12 +9495,12 @@ const AdminDashboard: React.FC<{
                 /* ── Drilldown view — replaces donut ── */
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '320px' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', borderBottom: '1px solid #334155' }}>
-                    {`${drilldownStrips.length} פ״מ`}
+                    {`${presetStrips.length} פ״מ`}
                   </div>
-                  {drilldownStrips.length === 0 && (
+                  {presetStrips.length === 0 && (
                     <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
                   )}
-                  {drilldownStrips.map((s: any) => (
+                  {presetStrips.map((s: any) => (
                     <div key={s.id} style={{ background: '#0f172a', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 'bold', fontSize: '13px', color: s.airborne ? '#60a5fa' : 'white' }}>
@@ -9558,7 +9559,7 @@ const AdminDashboard: React.FC<{
                     )}
                   </div>
                   {/* Drill-down button */}
-                  <button onClick={() => openDrilldown(preset.id)}
+                  <button onClick={() => toggleDrilldown(preset.id)}
                     style={{ marginTop: 'auto', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
                     👁 תצוגת פ״מ
                   </button>
