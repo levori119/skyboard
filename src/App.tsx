@@ -9462,99 +9462,104 @@ const AdminDashboard: React.FC<{
           const borderColor = level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
+          const isOpen = drilldownId === preset.id;
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
-              style={{ background: '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', minHeight: '230px' }}
+              style={{ background: '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '230px' }}
             >
-              <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'white', textAlign: 'center' }}>{preset.name}</div>
-              {/* Donut + threshold labels */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ textAlign: 'center', minWidth: '38px' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{partial}</div>
-                  <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>חלקי</div>
-                </div>
-                <DonutChart count={count} partial={partial} full={full} />
-                <div style={{ textAlign: 'center', minWidth: '38px' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444', lineHeight: 1 }}>{full}</div>
-                  <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>עומס</div>
-                </div>
-              </div>
-              {/* Editable thresholds */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>סף:</span>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#f97316' }}>
-                  🟠
-                  <input type="number" min={1} max={99} value={partialVal}
-                    onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: Number(e.target.value), full: prev[preset.id]?.full ?? (preset.full_load ?? 5) } }))}
-                    style={{ width: '38px', background: '#1e293b', color: '#f97316', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#ef4444' }}>
-                  🔴
-                  <input type="number" min={1} max={99} value={fullVal}
-                    onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: prev[preset.id]?.partial ?? (preset.partial_load ?? 3), full: Number(e.target.value) } }))}
-                    style={{ width: '38px', background: '#1e293b', color: '#ef4444', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
-                </label>
-                {hasEdit && (
-                  <button onClick={() => saveThresholds(preset)}
-                    style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 10px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {savingId === preset.id ? '...' : '✓ שמור'}
+              {/* Card header — always visible */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>{preset.name}</div>
+                {isOpen && (
+                  <button onClick={() => { setDrilldownId(null); setDrilldownStrips([]); }}
+                    style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
+                    ✕
                   </button>
                 )}
               </div>
-              {/* Drill-down button */}
-              <button onClick={() => openDrilldown(preset.id)}
-                style={{ marginTop: 'auto', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                👁 תצוגת פ״מ
-              </button>
+
+              {isOpen ? (
+                /* ── Drilldown view — replaces donut ── */
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '320px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', borderBottom: '1px solid #334155' }}>
+                    {loadingDrilldown ? 'טוען...' : `${drilldownStrips.length} פ״מ`}
+                  </div>
+                  {loadingDrilldown && (
+                    <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>טוען...</div>
+                  )}
+                  {!loadingDrilldown && drilldownStrips.length === 0 && (
+                    <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
+                  )}
+                  {!loadingDrilldown && drilldownStrips.map((s: any) => (
+                    <div key={s.id} style={{ background: '#0f172a', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '13px', color: s.airborne ? '#60a5fa' : 'white' }}>
+                          {s.callSign}{s.numberOfFormation && s.numberOfFormation > 1 ? ` ${s.numberOfFormation}` : ''}
+                        </span>
+                        <div style={{ display: 'flex', gap: '3px' }}>
+                          {s.airborne && <span style={{ fontSize: '9px', background: '#1d4ed8', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>✈</span>}
+                          {s.onMap && !s.airborne && <span style={{ fontSize: '9px', background: '#15803d', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>🗺</span>}
+                          {s.inTable && !s.airborne && !s.onMap && <span style={{ fontSize: '9px', background: '#7c3aed', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>📋</span>}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {(s.sq || s.squadron) && <span>{s.sq || s.squadron}</span>}
+                        {s.alt && <span>{s.alt}</span>}
+                        {s.task && <span>{s.task}</span>}
+                        {s.ground_status && s.ground_status !== 'none' && <span style={{ color: '#fbbf24' }}>{s.ground_status}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* ── Normal view — donut + thresholds + button ── */
+                <>
+                  {/* Donut + threshold labels */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', justifyContent: 'center' }}>
+                    <div style={{ textAlign: 'center', minWidth: '38px' }}>
+                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{partial}</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>חלקי</div>
+                    </div>
+                    <DonutChart count={count} partial={partial} full={full} />
+                    <div style={{ textAlign: 'center', minWidth: '38px' }}>
+                      <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444', lineHeight: 1 }}>{full}</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>עומס</div>
+                    </div>
+                  </div>
+                  {/* Editable thresholds */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
+                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>סף:</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#f97316' }}>
+                      🟠
+                      <input type="number" min={1} max={99} value={partialVal}
+                        onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: Number(e.target.value), full: prev[preset.id]?.full ?? (preset.full_load ?? 5) } }))}
+                        style={{ width: '38px', background: '#1e293b', color: '#f97316', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#ef4444' }}>
+                      🔴
+                      <input type="number" min={1} max={99} value={fullVal}
+                        onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: prev[preset.id]?.partial ?? (preset.partial_load ?? 3), full: Number(e.target.value) } }))}
+                        style={{ width: '38px', background: '#1e293b', color: '#ef4444', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                    </label>
+                    {hasEdit && (
+                      <button onClick={() => saveThresholds(preset)}
+                        style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 10px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {savingId === preset.id ? '...' : '✓ שמור'}
+                      </button>
+                    )}
+                  </div>
+                  {/* Drill-down button */}
+                  <button onClick={() => openDrilldown(preset.id)}
+                    style={{ marginTop: 'auto', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                    👁 תצוגת פ״מ
+                  </button>
+                </>
+              )}
             </div>
           );
         })}
       </div>
-
-      {/* Drilldown overlay */}
-      {drilldownId !== null && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.96)', zIndex: 100, display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: '1px solid #334155', background: '#0f172a', flexShrink: 0 }}>
-            <button onClick={() => { setDrilldownId(null); setDrilldownStrips([]); }}
-              style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '6px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
-              ← חזרה לדש בורד
-            </button>
-            <span style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>{drilldownPreset?.name}</span>
-            <span style={{ color: '#94a3b8', fontSize: '12px' }}>
-              {loadingDrilldown ? 'טוען...' : `${drilldownStrips.length} פ״מ`}
-            </span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', alignContent: 'start' }}>
-            {loadingDrilldown && (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>טוען נתונים...</div>
-            )}
-            {!loadingDrilldown && drilldownStrips.length === 0 && (
-              <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>אין פ״מ לתצוגה</div>
-            )}
-            {!loadingDrilldown && drilldownStrips.map((s: any) => (
-              <div key={s.id} style={{ background: '#1e293b', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '15px', color: s.airborne ? '#60a5fa' : 'white' }}>
-                    {s.callSign}{s.numberOfFormation && s.numberOfFormation > 1 ? ` ${s.numberOfFormation}` : ''}
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    {s.airborne && <span style={{ fontSize: '10px', background: '#1d4ed8', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>✈ באוויר</span>}
-                    {s.onMap && !s.airborne && <span style={{ fontSize: '10px', background: '#15803d', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>🗺 מפה</span>}
-                    {s.inTable && !s.airborne && !s.onMap && <span style={{ fontSize: '10px', background: '#7c3aed', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>📋 בטבלה</span>}
-                  </div>
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {(s.sq || s.squadron) && <span>✈ {s.sq || s.squadron}</span>}
-                  {s.alt && <span>⬆ {s.alt}</span>}
-                  {s.task && <span>📋 {s.task}</span>}
-                  {s.ground_status && s.ground_status !== 'none' && <span style={{ color: '#fbbf24' }}>🛬 {s.ground_status}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
