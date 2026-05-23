@@ -6097,10 +6097,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
-                      {(() => {
-                        if (mergedDatkValues.length === 0) return null;
-                        const summary = mergedDatkValues.length === 1 ? `דת"ק ${mergedDatkValues[0]}` : `דת"ק ${mergedDatkValues.join(',')}`;
-                        return <span style={{ color: mergedHighlight ? '#93c5fd' : '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{summary}</span>;
+                      {strip.takeoff_time && (() => {
+                        const d = new Date(strip.takeoff_time);
+                        const hh = String(d.getUTCHours()).padStart(2, '0');
+                        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                        const past = d.getTime() < Date.now();
+                        return <span style={{ color: past ? '#f87171' : '#facc15', fontSize: '10px', fontWeight: 'bold' }}>🕐 {hh}:{mm}</span>;
                       })()}
                     </div>
                     {isMenuOpen && (
@@ -6165,12 +6167,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
                         {(strip.sq || strip.squadron) && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.sq || strip.squadron}</span>}
                       </div>
-                      {(() => {
-                        if (acRow?.datk == null && !acRow?.kipa) return null;
-                        const parts: string[] = [];
-                        if (acRow.datk != null) parts.push(`דת"ק ${acRow.datk}`);
-                        if (acRow.kipa) parts.push(acRow.kipa);
-                        return <span style={{ color: acHighlight ? '#93c5fd' : '#94a3b8', fontSize: '10px', fontWeight: 'normal' }}>{parts.join(' | ')}</span>;
+                      {strip.takeoff_time && (() => {
+                        const d = new Date(strip.takeoff_time);
+                        const hh = String(d.getUTCHours()).padStart(2, '0');
+                        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+                        const past = d.getTime() < Date.now();
+                        return <span style={{ color: past ? '#f87171' : '#facc15', fontSize: '10px', fontWeight: 'bold' }}>🕐 {hh}:{mm}</span>;
                       })()}
                     </div>
                     {isMenuOpen && (
