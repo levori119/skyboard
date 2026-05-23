@@ -1798,29 +1798,8 @@ const DraggableNeighborPanel = ({
         }
       }
     }
-    // Cross-sector: compare each of MY sector's transfers against transfers from OTHER markers.
-    // Rule: skip outgoing×outgoing to DIFFERENT sectors — they diverge and don't share airspace.
-    // Only flag: incoming×outgoing or incoming×incoming (both share this sector's airspace).
-    const sectorIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
-    const allOther = [...outgoingTransfers, ...incomingTransfers].filter(t => !sectorIds.has(String(t.id)));
-    const outgoingIdSet = new Set(outgoingTransfers.map(t => String(t.id)));
-    for (const mine of [...sectorOutgoing, ...sectorIncoming]) {
-      const mineIsOutgoing = outgoingIdSet.has(String(mine.id));
-      const mineAlt = parseAlt(mine.alt);
-      if (mineAlt == null) continue;
-      for (const other of allOther) {
-        if (String(other.id) === String(mine.id)) continue;
-        // Skip outgoing×outgoing — two strips leaving to different sectors don't conflict
-        if (mineIsOutgoing && outgoingIdSet.has(String(other.id))) continue;
-        const otherAlt = parseAlt(other.alt);
-        if (otherAlt == null) continue;
-        if (mineAlt !== otherAlt && Math.abs(mineAlt - otherAlt) * 100 <= delta) {
-          conflictingTransferIds.add(String(mine.id));
-        }
-      }
-    }
   }
-  // Merge cross-sector conflicts from parent (belt-and-suspenders)
+  // Merge explicit conflicts from parent if any
   if (crossSectorConflictIds) {
     const sectorTransferIds = new Set([...sectorOutgoing, ...sectorIncoming].map(t => String(t.id)));
     crossSectorConflictIds.forEach(id => {
@@ -2580,30 +2559,8 @@ const DraggableMapMarker = ({
         }
       }
     }
-    // Cross-sector: compare each of THIS marker's transfers against transfers from ALL OTHER markers/sectors.
-    // Rule: skip outgoing×outgoing to DIFFERENT sectors — they diverge after leaving and don't share airspace.
-    const markerIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
-    const allOtherMarker = [...(outgoingTransfers || []), ...(incomingTransfers || [])].filter(
-      (t: any) => !markerIds.has(String(t.id))
-    );
-    const outgoingMarkerIdSet = new Set((outgoingTransfers || []).map((t: any) => String(t.id)));
-    for (const mine of [...markerOutgoing, ...markerIncoming]) {
-      const mineIsOutgoing = outgoingMarkerIdSet.has(String(mine.id));
-      const mineAlt = parseAlt(mine.alt);
-      if (mineAlt == null) continue;
-      for (const other of allOtherMarker) {
-        if (String(other.id) === String(mine.id)) continue;
-        // Skip outgoing×outgoing — two strips leaving to different sectors don't conflict
-        if (mineIsOutgoing && outgoingMarkerIdSet.has(String(other.id))) continue;
-        const otherAlt = parseAlt(other.alt);
-        if (otherAlt == null) continue;
-        if (Math.abs(mineAlt - otherAlt) * 100 <= conflictAltDelta) {
-          markerConflictIds.add(String(mine.id));
-        }
-      }
-    }
   }
-  // Merge cross-sector conflicts from parent (belt-and-suspenders)
+  // Merge explicit conflicts from parent if any
   if (crossSectorConflictIds) {
     const markerTransferIds = new Set([...markerOutgoing, ...markerIncoming].map((t: any) => String(t.id)));
     crossSectorConflictIds.forEach(id => {
@@ -9359,6 +9316,7 @@ const AdminDashboard: React.FC<{
   const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [tableModes, setTableModes] = useState<any[]>([]);
 
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
@@ -9370,6 +9328,12 @@ const AdminDashboard: React.FC<{
   const memberIds = memberPresets.map((p: any) => p.id).join(',');
 
   useEffect(() => {
+    // Fetch table modes once on mount
+    fetch(`${API_URL}/table-modes`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTableModes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    // Poll strips every 3s
     const doFetch = () => {
       fetch(`${API_URL}/strips/global`)
         .then(r => r.ok ? r.json() : [])
@@ -9490,53 +9454,99 @@ const AdminDashboard: React.FC<{
               </div>
 
               {isOpen ? (
-                /* ── Drilldown view — table ── */
-                <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', marginBottom: '4px', borderBottom: '1px solid #334155' }}>
-                    {`${presetStrips.length} פ״מ`}
-                  </div>
-                  {presetStrips.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
-                  ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
-                      <thead>
-                        <tr style={{ background: '#0f172a', color: '#64748b' }}>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>משימה</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>או"ק</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>טייסת</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>גובה</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>כותרת</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>חימושים</th>
-                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>הערה</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {presetStrips.map((s: any, idx: number) => {
-                          const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
-                          const rowBg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
-                          const formationName = `${s.callSign || ''}${s.numberOfFormation && Number(s.numberOfFormation) > 1 ? ` ${s.numberOfFormation}` : ''}`;
-                          return (
-                            <tr key={s.id} style={{ background: rowBg, borderBottom: '1px solid #1e2d3f' }}>
-                              <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{s.task || s.mivtza || '—'}</td>
-                              <td style={{ padding: '5px 6px', fontWeight: 'bold', color: s.airborne ? '#60a5fa' : 'white', whiteSpace: 'nowrap' }}>
-                                {s.airborne ? <span style={{ background: '#1d4ed8', borderRadius: '3px', padding: '1px 5px' }}>{formationName}</span> : formationName}
-                              </td>
-                              <td style={{ padding: '5px 6px', color: '#a78bfa' }}>{s.sq || s.squadron || '—'}</td>
-                              <td style={{ padding: '5px 6px', color: '#fbbf24', whiteSpace: 'nowrap' }}>{s.alt || '—'}</td>
-                              <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{s.koteret || '—'}</td>
-                              <td style={{ padding: '5px 6px', color: '#fbbf24', fontSize: '11px' }}>
-                                {weapons.length === 0 ? '—' : weapons.map((w: any, i: number) => (
-                                  <div key={i}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
-                                ))}
-                              </td>
-                              <td style={{ padding: '5px 6px', color: '#64748b', fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.notes || '—'}</td>
+                /* ── Drilldown view — table matching workstation table mode ── */
+                (() => {
+                  const activeMode = tableModes.find((tm: any) => tm.id === preset.table_mode_id);
+                  const fallbackCols = [
+                    { key: 'callSign', label: 'או"ק' },
+                    { key: 'squadron', label: 'טייסת' },
+                    { key: 'alt', label: 'גובה' },
+                    { key: 'task', label: 'משימה' },
+                    { key: 'koteret', label: 'כותרת' },
+                    { key: 'weapons', label: 'חימושים' },
+                    { key: 'notes', label: 'הערה' },
+                  ];
+                  const columns: any[] = (activeMode?.columns && activeMode.columns.length > 0)
+                    ? activeMode.columns.filter((c: any) => !['transfer', 'shkadia', 'sector'].includes(c.key || c.field || ''))
+                    : fallbackCols;
+
+                  const renderDashCell = (s: any, col: any) => {
+                    const key: string = col.key || col.field || '';
+                    const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
+                    const customFields = (s.custom_fields && typeof s.custom_fields === 'object') ? s.custom_fields : {};
+                    if (col.isCustom || key.startsWith('custom_')) {
+                      return <span style={{ color: '#e2e8f0' }}>{customFields[key] || '—'}</span>;
+                    }
+                    const formationName = `${s.callSign || ''}${s.numberOfFormation && Number(s.numberOfFormation) > 1 ? ` ${s.numberOfFormation}` : ''}`;
+                    switch (key) {
+                      case 'callSign': case 'call_sign':
+                        return <span style={{ fontWeight: 'bold', color: s.airborne ? '#60a5fa' : 'white', whiteSpace: 'nowrap' }}>
+                          {s.airborne ? <span style={{ background: '#1d4ed8', borderRadius: '3px', padding: '1px 5px' }}>{formationName}</span> : formationName}
+                        </span>;
+                      case 'squadron': case 'sq':
+                        return <span style={{ color: '#a78bfa' }}>{s.sq || s.squadron || '—'}</span>;
+                      case 'alt':
+                        return <span style={{ color: '#fbbf24', whiteSpace: 'nowrap' }}>{s.alt || '—'}</span>;
+                      case 'task': case 'mivtza':
+                        return <span style={{ color: '#94a3b8' }}>{s.task || s.mivtza || '—'}</span>;
+                      case 'koteret':
+                        return <span style={{ color: '#94a3b8' }}>{s.koteret || '—'}</span>;
+                      case 'erka':
+                        return <span style={{ color: '#94a3b8' }}>{s.erka || '—'}</span>;
+                      case 'weapons':
+                        return <span style={{ color: '#fbbf24', fontSize: '11px' }}>
+                          {weapons.length === 0 ? '—' : weapons.map((w: any, i: number) => (
+                            <div key={i}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                          ))}
+                        </span>;
+                      case 'notes':
+                        return <span style={{ color: '#64748b', fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{s.notes || '—'}</span>;
+                      case 'targets':
+                        return <span style={{ color: '#86efac', fontSize: '11px' }}>{(Array.isArray(s.targets) ? s.targets : []).map((t: any) => t.name || t).join(', ') || '—'}</span>;
+                      case 'status':
+                        return <span style={{ color: '#94a3b8' }}>{s.status || '—'}</span>;
+                      default:
+                        return <span style={{ color: '#94a3b8' }}>{s[key] || '—'}</span>;
+                    }
+                  };
+
+                  return (
+                    <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', marginBottom: '4px', borderBottom: '1px solid #334155' }}>
+                        {`${presetStrips.length} פ״מ`}{activeMode ? <span style={{ marginRight: '8px', color: '#475569' }}>| {activeMode.name}</span> : null}
+                      </div>
+                      {presetStrips.length === 0 ? (
+                        <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
+                      ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
+                          <thead>
+                            <tr style={{ background: '#0f172a', color: '#64748b' }}>
+                              {columns.map((col: any) => (
+                                <th key={col.key || col.field} style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>
+                                  {col.label || col.key}
+                                </th>
+                              ))}
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                          </thead>
+                          <tbody>
+                            {presetStrips.map((s: any, idx: number) => {
+                              const rowBg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+                              return (
+                                <tr key={s.id} style={{ background: rowBg, borderBottom: '1px solid #1e2d3f' }}>
+                                  {columns.map((col: any) => (
+                                    <td key={col.key || col.field} style={{ padding: '5px 6px' }}>
+                                      {renderDashCell(s, col)}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })()
               ) : (
                 /* ── Normal view — donut + thresholds + button ── */
                 <>
