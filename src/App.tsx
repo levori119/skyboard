@@ -9385,9 +9385,11 @@ const AdminDashboard: React.FC<{
         return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
       }
       if (preset.map_id) {
-        return !!s.onMap && (!hasFq || evaluateQuery(s, fq!, ctx));
+        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
+        return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
-      return !hasFq || evaluateQuery(s, fq!, ctx);
+      if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
+      return evaluateQuery(s, fq!, ctx);
     }).length;
   };
 
@@ -9423,9 +9425,11 @@ const AdminDashboard: React.FC<{
         return Number(s.workstation_preset_id) === Number(presetId) && s.ground_status !== 'takeoff';
       }
       if (preset?.map_id) {
-        return !!s.onMap && (!hasFq || evaluateQuery(s, fq!, ctx));
+        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(presetId);
+        return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
-      return !hasFq || evaluateQuery(s, fq!, ctx);
+      if (!hasFq) return Number(s.workstation_preset_id) === Number(presetId);
+      return evaluateQuery(s, fq!, ctx);
     });
     setDrilldownStrips(filtered);
   };
