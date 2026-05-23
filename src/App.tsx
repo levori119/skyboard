@@ -15216,18 +15216,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{linksPanelOpen ? '▲' : '▼'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
-                          <div key={cat} style={{ marginBottom: '5px' }}>
-                            {cats.length > 1 && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'bold', marginBottom: '2px', letterSpacing: '0.3px' }}>{cat}</div>}
+                          <div key={cat} style={{ marginBottom: '8px', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '7px', overflow: 'hidden' }}>
+                            <div style={{ background: lightMode ? '#ede9fe' : '#1a1730', padding: '4px 8px', borderBottom: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
+                              <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569' }}>{presetLinks.filter((l: any) => (l.category || 'כללי') === cat).length}</span>
+                            </div>
+                            <div style={{ padding: '5px' }}>
                             {presetLinks.filter((l: any) => (l.category || 'כללי') === cat).map((link: any) => (
                               <div key={link.id} style={{ marginBottom: '3px' }}>
                                 <a href={link.url} target="_blank" rel="noreferrer"
                                   title={link.note || link.name}
-                                  style={{ display: 'block', padding: '4px 7px', background: lightMode ? '#ede9fe' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '4px', color: lightMode ? '#7c3aed' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+                                  style={{ display: 'block', padding: '4px 7px', background: lightMode ? '#faf5ff' : '#1e1b4b', border: `1px solid ${lightMode ? '#ddd6fe' : '#3730a3'}`, borderRadius: '4px', color: lightMode ? '#7c3aed' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
                                   🔗 {link.name}
                                 </a>
                                 {link.note && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', paddingRight: '7px', marginTop: '1px' }}>{link.note}</div>}
                               </div>
                             ))}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -15379,13 +15384,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             );
                             const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
                             return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px' }}>
-                                <div style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px', fontWeight: 'bold', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{cat}</div>
+                              <div key={cat} style={{ marginBottom: '8px', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '7px', overflow: 'hidden' }}>
+                                <div style={{ background: lightMode ? '#dbeafe' : '#0c1a2e', padding: '4px 8px', borderBottom: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
+                                  <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                                </div>
+                                <div style={{ padding: '5px' }}>
                                 {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '5px 7px', background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                                    style={{ padding: '5px 7px', background: lightMode ? '#eff6ff' : '#1e293b', border: `1px solid ${lightMode ? '#bfdbfe' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
@@ -15397,6 +15406,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     >פתח</button>
                                   </div>
                                 ))}
+                                </div>
                               </div>
                             ));
                           })()}
