@@ -9388,6 +9388,8 @@ const AdminDashboard: React.FC<{
         if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
         return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
+      // only count strips actually in the table or on the map — not waiting in the right panel
+      if (!(s.inTable || s.onMap)) return false;
       if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
       return evaluateQuery(s, fq!, ctx);
     }).length;
@@ -9428,6 +9430,7 @@ const AdminDashboard: React.FC<{
         if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(presetId);
         return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
+      if (!(s.inTable || s.onMap)) return false;
       if (!hasFq) return Number(s.workstation_preset_id) === Number(presetId);
       return evaluateQuery(s, fq!, ctx);
     });
