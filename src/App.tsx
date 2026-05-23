@@ -9357,17 +9357,18 @@ const AdminDashboard: React.FC<{
       }
       if (preset.map_id) {
         // map workstation: only strips dragged onto the map
-        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
+        if (!hasFq) return !!s.onMap;
         return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
       if (type === 'classic') {
         // classic workstation: only strips already in the table (inTable = true)
         if (!s.inTable) return false;
-        if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
+        if (!hasFq) return true;
         return evaluateQuery(s, fq!, ctx);
       }
-      // standard / normal tabular workstation: all active strips matching filter
-      if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
+      // standard workstation — no workstation_preset_id restriction (query-driven like actual workstation).
+      // No filter = all active strips visible (same as myStrips logic).
+      if (!hasFq) return true;
       return evaluateQuery(s, fq!, ctx);
     });
   };
