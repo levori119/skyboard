@@ -15216,17 +15216,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{linksPanelOpen ? '▲' : '▼'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
-                          <div key={cat} style={{ marginBottom: '8px', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '7px', overflow: 'hidden' }}>
-                            <div style={{ background: lightMode ? '#ede9fe' : '#1a1730', padding: '4px 8px', borderBottom: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
-                              <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569' }}>{presetLinks.filter((l: any) => (l.category || 'כללי') === cat).length}</span>
+                          <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#7c3aed' : '#6d28d9'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ background: lightMode ? '#6d28d9' : '#5b21b6', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', direction: 'rtl', flex: 1, letterSpacing: '0.3px' }}>📂 {cat}</span>
+                              <span style={{ fontSize: '10px', color: '#ddd6fe', background: 'rgba(0,0,0,0.25)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold' }}>{presetLinks.filter((l: any) => (l.category || 'כללי') === cat).length}</span>
                             </div>
-                            <div style={{ padding: '5px' }}>
+                            <div style={{ padding: '6px', background: lightMode ? '#faf5ff' : '#130d2a' }}>
                             {presetLinks.filter((l: any) => (l.category || 'כללי') === cat).map((link: any) => (
-                              <div key={link.id} style={{ marginBottom: '3px' }}>
+                              <div key={link.id} style={{ marginBottom: '4px' }}>
                                 <a href={link.url} target="_blank" rel="noreferrer"
                                   title={link.note || link.name}
-                                  style={{ display: 'block', padding: '4px 7px', background: lightMode ? '#faf5ff' : '#1e1b4b', border: `1px solid ${lightMode ? '#ddd6fe' : '#3730a3'}`, borderRadius: '4px', color: lightMode ? '#7c3aed' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+                                  style={{ display: 'block', padding: '5px 8px', background: lightMode ? '#ffffff' : '#1e1b4b', border: `1px solid ${lightMode ? '#c4b5fd' : '#4c1d95'}`, borderRadius: '3px', color: lightMode ? '#6d28d9' : '#a78bfa', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
                                   🔗 {link.name}
                                 </a>
                                 {link.note && <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', paddingRight: '7px', marginTop: '1px' }}>{link.note}</div>}
@@ -15384,17 +15384,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             );
                             const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
                             return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '8px', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '7px', overflow: 'hidden' }}>
-                                <div style={{ background: lightMode ? '#dbeafe' : '#0c1a2e', padding: '4px 8px', borderBottom: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
-                                  <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                              <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ background: lightMode ? '#1e40af' : '#1d4ed8', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', direction: 'rtl', flex: 1, letterSpacing: '0.3px' }}>📂 {cat}</span>
+                                  <span style={{ fontSize: '10px', color: '#bfdbfe', background: 'rgba(0,0,0,0.25)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
                                 </div>
-                                <div style={{ padding: '5px' }}>
+                                <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#0a1929' }}>
                                 {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '5px 7px', background: lightMode ? '#eff6ff' : '#1e293b', border: `1px solid ${lightMode ? '#bfdbfe' : '#1d4ed8'}`, borderRadius: '4px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                                    style={{ padding: '6px 8px', background: lightMode ? '#ffffff' : '#0f2744', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '3px', marginBottom: '4px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
@@ -15402,7 +15402,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     </div>
                                     <button
                                       onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
-                                      style={{ background: lightMode ? '#1e40af' : '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
+                                      style={{ background: lightMode ? '#1e40af' : '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
                                     >פתח</button>
                                   </div>
                                 ))}
