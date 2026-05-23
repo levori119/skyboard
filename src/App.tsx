@@ -8880,7 +8880,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
  * Rules (per user spec):
  *  - No activeBlockTableId          →  never alert (no block context selected)
  *  - Active table has no blocks     →  never alert (empty table)
- *  - WS has no blocks in the table  →  always alert (table is active but WS has no range)
+ *  - WS has no blocks in the table  →  never alert (table doesn't define ranges for this WS)
  *  - WS has blocks in the table     →  alert when strip altitude is NOT in any of them
  */
 // Normalize an altitude string: strip FL prefix, collapse spaces around dash
@@ -8953,8 +8953,8 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
     return ws.length > 0 && ws.includes(presetId);
   });
 
-  // Table has blocks but none for this WS → always alert (strip has no defined range)
-  if (myBlocks.length === 0) return true;
+  // Table has blocks but none for this WS → no alert (table doesn't apply to this WS)
+  if (myBlocks.length === 0) return false;
 
   // Compare directly in FL units — block alt_from/alt_to are stored as FL integers
   return !myBlocks.some((b: any) => altFL >= Number(b.alt_from) && altFL <= Number(b.alt_to));
