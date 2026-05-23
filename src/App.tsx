@@ -9358,19 +9358,17 @@ const AdminDashboard: React.FC<{
         return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
       }
       if (preset.map_id) {
-        // map workstation: only strips dragged onto the map
-        if (!hasFq) return !!s.onMap;
+        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
         return !!s.onMap && evaluateQuery(s, fq!, ctx);
       }
       if (type === 'classic') {
-        // classic workstation: only strips already in the table (inTable = true)
         if (!s.inTable) return false;
-        if (!hasFq) return true;
+        if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
         return evaluateQuery(s, fq!, ctx);
       }
-      // standard workstation — no workstation_preset_id restriction (query-driven like actual workstation).
-      // No filter = all active strips visible (same as myStrips logic).
-      if (!hasFq) return true;
+      // standard workstation: filter_query drives the view.
+      // No filter_query → show only strips explicitly assigned to this workstation (via transfer).
+      if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
       return evaluateQuery(s, fq!, ctx);
     });
   };
