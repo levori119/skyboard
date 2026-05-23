@@ -9824,17 +9824,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     initialViewSetRef.current = false;
   }, [session.presetId]);
 
-  // Sync tableMode from livePresetConfig on first load per session
-  useEffect(() => {
-    if (!livePresetConfig || initialViewSetRef.current) return;
-    initialViewSetRef.current = true;
-    if (livePresetConfig.table_mode_id) {
-      setSelectedTableModeId(Number(livePresetConfig.table_mode_id));
-      setTableMode(true);
-    } else {
-      setTableMode(false);
-    }
-  }, [livePresetConfig]);
   // Altitude update mini-form (triggered from deviation context menus)
   const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
   const [altUpdateValue, setAltUpdateValue] = useState('');
@@ -9883,6 +9872,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [stripSerialDismissals, setStripSerialDismissals] = useState<any[]>([]);
   const [showSerialsPanel, setShowSerialsPanel] = useState(false);
   const [livePresetConfig, setLivePresetConfig] = useState<any | null>(null);
+
+  // Sync tableMode from livePresetConfig on first load per session
+  useEffect(() => {
+    if (!livePresetConfig || initialViewSetRef.current) return;
+    initialViewSetRef.current = true;
+    if (livePresetConfig.table_mode_id) {
+      setSelectedTableModeId(Number(livePresetConfig.table_mode_id));
+      setTableMode(true);
+    } else {
+      setTableMode(false);
+    }
+  }, [livePresetConfig]);
 
   const loadSerials = async () => {
     try {
