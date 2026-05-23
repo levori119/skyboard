@@ -11886,7 +11886,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* כפתור דש בורד מנהל */}
-          {session.crewMember?.is_admin && (
+          {(session.crewMember?.is_admin || myPresetConfig?.show_dashboard) && (
             <button
               onClick={() => setShowAdminDashboard(true)}
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
@@ -17713,6 +17713,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     preset_role: '' as string,
     parent_base_id: '' as string | number,
     can_update_pressure: false as boolean,
+    show_dashboard: false as boolean,
     datk_show_minutes: '' as string | number,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
@@ -18031,6 +18032,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           preset_role: presetForm.preset_role || null,
           parent_base_id: presetForm.parent_base_id || null,
           can_update_pressure: presetForm.can_update_pressure === true,
+          show_dashboard: presetForm.show_dashboard === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
         })
       });
@@ -18045,7 +18047,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, datk_show_minutes: '' });
       } else if (saved) {
         editPreset(saved);
       }
@@ -18088,6 +18090,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       preset_role: preset.preset_role || '',
       parent_base_id: preset.parent_base_id?.toString() || '',
       can_update_pressure: preset.can_update_pressure === true,
+      show_dashboard: preset.show_dashboard === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
     };
     setPresetForm(f);
@@ -18191,7 +18194,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], parent_base_id: '', can_update_pressure: false, show_dashboard: false, datk_show_minutes: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -18201,7 +18204,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, datk_show_minutes: '' }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -18548,6 +18551,20 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 </div>
 
                 <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>📊 דש בורד:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {([{ val: true, label: '✅ מציג דש בורד' }, { val: false, label: '🚫 ללא דש בורד' }] as { val: boolean; label: string }[]).map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, show_dashboard: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${presetForm.show_dashboard === opt.val ? '#22c55e' : '#334155'}`, background: presetForm.show_dashboard === opt.val ? '#052e16' : '#1e293b', color: presetForm.show_dashboard === opt.val ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.show_dashboard === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמופעל, כפתור 📊 דש בורד יופיע לכל מי שנכנס לעמדה זו (גם ללא הרשאת מנהל).</p>
+                </div>
+
+                <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
                     {[{ val: true, label: '⏱ לפי זמן' }, { val: false, label: '📊 ללא זמן' }].map(opt => (
@@ -18781,7 +18798,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, datk_show_minutes: '' }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, datk_show_minutes: '' }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
