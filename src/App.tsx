@@ -9346,11 +9346,10 @@ const AdminDashboard: React.FC<{
   onClose: () => void;
 }> = ({ groups, presets, lightMode, onClose }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
-  const [loadData, setLoadData] = useState<Record<string, any>>({});
+  const [allStrips, setAllStrips] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
   const [drilldownId, setDrilldownId] = useState<number | null>(null);
   const [drilldownStrips, setDrilldownStrips] = useState<any[]>([]);
-  const [loadingDrilldown, setLoadingDrilldown] = useState(false);
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -9364,26 +9363,32 @@ const AdminDashboard: React.FC<{
   const memberIds = memberPresets.map((p: any) => p.id).join(',');
 
   useEffect(() => {
-    if (!memberIds) return;
     const doFetch = () => {
-      fetch(`${API_URL}/dashboard/load?preset_ids=${memberIds}`)
-        .then(r => r.ok ? r.json() : {})
-        .then(d => setLoadData(d))
+      fetch(`${API_URL}/strips/global`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setAllStrips(Array.isArray(d) ? d : []))
         .catch(() => {});
     };
     doFetch();
     const t = setInterval(doFetch, 8000);
     return () => clearInterval(t);
-  }, [memberIds]);
+  }, []);
 
   const getCount = (preset: any): number => {
-    const d = loadData[String(preset.id)];
-    if (!d) return 0;
     const type = preset.preset_type || 'standard';
-    if (type === 'ground' || type === 'airfield') return parseInt(d.ground_active) || 0;
-    if (preset.map_id) return parseInt(d.on_map) || 0;
-    if (type === 'classic') return parseInt(d.in_table_airborne) || 0;
-    return parseInt(d.in_table_airborne) || 0;
+    const fq: QGroup | null = preset.filter_query || null;
+    const hasFq = hasConditions(fq);
+    const ctx = { presetId: preset.id };
+    return allStrips.filter(s => {
+      if (s.status !== 'active') return false;
+      if (type === 'ground' || type === 'airfield') {
+        return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
+      }
+      if (preset.map_id) {
+        return !!s.onMap && (!hasFq || evaluateQuery(s, fq!, ctx));
+      }
+      return !hasFq || evaluateQuery(s, fq!, ctx);
+    }).length;
   };
 
   const getPartial = (preset: any) => thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
@@ -9405,25 +9410,24 @@ const AdminDashboard: React.FC<{
     setSavingId(null);
   };
 
-  const openDrilldown = async (presetId: number) => {
+  const openDrilldown = (presetId: number) => {
     setDrilldownId(presetId);
-    setDrilldownStrips([]);
-    setLoadingDrilldown(true);
-    try {
-      const res = await fetch(`${API_URL}/strips/global`);
-      const all = await res.json();
-      const preset = localPresets.find(p => p.id === presetId);
-      const type = preset?.preset_type || 'standard';
-      const filtered = all.filter((s: any) => {
-        if (Number(s.workstation_preset_id) !== presetId) return false;
-        if (s.status !== 'active') return false;
-        if (type === 'ground' || type === 'airfield') return s.ground_status !== 'takeoff';
-        if (preset?.map_id) return !!s.onMap;
-        return !!s.inTable && !!s.airborne;
-      });
-      setDrilldownStrips(filtered);
-    } catch {}
-    setLoadingDrilldown(false);
+    const preset = localPresets.find(p => p.id === presetId);
+    const type = preset?.preset_type || 'standard';
+    const fq: QGroup | null = preset?.filter_query || null;
+    const hasFq = hasConditions(fq);
+    const ctx = { presetId };
+    const filtered = allStrips.filter((s: any) => {
+      if (s.status !== 'active') return false;
+      if (type === 'ground' || type === 'airfield') {
+        return Number(s.workstation_preset_id) === Number(presetId) && s.ground_status !== 'takeoff';
+      }
+      if (preset?.map_id) {
+        return !!s.onMap && (!hasFq || evaluateQuery(s, fq!, ctx));
+      }
+      return !hasFq || evaluateQuery(s, fq!, ctx);
+    });
+    setDrilldownStrips(filtered);
   };
 
   const drilldownPreset = localPresets.find(p => p.id === drilldownId);
@@ -9483,15 +9487,12 @@ const AdminDashboard: React.FC<{
                 /* ── Drilldown view — replaces donut ── */
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '320px' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', borderBottom: '1px solid #334155' }}>
-                    {loadingDrilldown ? 'טוען...' : `${drilldownStrips.length} פ״מ`}
+                    {`${drilldownStrips.length} פ״מ`}
                   </div>
-                  {loadingDrilldown && (
-                    <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>טוען...</div>
-                  )}
-                  {!loadingDrilldown && drilldownStrips.length === 0 && (
+                  {drilldownStrips.length === 0 && (
                     <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
                   )}
-                  {!loadingDrilldown && drilldownStrips.map((s: any) => (
+                  {drilldownStrips.map((s: any) => (
                     <div key={s.id} style={{ background: '#0f172a', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontWeight: 'bold', fontSize: '13px', color: s.airborne ? '#60a5fa' : 'white' }}>
