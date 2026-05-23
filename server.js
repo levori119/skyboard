@@ -2522,6 +2522,46 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
   }
 });
 
+// PATCH — update only load thresholds for a preset
+app.patch('/api/workstation-presets/:id/thresholds', async (req, res) => {
+  try {
+    const { partial_load, full_load } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE workstation_presets SET partial_load = $1, full_load = $2 WHERE id = $3 RETURNING id, partial_load, full_load',
+      [partial_load ?? 3, full_load ?? 5, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating thresholds:', err);
+    res.status(500).json({ error: 'Failed to update thresholds' });
+  }
+});
+
+// GET — dashboard load counts per workstation preset
+app.get('/api/dashboard/load', async (req, res) => {
+  try {
+    const ids = (req.query.preset_ids || '').toString().split(',').map(Number).filter(Boolean);
+    if (!ids.length) return res.json({});
+    const { rows } = await pool.query(`
+      SELECT
+        workstation_preset_id AS preset_id,
+        COUNT(*) FILTER (WHERE status = 'active') AS active,
+        COUNT(*) FILTER (WHERE status = 'active' AND on_map = true) AS on_map,
+        COUNT(*) FILTER (WHERE status = 'active' AND in_table = true AND airborne = true) AS in_table_airborne,
+        COUNT(*) FILTER (WHERE status = 'active' AND (ground_status IS NULL OR ground_status NOT IN ('takeoff'))) AS ground_active
+      FROM strips WHERE workstation_preset_id = ANY($1)
+      GROUP BY workstation_preset_id
+    `, [ids]);
+    const result = {};
+    for (const r of rows) result[r.preset_id] = r;
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching dashboard load:', err);
+    res.status(500).json({ error: 'Failed to fetch dashboard load' });
+  }
+});
+
 // --- Classic Strip Tables API ---
 app.get('/api/classic-strip-tables', async (req, res) => {
   try {

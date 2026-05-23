@@ -9317,6 +9317,248 @@ const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel,
   );
 };
 
+// --- Admin Dashboard Components ---
+const DonutChart: React.FC<{ count: number; partial: number; full: number }> = ({ count, partial, full }) => {
+  const r = 32; const cx = 45; const cy = 45; const size = 90;
+  const circ = 2 * Math.PI * r;
+  const pct = full > 0 ? Math.min(count / full, 1) : 0;
+  const dash = pct * circ;
+  const color = count >= full ? '#ef4444' : count >= partial ? '#f97316' : '#22c55e';
+  return (
+    <svg width={size} height={size} style={{ display: 'block', overflow: 'visible' }}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1e3a5f" strokeWidth="9" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="9"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        strokeDashoffset={circ * 0.25}
+        strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray 0.5s, stroke 0.3s' }}
+      />
+      <text x={cx} y={cy - 5} textAnchor="middle" dominantBaseline="middle" fill={color} fontSize="17" fontWeight="bold">{count}</text>
+      <text x={cx} y={cy + 11} textAnchor="middle" dominantBaseline="middle" fill="#64748b" fontSize="9">פ״מ</text>
+    </svg>
+  );
+};
+
+const AdminDashboard: React.FC<{
+  groups: any[];
+  presets: any[];
+  lightMode: boolean;
+  onClose: () => void;
+}> = ({ groups, presets, lightMode, onClose }) => {
+  const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
+  const [loadData, setLoadData] = useState<Record<string, any>>({});
+  const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
+  const [drilldownId, setDrilldownId] = useState<number | null>(null);
+  const [drilldownStrips, setDrilldownStrips] = useState<any[]>([]);
+  const [loadingDrilldown, setLoadingDrilldown] = useState(false);
+  const [localPresets, setLocalPresets] = useState<any[]>(presets);
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  const group = groups.find(g => g.id === selectedGroupId) || groups[0];
+  const memberPresets = useMemo(() =>
+    (group?.members || []).map((m: any) => localPresets.find((p: any) => p.id === m.preset_id)).filter(Boolean),
+    [group, localPresets]
+  );
+  const n = memberPresets.length;
+  const cols = n <= 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : n <= 6 ? 3 : n <= 8 ? 4 : 3;
+  const memberIds = memberPresets.map((p: any) => p.id).join(',');
+
+  useEffect(() => {
+    if (!memberIds) return;
+    const doFetch = () => {
+      fetch(`${API_URL}/dashboard/load?preset_ids=${memberIds}`)
+        .then(r => r.ok ? r.json() : {})
+        .then(d => setLoadData(d))
+        .catch(() => {});
+    };
+    doFetch();
+    const t = setInterval(doFetch, 8000);
+    return () => clearInterval(t);
+  }, [memberIds]);
+
+  const getCount = (preset: any): number => {
+    const d = loadData[String(preset.id)];
+    if (!d) return 0;
+    const type = preset.preset_type || 'standard';
+    if (type === 'ground' || type === 'airfield') return parseInt(d.ground_active) || 0;
+    if (preset.map_id) return parseInt(d.on_map) || 0;
+    if (type === 'classic') return parseInt(d.in_table_airborne) || 0;
+    return parseInt(d.in_table_airborne) || 0;
+  };
+
+  const getPartial = (preset: any) => thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
+  const getFull = (preset: any) => thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
+
+  const saveThresholds = async (preset: any) => {
+    const partial = getPartial(preset);
+    const full = getFull(preset);
+    setSavingId(preset.id);
+    try {
+      await fetch(`${API_URL}/workstation-presets/${preset.id}/thresholds`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ partial_load: partial, full_load: full })
+      });
+      setLocalPresets(prev => prev.map(p => p.id === preset.id ? { ...p, partial_load: partial, full_load: full } : p));
+      setThresholds(prev => { const nx = { ...prev }; delete nx[preset.id]; return nx; });
+    } catch {}
+    setSavingId(null);
+  };
+
+  const openDrilldown = async (presetId: number) => {
+    setDrilldownId(presetId);
+    setDrilldownStrips([]);
+    setLoadingDrilldown(true);
+    try {
+      const res = await fetch(`${API_URL}/strips/global`);
+      const all = await res.json();
+      const preset = localPresets.find(p => p.id === presetId);
+      const type = preset?.preset_type || 'standard';
+      const filtered = all.filter((s: any) => {
+        if (Number(s.workstation_preset_id) !== presetId) return false;
+        if (s.status !== 'active') return false;
+        if (type === 'ground' || type === 'airfield') return s.ground_status !== 'takeoff';
+        if (preset?.map_id) return !!s.onMap;
+        return !!s.inTable && !!s.airborne;
+      });
+      setDrilldownStrips(filtered);
+    } catch {}
+    setLoadingDrilldown(false);
+  };
+
+  const drilldownPreset = localPresets.find(p => p.id === drilldownId);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: '1px solid #334155', background: '#0f172a', flexShrink: 0 }}>
+        <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'white' }}>📊 דש בורד מנהל</span>
+        {groups.length > 1 && groups.map((g: any) => (
+          <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
+            style={{ background: selectedGroupId === g.id ? '#3b82f6' : '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}>
+            {g.name}
+          </button>
+        ))}
+        {groups.length === 1 && <span style={{ color: '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
+        <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ color: '#64748b', fontSize: '12px' }}>{n} עמדות</span>
+          <button onClick={onClose} style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
+        </div>
+      </div>
+
+      {/* Cards grid */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '14px', alignContent: n > 0 ? 'start' : 'center' }}>
+        {n === 0 && (
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>
+            אין עמדות בקבוצה. הוסף עמדות בלשונית "קבוצות עבודה" בניהול.
+          </div>
+        )}
+        {memberPresets.map((preset: any) => {
+          const count = getCount(preset);
+          const partial = getPartial(preset);
+          const full = getFull(preset);
+          const level = count >= full ? 'full' : count >= partial ? 'partial' : 'none';
+          const hasEdit = thresholds[preset.id] !== undefined;
+          const borderColor = level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
+          const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
+          const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
+          return (
+            <div key={preset.id}
+              className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
+              style={{ background: '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '16px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', minHeight: '230px' }}
+            >
+              <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'white', textAlign: 'center' }}>{preset.name}</div>
+              {/* Donut + threshold labels */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ textAlign: 'center', minWidth: '38px' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#f97316', lineHeight: 1 }}>{partial}</div>
+                  <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>חלקי</div>
+                </div>
+                <DonutChart count={count} partial={partial} full={full} />
+                <div style={{ textAlign: 'center', minWidth: '38px' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#ef4444', lineHeight: 1 }}>{full}</div>
+                  <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>עומס</div>
+                </div>
+              </div>
+              {/* Editable thresholds */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
+                <span style={{ fontSize: '11px', color: '#94a3b8' }}>סף:</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#f97316' }}>
+                  🟠
+                  <input type="number" min={1} max={99} value={partialVal}
+                    onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: Number(e.target.value), full: prev[preset.id]?.full ?? (preset.full_load ?? 5) } }))}
+                    style={{ width: '38px', background: '#1e293b', color: '#f97316', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#ef4444' }}>
+                  🔴
+                  <input type="number" min={1} max={99} value={fullVal}
+                    onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: prev[preset.id]?.partial ?? (preset.partial_load ?? 3), full: Number(e.target.value) } }))}
+                    style={{ width: '38px', background: '#1e293b', color: '#ef4444', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                </label>
+                {hasEdit && (
+                  <button onClick={() => saveThresholds(preset)}
+                    style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 10px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {savingId === preset.id ? '...' : '✓ שמור'}
+                  </button>
+                )}
+              </div>
+              {/* Drill-down button */}
+              <button onClick={() => openDrilldown(preset.id)}
+                style={{ marginTop: 'auto', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                👁 תצוגת פ״מ
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Drilldown overlay */}
+      {drilldownId !== null && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.96)', zIndex: 100, display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 18px', borderBottom: '1px solid #334155', background: '#0f172a', flexShrink: 0 }}>
+            <button onClick={() => { setDrilldownId(null); setDrilldownStrips([]); }}
+              style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '6px', padding: '4px 14px', fontSize: '12px', cursor: 'pointer' }}>
+              ← חזרה לדש בורד
+            </button>
+            <span style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>{drilldownPreset?.name}</span>
+            <span style={{ color: '#94a3b8', fontSize: '12px' }}>
+              {loadingDrilldown ? 'טוען...' : `${drilldownStrips.length} פ״מ`}
+            </span>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', alignContent: 'start' }}>
+            {loadingDrilldown && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>טוען נתונים...</div>
+            )}
+            {!loadingDrilldown && drilldownStrips.length === 0 && (
+              <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>אין פ״מ לתצוגה</div>
+            )}
+            {!loadingDrilldown && drilldownStrips.map((s: any) => (
+              <div key={s.id} style={{ background: '#1e293b', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '8px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '15px', color: s.airborne ? '#60a5fa' : 'white' }}>
+                    {s.callSign}{s.numberOfFormation && s.numberOfFormation > 1 ? ` ${s.numberOfFormation}` : ''}
+                  </span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {s.airborne && <span style={{ fontSize: '10px', background: '#1d4ed8', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>✈ באוויר</span>}
+                    {s.onMap && !s.airborne && <span style={{ fontSize: '10px', background: '#15803d', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>🗺 מפה</span>}
+                    {s.inTable && !s.airborne && !s.onMap && <span style={{ fontSize: '10px', background: '#7c3aed', color: 'white', padding: '1px 6px', borderRadius: '4px' }}>📋 בטבלה</span>}
+                  </div>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {(s.sq || s.squadron) && <span>✈ {s.sq || s.squadron}</span>}
+                  {s.alt && <span>⬆ {s.alt}</span>}
+                  {s.task && <span>📋 {s.task}</span>}
+                  {s.ground_status && s.ground_status !== 'none' && <span style={{ color: '#fbbf24' }}>🛬 {s.ground_status}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
@@ -9480,6 +9722,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditMode, setPressureEditMode] = useState<'inhg' | 'mb' | null>(null);
   const [pressureMbInput, setPressureMbInput] = useState('');
@@ -9701,6 +9945,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     fetch(`${API_URL}/work-group-notes/for-preset/${session.presetId}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setWorkGroupNotes(data))
+      .catch(() => {});
+    fetch(`${API_URL}/work-groups`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAllWorkGroups(data))
       .catch(() => {});
     fetch(`${API_URL}/preset-links/${session.presetId}`)
       .then(r => r.ok ? r.json() : [])
@@ -11637,6 +11885,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {/* כפתור דש בורד מנהל */}
+          {(() => {
+            const myAdminGroups = allWorkGroups.filter(g => g.admin_preset_id && session.presetId && Number(g.admin_preset_id) === Number(session.presetId));
+            if (!session.crewMember?.is_admin || myAdminGroups.length === 0) return null;
+            return (
+              <button
+                onClick={() => setShowAdminDashboard(true)}
+                style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                title="דש בורד מנהל — סקירת עמדות"
+              >
+                📊 דש בורד
+              </button>
+            );
+          })()}
           {/* תפריט התראות */}
           <div style={{ position: 'relative' }}>
             {(() => {
@@ -12028,6 +12290,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               })}
             </div>
           </div>
+        );
+      })()}
+
+      {/* Admin Dashboard Overlay */}
+      {showAdminDashboard && (() => {
+        const myAdminGroups = allWorkGroups.filter(g => g.admin_preset_id && session.presetId && Number(g.admin_preset_id) === Number(session.presetId));
+        if (myAdminGroups.length === 0) { setShowAdminDashboard(false); return null; }
+        return (
+          <AdminDashboard
+            groups={myAdminGroups}
+            presets={workstationPresets}
+            lightMode={lightMode}
+            onClose={() => setShowAdminDashboard(false)}
+          />
         );
       })()}
 

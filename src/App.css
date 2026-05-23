@@ -343,3 +343,18 @@ tr.block-deviation-flash > td {
 .mine-block-flash {
   animation: mine-block-blink 1.4s ease-in-out infinite;
 }
+
+@keyframes admin-dash-flash-partial {
+  0%, 100% { border-color: #f97316; box-shadow: 0 0 14px #f9731660; }
+  50% { border-color: #fbbf24; box-shadow: 0 0 4px #f9731630; }
+}
+@keyframes admin-dash-flash-full {
+  0%, 100% { border-color: #ef4444; box-shadow: 0 0 20px #ef444470, 0 0 40px #ef444430; }
+  50% { border-color: #fca5a5; box-shadow: 0 0 4px #ef444430; }
+}
+.admin-dash-card-partial {
+  animation: admin-dash-flash-partial 1.4s ease-in-out infinite;
+}
+.admin-dash-card-full {
+  animation: admin-dash-flash-full 0.8s ease-in-out infinite;
+}
