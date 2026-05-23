@@ -9756,6 +9756,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [lightMode]);
 
   const [tableMode, setTableMode] = useState(false);
+  const initialViewSetRef = useRef(false);
   const [mapSplitMergeMode, setMapSplitMergeMode] = useState(false);
   const [showMapDropdown, setShowMapDropdown] = useState(false);
   const [showTableDropdown, setShowTableDropdown] = useState(false);
@@ -9820,7 +9821,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Reset active block table when the preset changes or its tables change
   useEffect(() => {
     setActiveBlockTableId(null);
+    initialViewSetRef.current = false;
   }, [session.presetId]);
+
+  // Sync tableMode from livePresetConfig on first load per session
+  useEffect(() => {
+    if (!livePresetConfig || initialViewSetRef.current) return;
+    initialViewSetRef.current = true;
+    if (livePresetConfig.table_mode_id) {
+      setSelectedTableModeId(Number(livePresetConfig.table_mode_id));
+      setTableMode(true);
+    } else {
+      setTableMode(false);
+    }
+  }, [livePresetConfig]);
   // Altitude update mini-form (triggered from deviation context menus)
   const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
   const [altUpdateValue, setAltUpdateValue] = useState('');
@@ -10176,17 +10190,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const tid = String(t.id);
       if (!seenIds.has(tid)) { seenIds.add(tid); allTransfers.push(t); }
     }
-    // Build outgoing ID set: outgoing×outgoing at DIFFERENT markers shouldn't conflict
+    // Two transfers only share airspace if they pass through the SAME transfer point.
+    // Transfer point key = (sector_id + sub_sector_label):
+    //   - outgoing: to_sector_id / sub_sector_label
+    //   - incoming: from_sector_id / sub_sector_label
     const outgoingGlobalIdSet = new Set(outgoingTransfers.map(t => String(t.id)));
+    const getTransferKey = (t: any, isOut: boolean) => {
+      const sec = isOut ? t.to_sector_id : t.from_sector_id;
+      return `${sec}:${t.sub_sector_label || ''}`;
+    };
     for (let i = 0; i < allTransfers.length; i++) {
       const a = allTransfers[i];
-      const aIsOutgoing = outgoingGlobalIdSet.has(String(a.id));
+      const aIsOut = outgoingGlobalIdSet.has(String(a.id));
+      const aKey = getTransferKey(a, aIsOut);
       const altA = parseAltVal(a.alt);
       if (altA == null) continue;
       for (let j = i + 1; j < allTransfers.length; j++) {
         const b = allTransfers[j];
-        // Skip outgoing×outgoing — diverge after leaving sector, no shared airspace
-        if (aIsOutgoing && outgoingGlobalIdSet.has(String(b.id))) continue;
+        const bIsOut = outgoingGlobalIdSet.has(String(b.id));
+        const bKey = getTransferKey(b, bIsOut);
+        // Only compare transfers that pass through the SAME transfer point
+        if (aKey !== bKey) continue;
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (Math.abs(altA - altB) * 100 <= delta) {
@@ -11990,7 +12014,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Map option */}
                   <div style={{ borderBottom: '1px solid #1e3a5f' }}>
                     <div
-                      onClick={() => { setTableMode(false); setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
+                      onClick={() => { setTableMode(false); initialViewSetRef.current = true; setShowMapDropdown(v => !v); setShowTableDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: !tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: !tableMode ? 'bold' : 'normal' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
@@ -12019,7 +12043,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Table option */}
                   <div style={{ borderBottom: '1px solid #1e3a5f' }}>
                     <div
-                      onClick={() => { setTableMode(true); setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
+                      onClick={() => { setTableMode(true); initialViewSetRef.current = true; setShowTableDropdown(v => !v); setShowMapDropdown(false); }}
                       style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: tableMode ? '#60a5fa' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: tableMode ? 'bold' : 'normal' }}
                       onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
                       onMouseLeave={e => (e.currentTarget.style.background = '')}
