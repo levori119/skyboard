@@ -9823,6 +9823,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     setActiveBlockTableId(null);
     initialViewSetRef.current = false;
+    setAidExpandedIds(new Set());
   }, [session.presetId]);
 
   // Altitude update mini-form (triggered from deviation context menus)
