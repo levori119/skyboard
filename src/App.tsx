@@ -9357,7 +9357,6 @@ const AdminDashboard: React.FC<{
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
   const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
-  const [drilldownStripsMap, setDrilldownStripsMap] = useState<Record<number, any[]>>({});
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
 
@@ -9378,7 +9377,7 @@ const AdminDashboard: React.FC<{
         .catch(() => {});
     };
     doFetch();
-    const t = setInterval(doFetch, 8000);
+    const t = setInterval(doFetch, 3000);
     return () => clearInterval(t);
   }, []);
 
@@ -9433,16 +9432,7 @@ const AdminDashboard: React.FC<{
   const toggleDrilldown = (presetId: number) => {
     setOpenDrilldowns(prev => {
       const next = new Set(prev);
-      if (next.has(presetId)) {
-        next.delete(presetId);
-      } else {
-        next.add(presetId);
-        const preset = localPresets.find(p => p.id === presetId);
-        if (preset) {
-          const filtered = filterStripsForPreset(allStrips, preset);
-          setDrilldownStripsMap(m => ({ ...m, [presetId]: filtered }));
-        }
-      }
+      if (next.has(presetId)) { next.delete(presetId); } else { next.add(presetId); }
       return next;
     });
   };
@@ -9482,7 +9472,7 @@ const AdminDashboard: React.FC<{
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
           const isOpen = openDrilldowns.has(preset.id);
-          const presetStrips = drilldownStripsMap[preset.id] || [];
+          const presetStrips = isOpen ? filterStripsForPreset(allStrips, preset) : [];
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
@@ -9500,34 +9490,52 @@ const AdminDashboard: React.FC<{
               </div>
 
               {isOpen ? (
-                /* ── Drilldown view — replaces donut ── */
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '320px' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', borderBottom: '1px solid #334155' }}>
+                /* ── Drilldown view — table ── */
+                <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', marginBottom: '4px', borderBottom: '1px solid #334155' }}>
                     {`${presetStrips.length} פ״מ`}
                   </div>
-                  {presetStrips.length === 0 && (
+                  {presetStrips.length === 0 ? (
                     <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
+                      <thead>
+                        <tr style={{ background: '#0f172a', color: '#64748b' }}>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>משימה</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>או"ק</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>טייסת</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>גובה</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>כותרת</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>חימושים</th>
+                          <th style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>הערה</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {presetStrips.map((s: any, idx: number) => {
+                          const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
+                          const rowBg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+                          const formationName = `${s.callSign || ''}${s.numberOfFormation && Number(s.numberOfFormation) > 1 ? ` ${s.numberOfFormation}` : ''}`;
+                          return (
+                            <tr key={s.id} style={{ background: rowBg, borderBottom: '1px solid #1e2d3f' }}>
+                              <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{s.task || s.mivtza || '—'}</td>
+                              <td style={{ padding: '5px 6px', fontWeight: 'bold', color: s.airborne ? '#60a5fa' : 'white', whiteSpace: 'nowrap' }}>
+                                {s.airborne ? <span style={{ background: '#1d4ed8', borderRadius: '3px', padding: '1px 5px' }}>{formationName}</span> : formationName}
+                              </td>
+                              <td style={{ padding: '5px 6px', color: '#a78bfa' }}>{s.sq || s.squadron || '—'}</td>
+                              <td style={{ padding: '5px 6px', color: '#fbbf24', whiteSpace: 'nowrap' }}>{s.alt || '—'}</td>
+                              <td style={{ padding: '5px 6px', color: '#94a3b8' }}>{s.koteret || '—'}</td>
+                              <td style={{ padding: '5px 6px', color: '#fbbf24', fontSize: '11px' }}>
+                                {weapons.length === 0 ? '—' : weapons.map((w: any, i: number) => (
+                                  <div key={i}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                                ))}
+                              </td>
+                              <td style={{ padding: '5px 6px', color: '#64748b', fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.notes || '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   )}
-                  {presetStrips.map((s: any) => (
-                    <div key={s.id} style={{ background: '#0f172a', border: `1px solid ${s.airborne ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px', flexShrink: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '13px', color: s.airborne ? '#60a5fa' : 'white' }}>
-                          {s.callSign}{s.numberOfFormation && s.numberOfFormation > 1 ? ` ${s.numberOfFormation}` : ''}
-                        </span>
-                        <div style={{ display: 'flex', gap: '3px' }}>
-                          {s.airborne && <span style={{ fontSize: '9px', background: '#1d4ed8', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>✈</span>}
-                          {s.onMap && !s.airborne && <span style={{ fontSize: '9px', background: '#15803d', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>🗺</span>}
-                          {s.inTable && !s.airborne && !s.onMap && <span style={{ fontSize: '9px', background: '#7c3aed', color: 'white', padding: '1px 5px', borderRadius: '3px' }}>📋</span>}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#94a3b8', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {(s.sq || s.squadron) && <span>{s.sq || s.squadron}</span>}
-                        {s.alt && <span>{s.alt}</span>}
-                        {s.task && <span>{s.task}</span>}
-                        {s.ground_status && s.ground_status !== 'none' && <span style={{ color: '#fbbf24' }}>{s.ground_status}</span>}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               ) : (
                 /* ── Normal view — donut + thresholds + button ── */
