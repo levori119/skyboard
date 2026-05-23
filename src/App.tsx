@@ -1765,10 +1765,14 @@ const DraggableNeighborPanel = ({
       }
     }
     // Compare outgoing × outgoing (same-direction — two strips going to same sector at similar altitude)
+    // Skip if they go via DIFFERENT sub-sector transfer points (different corridors, no shared airspace)
     for (let i = 0; i < sectorOutgoing.length; i++) {
       const altA = parseAlt(sectorOutgoing[i].alt);
       if (altA == null) continue;
       for (let j = i + 1; j < sectorOutgoing.length; j++) {
+        const lblI = sectorOutgoing[i].sub_sector_label || '';
+        const lblJ = sectorOutgoing[j].sub_sector_label || '';
+        if (lblI && lblJ && lblI !== lblJ) continue; // different transfer points → skip
         const altB = parseAlt(sectorOutgoing[j].alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
@@ -1778,10 +1782,14 @@ const DraggableNeighborPanel = ({
       }
     }
     // Compare incoming × incoming (same-direction)
+    // Skip if they arrive via DIFFERENT sub-sector transfer points
     for (let i = 0; i < sectorIncoming.length; i++) {
       const altA = parseAlt(sectorIncoming[i].alt);
       if (altA == null) continue;
       for (let j = i + 1; j < sectorIncoming.length; j++) {
+        const lblI = sectorIncoming[i].sub_sector_label || '';
+        const lblJ = sectorIncoming[j].sub_sector_label || '';
+        if (lblI && lblJ && lblI !== lblJ) continue; // different transfer points → skip
         const altB = parseAlt(sectorIncoming[j].alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
