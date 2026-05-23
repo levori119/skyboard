@@ -4847,10 +4847,32 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const points: any[] = airfield?.points || [];
 
+  // Extract datk number from point name — handles all naming variants:
+  //   "5"           pure number
+  //   "דת"ק 5"     with Hebrew quotes, space before number
+  //   "דת"ק5"      with Hebrew quotes, no space
+  //   "דתק 5"      without quotes, space before number
+  //   "דתק5"       without quotes, no space
+  //   "דת"ק-5"     with separator
+  //   "דת״ק 3"     with Gershayim (Unicode 05F4)
+  const extractDatkPointNumber = (name: string): number | null => {
+    if (!name) return null;
+    // Covers: optional datkPrefix (with any quote variant) + optional separator + digits
+    const m = name.trim().match(/^(?:דת["״\u05F4]?ק[\s\-]?)?(\d+)$/u);
+    if (m) return parseInt(m[1], 10);
+    return null;
+  };
+
   const autoDatkPlacements = React.useMemo((): Record<string, Record<number, number>> => {
     if (!datkShowMinutes || datkShowMinutes <= 0) return {};
     const windowMs = datkShowMinutes * 60 * 1000;
     const result: Record<string, Record<number, number>> = {};
+    // Pre-compute datk number for every point once
+    const pointDatkNum: Record<number, number> = {};
+    points.forEach((p: any) => {
+      const n = extractDatkPointNumber(p.name);
+      if (n != null) pointDatkNum[p.id] = n;
+    });
     strips.forEach((strip: any) => {
       if (!strip.takeoff_time) return;
       const takeoffMs = new Date(strip.takeoff_time).getTime();
@@ -4862,10 +4884,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         if (ac.datk == null) return;
         const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
         if (existing?.point_id) return;
-        const matchPt = points.find((p: any) => {
-          const n = parseInt(p.name);
-          return !isNaN(n) && n === ac.datk;
-        });
+        const matchPt = points.find((p: any) => pointDatkNum[p.id] === ac.datk);
         if (!matchPt) return;
         if (!result[String(strip.id)]) result[String(strip.id)] = {};
         result[String(strip.id)][ac.idx] = matchPt.id;
