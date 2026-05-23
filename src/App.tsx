@@ -9367,8 +9367,8 @@ const AdminDashboard: React.FC<{
         return evaluateQuery(s, fq!, ctx);
       }
       // standard workstation: filter_query drives the view.
-      // No filter_query → show only strips explicitly assigned to this workstation (via transfer).
-      if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
+      // No filter_query → show only strips dragged to this workstation's board (in_table=true + workstation_preset_id).
+      if (!hasFq) return !!s.inTable && Number(s.workstation_preset_id) === Number(preset.id);
       return evaluateQuery(s, fq!, ctx);
     });
   };
@@ -9824,7 +9824,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setActiveBlockTableId(null);
     initialViewSetRef.current = false;
     setAidExpandedIds(new Set());
-  }, [session.presetId]);
+    // Restore tableOnBoard from DB: strips that were previously dragged to this workstation's board
+    if (session.presetId) {
+      const pid = Number(session.presetId);
+      setTableOnBoard(new Set(
+        strips.filter((s: any) => s.inTable && Number(s.workstation_preset_id) === pid).map((s: any) => String(s.id))
+      ));
+    } else {
+      setTableOnBoard(new Set());
+    }
+  }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Altitude update mini-form (triggered from deviation context menus)
   const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
@@ -12919,9 +12928,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
             const sid = rawId ? Number(rawId) : null;
             if (sid) {
-              // Add strip to the board (center)
+              // Add strip to the board (center) and persist to DB
               setTableOnBoard(prev => new Set([...prev, String(sid)]));
               tableSidebarDragId.current = null;
+              if (session.presetId) {
+                const pid = Number(session.presetId);
+                fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: true, workstation_preset_id: pid }) }).catch(() => {});
+                setStrips(prev => prev.map((s: any) => s.id === sid ? { ...s, inTable: true, workstation_preset_id: pid } : s));
+              }
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
@@ -14251,8 +14265,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />
               <button
                 onClick={() => {
-                  setTableOnBoard(prev => { const n = new Set(prev); n.delete(tableRowCtxMenu.stripId); return n; });
+                  const removedId = tableRowCtxMenu.stripId;
+                  setTableOnBoard(prev => { const n = new Set(prev); n.delete(removedId); return n; });
                   setTableRowCtxMenu(null);
+                  fetch(`${API_URL}/strips/${removedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: false, workstation_preset_id: null }) }).catch(() => {});
+                  setStrips(prev => prev.map((s: any) => String(s.id) === removedId ? { ...s, inTable: false, workstation_preset_id: null } : s));
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
               >✕ הסר מהלוח</button>
@@ -14771,9 +14788,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             setSidebarHtmlDragOver(false);
             const sid = e.dataTransfer.getData('text/strip-id-for-transfer');
             if (sid) {
-              // Strip dragged from center back to sidebar = remove from board
+              // Strip dragged from center back to sidebar = remove from board, persist to DB
               setTableOnBoard(prev => { const n = new Set(prev); n.delete(sid); return n; });
               if (!sidebarPinned) setSidebarPinned(true);
+              fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: false, workstation_preset_id: null }) }).catch(() => {});
+              setStrips(prev => prev.map((s: any) => String(s.id) === sid ? { ...s, inTable: false, workstation_preset_id: null } : s));
             }
           } : undefined}
         >
