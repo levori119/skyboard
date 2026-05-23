@@ -2468,6 +2468,17 @@ app.get('/api/workstation-presets', async (req, res) => {
   }
 });
 
+app.get('/api/workstation-presets/:id/config', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM workstation_presets WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    const row = result.rows[0];
+    res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : (typeof row.relevant_sectors === 'string' ? JSON.parse(row.relevant_sectors) : []) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch preset config' });
+  }
+});
+
 app.post('/api/workstation-presets', async (req, res) => {
   try {
     const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard } = req.body;

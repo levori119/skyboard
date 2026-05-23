@@ -10485,15 +10485,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  // Slowly-changing config data — loaded every 20s separately to keep loadData lean
+  const loadSlowData = () => {
+    fetch(`${API_URL}/block-spaces`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockSpaces(data)).catch(() => {});
+    fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
+    fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
+    fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
+    fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
+    if (session.presetId) {
+      fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
+        .then(r => r.ok ? r.json() : null)
+        .then(p => { if (p) setLivePresetConfig(p); })
+        .catch(() => {});
+    }
+  };
+
   const loadData = async () => {
     if (!primarySectorId) {
       // No sector configured — still load classic-specific data for preset-based classic workstations
       if (session.presetId) {
-        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
-          if (!presets) return;
-          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
-          if (p) setLivePresetConfig(p);
-        }).catch(() => {});
         fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)
           .then(r => r.ok ? r.json() : [])
           .then(data => setClassicIncomingTransfers(data))
@@ -10502,41 +10512,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .then(r => r.ok ? r.json() : [])
           .then(data => setClassicOutgoingTransfers(data))
           .catch(() => {});
+        // Fetch strips once, set both state slices
         fetch(`${API_URL}/strips/global`)
           .then(r => r.ok ? r.json() : [])
-          .then(data => setAllStripsForClassic(data))
-          .catch(() => {});
-        fetch(`${API_URL}/strips/global`)
-          .then(r => r.ok ? r.json() : [])
-          .then(data => setStrips(data))
-          .catch(() => {});
-        fetch(`${API_URL}/classic-strip-tables`)
-          .then(r => r.ok ? r.json() : [])
-          .then(data => setClassicStripTables(data))
+          .then(data => { setAllStripsForClassic(data); setStrips(data); })
           .catch(() => {});
       }
       return;
     }
     try {
       const hasPreset = !!session.presetId;
-      
-      // Load block data in parallel
-      fetch(`${API_URL}/block-spaces`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockSpaces(data)).catch(() => {});
-      fetch(`${API_URL}/block-tables`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlockTables(data)).catch(() => {});
-      fetch(`${API_URL}/blocks`).then(r => r.ok ? r.json() : []).then(data => setDashboardBlocks(data)).catch(() => {});
-      fetch(`${API_URL}/bdh`).then(r => r.ok ? r.json() : []).then(data => setDashboardBdh(data)).catch(() => {});
-      fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(data => setClassicStripTables(data)).catch(() => {});
-      // Refresh live preset config so changes made in admin are picked up without page reload
-      if (session.presetId) {
-        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
-          if (!presets) return;
-          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
-          if (p) setLivePresetConfig(p);
-        }).catch(() => {});
-      }
-      // airfields loaded in separate effect below (independent of primarySectorId)
 
-      // Build all requests
+      // Build all requests (strips-only, fast data)
       const requests: Promise<Response>[] = [
         fetch(`${API_URL}/sectors/${primarySectorId}/sub-sectors`),
         fetch(`${API_URL}/maps`),
@@ -10549,12 +10536,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       ];
       
       // Query-driven: always load all strips globally and let client-side filter handle it.
-      // Previously used workstation-scoped endpoint, but that only returns preset-assigned strips.
       if (hasPreset) {
         requests.push(fetch(`${API_URL}/strips/global`));
         requests.push(fetch(`${API_URL}/workstation-presets/${session.presetId}/waiting-strips`));
       } else {
-        // Fallback: fetch strips from all relevant sectors (for ad-hoc sessions)
         const allSectorIds = allSectors.map(s => s.id);
         for (const sectorId of allSectorIds) {
           requests.push(fetch(`${API_URL}/sectors/${sectorId}/strips`));
@@ -10570,7 +10555,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
       if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
       fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => setAllPendingTransfers(data)).catch(() => {});
-      // Load classic (preset-based) transfers when presetId is set
       if (session.presetId) {
         fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)
           .then(r => r.ok ? r.json() : [])
@@ -10579,11 +10563,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         fetch(`${API_URL}/presets/${session.presetId}/classic-outgoing`)
           .then(r => r.ok ? r.json() : [])
           .then(data => setClassicOutgoingTransfers(data))
-          .catch(() => {});
-        // Load all strips for classic mode center panel (query-based, not workstation-scoped)
-        fetch(`${API_URL}/strips/global`)
-          .then(r => r.ok ? r.json() : [])
-          .then(data => setAllStripsForClassic(data))
           .catch(() => {});
       }
       
@@ -10596,7 +10575,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (hasPreset) {
         const stripsRes = results[4];
         const waitingRes = results[5];
-        if (stripsRes.ok) setStrips(mergeWithPending(await stripsRes.json()));
+        if (stripsRes.ok) {
+          const stripsData = mergeWithPending(await stripsRes.json());
+          setStrips(stripsData);
+          setAllStripsForClassic(stripsData);
+        }
         if (waitingRes.ok) setWaitingStrips(await waitingRes.json());
       } else {
         // Combine strips from all sector requests (fallback for ad-hoc sessions)
@@ -10668,23 +10651,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
-  // Airfields + preset config must load regardless of primarySectorId (GROUND workstations may have no primary sector)
+  useEffect(() => {
+    loadSlowData();
+    const interval = setInterval(loadSlowData, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Airfields — loaded every 10s (rarely change)
   useEffect(() => {
     const loadAirfieldsAndConfig = () => {
       fetch(`${API_URL}/airfields`).then(r => r.ok ? r.json() : []).then(data => setAirfields(data)).catch(() => {});
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAviationBases).catch(() => {});
       fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAirfieldRoutes).catch(() => {});
       fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAirfieldElementTypes).catch(() => {});
-      if (session.presetId && !primarySectorId) {
-        fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : null).then(presets => {
-          if (!presets) return;
-          const p = presets.find((x: any) => Number(x.id) === Number(session.presetId));
-          if (p) setLivePresetConfig(p);
-        }).catch(() => {});
-      }
     };
     loadAirfieldsAndConfig();
-    const interval = setInterval(loadAirfieldsAndConfig, 5000);
+    const interval = setInterval(loadAirfieldsAndConfig, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -10697,16 +10679,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           setAvailableTableModes(modes);
         }
         if (session.presetId) {
-          const presetRes = await fetch(`${API_URL}/workstation-presets`);
+          const presetRes = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
           if (presetRes.ok) {
-            const presets = await presetRes.json();
-            const myPreset = presets.find((p: any) => Number(p.id) === Number(session.presetId));
-            if (myPreset) {
-              setLivePresetConfig(myPreset);
-              if (myPreset.table_mode_id) {
-                setSelectedTableModeId(Number(myPreset.table_mode_id));
-                setTableMode(true);
-              }
+            const myPreset = await presetRes.json();
+            setLivePresetConfig(myPreset);
+            if (myPreset.table_mode_id) {
+              setSelectedTableModeId(Number(myPreset.table_mode_id));
+              setTableMode(true);
             }
           }
         }
