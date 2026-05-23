@@ -189,9 +189,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     const loadData = async () => {
       try {
         const [sectorsRes, presetsRes, crewRes] = await Promise.all([
-          fetch(`${API_URL}/sectors`),
-          fetch(`${API_URL}/workstation-presets`),
-          fetch(`${API_URL}/crew-members`)
+          fetch(`${API_URL}/sectors`, { cache: 'no-store' }),
+          fetch(`${API_URL}/workstation-presets`, { cache: 'no-store' }),
+          fetch(`${API_URL}/crew-members`, { cache: 'no-store' })
         ]);
         if (sectorsRes.ok) {
           const data = await sectorsRes.json();
@@ -380,7 +380,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
-                placeholder="חפש לפי שם..."
+                placeholder={crewMembers.length > 0 ? `חפש מתוך ${crewMembers.length} אנשי צוות...` : 'טוען אנשי צוות...'}
                 value={crewSearchQuery}
                 onChange={(e) => { setCrewSearchQuery(e.target.value); setShowCrewDropdown(true); }}
                 onFocus={() => setShowCrewDropdown(true)}
