@@ -10854,26 +10854,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   })();
 
   // Table-mode altitude conflict detection — must be after myTableStrips declaration.
-  // Pairs where BOTH strips are within their designated blocks are skipped:
-  // the block system already coordinates them — no alert needed.
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
     const delta = myPresetConfig?.conflict_alt_delta ?? 500;
     const result = new Set<string>();
     if (delta <= 0) return result;
-
-    // Compute effective block table ID inline (same logic as effectiveBlockTableId below)
-    const btIds: number[] = session.presetId
-      ? (workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.block_table_ids || []).map(Number)
-      : [];
-    const pid = session.presetId ? Number(session.presetId) : null;
-    const relBlocks = dashboardBlocks.filter((b: any) =>
-      btIds.includes(Number(b.block_table_id)) ||
-      (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
-    );
-    const tableBlockIds = Array.from(new Set(relBlocks.map((b: any) => Number(b.block_table_id))));
-    const inlineBtId: number | null = activeBlockTableId ?? (tableBlockIds.length === 1 ? tableBlockIds[0] as number : null);
-
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
       const m = alt.match(/\d+/);
@@ -10889,43 +10874,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
-          // If both strips are in DIFFERENT non-overlapping blocks, the block system
-          // coordinates them — skip. Same block or either outside blocks → conflict.
-          if (inlineBtId !== null) {
-            // All blocks that belong to the active block table
-            const tableBlocks = dashboardBlocks.filter((b: any) => Number(b.block_table_id) === inlineBtId);
-            const getBlockId = (s: any): number | null => {
-              const rawAlt = String(s.alt || '').trim().toUpperCase().replace(/,/g, '');
-              const fl = rawAlt.match(/^F[L]?(\d+)/);
-              const nm = rawAlt.match(/^(\d+)/);
-              const afl = fl ? parseInt(fl[1]) : (nm ? parseInt(nm[1]) : null);
-              if (afl === null) return null;
-              const effectivePid = s.workstation_preset_id ? Number(s.workstation_preset_id) : pid;
-              // First: try blocks assigned to this strip's workstation (or global blocks ws=[])
-              const wsBlocks = tableBlocks.filter((b: any) => {
-                const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-                return ws.length === 0 || (effectivePid !== null && ws.includes(effectivePid));
-              });
-              const found = wsBlocks.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
-              if (found) return Number(found.id);
-              // Fallback: strip has no workstation or its WS isn't in any block —
-              // find which altitude range covers it (used for ערכה / kit-based tables
-              // where blocks are per-workstation but the strip isn't tagged to one).
-              const anyFound = tableBlocks.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
-              return anyFound ? Number(anyFound.id) : null;
-            };
-            const blockA = getBlockId(a);
-            const blockB = getBlockId(b);
-            // Both in defined (non-null) but DIFFERENT blocks → coordinated, no conflict
-            if (blockA !== null && blockB !== null && blockA !== blockB) continue;
-          }
           result.add(String(a.id));
           result.add(String(b.id));
         }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, activeBlockTableId, session.presetId, workstationPresets]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
