@@ -10892,6 +10892,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           // If both strips are in DIFFERENT non-overlapping blocks, the block system
           // coordinates them — skip. Same block or either outside blocks → conflict.
           if (inlineBtId !== null) {
+            // All blocks that belong to the active block table
+            const tableBlocks = dashboardBlocks.filter((b: any) => Number(b.block_table_id) === inlineBtId);
             const getBlockId = (s: any): number | null => {
               const rawAlt = String(s.alt || '').trim().toUpperCase().replace(/,/g, '');
               const fl = rawAlt.match(/^F[L]?(\d+)/);
@@ -10899,13 +10901,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const afl = fl ? parseInt(fl[1]) : (nm ? parseInt(nm[1]) : null);
               if (afl === null) return null;
               const effectivePid = s.workstation_preset_id ? Number(s.workstation_preset_id) : pid;
-              const relB = dashboardBlocks.filter((b: any) => {
-                if (Number(b.block_table_id) !== inlineBtId) return false;
+              // First: try blocks assigned to this strip's workstation (or global blocks ws=[])
+              const wsBlocks = tableBlocks.filter((b: any) => {
                 const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
                 return ws.length === 0 || (effectivePid !== null && ws.includes(effectivePid));
               });
-              const found = relB.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
-              return found ? Number(found.id) : null;
+              const found = wsBlocks.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
+              if (found) return Number(found.id);
+              // Fallback: strip has no workstation or its WS isn't in any block —
+              // find which altitude range covers it (used for ערכה / kit-based tables
+              // where blocks are per-workstation but the strip isn't tagged to one).
+              const anyFound = tableBlocks.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
+              return anyFound ? Number(anyFound.id) : null;
             };
             const blockA = getBlockId(a);
             const blockB = getBlockId(b);
