@@ -9793,6 +9793,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const mapImgRef = useRef<HTMLImageElement>(null);
+  const computeMapImgBounds = (imgEl: HTMLImageElement | null) => {
+    if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setMapImgBounds(null); return; }
+    const c = imgEl.parentElement; if (!c) { setMapImgBounds(null); return; }
+    const cW = c.offsetWidth, cH = c.offsetHeight;
+    const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+    const cRatio = cW / cH;
+    let w, h, left, top;
+    if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
+    else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
+    setMapImgBounds({ left, top, width: w, height: h });
+  };
   const [showLearn, setShowLearn] = useState(false);
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
@@ -10345,8 +10358,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const cy = rect.height / 2;
     const contentX = cx + (dropX - pan.x - cx) / zoom;
     const contentY = cy + (dropY - pan.y - cy) / zoom;
-    const pxInMap = (contentX / rect.width) * 100;
-    const pyInMap = (contentY / rect.height) * 100;
+    const ib = mapImgBoundsRef.current;
+    const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+    const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
     if (!zone) { setFzDragStripId(null); setFzDragLabel(null); return; }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
@@ -11081,6 +11095,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const tableModeRef = useRef(false);
   const mapZoomRef = useRef(1);
   const mapPanRef = useRef({ x: 0, y: 0 });
+  const mapImgBoundsRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
   const tableGroupByKeyRef = useRef<string | null>(null);
   const tableSortBySectorRef = useRef(false);
   const tableSortKeyRef = useRef<string | null>(null);
@@ -11111,6 +11126,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   tableModeRef.current = tableMode;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
+  mapImgBoundsRef.current = mapImgBounds;
   drawingModeRef.current = drawingMode;
   tableGroupByKeyRef.current = tableGroupByKey || null;
   tableSortBySectorRef.current = tableSortBySector;
@@ -14707,14 +14723,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           }}>
             {/* Map Image */}
             {mapImg ? (
-              <img src={mapImg} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+              <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
             ) : (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>נא לטעון מפה</div>
             )}
 
             {/* Map Zones Overlay */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds ? mapImgBounds.top : 0, left: mapImgBounds ? mapImgBounds.left : 0, width: mapImgBounds ? mapImgBounds.width : '100%', height: mapImgBounds ? mapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 1 }}>
                 {mapZones.map(zone => (
                   <g key={zone.id}>
                     {zone.polygon.length >= 3 && (
