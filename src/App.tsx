@@ -17425,7 +17425,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                     disabled={!editable} placeholder="כותרת..."
                     style={{ flex: 1, border: 'none', background: 'transparent', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none', minWidth: 0 }}
                   />
-                  {isTouch && editable && (
+                  {editable && (
                     <VKTrigger value={note.title} onChange={v => updateNote(note.id, { title: v })} mode="full" label="כותרת" size={12} style={{ marginLeft: '4px', marginRight: '4px', border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
                   )}
                 </div>
@@ -17438,7 +17438,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                 />
                 {/* Bottom bar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px 6px', borderTop: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
-                  {isTouch && editable && (
+                  {editable && (
                     <VKTrigger value={note.content} onChange={v => updateNote(note.id, { content: v })} mode="full" label="תוכן" size={14} style={{ border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
                   )}
                   <button onClick={() => setShowColorPicker(showColorPicker === note.id ? null : note.id)} title="צבע רקע"
