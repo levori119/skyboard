@@ -10853,12 +10853,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return assigned.length ? [...myStrips, ...assigned] : myStrips;
   })();
 
-  // Table-mode altitude conflict detection — must be after myTableStrips declaration
+  // Table-mode altitude conflict detection — must be after myTableStrips declaration.
+  // Pairs where BOTH strips are within their designated blocks are skipped:
+  // the block system already coordinates them — no alert needed.
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
     const delta = myPresetConfig?.conflict_alt_delta ?? 500;
     const result = new Set<string>();
     if (delta <= 0) return result;
+
+    // Compute effective block table ID inline (same logic as effectiveBlockTableId below)
+    const btIds: number[] = session.presetId
+      ? (workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.block_table_ids || []).map(Number)
+      : [];
+    const pid = session.presetId ? Number(session.presetId) : null;
+    const relBlocks = dashboardBlocks.filter((b: any) =>
+      btIds.includes(Number(b.block_table_id)) ||
+      (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
+    );
+    const tableBlockIds = Array.from(new Set(relBlocks.map((b: any) => Number(b.block_table_id))));
+    const inlineBtId: number | null = activeBlockTableId ?? (tableBlockIds.length === 1 ? tableBlockIds[0] as number : null);
+
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
       const m = alt.match(/\d+/);
@@ -10874,13 +10889,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+          // If both strips are within their blocks the separation is coordinated — skip
+          if (inlineBtId !== null) {
+            const aInBlock = !computeBlockDeviation(a, dashboardBlocks, [], inlineBtId, pid);
+            const bInBlock = !computeBlockDeviation(b, dashboardBlocks, [], inlineBtId, pid);
+            if (aInBlock && bInBlock) continue;
+          }
           result.add(String(a.id));
           result.add(String(b.id));
         }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, activeBlockTableId, session.presetId, workstationPresets]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
