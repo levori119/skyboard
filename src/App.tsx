@@ -14133,8 +14133,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       : <ellipse cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />;
                   })()}
                 </svg>
-                {/* 🖊️ Toggle — off by default, single click enables/disables drawing */}
-                <button
+                {/* 🖊️ Toggle — hidden in classic (strips) mode */}
+                {!isClassicMode && <button
                   onClick={() => {
                     const newMode = !drawingMode;
                     drawingModeRef.current = newMode;
@@ -14150,8 +14150,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
                   }}
-                >🖊️</button>
-                {drawingMode && <div style={{
+                >🖊️</button>}
+                {!isClassicMode && drawingMode && <div style={{
                   position: 'absolute', top: 10, left: 54,
                   background: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', padding: '8px',
                   display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 1000
