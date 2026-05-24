@@ -9728,6 +9728,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
   const [fzDragStripId, setFzDragStripId] = useState<number | null>(null);
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
+  const fzDragIdRef = useRef<number | null>(null);
+  const fzOverlayRef = useRef<HTMLDivElement>(null);
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
@@ -10273,7 +10275,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    const dragId = fzDragStripId;
+    const dragId = fzDragIdRef.current ?? fzDragStripId;
     const dragLabel = fzDragLabel;
     if (!isFlightZonesMode || !dragId || !currentMapId) return;
     e.preventDefault();
@@ -14782,8 +14784,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Flight Zones Drop Overlay — always rendered in FZ mode so dragenter fires reliably */}
             {isFlightZonesMode && (
               <div
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: fzDragStripId ? 'copy' : 'default', background: fzDragStripId ? 'rgba(14,165,233,0.06)' : 'transparent', border: fzDragStripId ? '2px dashed #0ea5e9' : 'none', borderRadius: '4px', pointerEvents: fzDragStripId ? 'all' : 'none' }}
-                onDragOver={e => { if (fzDragStripId) e.preventDefault(); }}
+                ref={fzOverlayRef}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: fzDragStripId ? 'copy' : 'default', background: fzDragStripId ? 'rgba(14,165,233,0.06)' : 'transparent', border: fzDragStripId ? '2px dashed #0ea5e9' : 'none', borderRadius: '4px', pointerEvents: 'none' }}
+                onDragOver={e => { if (fzDragIdRef.current) e.preventDefault(); }}
                 onDrop={handleFzMapDrop}
               />
             )}
@@ -15138,8 +15141,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div
                   key={s.id}
                   draggable={isFlightZonesMode}
-                  onDragStart={isFlightZonesMode ? () => { flushSync(() => { setFzDragStripId(s.id); setFzDragLabel(null); }); } : undefined}
-                  onDragEnd={isFlightZonesMode ? () => { flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); } : undefined}
+                  onDragStart={isFlightZonesMode ? () => { fzDragIdRef.current = s.id; if (fzOverlayRef.current) fzOverlayRef.current.style.pointerEvents = 'all'; flushSync(() => { setFzDragStripId(s.id); setFzDragLabel(null); }); } : undefined}
+                  onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) fzOverlayRef.current.style.pointerEvents = 'none'; flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); } : undefined}
                   onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
@@ -15229,8 +15232,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
                     <div key={si.key}
                       draggable
-                      onDragStart={e => { e.stopPropagation(); flushSync(() => { setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }); }}
-                      onDragEnd={() => { flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); }}
+                      onDragStart={e => { e.stopPropagation(); fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) fzOverlayRef.current.style.pointerEvents = 'all'; flushSync(() => { setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }); }}
+                      onDragEnd={() => { fzDragIdRef.current = null; if (fzOverlayRef.current) fzOverlayRef.current.style.pointerEvents = 'none'; flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); }}
                       style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
                     >
                       <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
