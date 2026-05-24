@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, useDragControls } from 'framer-motion';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
 import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
@@ -14668,25 +14668,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </svg>
             )}
 
-            {/* Flight Zones Mode: zone name labels + assignment counts only (no polygon fill/stroke) */}
-            {isFlightZonesMode && mapZones.length > 0 && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
-                {mapZones.map(zone => {
-                  const zoneAssignments = stripZoneAssignments.filter(a => a.zone_id === zone.id);
-                  if (zone.polygon.length < 3) return null;
-                  const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
-                  const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
-                  return (
-                    <g key={zone.id}>
-                      <text x={cx} y={cy - 1.5} textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
-                      {zoneAssignments.length > 0 && (
-                        <text x={cx} y={cy + 2} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize="2" style={{ userSelect: 'none' }}>{zoneAssignments.length} פממים</text>
-                      )}
-                    </g>
-                  );
-                })}
-              </svg>
-            )}
+            {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
             {/* Strips Layer — only show strips placed by this workstation */}
             {strips.filter(s => s.onMap && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId))).map(s => (
@@ -15138,8 +15120,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div
                   key={s.id}
                   draggable={isFlightZonesMode}
-                  onDragStart={isFlightZonesMode ? () => { setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
-                  onDragEnd={isFlightZonesMode ? () => { setFzDragStripId(null); setFzDragLabel(null); } : undefined}
+                  onDragStart={isFlightZonesMode ? () => { flushSync(() => { setFzDragStripId(s.id); setFzDragLabel(null); }); } : undefined}
+                  onDragEnd={isFlightZonesMode ? () => { flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); } : undefined}
                   onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
@@ -15229,8 +15211,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
                     <div key={si.key}
                       draggable
-                      onDragStart={e => { e.stopPropagation(); setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
-                      onDragEnd={() => { setFzDragStripId(null); setFzDragLabel(null); }}
+                      onDragStart={e => { e.stopPropagation(); flushSync(() => { setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }); }}
+                      onDragEnd={() => { flushSync(() => { setFzDragStripId(null); setFzDragLabel(null); }); }}
                       style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
                     >
                       <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
