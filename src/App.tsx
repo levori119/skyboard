@@ -2607,6 +2607,7 @@ const DraggableMapMarker = ({
   conflictAltDelta = 0,
   crossSectorConflictIds,
   onUpdateStripField,
+  lightMode = false,
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -2627,6 +2628,7 @@ const DraggableMapMarker = ({
   conflictAltDelta?: number;
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  lightMode?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -2907,11 +2909,11 @@ const DraggableMapMarker = ({
         className="marker-drop-zone"
         data-marker-sector={marker.sectorId}
         data-marker-sublabel={marker.subLabel || ''}
-        style={{ display: 'flex', background: '#0f172a', borderTop: '1px solid #334155' }}
+        style={{ display: 'flex', background: lightMode ? '#f1f5f9' : '#0f172a', borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` }}
       >
         {/* העברה - Outgoing */}
-        <div style={{ flex: 1, borderLeft: '1px solid #334155', padding: '6px', minHeight: '60px' }}>
-          <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+        <div style={{ flex: 1, borderLeft: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '6px', minHeight: '60px' }}>
+          <div style={{ fontSize: '10px', color: lightMode ? '#b45309' : '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             העברה: ({markerOutgoing.length})
           </div>
           {markerOutgoing.map((t: any) => {
@@ -2952,7 +2954,7 @@ const DraggableMapMarker = ({
         
         {/* קבלה - Incoming */}
         <div style={{ flex: 1, padding: '6px', minHeight: '60px' }}>
-          <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
+          <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             קבלה ({markerIncoming.length})
           </div>
           {markerIncoming.map((t: any) => {
@@ -2980,7 +2982,7 @@ const DraggableMapMarker = ({
                     onPointerDown={e => e.stopPropagation()}
                     onBlur={() => { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); }}
                     onKeyDown={e => { if (e.key === 'Enter') { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); } if (e.key === 'Escape') setEditingAltId(null); }}
-                    style={{ width: '40px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '8px', padding: '1px 3px', outline: 'none' }}
+                    style={{ width: '40px', background: lightMode ? 'white' : '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: lightMode ? '#1e3a8a' : '#93c5fd', fontSize: '8px', padding: '1px 3px', outline: 'none' }}
                   />
                 ) : (
                   <>
@@ -3034,14 +3036,14 @@ const DraggableMapMarker = ({
       
       {/* Notes section */}
       {(notes || editingNotes) && (
-        <div style={{ background: '#1e293b', padding: '6px', borderTop: '1px solid #334155' }}>
+        <div style={{ background: lightMode ? '#e2e8f0' : '#1e293b', padding: '6px', borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` }}>
           {editingNotes ? (
             <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
                 <textarea
                   value={tempNotes}
                   onChange={(e) => setTempNotes(e.target.value)}
-                  style={{ flex: 1, padding: '4px', border: '1px solid #475569', borderRadius: '4px', background: '#0f172a', color: 'white', fontSize: '10px', resize: 'none', boxSizing: 'border-box' }}
+                  style={{ flex: 1, padding: '4px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', resize: 'none', boxSizing: 'border-box' }}
                   rows={2}
                   autoFocus
                 />
@@ -3068,7 +3070,7 @@ const DraggableMapMarker = ({
           ) : (
             <div 
               onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
-              style={{ fontSize: '9px', color: '#94a3b8', cursor: 'pointer' }}
+              style={{ fontSize: '9px', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', fontWeight: lightMode ? 'bold' : undefined }}
               title="לחץ לעריכה"
             >
               {(() => { const np = parseNoteValue(notes || ''); return (<>
@@ -3082,11 +3084,11 @@ const DraggableMapMarker = ({
       
       {/* Add notes button if no notes */}
       {!notes && !editingNotes && onUpdateNotes && (
-        <div style={{ background: '#1e293b', padding: '4px', borderTop: '1px solid #334155', textAlign: 'center' }}>
+        <div style={{ background: lightMode ? '#e2e8f0' : '#1e293b', padding: '4px', borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, textAlign: 'center' }}>
           <button
             onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '9px', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: lightMode ? '#475569' : '#64748b', fontSize: '9px', cursor: 'pointer', fontWeight: 'bold' }}
           >
             + הוסף הערה
           </button>
@@ -15314,6 +15316,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 conflictAltDelta={allSectors.find((s: any) => s.id === marker.sectorId)?.conflict_alt_delta ?? 500}
                 crossSectorConflictIds={crossSectorConflictIds}
                 onUpdateStripField={handleUpdateStripField}
+                lightMode={lightMode}
               />
             ))}
 
