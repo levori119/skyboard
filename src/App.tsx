@@ -5129,7 +5129,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
 
         {/* Sort & Group toolbar */}
-        <div style={{ background: lightMode ? '#f1f5f9' : '#0f1a2e', borderBottom: `1px solid ${border}`, flexShrink: 0, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+        <div style={{ background: lightMode ? '#f1f5f9' : '#0f1a2e', borderBottom: `1px solid ${border}`, flexShrink: 0, padding: '4px 6px', display: stripsPinned ? 'flex' : 'none', flexDirection: 'column', gap: '3px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>מיון:</span>
             {([
