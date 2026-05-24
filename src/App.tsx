@@ -10854,16 +10854,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   })();
 
   // Table-mode altitude conflict detection — must be after myTableStrips declaration.
+  // When a block table is active, two strips in DIFFERENT blocks are not a conflict
+  // (the blocks coordinate them). Same block or outside any block → conflict.
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
     const delta = myPresetConfig?.conflict_alt_delta ?? 500;
     const result = new Set<string>();
     if (delta <= 0) return result;
+
+    // Resolve the active block table for this workstation (same logic as effectiveBlockTableId)
+    const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
+    const btIds: number[] = (preset?.block_table_ids || []).map(Number);
+    const pid = preset ? Number(preset.id) : null;
+    const relBlocks = dashboardBlocks.filter((b: any) =>
+      btIds.includes(Number(b.block_table_id)) ||
+      (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
+    );
+    const relTableIds = Array.from(new Set(relBlocks.map((b: any) => Number(b.block_table_id))));
+    const inlineBtId: number | null = activeBlockTableId ?? (relTableIds.length === 1 ? relTableIds[0] : null);
+    // Blocks belonging to the active table, keyed by id for quick lookup
+    const tableBlocks: any[] = inlineBtId !== null
+      ? dashboardBlocks.filter((b: any) => Number(b.block_table_id) === inlineBtId)
+      : [];
+
+    // Given an FL number, return the id of the block whose range contains it (or null)
+    const findBlockId = (fl: number): number | null => {
+      const blk = tableBlocks.find((b: any) => fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
+      return blk ? Number(blk.id) : null;
+    };
+
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
       const m = alt.match(/\d+/);
       return m ? parseInt(m[0]) : null;
     };
+
     const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
     for (let i = 0; i < boardStrips.length; i++) {
       const a = boardStrips[i];
@@ -10874,13 +10899,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+          // With an active block table: skip only when BOTH are in DIFFERENT defined blocks
+          if (tableBlocks.length > 0) {
+            const blockA = findBlockId(altA);
+            const blockB = findBlockId(altB);
+            if (blockA !== null && blockB !== null && blockA !== blockB) continue;
+          }
           result.add(String(a.id));
           result.add(String(b.id));
         }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, activeBlockTableId, session.presetId, workstationPresets]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
