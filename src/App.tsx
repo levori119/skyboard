@@ -66,12 +66,16 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'task', label: 'משימה', ftype: 'text' },
   { key: 'alt', label: 'גובה', ftype: 'text' },
   { key: 'takeoff_time', label: 'זמן המראה', ftype: 'text' },
+  { key: 'takeoff_airfield', label: 'שדה המראה', ftype: 'text' },
+  { key: 'landing_airfield', label: 'שדה נחיתה', ftype: 'text' },
   { key: 'weapons', label: 'חימושים', ftype: 'text' },
   { key: 'targets', label: 'מטרות', ftype: 'text' },
   { key: 'systems', label: 'מערכות', ftype: 'text' },
   { key: 'erka', label: 'ערכה', ftype: 'text' },
   { key: 'mivtza', label: 'מבצע', ftype: 'text' },
   { key: 'koteret', label: 'כותרת', ftype: 'text' },
+  { key: 'parent_callsign', label: 'או"ק פמ מקורי', ftype: 'text' },
+  { key: 'formation_notes', label: 'הערה לפמ', ftype: 'text' },
   { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'status', label: 'מצב', ftype: 'text' },
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
@@ -103,25 +107,39 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
   none: 'אף אחד לא מתקיים',
 };
 
-const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | string | null }): any => {
+const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
   if (field === 'in_table') {
-    // "הועבר אלי" = strip is destined for (or already accepted by) this workstation
     const isForMe = ctx?.presetId != null
       ? Number(strip.workstation_preset_id) === Number(ctx.presetId)
       : !!strip.workstation_preset_id;
-    // Match both in-transit (pending_transfer) and accepted (in_table=true) strips
     return isForMe && (!!strip.in_table || strip.status === 'pending_transfer');
   }
   if (field === 'sq') return strip.sq || strip.squadron || '';
   if (field === 'numberOfFormation') return strip.numberOfFormation || strip.number_of_formation || '';
   if (field === 'notes') return strip.notes || '';
   if (field === 'shkadia') return strip.shkadia || '';
+  if (field === 'takeoff_airfield') {
+    const bases = ctx?.aviationBases || [];
+    const id = strip.takeoff_airfield_id;
+    if (!id) return '';
+    const base = bases.find((b: any) => b.id === id || b.id === Number(id));
+    return base ? `${base.name || ''} ${base.code || ''}`.trim() : String(id);
+  }
+  if (field === 'landing_airfield') {
+    const bases = ctx?.aviationBases || [];
+    const id = strip.landing_airfield_id;
+    if (!id) return '';
+    const base = bases.find((b: any) => b.id === id || b.id === Number(id));
+    return base ? `${base.name || ''} ${base.code || ''}`.trim() : String(id);
+  }
+  if (field === 'parent_callsign') return strip.parent_callsign || '';
+  if (field === 'formation_notes') return strip.formation_notes || '';
   return strip[field] ?? '';
 };
 
-const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null }): boolean => {
+const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): boolean => {
   const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
@@ -142,7 +160,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string |
   }
 };
 
-const evaluateQuery = (strip: any, node: QNode, ctx?: { presetId?: number | string | null }): boolean => {
+const evaluateQuery = (strip: any, node: QNode, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): boolean => {
   if (node.type === 'leaf') return evalQLeaf(strip, node, ctx);
   if (node.children.length === 0) return true;
   const results = node.children.map(c => evaluateQuery(strip, c, ctx));
@@ -9412,7 +9430,7 @@ const AdminDashboard: React.FC<{
     const type = preset.preset_type || 'standard';
     const fq: QGroup | null = preset.filter_query || null;
     const hasFq = hasConditions(fq);
-    const ctx = { presetId: preset.id };
+    const ctx = { presetId: preset.id, aviationBases };
     return strips.filter(s => {
       if (s.status !== 'active') return false;
       if (type === 'ground' || type === 'airfield') {
@@ -10491,7 +10509,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
-  const _qCtx = session.presetId != null ? { presetId: session.presetId } : undefined;
+  const _qCtx = session.presetId != null ? { presetId: session.presetId, aviationBases } : { aviationBases };
   const myStrips = strips.filter(s => {
     // Include pending_transfer strips that are incoming to THIS workstation
     if (s.status === 'pending_transfer') {
