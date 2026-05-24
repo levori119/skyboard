@@ -12255,7 +12255,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* כפתור דש בורד מנהל */}
-          {(session.crewMember?.is_admin || myPresetConfig?.show_dashboard) && (
+          {myPresetConfig?.show_dashboard && (
             <button
               onClick={() => setShowAdminDashboard(true)}
               style={{ background: showAdminDashboard ? '#1d4ed8' : '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
@@ -13233,7 +13233,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#000000')) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#0f172a')) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
