@@ -3438,8 +3438,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     startPosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setDragPos({ x: e.clientX - startPosRef.current.x, y: e.clientY - startPosRef.current.y });
-    setIsDragging(true);
+    const pointerStartX = e.clientX;
+    const pointerStartY = e.clientY;
+    let dragActivated = false;
 
     // Use getBoundingClientRect for both markers and neighbor panels — reliable through CSS transforms.
     // elementsFromPoint can be unreliable inside contain:paint contexts and CSS-scaled containers.
@@ -3482,6 +3483,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     const handleDragMove = (ev: PointerEvent) => {
       lastCx = ev.clientX;
       lastCy = ev.clientY;
+      if (!dragActivated) {
+        if (Math.abs(ev.clientX - pointerStartX) < 5 && Math.abs(ev.clientY - pointerStartY) < 5) return;
+        dragActivated = true;
+        setIsDragging(true);
+      }
       setDragPos({ x: ev.clientX - startPosRef.current.x, y: ev.clientY - startPosRef.current.y });
       clearHighlights();
       const m = findMarker(ev.clientX, ev.clientY);
@@ -3544,7 +3550,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       window.removeEventListener('pointermove', handleDragMove);
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
-      performDrop(ev.clientX, ev.clientY);
+      if (dragActivated) performDrop(ev.clientX, ev.clientY);
     };
 
     const handleDragCancel = () => {
@@ -3553,6 +3559,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
       window.removeEventListener('pointermove', handleDragMove);
       window.removeEventListener('pointerup', handleDragUp);
       window.removeEventListener('pointercancel', handleDragCancel);
+      if (!dragActivated) return;
       // Tablet fallback: attempt transfer at last known position (neighbor panel / marker only).
       // Does NOT reposition on map to avoid accidental moves on system-cancelled gestures.
       const topNeighbor = findNeighborPanel(lastCx, lastCy);
