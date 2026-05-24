@@ -9590,9 +9590,9 @@ const AdminDashboard: React.FC<{
   lightMode: boolean;
   onClose: () => void;
   aviationBases?: any[];
-  strips: any[];
-}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [], strips: allStrips }) => {
+}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [] }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
+  const [allStrips, setAllStrips] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
   const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
@@ -9613,6 +9613,15 @@ const AdminDashboard: React.FC<{
       .then(r => r.ok ? r.json() : [])
       .then(d => setTableModes(Array.isArray(d) ? d : []))
       .catch(() => {});
+    const doFetch = () => {
+      fetch(`${API_URL}/strips/global`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setAllStrips(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    };
+    doFetch();
+    const t = setInterval(doFetch, 2000);
+    return () => clearInterval(t);
   }, []);
 
   const filterStripsForPreset = (strips: any[], preset: any): any[] => {
@@ -12806,7 +12815,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             lightMode={lightMode}
             onClose={() => setShowAdminDashboard(false)}
             aviationBases={aviationBases}
-            strips={strips}
           />
         );
       })()}
