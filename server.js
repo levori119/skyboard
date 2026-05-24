@@ -801,8 +801,10 @@ async function initDb() {
   // פ"מ אב — formation-level fields
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS formation_notes TEXT DEFAULT ''`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_callsign VARCHAR(100) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_airfield VARCHAR(100) DEFAULT ''`);
-  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_airfield VARCHAR(100) DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips DROP COLUMN IF EXISTS takeoff_airfield`);
+  await pool.query(`ALTER TABLE strips DROP COLUMN IF EXISTS landing_airfield`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
 
   console.log('Database initialized');
 }
@@ -1037,8 +1039,8 @@ app.get('/api/strips/all', async (req, res) => {
       mivtza: r.mivtza || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
-      takeoff_airfield: r.takeoff_airfield || '',
-      landing_airfield: r.landing_airfield || ''
+      takeoff_airfield_id: r.takeoff_airfield_id || null,
+      landing_airfield_id: r.landing_airfield_id || null
     })));
   } catch (err) {
     console.error('Error fetching all strips:', err);
@@ -1192,8 +1194,8 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.star !== undefined) { updates.push(`star = $${paramIndex++}`); values.push(req.body.star || null); }
     if (req.body.departure_base_id !== undefined) { updates.push(`departure_base_id = $${paramIndex++}`); values.push(req.body.departure_base_id ? parseInt(req.body.departure_base_id) : null); }
     if (req.body.landing_base_id !== undefined) { updates.push(`landing_base_id = $${paramIndex++}`); values.push(req.body.landing_base_id ? parseInt(req.body.landing_base_id) : null); }
-    if (req.body.takeoff_airfield !== undefined) { updates.push(`takeoff_airfield = $${paramIndex++}`); values.push(req.body.takeoff_airfield || ''); }
-    if (req.body.landing_airfield !== undefined) { updates.push(`landing_airfield = $${paramIndex++}`); values.push(req.body.landing_airfield || ''); }
+    if (req.body.takeoff_airfield_id !== undefined) { updates.push(`takeoff_airfield_id = $${paramIndex++}`); values.push(req.body.takeoff_airfield_id ? parseInt(req.body.takeoff_airfield_id) : null); }
+    if (req.body.landing_airfield_id !== undefined) { updates.push(`landing_airfield_id = $${paramIndex++}`); values.push(req.body.landing_airfield_id ? parseInt(req.body.landing_airfield_id) : null); }
 
     if (updates.length > 0) {
       values.push(id);

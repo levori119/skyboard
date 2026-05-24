@@ -4612,7 +4612,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     }
     return items;
   }, [sortedStrips, stripGroupBySquadron]);
-  const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string; takeoffAirfield: string; landingAirfield: string }>>({});
+  const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string; takeoffAirfieldId: number|null; landingAirfieldId: number|null }>>({});
   const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [groundSplitModal, setGroundSplitModal] = React.useState<{ strip: any } | null>(null);
   const [groundSplitSelected, setGroundSplitSelected] = React.useState<number[]>([]);
@@ -5286,21 +5286,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           style={{ flex: 1, minWidth: '80px', padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', direction: 'rtl', outline: 'none' }}
                         />
                       </div>
-                      {/* שדה המראה + שדה נחיתה */}
-                      <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
-                        <input
-                          value={stripFormationMeta[sid]?.takeoffAirfield !== undefined ? stripFormationMeta[sid].takeoffAirfield : (strip.takeoff_airfield || '')}
-                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfield: v, landingAirfield: prev[sid]?.landingAirfield ?? (strip.landing_airfield || '') } })); if (formationMetaDebounceRef.current[`ta_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`ta_${sid}`]); formationMetaDebounceRef.current[`ta_${sid}`] = setTimeout(() => { if (onUpdateStripMeta) onUpdateStripMeta(sid, { takeoff_airfield: v }); }, 600); }}
-                          placeholder="שדה המראה"
-                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '4px', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', direction: 'rtl', outline: 'none' }}
-                        />
-                        <input
-                          value={stripFormationMeta[sid]?.landingAirfield !== undefined ? stripFormationMeta[sid].landingAirfield : (strip.landing_airfield || '')}
-                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfield: prev[sid]?.takeoffAirfield ?? (strip.takeoff_airfield || ''), landingAirfield: v } })); if (formationMetaDebounceRef.current[`la_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`la_${sid}`]); formationMetaDebounceRef.current[`la_${sid}`] = setTimeout(() => { if (onUpdateStripMeta) onUpdateStripMeta(sid, { landing_airfield: v }); }, 600); }}
-                          placeholder="שדה נחיתה"
-                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '4px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontSize: '10px', direction: 'rtl', outline: 'none' }}
-                        />
-                      </div>
+                      {/* שדה המראה + שדה נחיתה — FK לטבלת בסיסי תעופה */}
+                      {aviationBases && aviationBases.length > 0 && (
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                          <select
+                            value={(stripFormationMeta[sid]?.takeoffAirfieldId !== undefined ? stripFormationMeta[sid].takeoffAirfieldId : strip.takeoff_airfield_id) ?? ''}
+                            onChange={e => { const v = e.target.value ? parseInt(e.target.value) : null; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfieldId: v, landingAirfieldId: prev[sid]?.landingAirfieldId !== undefined ? prev[sid].landingAirfieldId : (strip.landing_airfield_id ?? null) } })); if (onUpdateStripMeta) onUpdateStripMeta(sid, { takeoff_airfield_id: v }); }}
+                            style={{ flex: 1, padding: '2px 4px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '4px', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                          >
+                            <option value="">שדה המראה</option>
+                            {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                          </select>
+                          <select
+                            value={(stripFormationMeta[sid]?.landingAirfieldId !== undefined ? stripFormationMeta[sid].landingAirfieldId : strip.landing_airfield_id) ?? ''}
+                            onChange={e => { const v = e.target.value ? parseInt(e.target.value) : null; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfieldId: prev[sid]?.takeoffAirfieldId !== undefined ? prev[sid].takeoffAirfieldId : (strip.takeoff_airfield_id ?? null), landingAirfieldId: v } })); if (onUpdateStripMeta) onUpdateStripMeta(sid, { landing_airfield_id: v }); }}
+                            style={{ flex: 1, padding: '2px 4px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '4px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                          >
+                            <option value="">שדה נחיתה</option>
+                            {aviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                          </select>
+                        </div>
+                      )}
                     </div>
                     {/* SID row — populated from airfield.sids */}
                     {airfield && (() => {
