@@ -9589,7 +9589,8 @@ const AdminDashboard: React.FC<{
   presets: any[];
   lightMode: boolean;
   onClose: () => void;
-}> = ({ groups, presets, lightMode, onClose }) => {
+  aviationBases?: any[];
+}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [] }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
@@ -9629,9 +9630,10 @@ const AdminDashboard: React.FC<{
     const type = preset.preset_type || 'standard';
     const fq: QGroup | null = preset.filter_query || null;
     const hasFq = hasConditions(fq);
-    const ctx = { presetId: preset.id, aviationBases: [] as any[] };
+    const ctx = { presetId: preset.id, aviationBases: aviationBasesProp };
     return strips.filter(s => {
-      if (s.status !== 'active') return false;
+      // Exclude deleted/cancelled strips; include active, queued, pending — mirrors workstation logic
+      if (s.status === 'cancelled' || s.status === 'rejected') return false;
       if (type === 'ground' || type === 'airfield') {
         return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
       }
@@ -9644,8 +9646,7 @@ const AdminDashboard: React.FC<{
         if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
         return evaluateQuery(s, fq!, ctx);
       }
-      // standard workstation: filter_query drives the view.
-      // No filter_query → show only strips dragged to this workstation's board (in_table=true + workstation_preset_id).
+      // standard workstation: purely query-driven (mirrors SectorDashboard myStrips logic)
       if (!hasFq) return !!s.inTable && Number(s.workstation_preset_id) === Number(preset.id);
       return evaluateQuery(s, fq!, ctx);
     });
@@ -12833,6 +12834,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             presets={workstationPresets}
             lightMode={lightMode}
             onClose={() => setShowAdminDashboard(false)}
+            aviationBases={aviationBases}
           />
         );
       })()}
