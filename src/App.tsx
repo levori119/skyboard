@@ -4612,7 +4612,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     }
     return items;
   }, [sortedStrips, stripGroupBySquadron]);
-  const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string }>>({});
+  const [stripFormationMeta, setStripFormationMeta] = React.useState<Record<string, { notes: string; parentCallsign: string; takeoffAirfield: string; landingAirfield: string }>>({});
   const formationMetaDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [groundSplitModal, setGroundSplitModal] = React.useState<{ strip: any } | null>(null);
   const [groundSplitSelected, setGroundSplitSelected] = React.useState<number[]>([]);
@@ -5272,18 +5272,33 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 600 }}>← {stripFormationMeta[sid]?.parentCallsign ?? strip.parent_callsign}</span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', gap: '4px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
                         <input
                           value={stripFormationMeta[sid]?.parentCallsign !== undefined ? stripFormationMeta[sid].parentCallsign : (strip.parent_callsign || '')}
-                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: v } })); if (formationMetaDebounceRef.current[`pc_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`pc_${sid}`]); formationMetaDebounceRef.current[`pc_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_callsign: v }) }).catch(() => {}); }, 700); }}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: v, takeoffAirfield: prev[sid]?.takeoffAirfield ?? (strip.takeoff_airfield || ''), landingAirfield: prev[sid]?.landingAirfield ?? (strip.landing_airfield || '') } })); if (formationMetaDebounceRef.current[`pc_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`pc_${sid}`]); formationMetaDebounceRef.current[`pc_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_callsign: v }) }).catch(() => {}); }, 700); }}
                           placeholder='או"ק פמ מקורי'
-                          style={{ width: '90px', padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: '#f59e0b', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                          style={{ width: '80px', padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: '#f59e0b', fontSize: '10px', direction: 'rtl', outline: 'none' }}
                         />
                         <input
                           value={stripFormationMeta[sid]?.notes !== undefined ? stripFormationMeta[sid].notes : (strip.formation_notes || '')}
-                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), notes: v } })); if (formationMetaDebounceRef.current[`fn_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`fn_${sid}`]); formationMetaDebounceRef.current[`fn_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formation_notes: v }) }).catch(() => {}); }, 700); }}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), notes: v, takeoffAirfield: prev[sid]?.takeoffAirfield ?? (strip.takeoff_airfield || ''), landingAirfield: prev[sid]?.landingAirfield ?? (strip.landing_airfield || '') } })); if (formationMetaDebounceRef.current[`fn_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`fn_${sid}`]); formationMetaDebounceRef.current[`fn_${sid}`] = setTimeout(() => { fetch(`${API_URL}/strips/${sid}/formation-meta`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formation_notes: v }) }).catch(() => {}); }, 700); }}
                           placeholder="הערה כללית לפמ"
-                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                          style={{ flex: 1, minWidth: '80px', padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${border}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                        />
+                      </div>
+                      {/* שדה המראה + שדה נחיתה */}
+                      <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+                        <input
+                          value={stripFormationMeta[sid]?.takeoffAirfield !== undefined ? stripFormationMeta[sid].takeoffAirfield : (strip.takeoff_airfield || '')}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfield: v, landingAirfield: prev[sid]?.landingAirfield ?? (strip.landing_airfield || '') } })); if (formationMetaDebounceRef.current[`ta_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`ta_${sid}`]); formationMetaDebounceRef.current[`ta_${sid}`] = setTimeout(() => { if (onUpdateStripMeta) onUpdateStripMeta(sid, { takeoff_airfield: v }); }, 600); }}
+                          placeholder="שדה המראה"
+                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#86efac' : '#166534'}`, borderRadius: '4px', color: lightMode ? '#166534' : '#86efac', fontSize: '10px', direction: 'rtl', outline: 'none' }}
+                        />
+                        <input
+                          value={stripFormationMeta[sid]?.landingAirfield !== undefined ? stripFormationMeta[sid].landingAirfield : (strip.landing_airfield || '')}
+                          onChange={e => { const v = e.target.value; setStripFormationMeta(prev => ({ ...prev, [sid]: { notes: prev[sid]?.notes ?? (strip.formation_notes || ''), parentCallsign: prev[sid]?.parentCallsign ?? (strip.parent_callsign || ''), takeoffAirfield: prev[sid]?.takeoffAirfield ?? (strip.takeoff_airfield || ''), landingAirfield: v } })); if (formationMetaDebounceRef.current[`la_${sid}`]) clearTimeout(formationMetaDebounceRef.current[`la_${sid}`]); formationMetaDebounceRef.current[`la_${sid}`] = setTimeout(() => { if (onUpdateStripMeta) onUpdateStripMeta(sid, { landing_airfield: v }); }, 600); }}
+                          placeholder="שדה נחיתה"
+                          style={{ flex: 1, padding: '2px 5px', background: lightMode ? '#fff' : '#0c1824', border: `1px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, borderRadius: '4px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontSize: '10px', direction: 'rtl', outline: 'none' }}
                         />
                       </div>
                     </div>
@@ -15271,49 +15286,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <div>
                             {/* Contact rows */}
                             {sessionContacts.map((c, idx) => (
-                              <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '4px 6px', marginBottom: '4px', fontSize: '11px', direction: 'rtl' }}>
-                                <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
-                                  <button
-                                    onClick={() => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, priority: x.priority === 'משני' ? 'ראשי' : 'משני' } : x))}
-                                    style={{ flexShrink: 0, padding: '1px 5px', background: c.priority === 'משני' ? 'transparent' : (lightMode ? '#bfdbfe' : '#0c3460'), color: c.priority === 'משני' ? (lightMode ? '#94a3b8' : '#475569') : (lightMode ? '#1d4ed8' : '#38bdf8'), border: `1px solid ${c.priority === 'משני' ? (lightMode ? '#e2e8f0' : '#334155') : (lightMode ? '#93c5fd' : '#1e40af')}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
-                                  >{c.priority === 'משני' ? 'משני' : 'ראשי'}</button>
+                              <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '3px 5px', marginBottom: '3px', fontSize: '10px', direction: 'rtl' }}>
+                                {/* Single compact row: device_type + frequency + mahut + delete */}
+                                <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
                                   <select
                                     value={c.device_type || ''}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, device_type: e.target.value } : x))}
-                                    style={{ flex: '0 0 58px', padding: '2px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', direction: 'rtl' }}
+                                    style={{ flex: '0 0 42px', padding: '1px 2px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '9px', direction: 'rtl' }}
                                   >
                                     {['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'].map(dt => <option key={dt} value={dt}>{dt || 'סוג'}</option>)}
                                   </select>
                                   <input
                                     value={c.frequency}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, frequency: e.target.value } : x))}
-                                    placeholder="תדר/עורק"
-                                    style={{ flex: '0 0 64px', padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '11px', fontWeight: 'bold', direction: 'rtl' }}
+                                    placeholder="תדר"
+                                    style={{ flex: '0 0 52px', padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: 'rtl' }}
                                   />
                                   <input
                                     value={c.mahut}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, mahut: e.target.value } : x))}
                                     placeholder="מהות"
-                                    style={{ flex: 1, padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl' }}
+                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: 'rtl', minWidth: 0 }}
                                   />
                                   <button
                                     onClick={() => setSessionContacts(prev => prev.filter((_, i) => i !== idx))}
-                                    style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}
+                                    style={{ padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}
                                   >✕</button>
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                  <input
-                                    value={c.oketz}
-                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, oketz: e.target.value } : x))}
-                                    placeholder={'או"ק'}
-                                    style={{ flex: '0 0 60px', padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: 'rtl' }}
-                                  />
-                                  <input
-                                    value={c.note}
-                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, note: e.target.value } : x))}
-                                    placeholder="הערה"
-                                    style={{ flex: 1, padding: '2px 4px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#94a3b8' : '#94a3b8', fontSize: '10px', direction: 'rtl' }}
-                                  />
                                 </div>
                               </div>
                             ))}
@@ -15442,7 +15440,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     catMap[cat].push(el);
                   }
                   const cats = Object.keys(catMap).sort();
-                  const elSecOpen = aidExpandedIds.has('__ground_elements__');
+                  const elSecOpen = !aidExpandedIds.has('__ground_elements__');
                   return (
                     <div style={{ borderTop: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                       {/* Elements sub-header */}
