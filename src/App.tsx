@@ -12650,6 +12650,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const canvas = canvasRef.current;
     if (canvas) canvas.style.pointerEvents = drawingMode ? 'auto' : 'none';
     if (!drawingMode) {
+      isDrawingRef.current = false;
+      lastPosRef.current = null;
       setSelectedShapeId(null);
       setShapePreview(null);
       shapeStartRef.current = null;
@@ -14066,7 +14068,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 </svg>
                 {/* 🖊️ Toggle — off by default, single click enables/disables drawing */}
                 <button
-                  onClick={() => setDrawingMode(v => !v)}
+                  onClick={() => {
+                    const newMode = !drawingMode;
+                    drawingModeRef.current = newMode;
+                    if (!newMode) { isDrawingRef.current = false; lastPosRef.current = null; }
+                    setDrawingMode(newMode);
+                  }}
                   title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
                   style={{
                     position: 'absolute', top: 10, left: 10, zIndex: 1000,
