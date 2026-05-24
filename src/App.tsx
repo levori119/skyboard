@@ -4983,10 +4983,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const useTimeWindow = datkShowMinutes != null && datkShowMinutes > 0;
     const windowMs = useTimeWindow ? datkShowMinutes! * 60 * 1000 : null;
     strips.forEach((strip: any) => {
-      // Filter by takeoff airfield: skip strips whose takeoff base doesn't match this airfield
-      if (airfield?.id != null && strip.takeoff_airfield_id != null) {
-        if (Number(strip.takeoff_airfield_id) !== Number(airfield.id)) return;
-      }
       // If time-window filter is active, apply takeoff_time check
       if (useTimeWindow) {
         if (!strip.takeoff_time) return;
