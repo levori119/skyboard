@@ -15126,8 +15126,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }
                 const isDraggingThis = tableDragOver && sidebarPointerDragRef.current?.id === s.id;
                 return (
-                <div key={s.id} style={{ display: 'contents' }}>
                 <div
+                  key={s.id}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? () => { setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { setFzDragStripId(null); setFzDragLabel(null); } : undefined}
@@ -15217,21 +15217,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       );
                     })()}
                   </div>
-                </div>
-                {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
-                  <div key={si.key}
-                    draggable
-                    onDragStart={() => { setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
-                    onDragEnd={() => { setFzDragStripId(null); setFzDragLabel(null); }}
-                    style={{ marginBottom: '2px', marginRight: '8px', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '4px', padding: '4px 8px', direction: 'rtl' }}
-                  >
-                    <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
-                    <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
-                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
-                    <button onClick={() => setFzSplitItems(prev => prev.filter(x => x.key !== si.key))}
-                      style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
-                  </div>
-                ))}
+                  {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
+                    <div key={si.key}
+                      draggable
+                      onDragStart={e => { e.stopPropagation(); setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
+                      onDragEnd={() => { setFzDragStripId(null); setFzDragLabel(null); }}
+                      style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
+                    >
+                      <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
+                      <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
+                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
+                      <button onClick={e => { e.stopPropagation(); setFzSplitItems(prev => prev.filter(x => x.key !== si.key)); }}
+                        style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
+                    </div>
+                  ))}
                 </div>
               );})}
               {myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer' && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()))).length === 0 && (
