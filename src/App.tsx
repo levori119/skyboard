@@ -4973,8 +4973,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   };
 
   const autoDatkPlacements = React.useMemo((): Record<string, Record<number, number>> => {
-    if (!datkShowMinutes || datkShowMinutes <= 0) return {};
-    const windowMs = datkShowMinutes * 60 * 1000;
     const result: Record<string, Record<number, number>> = {};
     // Pre-compute datk number for every point once
     const pointDatkNum: Record<number, number> = {};
@@ -4982,11 +4980,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       const n = extractDatkPointNumber(p.name);
       if (n != null) pointDatkNum[p.id] = n;
     });
+    const useTimeWindow = datkShowMinutes != null && datkShowMinutes > 0;
+    const windowMs = useTimeWindow ? datkShowMinutes! * 60 * 1000 : null;
     strips.forEach((strip: any) => {
-      if (!strip.takeoff_time) return;
-      const takeoffMs = new Date(strip.takeoff_time).getTime();
-      const diff = takeoffMs - nowMs;
-      if (diff < -(5 * 60 * 1000) || diff > windowMs) return;
+      // If time-window filter is active, apply takeoff_time check
+      if (useTimeWindow) {
+        if (!strip.takeoff_time) return;
+        const takeoffMs = new Date(strip.takeoff_time).getTime();
+        const diff = takeoffMs - nowMs;
+        if (diff < -(5 * 60 * 1000) || diff > windowMs!) return;
+      }
       const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
       const existingPositions = normalizeAircraftPositions(strip);
       acData.forEach((ac: GroundAircraftRow) => {
