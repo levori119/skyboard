@@ -10818,6 +10818,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground';
+  const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
 
   const fzPointInPolygon = (px: number, py: number, polygon: {x: number; y: number}[]): boolean => {
@@ -11030,7 +11031,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return result;
   }, [strips, myPresetConfig?.conflict_alt_delta]);
 
-  const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
+  const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
     if (!activeAirfield?.map_id) { setGroundMapSrc(null); return; }
@@ -13286,11 +13287,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             lightMode={lightMode}
             onClose={() => setShowAdminDashboard(false)}
             aviationBases={aviationBases}
-            groundElements={isGroundMode ? airfieldElements : undefined}
-            groundElementTypes={isGroundMode ? airfieldElementTypes : undefined}
-            onUpdateGroundElementStatus={isGroundMode ? handleUpdateElementStatus : undefined}
-            onUpdateGroundElement={isGroundMode ? handleUpdateElement : undefined}
-            onCreateGroundElement={isGroundMode ? handleCreateElement : undefined}
+            groundElements={(isGroundMode || isTowerMode) ? airfieldElements : undefined}
+            groundElementTypes={(isGroundMode || isTowerMode) ? airfieldElementTypes : undefined}
+            onUpdateGroundElementStatus={(isGroundMode || isTowerMode) ? handleUpdateElementStatus : undefined}
+            onUpdateGroundElement={(isGroundMode || isTowerMode) ? handleUpdateElement : undefined}
+            onCreateGroundElement={(isGroundMode || isTowerMode) ? handleCreateElement : undefined}
           />
         );
       })()}
