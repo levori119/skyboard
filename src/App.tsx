@@ -10367,7 +10367,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const syncCanvasSize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const target = document.getElementById('classic-draw-zone-wrapper') || document.getElementById('map-area');
+      const target = document.getElementById('map-area');
       if (!target) return;
       const { width, height } = target.getBoundingClientRect();
       if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
@@ -10384,7 +10384,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     };
     syncCanvasSize();
     const observer = new ResizeObserver(syncCanvasSize);
-    const target = document.getElementById('classic-draw-zone-wrapper') || document.getElementById('map-area');
+    const target = document.getElementById('map-area');
     if (target) observer.observe(target);
     return () => observer.disconnect();
   }, []);
@@ -10824,6 +10824,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
 
+  // Disable drawing when entering classic strips mode
+  React.useEffect(() => {
+    if (isClassicMode && drawingMode) {
+      setDrawingMode(false);
+      drawingModeRef.current = false;
+      isDrawingRef.current = false;
+      lastPosRef.current = null;
+    }
+  }, [isClassicMode]);
+
   const fzPointInPolygon = (px: number, py: number, polygon: {x: number; y: number}[]): boolean => {
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -11045,10 +11055,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [activeAirfield?.map_id]);
 
   React.useEffect(() => {
-    if (!activeAirfield?.id) { setAirfieldElements([]); return; }
-    fetch(`${API_URL}/airfield-elements?airfield_id=${activeAirfield.id}`)
-      .then(r => r.ok ? r.json() : []).then(setAirfieldElements).catch(() => {});
-  }, [activeAirfield?.id]);
+    if (isTowerMode && allWorkGroups.length > 0 && workstationPresets.length > 0) {
+      // Tower: aggregate elements from ALL presets in the same work group
+      const myGroup = allWorkGroups.find((g: any) =>
+        Array.isArray(g.members) && g.members.some((m: any) => Number(m.preset_id) === Number(session?.presetId))
+      );
+      const memberIds: number[] = myGroup
+        ? myGroup.members.map((m: any) => Number(m.preset_id))
+        : [Number(session?.presetId)];
+      const airfieldIds = Array.from(new Set(
+        memberIds
+          .map(pid => workstationPresets.find((p: any) => Number(p.id) === pid))
+          .filter(Boolean)
+          .map((p: any) => p.airfield_id)
+          .filter(Boolean)
+      )) as number[];
+      if (airfieldIds.length === 0) { setAirfieldElements([]); return; }
+      Promise.all(
+        airfieldIds.map(afId =>
+          fetch(`${API_URL}/airfield-elements?airfield_id=${afId}`)
+            .then(r => r.ok ? r.json() : []).catch(() => [])
+        )
+      ).then(results => setAirfieldElements(results.flat()));
+    } else if (activeAirfield?.id) {
+      fetch(`${API_URL}/airfield-elements?airfield_id=${activeAirfield.id}`)
+        .then(r => r.ok ? r.json() : []).then(setAirfieldElements).catch(() => {});
+    } else {
+      setAirfieldElements([]);
+    }
+  }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId]);
 
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Block spaces relevant to this workstation — only those that have block tables assigned to this preset
@@ -14024,19 +14059,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onMergePartial={(targetId, sourceId) => { const src = classicCenterStrips.find((x: any) => String(x.id) === sourceId); const sibs = getSectorSiblings(src || {}); if (sibs.length === 1) { setSectorMergeConfirm({ targetId, sourceId, targetName: sibs[0]?.callSign || targetId, sourceName: src?.callSign || sourceId }); } else if (sibs.length > 1) { setSectorMergeModal({ strip: src, siblings: sibs }); } }}
                   getSiblings={getSectorSiblings}
                 />
-                {/* Drawing Zone — bottom 33% in classic mode, full area otherwise */}
-                <div
-                  id="classic-draw-zone-wrapper"
-                  style={{
-                    position: 'absolute',
-                    bottom: 0, left: 0, width: '100%',
-                    height: '33.33%',
-                    zIndex: 199,
-                    borderTop: drawingMode ? '2px dashed rgba(99,102,241,0.6)' : '2px dashed rgba(99,102,241,0.15)',
-                    boxSizing: 'border-box',
-                    pointerEvents: 'none',
-                  }}
-                >
+                {/* Drawing disabled in classic strips mode */}
+                <div style={{ display: 'none' }}>
                   {/* 🖊️ Toggle inside classic draw zone */}
                   <button
                     onClick={() => {
@@ -14107,69 +14131,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     }}
                   />
                 </div>
-                {/* SVG Shape Overlay — clipped to bottom 33% in classic mode */}
-                <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '33.33%', zIndex: 201, overflow: 'visible', pointerEvents: 'none', touchAction: 'none' }}>
-                  {mapShapes.map(shape => {
-                    const isSelected = selectedShapeId === shape.id && drawingMode;
-                    const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2;
-                    const shapeProps = {
-                      fill: shape.filled ? shape.color : 'none',
-                      stroke: shape.color, strokeWidth: shape.strokeWidth,
-                      style: { cursor: drawingMode ? 'move' : 'default', pointerEvents: (drawingMode ? 'auto' : 'none') as React.CSSProperties['pointerEvents'] },
-                      onPointerDown: drawingMode ? (e: React.PointerEvent) => {
-                        e.preventDefault(); e.stopPropagation();
-                        setSelectedShapeId(shape.id);
-                        shapeMoveRef.current = { id: shape.id, ox: e.clientX, oy: e.clientY, sx: shape.x, sy: shape.y };
-                        (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                      } : undefined,
-                      onPointerMove: drawingMode ? (e: React.PointerEvent) => {
-                        if (!shapeMoveRef.current || shapeMoveRef.current.id !== shape.id) return;
-                        const dx = e.clientX - shapeMoveRef.current.ox; const dy = e.clientY - shapeMoveRef.current.oy;
-                        setMapShapes(prev => prev.map(s => s.id === shape.id ? { ...s, x: shapeMoveRef.current!.sx + dx, y: shapeMoveRef.current!.sy + dy } : s));
-                      } : undefined,
-                      onPointerUp: drawingMode ? () => { shapeMoveRef.current = null; } : undefined,
-                      onContextMenu: drawingMode ? (e: React.MouseEvent) => { e.preventDefault(); setMapShapes(prev => prev.filter(s => s.id !== shape.id)); setSelectedShapeId(null); } : undefined,
-                    };
-                    return (
-                      <g key={shape.id}>
-                        {shape.type === 'rect'
-                          ? <rect x={shape.x} y={shape.y} width={Math.max(shape.w,1)} height={Math.max(shape.h,1)} {...shapeProps} />
-                          : <ellipse cx={cx} cy={cy} rx={Math.max(shape.w/2,1)} ry={Math.max(shape.h/2,1)} {...shapeProps} />
-                        }
-                        {isSelected && <>
-                          <circle cx={shape.x+shape.w} cy={shape.y+shape.h} r={9} fill="white" stroke="#3b82f6" strokeWidth={2}
-                            style={{ cursor: 'se-resize', pointerEvents: 'auto' }}
-                            onPointerDown={e => {
-                              e.preventDefault(); e.stopPropagation();
-                              shapeResizeRef.current = { id: shape.id, ox: e.clientX, oy: e.clientY, origW: shape.w, origH: shape.h };
-                              (e.currentTarget as Element).setPointerCapture(e.pointerId);
-                            }}
-                            onPointerMove={e => {
-                              if (!shapeResizeRef.current || shapeResizeRef.current.id !== shape.id) return;
-                              const dw = e.clientX - shapeResizeRef.current.ox; const dh = e.clientY - shapeResizeRef.current.oy;
-                              setMapShapes(prev => prev.map(s => s.id === shape.id ? { ...s, w: Math.max(10, shapeResizeRef.current!.origW+dw), h: Math.max(10, shapeResizeRef.current!.origH+dh) } : s));
-                            }}
-                            onPointerUp={() => { shapeResizeRef.current = null; }}
-                          />
-                          <text x={shape.x+shape.w} y={shape.y+shape.h} textAnchor="middle" dominantBaseline="middle" fill="#3b82f6" fontSize={11} style={{ pointerEvents: 'none', userSelect: 'none' }}>↔</text>
-                          <g style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                            onPointerDown={e => { e.preventDefault(); e.stopPropagation(); setMapShapes(prev => prev.filter(s => s.id !== shape.id)); setSelectedShapeId(null); }}>
-                            <circle cx={shape.x+shape.w} cy={shape.y} r={10} fill="#dc2626" />
-                            <text x={shape.x+shape.w} y={shape.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={13} fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>✕</text>
-                          </g>
-                        </>}
-                      </g>
-                    );
-                  })}
-                  {shapePreview && (() => {
-                    const x = Math.min(shapePreview.x1, shapePreview.x2); const y = Math.min(shapePreview.y1, shapePreview.y2);
-                    const w = Math.max(Math.abs(shapePreview.x2-shapePreview.x1), 1); const h = Math.max(Math.abs(shapePreview.y2-shapePreview.y1), 1);
-                    return drawTool === 'rect'
-                      ? <rect x={x} y={y} width={w} height={h} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />
-                      : <ellipse cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />;
-                  })()}
-                </svg>
-                {/* 🖊️ Toggle — hidden in classic (strips) mode */}
+                {/* 🖊️ Toggle — map mode only */}
                 {!isClassicMode && <button
                   onClick={() => {
                     const newMode = !drawingMode;
