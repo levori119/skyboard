@@ -2332,7 +2332,9 @@ app.get('/api/strips/global', async (req, res) => {
       ground_status: r.ground_status || 'none',
       parent_strip_id: r.parent_strip_id || null,
       aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
-      original_formation_count: r.original_formation_count || null
+      original_formation_count: r.original_formation_count || null,
+      takeoff_airfield_id: r.takeoff_airfield_id || null,
+      landing_airfield_id: r.landing_airfield_id || null
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);
