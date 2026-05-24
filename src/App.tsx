@@ -9953,7 +9953,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(true);
-  const [contactsPanelOpen, setContactsPanelOpen] = useState(true);
+  const [contactsPanelOpen, setContactsPanelOpen] = useState(false);
   const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
@@ -15287,31 +15287,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {/* Contact rows */}
                             {sessionContacts.map((c, idx) => (
                               <div key={c._key} style={{ background: lightMode ? '#f0f9ff' : '#0c1824', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '5px', padding: '3px 5px', marginBottom: '3px', fontSize: '10px', direction: 'rtl' }}>
-                                {/* Single compact row: device_type + frequency + mahut + delete */}
-                                <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                                {/* Row 1: device_type + frequency + delete */}
+                                <div style={{ display: 'flex', gap: '2px', alignItems: 'center', marginBottom: '2px' }}>
                                   <select
                                     value={c.device_type || ''}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, device_type: e.target.value } : x))}
-                                    style={{ flex: '0 0 42px', padding: '1px 2px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '9px', direction: 'rtl' }}
+                                    style={{ flex: '0 0 44px', padding: '1px 2px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#bae6fd' : '#1e3a5f'}`, borderRadius: '3px', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '9px', direction: 'rtl' }}
                                   >
                                     {['', 'ארז', 'UHF', 'VHF', 'HF', 'סאט', 'רדיו', 'אינטרקום'].map(dt => <option key={dt} value={dt}>{dt || 'סוג'}</option>)}
                                   </select>
                                   <input
                                     value={c.frequency}
                                     onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, frequency: e.target.value } : x))}
-                                    placeholder="תדר"
-                                    style={{ flex: '0 0 52px', padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: 'rtl' }}
-                                  />
-                                  <input
-                                    value={c.mahut}
-                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, mahut: e.target.value } : x))}
-                                    placeholder="מהות"
-                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: 'rtl', minWidth: 0 }}
+                                    placeholder="תדר/עורק"
+                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#93c5fd' : '#1e40af'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#7dd3fc', fontSize: '10px', fontWeight: 'bold', direction: 'rtl', minWidth: 0 }}
                                   />
                                   <button
                                     onClick={() => setSessionContacts(prev => prev.filter((_, i) => i !== idx))}
                                     style={{ padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}
                                   >✕</button>
+                                </div>
+                                {/* Row 2: יעוד (mahut) + או"ק (oketz) */}
+                                <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+                                  <input
+                                    value={c.mahut}
+                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, mahut: e.target.value } : x))}
+                                    placeholder="יעוד"
+                                    style={{ flex: 1, padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', direction: 'rtl', minWidth: 0 }}
+                                  />
+                                  <input
+                                    value={c.oketz}
+                                    onChange={e => setSessionContacts(prev => prev.map((x, i) => i === idx ? { ...x, oketz: e.target.value } : x))}
+                                    placeholder='או"ק'
+                                    style={{ flex: '0 0 48px', padding: '1px 3px', background: lightMode ? '#fff' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#94a3b8', fontSize: '10px', direction: 'rtl' }}
+                                  />
                                 </div>
                               </div>
                             ))}
