@@ -4363,6 +4363,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [actionMenuRect, setActionMenuRect] = useState<{ left: number; bottom: number } | null>(null);
   const [rightPanelW, setRightPanelW] = useState(300);
   const [leftPanelW, setLeftPanelW] = useState(180);
+  const [stripsPinned, setStripsPinned] = useState(true);
   const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const startPanelResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
     e.preventDefault();
@@ -4990,13 +4991,22 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
-      {/* RIGHT panel — Strips list */}
-      <div style={{ ...PANEL, width: `${rightPanelW}px`, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1 }}>
+      {/* RIGHT panel — Strips list (collapsible like aids) */}
+      <div style={{ ...PANEL, width: stripsPinned ? `${rightPanelW}px` : 32, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1, transition: 'width 0.2s', overflow: 'hidden' }}>
         {/* Header */}
         <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', gap: '6px' }}>
-          <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold' }}>✈️ פמ"מים ({strips.length})</span>
-          {headerButtons && <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>{headerButtons}</div>}
+          {stripsPinned && <span style={{ color: headerColor, fontSize: '13px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>✈️ פמ"מים ({strips.length})</span>}
+          {stripsPinned && headerButtons && <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>{headerButtons}</div>}
+          <button onClick={() => setStripsPinned(v => !v)} title={stripsPinned ? 'כווץ פאנל' : 'פתח פאנל פמ"מים'}
+            style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0, marginRight: stripsPinned ? 0 : 'auto' }}>
+            {stripsPinned ? '◀' : '▶'}
+          </button>
         </div>
+        {!stripsPinned && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>✈️ פמ"מים ({strips.length})</span>
+          </div>
+        )}
 
 
         {/* Sort & Group toolbar */}
@@ -5071,7 +5081,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         )}
 
         {/* Strip cards list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px', minHeight: 0 }}>
           {strips.length === 0 && <div style={{ color: headerColor, fontSize: '12px', textAlign: 'center', padding: '20px', opacity: 0.5 }}>אין פמ"מים</div>}
           {groundDisplayItems.map((item, itemIdx) => {
             if (item.type === 'header') {
@@ -5432,6 +5442,80 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
         </div>
 
+        {/* ELEMENTS section — bottom half of right panel */}
+        {airfieldElements && airfieldElements.length > 0 && (() => {
+          const ELEM_STATUS_CYCLE = ['תקין', 'לא תקין', 'חלקי'];
+          const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+          const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'לא תקין': '#7f1d1d', 'חלקי': '#431407' };
+          const catMap: Record<string, any[]> = {};
+          for (const el of airfieldElements) {
+            const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
+            if (!catMap[cat]) catMap[cat] = [];
+            catMap[cat].push(el);
+          }
+          const cats = Object.keys(catMap).sort();
+          return (
+            <div style={{ flex: elemsPinned ? 1 : 0, minHeight: 0, display: 'flex', flexDirection: 'column', borderTop: `2px solid ${border}`, overflow: 'hidden', transition: 'flex 0.2s' }}>
+              {/* Elements sub-header */}
+              <div style={{ background: headerBg, borderBottom: `1px solid ${border}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: headerColor, whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                <button onClick={() => setElemsPinned(v => !v)} title={elemsPinned ? 'כווץ אלמנטים' : 'פתח אלמנטים'}
+                  style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>
+                  {elemsPinned ? '▲' : '▼'}
+                </button>
+              </div>
+              {elemsPinned && (
+                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px', minHeight: 0 }}>
+                  {cats.map(cat => {
+                    const els = catMap[cat];
+                    const collapsed = collapsedElemCats.has(cat);
+                    return (
+                      <div key={cat} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                        <button
+                          onClick={() => setCollapsedElemCats(prev => { const s = new Set(prev); collapsed ? s.delete(cat) : s.add(cat); return s; })}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '5px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}
+                        >
+                          <span style={{ fontSize: '9px', flexShrink: 0 }}>{collapsed ? '▶' : '▼'}</span>
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+                          <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{els.length}</span>
+                        </button>
+                        {!collapsed && (
+                          <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {els.map(el => {
+                              const statusColor = ELEM_STATUS_COLOR[el.status] || '#94a3b8';
+                              const statusBg = ELEM_STATUS_BG[el.status] || '#1e293b';
+                              const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
+                              return (
+                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 5px', borderRadius: '5px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                                  <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
+                                    {el.type_icon || '🔧'}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
+                                    {el.note && <div style={{ fontSize: '9px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{el.note}</div>}
+                                  </div>
+                                  <button onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, nextStatus); }}
+                                    title={`לחץ לשינוי → ${nextStatus}`}
+                                    style={{ padding: '1px 4px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', background: statusBg, color: statusColor, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                    {el.status || '?'}
+                                  </button>
+                                  <button onClick={() => setElemEditModal({ el, name: el.name, category: el.category || '', status: el.status || 'תקין', note: el.note || '' })}
+                                    title="ערוך"
+                                    style={{ padding: '1px 5px', borderRadius: '4px', border: `1px solid ${lightMode ? '#3b82f6' : '#3b82f6'}`, cursor: 'pointer', fontSize: '9px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', flexShrink: 0, fontWeight: 'bold' }}>✎</button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* Autocomplete datalists for armament/system names */}
@@ -5544,86 +5628,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         );
       })()}
 
-      {/* ELEMENTS right panel — grouped by category, like aids panel */}
-      {airfieldElements && airfieldElements.length > 0 && (() => {
-        const ELEM_STATUS_CYCLE = ['תקין', 'לא תקין', 'חלקי'];
-        const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
-        const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'לא תקין': '#7f1d1d', 'חלקי': '#431407' };
-        const catMap: Record<string, any[]> = {};
-        for (const el of airfieldElements) {
-          const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
-          if (!catMap[cat]) catMap[cat] = [];
-          catMap[cat].push(el);
-        }
-        const cats = Object.keys(catMap).sort();
-        return (
-          <div style={{ width: elemsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderRight: `2px solid ${border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative', order: 0 }}>
-            <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: elemsPinned ? `1px solid ${border}` : 'none', flexShrink: 0, minWidth: elemsPinned ? 'auto' : 0 }}>
-              {elemsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>📌 אלמנטים ({airfieldElements.length})</span>}
-              <button onClick={() => setElemsPinned(v => !v)} title={elemsPinned ? 'סגור' : 'פתח אלמנטים'}
-                style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
-            </div>
-            {elemsPinned && (
-              <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
-                {cats.map(cat => {
-                  const els = catMap[cat];
-                  const collapsed = collapsedElemCats.has(cat);
-                  return (
-                    <div key={cat} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
-                      <button
-                        onClick={() => setCollapsedElemCats(prev => { const s = new Set(prev); collapsed ? s.delete(cat) : s.add(cat); return s; })}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '6px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}
-                      >
-                        <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{collapsed ? '▶' : '▼'}</span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
-                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{els.length}</span>
-                      </button>
-                      {!collapsed && (
-                        <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {els.map(el => {
-                            const statusColor = ELEM_STATUS_COLOR[el.status] || '#94a3b8';
-                            const statusBg = ELEM_STATUS_BG[el.status] || '#1e293b';
-                            const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
-                            return (
-                              <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 5px', borderRadius: '5px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                                <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `3px solid ${statusColor}`, boxShadow: `0 0 4px ${statusColor}88`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', flexShrink: 0 }}>
-                                  {el.type_icon || '🔧'}
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
-                                  {el.note && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{el.note}</div>}
-                                  {!el.note && el.type_name && <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569' }}>{el.type_name}</div>}
-                                </div>
-                                <button
-                                  onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, nextStatus); }}
-                                  title={`לחץ לשינוי → ${nextStatus}`}
-                                  style={{ padding: '1px 5px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', background: statusBg, color: statusColor, flexShrink: 0, whiteSpace: 'nowrap' }}
-                                >
-                                  {el.status || 'לא ידוע'}
-                                </button>
-                                <button
-                                  onClick={() => setElemEditModal({ el, name: el.name, category: el.category || '', status: el.status || 'תקין', note: el.note || '' })}
-                                  title="עריכת אלמנט"
-                                  style={{ padding: '2px 6px', borderRadius: '4px', border: `1px solid ${lightMode ? '#3b82f6' : '#3b82f6'}`, cursor: 'pointer', fontSize: '9px', background: lightMode ? '#dbeafe' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', flexShrink: 0, fontWeight: 'bold' }}
-                                >ערוך</button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {!elemsPinned && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>📌 אלמנטים</span>
-              </div>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Resize handle: right panel ↔ center */}
       <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />
