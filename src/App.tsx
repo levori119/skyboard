@@ -9184,13 +9184,17 @@ const computeBlockDeviation = (s: any, allBlocks: any[], _blockTables: any[], ac
   // Empty table → nothing to alert about
   if (tableBlocks.length === 0) return false;
 
-  // Blocks in the active table that belong specifically to this workstation
+  // Blocks that apply to this workstation:
+  //   workstations=[]  → global block, applies to ALL workstations using this table
+  //   workstations=[X] → applies only to workstation X
+  // If ALL blocks in the table have explicit workstation lists that don't include
+  // this WS, none apply → no alert.
   const myBlocks = tableBlocks.filter((b: any) => {
     const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
-    return ws.length > 0 && ws.includes(presetId);
+    return ws.length === 0 || ws.includes(presetId);
   });
 
-  // Table has blocks but none for this WS → no alert (table doesn't apply to this WS)
+  // No applicable blocks → table doesn't define altitude ranges for this WS
   if (myBlocks.length === 0) return false;
 
   // Compare directly in FL units — block alt_from/alt_to are stored as FL integers
