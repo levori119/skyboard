@@ -10889,11 +10889,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
         if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
-          // If both strips are within their blocks the separation is coordinated — skip
+          // If both strips are in DIFFERENT non-overlapping blocks, the block system
+          // coordinates them — skip. Same block or either outside blocks → conflict.
           if (inlineBtId !== null) {
-            const aInBlock = !computeBlockDeviation(a, dashboardBlocks, [], inlineBtId, pid);
-            const bInBlock = !computeBlockDeviation(b, dashboardBlocks, [], inlineBtId, pid);
-            if (aInBlock && bInBlock) continue;
+            const getBlockId = (s: any): number | null => {
+              const rawAlt = String(s.alt || '').trim().toUpperCase().replace(/,/g, '');
+              const fl = rawAlt.match(/^F[L]?(\d+)/);
+              const nm = rawAlt.match(/^(\d+)/);
+              const afl = fl ? parseInt(fl[1]) : (nm ? parseInt(nm[1]) : null);
+              if (afl === null) return null;
+              const effectivePid = s.workstation_preset_id ? Number(s.workstation_preset_id) : pid;
+              const relB = dashboardBlocks.filter((b: any) => {
+                if (Number(b.block_table_id) !== inlineBtId) return false;
+                const ws = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
+                return ws.length === 0 || (effectivePid !== null && ws.includes(effectivePid));
+              });
+              const found = relB.find((b: any) => afl >= Number(b.alt_from) && afl <= Number(b.alt_to));
+              return found ? Number(found.id) : null;
+            };
+            const blockA = getBlockId(a);
+            const blockB = getBlockId(b);
+            // Both in defined (non-null) but DIFFERENT blocks → coordinated, no conflict
+            if (blockA !== null && blockB !== null && blockA !== blockB) continue;
           }
           result.add(String(a.id));
           result.add(String(b.id));
