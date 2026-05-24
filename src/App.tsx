@@ -10146,6 +10146,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
   const [newSubSectorLabel, setNewSubSectorLabel] = useState('');
   const [drawingMode, setDrawingMode] = useState(false);
+  const [showDrawToolbar, setShowDrawToolbar] = useState(false);
   const [penColor, setPenColor] = useState('#ef4444');
   const [penSize, setPenSize] = useState(3);
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
@@ -15478,11 +15479,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             })()}
           </svg>
           
-          {/* Drawing Toolbar */}
-          <div style={{
+          {/* Drawing Toolbar — hidden until icon clicked */}
+          {/* Toggle icon — always visible */}
+          <button
+            onClick={() => { setShowDrawToolbar(v => { if (v) { setDrawingMode(false); } return !v; }); }}
+            title="ציור על מפה"
+            style={{
+              position: 'absolute', top: 10, left: 10, zIndex: 1000,
+              width: 36, height: 36, borderRadius: '8px', border: 'none',
+              background: showDrawToolbar ? '#3b82f6' : 'rgba(15,23,42,0.75)',
+              color: showDrawToolbar ? 'white' : '#94a3b8',
+              fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: showDrawToolbar ? '0 0 0 2px #60a5fa' : undefined,
+            }}
+          >🖊️</button>
+
+          {showDrawToolbar && <div style={{
             position: 'absolute',
             top: 10,
-            left: 60,
+            left: 54,
             background: 'rgba(15, 23, 42, 0.9)',
             borderRadius: '8px',
             padding: '8px',
@@ -15564,7 +15579,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }}>נקה הכל</button>
               </>
             )}
-          </div>
+          </div>}
           </>}
         </div>
 
