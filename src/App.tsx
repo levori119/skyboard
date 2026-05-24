@@ -9692,7 +9692,11 @@ const AdminDashboard: React.FC<{
   lightMode: boolean;
   onClose: () => void;
   aviationBases?: any[];
-}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [] }) => {
+  groundElements?: any[];
+  groundElementTypes?: any[];
+  onUpdateGroundElementStatus?: (elementId: number, status: string) => void;
+  onUpdateGroundElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string }) => Promise<void>;
+}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [], groundElements, onUpdateGroundElementStatus, onUpdateGroundElement }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [allBlocks, setAllBlocks] = useState<any[]>([]);
@@ -9701,6 +9705,8 @@ const AdminDashboard: React.FC<{
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [tableModes, setTableModes] = useState<any[]>([]);
+  const [elemEditId, setElemEditId] = useState<number | null>(null);
+  const [elemEditFields, setElemEditFields] = useState<{ name: string; category: string; status: string; note: string }>({ name: '', category: '', status: '', note: '' });
 
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
@@ -9836,6 +9842,8 @@ const AdminDashboard: React.FC<{
         </div>
       </div>
 
+      {/* Body — flex row: cards grid + optional ground elements panel */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
       {/* Cards grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '14px', alignContent: n > 0 ? 'start' : 'center' }}>
         {n === 0 && (
@@ -10063,6 +10071,91 @@ const AdminDashboard: React.FC<{
             </div>
           );
         })}
+      </div>
+      {/* Ground Elements Panel — shown only when groundElements are provided */}
+      {groundElements && groundElements.length > 0 && (() => {
+        const ELEM_STATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+        const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+        const catMap: Record<string, any[]> = {};
+        for (const el of groundElements) {
+          const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
+          if (!catMap[cat]) catMap[cat] = [];
+          catMap[cat].push(el);
+        }
+        const cats = Object.keys(catMap).sort();
+        return (
+          <div style={{ width: '300px', flexShrink: 0, borderRight: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0a0f1a' }}>
+            <div style={{ padding: '10px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>🔧 אלמנטי שדה</span>
+              <span style={{ fontSize: '12px', color: lightMode ? '#64748b' : '#94a3b8' }}>({groundElements.length})</span>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {cats.map(cat => (
+                <div key={cat}>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#475569' : '#64748b', padding: '3px 4px', marginBottom: '4px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>{cat}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {catMap[cat].map((el: any) => {
+                      const isEditing = elemEditId === el.id;
+                      const statusColor = ELEM_STATUS_COLOR[el.status] || '#94a3b8';
+                      const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
+                      return (
+                        <div key={el.id} style={{ background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', flexShrink: 0 }}>{el.type_icon || '🔧'}</div>
+                            {isEditing ? (
+                              <input value={elemEditFields.name}
+                                onChange={e => setElemEditFields(p => ({ ...p, name: e.target.value }))}
+                                style={{ flex: 1, padding: '2px 6px', fontSize: '12px', background: lightMode ? '#f1f5f9' : '#0f172a', border: '1px solid #3b82f6', borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
+                            ) : (
+                              <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{el.name}</span>
+                            )}
+                            <button onClick={() => onUpdateGroundElementStatus && onUpdateGroundElementStatus(el.id, nextStatus)}
+                              title={`→ ${nextStatus}`}
+                              style={{ padding: '2px 7px', borderRadius: '3px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', background: lightMode ? '#e2e8f0' : '#0f172a', color: statusColor, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                              {el.status || '?'}
+                            </button>
+                            <button onClick={() => {
+                              if (isEditing) { setElemEditId(null); } else {
+                                setElemEditId(el.id);
+                                setElemEditFields({ name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '' });
+                              }
+                            }}
+                              style={{ background: isEditing ? (lightMode ? '#e2e8f0' : '#334155') : 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>
+                              {isEditing ? '✕' : '✏️'}
+                            </button>
+                          </div>
+                          {isEditing && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '4px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
+                              <input value={elemEditFields.category}
+                                onChange={e => setElemEditFields(p => ({ ...p, category: e.target.value }))}
+                                placeholder="קטגוריה"
+                                style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
+                              <select value={elemEditFields.status}
+                                onChange={e => setElemEditFields(p => ({ ...p, status: e.target.value }))}
+                                style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }}>
+                                {ELEM_STATUS_CYCLE.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                              <textarea value={elemEditFields.note}
+                                onChange={e => setElemEditFields(p => ({ ...p, note: e.target.value }))}
+                                placeholder="הערה"
+                                rows={2}
+                                style={{ padding: '2px 6px', fontSize: '11px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl', resize: 'none' }} />
+                              <button onClick={async () => { if (onUpdateGroundElement) { await onUpdateGroundElement(el.id, elemEditFields); } setElemEditId(null); }}
+                                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
+                                ✓ שמור
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       </div>
     </div>
   );
@@ -13125,6 +13218,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             lightMode={lightMode}
             onClose={() => setShowAdminDashboard(false)}
             aviationBases={aviationBases}
+            groundElements={isGroundMode ? airfieldElements : undefined}
+            groundElementTypes={isGroundMode ? airfieldElementTypes : undefined}
+            onUpdateGroundElementStatus={isGroundMode ? handleUpdateElementStatus : undefined}
+            onUpdateGroundElement={isGroundMode ? handleUpdateElement : undefined}
           />
         );
       })()}
