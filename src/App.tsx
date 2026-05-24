@@ -13967,79 +13967,69 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       : <ellipse cx={x+w/2} cy={y+h/2} rx={w/2} ry={h/2} fill={shapeFilled ? penColor+'40' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6,3" style={{ pointerEvents: 'none' }} />;
                   })()}
                 </svg>
-                {/* 🖊️ Toggle icon — always visible in classic mode */}
+                {/* 🖊️ Toggle — off by default, single click enables/disables drawing */}
                 <button
-                  onClick={() => { setShowDrawToolbar(v => { if (v) { setDrawingMode(false); } return !v; }); }}
-                  title="ציור על סטריפים"
+                  onClick={() => setDrawingMode(v => !v)}
+                  title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
                   style={{
                     position: 'absolute', top: 10, left: 10, zIndex: 1000,
                     width: 36, height: 36, borderRadius: '8px', border: 'none',
-                    background: showDrawToolbar ? '#3b82f6' : 'rgba(15,23,42,0.75)',
-                    color: showDrawToolbar ? 'white' : '#94a3b8',
+                    background: drawingMode ? '#3b82f6' : 'rgba(15,23,42,0.75)',
+                    color: drawingMode ? 'white' : '#94a3b8',
                     fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: showDrawToolbar ? '0 0 0 2px #60a5fa' : undefined,
+                    boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
                   }}
                 >🖊️</button>
-                {showDrawToolbar && <div style={{
+                {drawingMode && <div style={{
                   position: 'absolute', top: 10, left: 54,
                   background: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', padding: '8px',
                   display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 1000
                 }}>
-                  <button
-                    onClick={() => setDrawingMode(!drawingMode)}
-                    style={{ padding: '8px 12px', background: drawingMode ? '#10b981' : '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
-                  >
-                    {drawingMode ? 'סיום ציור' : 'מצב ציור'}
-                  </button>
-                  {drawingMode && (
-                    <>
-                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                        {([
-                          { id: 'pen', label: '✏️', title: 'עט' },
-                          { id: 'eraser', label: '🧹', title: 'מחק' },
-                          { id: 'rect', label: '⬜', title: 'מלבן' },
-                          { id: 'circle', label: '⭕', title: 'עיגול' },
-                        ] as const).map(t => (
-                          <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
-                            padding: '5px 7px', fontSize: '15px', lineHeight: 1,
-                            background: drawTool === t.id ? '#3b82f6' : '#334155',
-                            color: 'white', border: drawTool === t.id ? '2px solid #fff' : '1px solid #64748b',
-                            borderRadius: '5px', cursor: 'pointer',
-                          }}>{t.label}</button>
-                        ))}
-                      </div>
-                      {(drawTool === 'rect' || drawTool === 'circle') && (
-                        <button onClick={() => setShapeFilled(f => !f)} style={{
-                          padding: '5px 8px', fontSize: '11px', fontWeight: 'bold',
-                          background: shapeFilled ? '#10b981' : '#475569',
-                          color: 'white', border: shapeFilled ? '2px solid #fff' : '1px solid #64748b',
-                          borderRadius: '5px', cursor: 'pointer'
-                        }}>{shapeFilled ? 'מלא ✓' : 'קו בלבד'}</button>
-                      )}
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
-                          <button key={color} onClick={() => { setPenColor(color); if (drawTool === 'eraser') setDrawTool('pen'); }}
-                            style={{
-                              width: 24, height: 24, background: color,
-                              border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
-                              borderRadius: '4px', cursor: 'pointer',
-                              boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
-                            }} />
-                        ))}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
-                        <input type="range" min="1" max="10" value={penSize}
-                          onChange={e => setPenSize(Number(e.target.value))}
-                          style={{ flex: 1, cursor: 'pointer' }} />
-                        <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
-                      </div>
-                      <button onClick={() => { clearCanvas(); setMapShapes([]); setSelectedShapeId(null); }} style={{
-                        padding: '6px', background: '#dc2626', color: 'white', border: 'none',
-                        borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
-                      }}>נקה הכל</button>
-                    </>
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                    {([
+                      { id: 'pen', label: '✏️', title: 'עט' },
+                      { id: 'eraser', label: '🧹', title: 'מחק' },
+                      { id: 'rect', label: '⬜', title: 'מלבן' },
+                      { id: 'circle', label: '⭕', title: 'עיגול' },
+                    ] as const).map(t => (
+                      <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
+                        padding: '5px 7px', fontSize: '15px', lineHeight: 1,
+                        background: drawTool === t.id ? '#3b82f6' : '#334155',
+                        color: 'white', border: drawTool === t.id ? '2px solid #fff' : '1px solid #64748b',
+                        borderRadius: '5px', cursor: 'pointer',
+                      }}>{t.label}</button>
+                    ))}
+                  </div>
+                  {(drawTool === 'rect' || drawTool === 'circle') && (
+                    <button onClick={() => setShapeFilled(f => !f)} style={{
+                      padding: '5px 8px', fontSize: '11px', fontWeight: 'bold',
+                      background: shapeFilled ? '#10b981' : '#475569',
+                      color: 'white', border: shapeFilled ? '2px solid #fff' : '1px solid #64748b',
+                      borderRadius: '5px', cursor: 'pointer'
+                    }}>{shapeFilled ? 'מלא ✓' : 'קו בלבד'}</button>
                   )}
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
+                      <button key={color} onClick={() => { setPenColor(color); if (drawTool === 'eraser') setDrawTool('pen'); }}
+                        style={{
+                          width: 24, height: 24, background: color,
+                          border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
+                          borderRadius: '4px', cursor: 'pointer',
+                          boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
+                        }} />
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
+                    <input type="range" min="1" max="10" value={penSize}
+                      onChange={e => setPenSize(Number(e.target.value))}
+                      style={{ flex: 1, cursor: 'pointer' }} />
+                    <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
+                  </div>
+                  <button onClick={() => { clearCanvas(); setMapShapes([]); setSelectedShapeId(null); }} style={{
+                    padding: '6px', background: '#dc2626', color: 'white', border: 'none',
+                    borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
+                  }}>נקה הכל</button>
                 </div>}
               </div>
             );
