@@ -836,6 +836,19 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS takeoff_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS landing_airfield_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
 
+  // Geo-anchoring system — map calibration and geographic positioning
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_x_img REAL`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_y_img REAL`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lat DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor1_lon DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_x_img REAL`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_y_img REAL`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lat DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS anchor2_lon DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
+  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
+
   console.log('Database initialized');
 }
 
@@ -1960,11 +1973,13 @@ app.post('/api/transfers/:id/accept-to-map', async (req, res) => {
     const { strip_id, to_sector_id, to_workstation_id } = transfer.rows[0];
     // Prefer the receiving workstation sent by the client; fall back to transfer record
     const assignedPresetId = receivingPresetId || to_workstation_id || null;
+    const mapLat = req.body.map_lat ?? null;
+    const mapLon = req.body.map_lon ?? null;
     
     // Update strip: move to target sector AND assign to receiving workstation, place on map
     await pool.query(
-      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true WHERE id = $8',
-      [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, strip_id]
+      'UPDATE strips SET sector_id = $1, status = $2, on_map = $3, x = $4, y = $5, held_by_workstation = $6, workstation_preset_id = $7, in_table = true, map_lat = $9, map_lon = $10 WHERE id = $8',
+      [to_sector_id, 'queued', true, x, y, assignedPresetId, assignedPresetId, strip_id, mapLat, mapLon]
     );
     
     await pool.query(
@@ -2100,7 +2115,7 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
 // Maps API
 app.get('/api/maps', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, created_at FROM maps ORDER BY name');
+    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon FROM maps ORDER BY name');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching maps:', err);
@@ -2145,6 +2160,22 @@ app.delete('/api/maps/:id', async (req, res) => {
   }
 });
 
+app.patch('/api/maps/:id/anchors', async (req, res) => {
+  try {
+    const { anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon } = req.body;
+    const result = await pool.query(
+      `UPDATE maps SET anchor1_x_img=$1, anchor1_y_img=$2, anchor1_lat=$3, anchor1_lon=$4, anchor2_x_img=$5, anchor2_y_img=$6, anchor2_lat=$7, anchor2_lon=$8 WHERE id=$9
+       RETURNING id, name, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon`,
+      [anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Map not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating map anchors:', err);
+    res.status(500).json({ error: 'Failed to update map anchors' });
+  }
+});
+
 // Map Zones API
 app.get('/api/map-zones', async (req, res) => {
   try {
@@ -2163,10 +2194,10 @@ app.get('/api/map-zones', async (req, res) => {
 
 app.post('/api/map-zones', async (req, res) => {
   try {
-    const { map_id, name, color, polygon } = req.body;
+    const { map_id, name, color, polygon, polygon_geo } = req.body;
     const result = await pool.query(
-      'INSERT INTO map_zones (map_id, name, color, polygon) VALUES ($1, $2, $3, $4) RETURNING *',
-      [map_id, name, color || '#3b82f6', JSON.stringify(polygon || [])]
+      'INSERT INTO map_zones (map_id, name, color, polygon, polygon_geo) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [map_id, name, color || '#3b82f6', JSON.stringify(polygon || []), JSON.stringify(polygon_geo || [])]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -2177,10 +2208,10 @@ app.post('/api/map-zones', async (req, res) => {
 
 app.put('/api/map-zones/:id', async (req, res) => {
   try {
-    const { name, color, polygon } = req.body;
+    const { name, color, polygon, polygon_geo } = req.body;
     const result = await pool.query(
-      'UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4 RETURNING *',
-      [name, color, JSON.stringify(polygon || []), req.params.id]
+      'UPDATE map_zones SET name = $1, color = $2, polygon = $3, polygon_geo = $4 WHERE id = $5 RETURNING *',
+      [name, color, JSON.stringify(polygon || []), JSON.stringify(polygon_geo || []), req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
     res.json(result.rows[0]);
@@ -2383,7 +2414,9 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       ground_status: r.ground_status || 'none',
       parent_strip_id: r.parent_strip_id || null,
       aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
-      original_formation_count: r.original_formation_count || null
+      original_formation_count: r.original_formation_count || null,
+      map_lat: r.map_lat ?? null,
+      map_lon: r.map_lon ?? null
     })));
   } catch (err) {
     console.error('Error fetching workstation strips:', err);
@@ -2429,7 +2462,9 @@ app.get('/api/strips/global', async (req, res) => {
       aircraft_indices: Array.isArray(r.aircraft_indices) ? r.aircraft_indices : (r.aircraft_indices ? (() => { try { return JSON.parse(r.aircraft_indices); } catch { return null; } })() : null),
       original_formation_count: r.original_formation_count || null,
       takeoff_airfield_id: r.takeoff_airfield_id || null,
-      landing_airfield_id: r.landing_airfield_id || null
+      landing_airfield_id: r.landing_airfield_id || null,
+      map_lat: r.map_lat ?? null,
+      map_lon: r.map_lon ?? null
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);

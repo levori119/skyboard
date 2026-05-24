@@ -743,7 +743,7 @@ const compareImages = (img1Data: ImageData, img2Data: ImageData): number => {
 // --- עורך אזורי מפה ---
 const ZONE_COLORS = ['#3b82f6','#ef4444','#22c55e','#f59e0b','#a855f7','#06b6d4','#f97316','#ec4899'];
 
-const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: string; onClose: () => void }) => {
+const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { mapId: number; mapSrc: string; onClose: () => void; mapData?: any }) => {
   const [zones, setZones] = useState<MapZone[]>([]);
   const [draftPoints, setDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [draftName, setDraftName] = useState('');
@@ -754,6 +754,70 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
   const [altRangesLoading, setAltRangesLoading] = useState(false);
   const [newAltRange, setNewAltRange] = useState({ name: '', alt_min: '', alt_max: '' });
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgEditorRef = useRef<HTMLImageElement>(null);
+  const [imgEditorBounds, setImgEditorBounds] = useState<{left:number;top:number;width:number;height:number}|null>(null);
+  const [localMapData, setLocalMapData] = useState<any>(initialMapData ?? null);
+  const [anchorMode, setAnchorMode] = useState(false);
+  const [anchorStep, setAnchorStep] = useState<1|2>(1);
+  const [pendingAnchor1, setPendingAnchor1] = useState<{x:number;y:number}|null>(null);
+  const [pendingLat1, setPendingLat1] = useState('');
+  const [pendingLon1, setPendingLon1] = useState('');
+  const [pendingAnchor2, setPendingAnchor2] = useState<{x:number;y:number}|null>(null);
+  const [pendingLat2, setPendingLat2] = useState('');
+  const [pendingLon2, setPendingLon2] = useState('');
+  const [savingAnchors, setSavingAnchors] = useState(false);
+  const currentAnchor = getAnchorFromMapData(localMapData);
+  const isCalibrated = currentAnchor !== null;
+
+  const computeEditorImgBounds = () => {
+    const img = imgEditorRef.current;
+    if (!img || !img.naturalWidth) { setImgEditorBounds(null); return; }
+    const c = img.parentElement; if (!c) return;
+    const cw = c.clientWidth, ch = c.clientHeight;
+    const nw = img.naturalWidth, nh = img.naturalHeight;
+    const scale = Math.min(cw / nw, ch / nh);
+    const w = nw * scale, h = nh * scale;
+    setImgEditorBounds({ left: (cw - w) / 2, top: (ch - h) / 2, width: w, height: h });
+  };
+
+  const getImageRelativePoint = (e: React.MouseEvent): {x:number;y:number}|null => {
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    const img = imgEditorRef.current;
+    if (!img || !img.naturalWidth) return null;
+    const nw = img.naturalWidth, nh = img.naturalHeight;
+    const cw = rect.width, ch = rect.height;
+    const scale = Math.min(cw / nw, ch / nh);
+    const dispW = nw * scale, dispH = nh * scale;
+    const ox = (cw - dispW) / 2, oy = (ch - dispH) / 2;
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    if (cx < ox || cx > ox + dispW || cy < oy || cy > oy + dispH) return null;
+    return { x: ((cx - ox) / dispW) * 100, y: ((cy - oy) / dispH) * 100 };
+  };
+
+  const saveAnchors = async () => {
+    if (!pendingAnchor1 || !pendingAnchor2) return;
+    const lat1 = parseFloat(pendingLat1), lon1 = parseFloat(pendingLon1);
+    const lat2 = parseFloat(pendingLat2), lon2 = parseFloat(pendingLon2);
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
+    setSavingAnchors(true);
+    try {
+      const res = await fetch(`${API_URL}/maps/${mapId}/anchors`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anchor1_x_img: pendingAnchor1.x, anchor1_y_img: pendingAnchor1.y, anchor1_lat: lat1, anchor1_lon: lon1, anchor2_x_img: pendingAnchor2.x, anchor2_y_img: pendingAnchor2.y, anchor2_lat: lat2, anchor2_lon: lon2 })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setLocalMapData((prev: any) => ({ ...prev, ...updated }));
+        setAnchorMode(false);
+        setPendingAnchor1(null); setPendingAnchor2(null);
+        setPendingLat1(''); setPendingLon1(''); setPendingLat2(''); setPendingLon2('');
+      }
+    } catch {}
+    setSavingAnchors(false);
+  };
 
   const loadAltRanges = async (zoneId: number) => {
     setAltRangesLoading(true);
@@ -768,7 +832,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
       const res = await fetch(`${API_URL}/map-zones?map_id=${mapId}`);
       if (res.ok) {
         const data = await res.json();
-        setZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon })));
+        setZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon, polygon_geo: typeof z.polygon_geo === 'string' ? JSON.parse(z.polygon_geo) : (z.polygon_geo ?? []) })));
       }
     } catch {}
   };
@@ -782,8 +846,16 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
   };
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (anchorMode) {
+      const pt = getImageRelativePoint(e);
+      if (!pt) return;
+      if (anchorStep === 1) { setPendingAnchor1(pt); setAnchorStep(2); }
+      else { setPendingAnchor2(pt); }
+      return;
+    }
     if (editingZone) return;
-    const pt = getRelativePoint(e);
+    const pt = isCalibrated ? getImageRelativePoint(e) : getRelativePoint(e);
+    if (!pt) return;
     if (draftPoints.length >= 2) {
       const first = draftPoints[0];
       const dist = Math.hypot(pt.x - first.x, pt.y - first.y);
@@ -802,14 +874,20 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
     if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; }
   };
 
+  const computePolygonGeo = (pts: {x:number;y:number}[]): {lat:number;lon:number}[] => {
+    if (!currentAnchor || pts.length === 0) return [];
+    return pts.map(p => imagePctToGeo(p.x, p.y, currentAnchor));
+  };
+
   const saveDraft = async (pts: {x:number;y:number}[]) => {
     if (pts.length < 3 || !draftName.trim()) return;
     setSaving(true);
     try {
+      const polygon_geo = computePolygonGeo(pts);
       const res = await fetch(`${API_URL}/map-zones`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ map_id: mapId, name: draftName.trim(), color: draftColor, polygon: pts })
+        body: JSON.stringify({ map_id: mapId, name: draftName.trim(), color: draftColor, polygon: pts, polygon_geo })
       });
       if (res.ok) { await loadZones(); setDraftPoints([]); setDraftName(''); }
     } catch {}
@@ -820,10 +898,11 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
     if (!editingZone) return;
     setSaving(true);
     try {
+      const polygon_geo = computePolygonGeo(editingZone.polygon);
       const res = await fetch(`${API_URL}/map-zones/${editingZone.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editingZone.name, color: editingZone.color, polygon: editingZone.polygon })
+        body: JSON.stringify({ name: editingZone.name, color: editingZone.color, polygon: editingZone.polygon, polygon_geo })
       });
       if (res.ok) { await loadZones(); setEditingZone(null); }
     } catch {}
@@ -853,11 +932,22 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
 
       {/* Map with SVG overlay */}
       <div ref={containerRef} style={{ position: 'relative', width: '100%', paddingBottom: '56%', background: '#1e293b', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-        <img src={mapSrc} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+        <img ref={imgEditorRef} src={mapSrc} onLoad={computeEditorImgBounds} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+        {/* SVG: when calibrated, bounded to image area; otherwise full container */}
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: editingZone ? 'default' : 'crosshair' }}
+          style={isCalibrated && imgEditorBounds ? {
+            position: 'absolute',
+            left: imgEditorBounds.left,
+            top: imgEditorBounds.top,
+            width: imgEditorBounds.width,
+            height: imgEditorBounds.height,
+            cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair')
+          } : {
+            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+            cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair')
+          }}
           onClick={handleSvgClick}
           onDoubleClick={handleSvgDblClick}
         >
@@ -876,40 +966,78 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose }: { mapId: number; mapSrc: stri
                 <text
                   x={z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length}
                   y={z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill={z.color}
-                  fontSize="3"
-                  fontWeight="bold"
+                  textAnchor="middle" dominantBaseline="middle"
+                  fill={z.color} fontSize="3" fontWeight="bold"
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {z.name}
-                </text>
+                >{z.name}</text>
               )}
             </g>
           ))}
           {/* Draft / editing polygon */}
           {activePoly.length >= 2 && (
-            <polyline
-              points={polygonToSvgPoints(activePoly)}
-              fill="none"
-              stroke={editingZone ? editingZone.color : draftColor}
-              strokeWidth="0.5"
-              strokeDasharray="2,1"
-            />
+            <polyline points={polygonToSvgPoints(activePoly)} fill="none"
+              stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" strokeDasharray="2,1" />
           )}
           {activePoly.length >= 3 && (
-            <polygon
-              points={polygonToSvgPoints(activePoly)}
+            <polygon points={polygonToSvgPoints(activePoly)}
               fill={(editingZone ? editingZone.color : draftColor) + '33'}
-              stroke={editingZone ? editingZone.color : draftColor}
-              strokeWidth="0.5"
-            />
+              stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" />
           )}
           {activePoly.map((p, i) => (
             <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.5 : 1} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
           ))}
+          {/* Saved anchor markers */}
+          {currentAnchor && (<>
+            <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="1.8" fill="#f59e0b" stroke="white" strokeWidth="0.4" style={{ pointerEvents: 'none' }} />
+            <text x={currentAnchor.x1 + 2} y={currentAnchor.y1} fill="#f59e0b" fontSize="2.5" style={{ pointerEvents: 'none' }}>A1</text>
+            <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="1.8" fill="#f59e0b" stroke="white" strokeWidth="0.4" style={{ pointerEvents: 'none' }} />
+            <text x={currentAnchor.x2 + 2} y={currentAnchor.y2} fill="#f59e0b" fontSize="2.5" style={{ pointerEvents: 'none' }}>A2</text>
+          </>)}
+          {/* Pending anchor markers in anchor mode */}
+          {anchorMode && pendingAnchor1 && (
+            <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="2" fill="#ef4444" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+          )}
+          {anchorMode && pendingAnchor2 && (
+            <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="2" fill="#3b82f6" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+          )}
         </svg>
+        {/* Anchor mode overlay label */}
+        {anchorMode && (
+          <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: anchorStep === 1 ? '#ef444488' : '#3b82f688', color: 'white', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', pointerEvents: 'none' }}>
+            {anchorStep === 1 ? '📍 לחץ לסימון עוגן 1 (A1)' : '📍 לחץ לסימון עוגן 2 (A2)'}
+          </div>
+        )}
+      </div>
+
+      {/* Anchor / Calibration panel */}
+      <div style={{ background: '#1e293b', borderRadius: '6px', padding: '10px 12px', marginBottom: '12px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ color: isCalibrated ? '#22c55e' : '#f59e0b', fontSize: '12px', fontWeight: 'bold' }}>
+          {isCalibrated ? '✅ מפה מכוילת (גיאו)' : '⚠️ לא מכוילת'}
+        </span>
+        {!anchorMode ? (
+          <button onClick={() => { setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null); setPendingLat1(localMapData?.anchor1_lat ? String(localMapData.anchor1_lat) : ''); setPendingLon1(localMapData?.anchor1_lon ? String(localMapData.anchor1_lon) : ''); setPendingLat2(localMapData?.anchor2_lat ? String(localMapData.anchor2_lat) : ''); setPendingLon2(localMapData?.anchor2_lon ? String(localMapData.anchor2_lon) : ''); }}
+            style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px' }}>
+            {isCalibrated ? '🔧 עדכן עיגון' : '📐 הגדר עיגון גיאו'}
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ color: '#94a3b8', fontSize: '11px' }}>עוגן {anchorStep === 1 ? '1' : '2'}:</span>
+            <input value={anchorStep === 1 ? pendingLat1 : pendingLat2} onChange={e => anchorStep === 1 ? setPendingLat1(e.target.value) : setPendingLat2(e.target.value)}
+              placeholder="קו רוחב" style={{ width: '90px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+            <input value={anchorStep === 1 ? pendingLon1 : pendingLon2} onChange={e => anchorStep === 1 ? setPendingLon1(e.target.value) : setPendingLon2(e.target.value)}
+              placeholder="קו אורך" style={{ width: '90px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '12px' }} />
+            {anchorStep === 1 && pendingAnchor1 && (
+              <button onClick={() => setAnchorStep(2)} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '12px' }}>הבא ▶</button>
+            )}
+            {anchorStep === 2 && pendingAnchor1 && pendingAnchor2 && (
+              <button onClick={saveAnchors} disabled={savingAnchors} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '12px' }}>
+                {savingAnchors ? '...' : '💾 שמור עיגון'}
+              </button>
+            )}
+            <button onClick={() => { setAnchorMode(false); setPendingAnchor1(null); setPendingAnchor2(null); setAnchorStep(1); }}
+              style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+          </div>
+        )}
       </div>
 
       {/* Editing existing zone */}
@@ -1074,6 +1202,7 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
   const [uploading, setUploading] = useState(false);
   const [zoneEditorMapId, setZoneEditorMapId] = useState<number | null>(null);
   const [zoneEditorMapSrc, setZoneEditorMapSrc] = useState<string | null>(null);
+  const [zoneEditorMapData, setZoneEditorMapData] = useState<any>(null);
 
   const loadMaps = async () => {
     try {
@@ -1192,10 +1321,10 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={async () => {
-                      if (zoneEditorMapId === map.id) { setZoneEditorMapId(null); setZoneEditorMapSrc(null); return; }
+                      if (zoneEditorMapId === map.id) { setZoneEditorMapId(null); setZoneEditorMapSrc(null); setZoneEditorMapData(null); return; }
                       try {
                         const res = await fetch(`${API_URL}/maps/${map.id}`);
-                        if (res.ok) { const data = await res.json(); setZoneEditorMapSrc(data.image_data); setZoneEditorMapId(map.id); }
+                        if (res.ok) { const data = await res.json(); setZoneEditorMapSrc(data.image_data); setZoneEditorMapId(map.id); setZoneEditorMapData(map); }
                       } catch {}
                     }}
                     style={{ background: zoneEditorMapId === map.id ? '#3b82f6' : (isEmbedded ? '#334155' : '#e2e8f0'), color: zoneEditorMapId === map.id ? 'white' : (isEmbedded ? 'white' : '#1e293b'), padding: '6px 12px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
@@ -1211,7 +1340,7 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
                 </div>
               </div>
               {zoneEditorMapId === map.id && zoneEditorMapSrc && (
-                <MapZoneEditor mapId={map.id} mapSrc={zoneEditorMapSrc} onClose={() => { setZoneEditorMapId(null); setZoneEditorMapSrc(null); }} />
+                <MapZoneEditor mapId={map.id} mapSrc={zoneEditorMapSrc} onClose={() => { setZoneEditorMapId(null); setZoneEditorMapSrc(null); setZoneEditorMapData(null); }} mapData={zoneEditorMapData ?? map} />
               )}
             </div>
           ))}
@@ -4386,7 +4515,22 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 };
 
 interface GroundAircraftRow { id?: number; idx: number; datk: number | null; kipa: string | null; }
-interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; }
+interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; polygon_geo?: {lat: number; lon: number}[]; }
+interface MapGeoAnchor { x1: number; y1: number; lat1: number; lon1: number; x2: number; y2: number; lat2: number; lon2: number; }
+const getAnchorFromMapData = (m: any): MapGeoAnchor | null => {
+  if (!m?.anchor1_lat || !m?.anchor2_lat || m.anchor1_x_img == null || m.anchor2_x_img == null) return null;
+  return { x1: m.anchor1_x_img, y1: m.anchor1_y_img, lat1: Number(m.anchor1_lat), lon1: Number(m.anchor1_lon), x2: m.anchor2_x_img, y2: m.anchor2_y_img, lat2: Number(m.anchor2_lat), lon2: Number(m.anchor2_lon) };
+};
+const geoToImagePct = (lat: number, lon: number, a: MapGeoAnchor): {x: number; y: number} => {
+  const tx = (lon - a.lon1) / (a.lon2 - a.lon1);
+  const ty = (lat - a.lat1) / (a.lat2 - a.lat1);
+  return { x: a.x1 + tx * (a.x2 - a.x1), y: a.y1 + ty * (a.y2 - a.y1) };
+};
+const imagePctToGeo = (xImg: number, yImg: number, a: MapGeoAnchor): {lat: number; lon: number} => {
+  const tx = (xImg - a.x1) / (a.x2 - a.x1);
+  const ty = (yImg - a.y1) / (a.y2 - a.y1);
+  return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
+};
 interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }
 interface StripZoneAssignment { id: number; strip_id: number; zone_id: number; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string; zone_color: string; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; }
 
@@ -9796,6 +9940,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
   const mapImgRef = useRef<HTMLImageElement>(null);
   const computeMapImgBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setMapImgBounds(null); return; }
@@ -10943,7 +11088,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const res = await fetch(`${API_URL}/map-zones?map_id=${mapId}`);
       if (res.ok) {
         const data = await res.json();
-        setMapZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon })));
+        setMapZones(data.map((z: any) => ({ ...z, polygon: typeof z.polygon === 'string' ? JSON.parse(z.polygon) : z.polygon, polygon_geo: typeof z.polygon_geo === 'string' ? JSON.parse(z.polygon_geo) : (z.polygon_geo ?? []) })));
       }
     } catch {}
   };
@@ -10979,6 +11124,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const map = await mapRes.json();
           setMapImg(map.image_data);
           setCurrentMapId(map.id);
+          setMapGeoAnchor(getAnchorFromMapData(map));
           loadMapZones(map.id);
           loadStripZoneAssignments(map.id);
           return;
@@ -10993,6 +11139,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const map = await mapRes.json();
             setMapImg(map.image_data);
             setCurrentMapId(map.id);
+            setMapGeoAnchor(getAnchorFromMapData(map));
             loadMapZones(map.id);
             loadStripZoneAssignments(map.id);
           }
@@ -11833,11 +11980,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleAcceptToMap = async (transferId: string, x: number, y: number) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
+    let geoCoords: { map_lat: number; map_lon: number } | Record<string, never> = {};
+    const ib = mapImgBoundsRef.current;
+    if (mapGeoAnchor && ib) {
+      const mapAreaEl = document.getElementById('map-area');
+      if (mapAreaEl) {
+        const cw = mapAreaEl.clientWidth, ch = mapAreaEl.clientHeight;
+        if (cw > 0 && ch > 0 && ib.width > 0 && ib.height > 0) {
+          const xImg = ((x - ib.left) / ib.width) * 100;
+          const yImg = ((y - ib.top) / ib.height) * 100;
+          if (xImg >= -10 && xImg <= 110 && yImg >= -10 && yImg <= 110) {
+            const geo = imagePctToGeo(xImg, yImg, mapGeoAnchor);
+            geoCoords = { map_lat: geo.lat, map_lon: geo.lon };
+          }
+        }
+      }
+    }
     try {
       await fetch(`${API_URL}/transfers/${transferId}/accept-to-map`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x, y, receivingPresetId: session?.presetId ?? null })
+        body: JSON.stringify({ x, y, receivingPresetId: session?.presetId ?? null, ...geoCoords })
       });
       logActivity('accept_to_map', {
         stripId: t?.strip_id ? String(t.strip_id) : undefined,
@@ -14730,38 +14893,43 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>נא לטעון מפה</div>
             )}
 
-            {/* Map Zones Overlay */}
-            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds ? mapImgBounds.top : 0, left: mapImgBounds ? mapImgBounds.left : 0, width: mapImgBounds ? mapImgBounds.width : '100%', height: mapImgBounds ? mapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 1 }}>
-                {mapZones.map(zone => (
-                  <g key={zone.id}>
-                    {zone.polygon.length >= 3 && (
-                      <polygon
-                        points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')}
-                        fill={zone.color + '2a'}
-                        stroke={zone.color}
-                        strokeWidth="0.4"
-                        strokeDasharray="2,1"
-                      />
-                    )}
-                    {zone.polygon.length >= 3 && (
-                      <text
-                        x={zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length}
-                        y={zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill={zone.color}
-                        fontSize="2.5"
-                        fontWeight="bold"
-                        style={{ userSelect: 'none' }}
-                      >
-                        {zone.name}
-                      </text>
-                    )}
-                  </g>
-                ))}
-              </svg>
-            )}
+            {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
+            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (() => {
+              const mapAnchor = mapGeoAnchor;
+              // Zones without geo data → legacy full-container SVG
+              const legacyZones = mapZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
+              // Zones with geo data → project via anchor to image-relative %, render in image-bounded SVG
+              const geoZones = mapZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
+              return (<>
+                {legacyZones.length > 0 && (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                    {legacyZones.map(zone => (
+                      <g key={zone.id}>
+                        {zone.polygon.length >= 3 && (<>
+                          <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zone.color + '2a'} stroke={zone.color} strokeWidth="0.4" strokeDasharray="2,1" />
+                          <text x={zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length} y={zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length}
+                            textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}</text>
+                        </>)}
+                      </g>
+                    ))}
+                  </svg>
+                )}
+                {geoZones.length > 0 && mapAnchor && mapImgBounds && (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
+                    {geoZones.map(zone => {
+                      const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
+                      return (
+                        <g key={zone.id}>
+                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zone.color+'2a'} stroke={zone.color} strokeWidth="0.4" strokeDasharray="2,1" />
+                          <text x={imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length} y={imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length}
+                            textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}</text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+              </>);
+            })()}
 
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
