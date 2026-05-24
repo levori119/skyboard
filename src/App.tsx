@@ -10362,30 +10362,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setPersonalFilter(q);
   };
 
-  // Keep the drawing canvas sized to the map area so 1px on canvas = 1px on screen
+  // Keep the drawing canvas sized to the map area (or classic draw zone) so 1px on canvas = 1px on screen
   useEffect(() => {
     const syncCanvasSize = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const mapArea = document.getElementById('map-area');
-      if (!mapArea) return;
-      const { width, height } = mapArea.getBoundingClientRect();
+      const target = document.getElementById('classic-draw-zone-wrapper') || document.getElementById('map-area');
+      if (!target) return;
+      const { width, height } = target.getBoundingClientRect();
       if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
         const ctx = canvas.getContext('2d');
         const saved = ctx ? canvas.toDataURL() : null;
         canvas.width = Math.round(width);
         canvas.height = Math.round(height);
-        if (saved && ctx) {
+        if (saved && ctx && canvas.width > 0 && canvas.height > 0) {
           const img = new Image();
-          img.onload = () => ctx.drawImage(img, 0, 0);
+          img.onload = () => { if (canvas.width > 0 && canvas.height > 0) ctx.drawImage(img, 0, 0); };
           img.src = saved;
         }
       }
     };
     syncCanvasSize();
     const observer = new ResizeObserver(syncCanvasSize);
-    const mapArea = document.getElementById('map-area');
-    if (mapArea) observer.observe(mapArea);
+    const target = document.getElementById('classic-draw-zone-wrapper') || document.getElementById('map-area');
+    if (target) observer.observe(target);
     return () => observer.disconnect();
   }, []);
 
@@ -14021,59 +14021,91 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onMergePartial={(targetId, sourceId) => { const src = classicCenterStrips.find((x: any) => String(x.id) === sourceId); const sibs = getSectorSiblings(src || {}); if (sibs.length === 1) { setSectorMergeConfirm({ targetId, sourceId, targetName: sibs[0]?.callSign || targetId, sourceName: src?.callSign || sourceId }); } else if (sibs.length > 1) { setSectorMergeModal({ strip: src, siblings: sibs }); } }}
                   getSiblings={getSectorSiblings}
                 />
-                {/* Drawing Canvas Overlay for Classic Strips */}
-                <canvas
-                  ref={canvasRef}
-                  onPointerDown={e => {
-                    e.preventDefault(); e.stopPropagation();
-                    if (drawTool === 'pen' || drawTool === 'eraser') {
-                      startDrawing(e);
-                    } else if (drawingModeRef.current) {
-                      e.currentTarget.setPointerCapture(e.pointerId);
-                      setSelectedShapeId(null);
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                      setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
-                    }
-                  }}
-                  onPointerMove={e => {
-                    e.stopPropagation();
-                    if (drawTool === 'pen' || drawTool === 'eraser') {
-                      draw(e);
-                    } else if (shapeStartRef.current) {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                      setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
-                    }
-                  }}
-                  onPointerUp={e => {
-                    e.stopPropagation();
-                    if (drawTool === 'pen' || drawTool === 'eraser') {
-                      stopDrawing();
-                    } else if (shapeStartRef.current && shapePreview) {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
-                      const x = Math.min(shapeStartRef.current.x, x2);
-                      const y = Math.min(shapeStartRef.current.y, y2);
-                      const w = Math.abs(x2 - shapeStartRef.current.x);
-                      const h = Math.abs(y2 - shapeStartRef.current.y);
-                      if (w > 5 || h > 5) {
-                        setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
-                      }
-                      shapeStartRef.current = null; setShapePreview(null);
-                    }
-                  }}
-                  onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
-                  onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
+                {/* Drawing Zone — bottom 33% in classic mode, full area otherwise */}
+                <div
+                  id="classic-draw-zone-wrapper"
                   style={{
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                    pointerEvents: (drawingMode && !isClassicMode) ? 'auto' : 'none',
-                    cursor: (drawingMode && !isClassicMode) ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
-                    touchAction: 'none', zIndex: 200
+                    position: 'absolute',
+                    bottom: 0, left: 0, width: '100%',
+                    height: '33.33%',
+                    zIndex: 199,
+                    borderTop: drawingMode ? '2px dashed rgba(99,102,241,0.6)' : '2px dashed rgba(99,102,241,0.15)',
+                    boxSizing: 'border-box',
+                    pointerEvents: 'none',
                   }}
-                />
-                {/* SVG Shape Overlay */}
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 201, overflow: 'visible', pointerEvents: 'none', touchAction: 'none' }}>
+                >
+                  {/* 🖊️ Toggle inside classic draw zone */}
+                  <button
+                    onClick={() => {
+                      const newMode = !drawingMode;
+                      drawingModeRef.current = newMode;
+                      if (!newMode) { isDrawingRef.current = false; lastPosRef.current = null; }
+                      setDrawingMode(newMode);
+                    }}
+                    title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
+                    style={{
+                      position: 'absolute', top: 6, left: 6, zIndex: 1000,
+                      width: 32, height: 32, borderRadius: '8px', border: 'none',
+                      background: drawingMode ? '#3b82f6' : 'rgba(15,23,42,0.75)',
+                      color: drawingMode ? 'white' : '#94a3b8',
+                      fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
+                      pointerEvents: 'auto',
+                    }}
+                  >🖊️</button>
+                  <canvas
+                    ref={canvasRef}
+                    onPointerDown={e => {
+                      e.preventDefault(); e.stopPropagation();
+                      if (drawTool === 'pen' || drawTool === 'eraser') {
+                        startDrawing(e);
+                      } else if (drawingModeRef.current) {
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        setSelectedShapeId(null);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                        setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
+                      }
+                    }}
+                    onPointerMove={e => {
+                      e.stopPropagation();
+                      if (drawTool === 'pen' || drawTool === 'eraser') {
+                        draw(e);
+                      } else if (shapeStartRef.current) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                        setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
+                      }
+                    }}
+                    onPointerUp={e => {
+                      e.stopPropagation();
+                      if (drawTool === 'pen' || drawTool === 'eraser') {
+                        stopDrawing();
+                      } else if (shapeStartRef.current && shapePreview) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
+                        const x = Math.min(shapeStartRef.current.x, x2);
+                        const y = Math.min(shapeStartRef.current.y, y2);
+                        const w = Math.abs(x2 - shapeStartRef.current.x);
+                        const h = Math.abs(y2 - shapeStartRef.current.y);
+                        if (w > 5 || h > 5) {
+                          setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                        }
+                        shapeStartRef.current = null; setShapePreview(null);
+                      }
+                    }}
+                    onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
+                    onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
+                    style={{
+                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                      pointerEvents: drawingMode ? 'auto' : 'none',
+                      cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
+                      touchAction: 'none', zIndex: 200
+                    }}
+                  />
+                </div>
+                {/* SVG Shape Overlay — clipped to bottom 33% in classic mode */}
+                <svg style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '33.33%', zIndex: 201, overflow: 'visible', pointerEvents: 'none', touchAction: 'none' }}>
                   {mapShapes.map(shape => {
                     const isSelected = selectedShapeId === shape.id && drawingMode;
                     const cx = shape.x + shape.w / 2; const cy = shape.y + shape.h / 2;
