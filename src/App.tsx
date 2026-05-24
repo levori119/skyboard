@@ -4209,6 +4209,15 @@ const BlockMiniView = ({ relevantBlocks, strips, lightMode, onUpdateStripAlt }: 
 };
 
 // --- תצוגת מגרש (GROUND) ---
+const AIR_DEFENSE_STATUSES: { label: string; color: string }[] = [
+  { label: 'ראייה',              color: '#22c55e' },
+  { label: 'התראה',              color: '#eab308' },
+  { label: 'מכשירים',            color: '#f97316' },
+  { label: 'מכשירים להקפה',     color: '#f97316' },
+  { label: 'סגור',               color: '#ef4444' },
+  { label: 'פתוח להזנקות',      color: '#ef4444' },
+];
+
 const GROUND_STATUSES = [
   { key: 'none',    label: 'Pre-Call — טרם קרא',      color: '#64748b', bg: '#0f172a', dot: '#475569', flash: false },
   { key: 'taxi',    label: 'Taxi — קרא להסעה',        color: '#86efac', bg: '#14532d', dot: '#22c55e', flash: false },
@@ -15364,9 +15373,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', marginBottom: '2px' }}>✈ {bs.relevant_to}</div>
                                 )}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px' }}>
-                                  {bs.air_defense_status && (
-                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>מז"א: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.air_defense_status}</span></div>
-                                  )}
+                                  {bs.air_defense_status && (() => {
+                                    const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || (lightMode ? '#1e293b' : '#e2e8f0');
+                                    return <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>מז"א: </span><span style={{ color: adColor, fontWeight: 'bold', fontSize: '10px' }}>{bs.air_defense_status}</span></div>;
+                                  })()}
                                   {bs.absorption_status && (
                                     <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ספיגה: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.absorption_status}</span></div>
                                   )}
@@ -21622,7 +21632,10 @@ CHARLIE,1,301,`}
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>מצב מז"א</label>
-                      <input value={baseStatusForm.air_defense_status} onChange={e => setBaseStatusForm(p => ({ ...p, air_defense_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
+                      <select value={baseStatusForm.air_defense_status} onChange={e => setBaseStatusForm(p => ({ ...p, air_defense_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: AIR_DEFENSE_STATUSES.find(s => s.label === baseStatusForm.air_defense_status)?.color || '#94a3b8', fontSize: '13px', direction: 'rtl' }}>
+                        <option value="">— בחר מצב מז"א —</option>
+                        {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label} style={{ color: s.color }}>{s.label}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>מצב ספיגה</label>
@@ -21656,7 +21669,7 @@ CHARLIE,1,301,`}
                         {bs.relevant_to && bs.relevant_to !== 'כולם' && <span style={{ fontSize: '10px', color: '#94a3b8', background: '#1e293b', borderRadius: '4px', padding: '1px 6px' }}>✈ {bs.relevant_to}</span>}
                       </div>
                       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#94a3b8' }}>
-                        {bs.air_defense_status && <span><span style={{ color: '#64748b' }}>מז"א: </span><span style={{ color: '#e2e8f0' }}>{bs.air_defense_status}</span></span>}
+                        {bs.air_defense_status && <span><span style={{ color: '#64748b' }}>מז"א: </span><span style={{ color: AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || '#e2e8f0', fontWeight: 'bold' }}>{bs.air_defense_status}</span></span>}
                         {bs.absorption_status && <span><span style={{ color: '#64748b' }}>ספיגה: </span><span style={{ color: '#e2e8f0' }}>{bs.absorption_status}</span></span>}
                         {bs.bird_status && <span><span style={{ color: '#64748b' }}>ציפורי: </span><span style={{ color: '#e2e8f0' }}>{bs.bird_status}</span></span>}
                       </div>
