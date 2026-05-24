@@ -12177,10 +12177,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             return (
               <div
                 title={parentBaseId && !canEdit ? 'לחץ אטמוספרי — קריאה בלבד (בסיס אב)' : 'לחץ אטמוספרי'}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: hasVal ? '#0c1a30' : '#1e293b', border: `2px solid ${hasVal ? '#3b82f6' : '#334155'}`, borderRadius: '7px', padding: '3px 10px', minWidth: '130px' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasVal ? '#dbeafe' : '#f1f5f9') : (hasVal ? '#0c1a30' : '#1e293b'), border: `2px solid ${hasVal ? '#3b82f6' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 10px', minWidth: '130px' }}
               >
                 <span style={{ fontSize: '12px' }}>🌡</span>
-                <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0 }}>לחץ:</span>
+                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>לחץ:</span>
                 {/* inHg editable area */}
                 {pressureEditMode === 'inhg' ? (
                   <input
@@ -12191,16 +12191,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onBlur={() => setPressureEditMode(null)}
                     onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setPressureEditMode(null); }}
                     placeholder='29.92'
-                    style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+                    style={{ width: '48px', background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#1d4ed8' : '#7dd3fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
                   />
                 ) : (
                   <span
                     onClick={() => canEdit && setPressureEditMode('inhg')}
-                    style={{ fontSize: '13px', color: hasVal ? '#7dd3fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
+                    style={{ fontSize: '13px', color: hasVal ? (lightMode ? '#1d4ed8' : '#7dd3fc') : (lightMode ? '#94a3b8' : '#475569'), fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
                   >{inHgDisplay}</span>
                 )}
-                <span style={{ fontSize: '10px', color: '#64748b' }}>&quot;</span>
-                <span style={{ fontSize: '11px', color: '#475569' }}>/</span>
+                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b' }}>&quot;</span>
+                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#475569' }}>/</span>
                 {/* MB editable area */}
                 {pressureEditMode === 'mb' ? (
                   <input
@@ -12211,15 +12211,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onBlur={commitMb}
                     onKeyDown={e => { if (e.key === 'Enter') commitMb(); if (e.key === 'Escape') setPressureEditMode(null); }}
                     placeholder='1013'
-                    style={{ width: '40px', background: 'transparent', border: 'none', outline: 'none', color: '#c084fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
+                    style={{ width: '40px', background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#7e22ce' : '#c084fc', fontSize: '13px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }}
                   />
                 ) : (
                   <span
                     onClick={() => canEdit && (setPressureMbInput(''), setPressureEditMode('mb'))}
-                    style={{ fontSize: '13px', color: hasVal ? '#c084fc' : '#475569', fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
+                    style={{ fontSize: '13px', color: hasVal ? (lightMode ? '#7e22ce' : '#c084fc') : (lightMode ? '#94a3b8' : '#475569'), fontFamily: 'monospace', fontWeight: 'bold', cursor: canEdit ? 'pointer' : 'default' }}
                   >{mbDisplay}</span>
                 )}
-                <span style={{ fontSize: '10px', color: '#64748b' }}>mb</span>
+                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b' }}>mb</span>
                 {canEdit && (
                   <VKTrigger
                     value={pressureInHg}
