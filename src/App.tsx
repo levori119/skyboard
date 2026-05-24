@@ -9627,28 +9627,10 @@ const AdminDashboard: React.FC<{
   }, []);
 
   const filterStripsForPreset = (strips: any[], preset: any): any[] => {
-    const type = preset.preset_type || 'standard';
-    const fq: QGroup | null = preset.filter_query || null;
-    const hasFq = hasConditions(fq);
-    const ctx = { presetId: preset.id, aviationBases: aviationBasesProp };
+    const pid = Number(preset.id);
     return strips.filter(s => {
-      // Exclude deleted/cancelled strips; include active, queued, pending — mirrors workstation logic
       if (s.status === 'cancelled' || s.status === 'rejected') return false;
-      if (type === 'ground' || type === 'airfield') {
-        return Number(s.workstation_preset_id) === Number(preset.id) && s.ground_status !== 'takeoff';
-      }
-      if (preset.map_id) {
-        if (!hasFq) return !!s.onMap && Number(s.workstation_preset_id) === Number(preset.id);
-        return !!s.onMap && evaluateQuery(s, fq!, ctx);
-      }
-      if (type === 'classic') {
-        if (!s.inTable) return false;
-        if (!hasFq) return Number(s.workstation_preset_id) === Number(preset.id);
-        return evaluateQuery(s, fq!, ctx);
-      }
-      // standard workstation: purely query-driven (mirrors SectorDashboard myStrips logic)
-      if (!hasFq) return !!s.inTable && Number(s.workstation_preset_id) === Number(preset.id);
-      return evaluateQuery(s, fq!, ctx);
+      return !!s.inTable && Number(s.workstation_preset_id) === pid;
     });
   };
 
