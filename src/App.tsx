@@ -10687,6 +10687,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return result;
   }, [strips, myPresetConfig?.conflict_alt_delta]);
 
+  // Table-mode altitude conflict detection: compare all strips visible on the board pairwise.
+  const tableStripConflictIds = React.useMemo(() => {
+    if (!tableMode) return new Set<string>();
+    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const result = new Set<string>();
+    if (delta <= 0) return result;
+    const parseAltVal = (alt: string | null | undefined): number | null => {
+      if (!alt) return null;
+      const m = alt.match(/\d+/);
+      return m ? parseInt(m[0]) : null;
+    };
+    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    for (let i = 0; i < boardStrips.length; i++) {
+      const a = boardStrips[i];
+      const altA = parseAltVal(a.alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < boardStrips.length; j++) {
+        const b = boardStrips[j];
+        const altB = parseAltVal(b.alt);
+        if (altB == null) continue;
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+          result.add(String(a.id));
+          result.add(String(b.id));
+        }
+      }
+    }
+    return result;
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
+
   const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
@@ -14539,7 +14568,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isRowDeviationAck = !!s.block_deviation;
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
+                    const isRowAltConflict = tableStripConflictIds.has(String(s.id));
                     const rowBg = isDragOver ? '#1d4ed8'
+                      : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isRowDeviationAckEff ? (lightMode ? '#fff0e0' : '#3d1508')
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
@@ -14548,7 +14579,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <tr
                         key={s.id}
                         data-strip-id={s.id}
-                        className={isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : undefined}
+                        className={isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : undefined)}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -14590,7 +14621,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : (lightMode ? '1px solid #e2e8f0' : '1px solid #1e293b'),
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowAltConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #e2e8f0' : '1px solid #1e293b'),
+                          outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
@@ -14611,6 +14643,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                             <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
+                            {isRowAltConflict && (
+                              <span title="קונפליקט גובה עם פ״מ אחר בלוח" style={{ fontSize: '9px', background: '#ef4444', color: 'white', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3, fontWeight: 'bold' }}>⚠️</span>
+                            )}
                             {isPendingTransfer && (
                               <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>ממתין ⏳</span>
                             )}
