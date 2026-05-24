@@ -3322,8 +3322,6 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-  const [dragReady, setDragReady] = useState(false);
-  const dragReadyTimerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
@@ -3589,19 +3587,11 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           onPointerDown={e => {
             e.preventDefault();
             e.stopPropagation();
-            if (dragReady) {
-              if (dragReadyTimerRef.current) clearTimeout(dragReadyTimerRef.current);
-              setDragReady(false);
-              handlePointerDown(e);
-            } else {
-              setDragReady(true);
-              if (dragReadyTimerRef.current) clearTimeout(dragReadyTimerRef.current);
-              dragReadyTimerRef.current = setTimeout(() => setDragReady(false), 3000);
-            }
+            handlePointerDown(e);
           }}
-          title={dragReady ? 'גרור כעת' : 'לחץ לאפשר גרירה'}
-          style={{ cursor: dragReady ? 'grab' : 'pointer', color: dragReady ? '#f59e0b' : 'white', background: dragReady ? '#78350f' : 'transparent', fontSize: '13px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', width: '100%' }}
-        >{dragReady ? '✥' : '⋮'}</div>
+          title="גרור להזזה"
+          style={{ cursor: 'grab', color: 'white', fontSize: '13px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', width: '100%' }}
+        >⋮</div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
