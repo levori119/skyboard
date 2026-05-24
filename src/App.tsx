@@ -10687,35 +10687,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return result;
   }, [strips, myPresetConfig?.conflict_alt_delta]);
 
-  // Table-mode altitude conflict detection: compare all strips visible on the board pairwise.
-  const tableStripConflictIds = React.useMemo(() => {
-    if (!tableMode) return new Set<string>();
-    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
-    const result = new Set<string>();
-    if (delta <= 0) return result;
-    const parseAltVal = (alt: string | null | undefined): number | null => {
-      if (!alt) return null;
-      const m = alt.match(/\d+/);
-      return m ? parseInt(m[0]) : null;
-    };
-    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
-    for (let i = 0; i < boardStrips.length; i++) {
-      const a = boardStrips[i];
-      const altA = parseAltVal(a.alt);
-      if (altA == null) continue;
-      for (let j = i + 1; j < boardStrips.length; j++) {
-        const b = boardStrips[j];
-        const altB = parseAltVal(b.alt);
-        if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
-          result.add(String(a.id));
-          result.add(String(b.id));
-        }
-      }
-    }
-    return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
-
   const activeAirfield = isGroundMode ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
   React.useEffect(() => {
@@ -10785,6 +10756,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     );
     return assigned.length ? [...myStrips, ...assigned] : myStrips;
   })();
+
+  // Table-mode altitude conflict detection — must be after myTableStrips declaration
+  const tableStripConflictIds = React.useMemo(() => {
+    if (!tableMode) return new Set<string>();
+    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const result = new Set<string>();
+    if (delta <= 0) return result;
+    const parseAltVal = (alt: string | null | undefined): number | null => {
+      if (!alt) return null;
+      const m = alt.match(/\d+/);
+      return m ? parseInt(m[0]) : null;
+    };
+    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    for (let i = 0; i < boardStrips.length; i++) {
+      const a = boardStrips[i];
+      const altA = parseAltVal(a.alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < boardStrips.length; j++) {
+        const b = boardStrips[j];
+        const altB = parseAltVal(b.alt);
+        if (altB == null) continue;
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+          result.add(String(a.id));
+          result.add(String(b.id));
+        }
+      }
+    }
+    return result;
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
