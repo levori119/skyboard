@@ -9537,27 +9537,27 @@ const AdminDashboard: React.FC<{
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: lightMode ? 'rgba(241,245,249,0.97)' : 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: '1px solid #334155', background: '#0f172a', flexShrink: 0 }}>
-        <span style={{ fontSize: '17px', fontWeight: 'bold', color: 'white' }}>📊 דש בורד מנהל</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#ffffff' : '#0f172a', flexShrink: 0 }}>
+        <span style={{ fontSize: '17px', fontWeight: 'bold', color: lightMode ? '#0f172a' : 'white' }}>📊 דש בורד מנהל</span>
         {groups.length > 1 && groups.map((g: any) => (
           <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
-            style={{ background: selectedGroupId === g.id ? '#3b82f6' : '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}>
+            style={{ background: selectedGroupId === g.id ? '#3b82f6' : (lightMode ? '#e2e8f0' : '#334155'), color: selectedGroupId === g.id ? 'white' : (lightMode ? '#334155' : 'white'), border: 'none', borderRadius: '6px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}>
             {g.name}
           </button>
         ))}
-        {groups.length === 1 && <span style={{ color: '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
+        {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ color: '#64748b', fontSize: '12px' }}>{n} עמדות</span>
-          <button onClick={onClose} style={{ background: '#334155', color: 'white', border: '1px solid #475569', borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
+          <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
+          <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
         </div>
       </div>
 
       {/* Cards grid */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '14px', alignContent: n > 0 ? 'start' : 'center' }}>
         {n === 0 && (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#64748b', padding: '60px', fontSize: '14px' }}>
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', color: lightMode ? '#475569' : '#64748b', padding: '60px', fontSize: '14px' }}>
             אין עמדות בקבוצה. הוסף עמדות בלשונית "קבוצות עבודה" בניהול.
           </div>
         )}
@@ -9575,14 +9575,14 @@ const AdminDashboard: React.FC<{
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
-              style={{ background: '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '230px' }}
+              style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '230px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}
             >
               {/* Card header — always visible */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>{preset.name}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white' }}>{preset.name}</div>
                 {isOpen && (
                   <button onClick={() => toggleDrilldown(preset.id)}
-                    style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
+                    style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#475569' : '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
                     ✕
                   </button>
                 )}
@@ -9610,54 +9610,56 @@ const AdminDashboard: React.FC<{
                     const weapons: any[] = Array.isArray(s.weapons) ? s.weapons : [];
                     const customFields = (s.custom_fields && typeof s.custom_fields === 'object') ? s.custom_fields : {};
                     if (col.isCustom || key.startsWith('custom_')) {
-                      return <span style={{ color: '#e2e8f0' }}>{customFields[key] || '—'}</span>;
+                      return <span style={{ color: lightMode ? '#334155' : '#e2e8f0' }}>{customFields[key] || '—'}</span>;
                     }
                     const formationName = `${s.callSign || ''}${s.numberOfFormation && Number(s.numberOfFormation) > 1 ? ` ${s.numberOfFormation}` : ''}`;
+                    const muted = lightMode ? '#64748b' : '#94a3b8';
+                    const body = lightMode ? '#1e293b' : 'white';
                     switch (key) {
                       case 'callSign': case 'call_sign':
-                        return <span style={{ fontWeight: 'bold', color: s.airborne ? '#60a5fa' : 'white', whiteSpace: 'nowrap' }}>
-                          {s.airborne ? <span style={{ background: '#1d4ed8', borderRadius: '3px', padding: '1px 5px' }}>{formationName}</span> : formationName}
+                        return <span style={{ fontWeight: 'bold', color: s.airborne ? (lightMode ? '#1d4ed8' : '#60a5fa') : body, whiteSpace: 'nowrap' }}>
+                          {s.airborne ? <span style={{ background: lightMode ? '#dbeafe' : '#1d4ed8', borderRadius: '3px', padding: '1px 5px' }}>{formationName}</span> : formationName}
                         </span>;
                       case 'squadron': case 'sq':
-                        return <span style={{ color: '#a78bfa' }}>{s.sq || s.squadron || '—'}</span>;
+                        return <span style={{ color: lightMode ? '#7c3aed' : '#a78bfa' }}>{s.sq || s.squadron || '—'}</span>;
                       case 'alt':
-                        return <span style={{ color: '#fbbf24', whiteSpace: 'nowrap' }}>{s.alt || '—'}</span>;
+                        return <span style={{ color: lightMode ? '#b45309' : '#fbbf24', whiteSpace: 'nowrap' }}>{s.alt || '—'}</span>;
                       case 'task': case 'mivtza':
-                        return <span style={{ color: '#94a3b8' }}>{s.task || s.mivtza || '—'}</span>;
+                        return <span style={{ color: muted }}>{s.task || s.mivtza || '—'}</span>;
                       case 'koteret':
-                        return <span style={{ color: '#94a3b8' }}>{s.koteret || '—'}</span>;
+                        return <span style={{ color: muted }}>{s.koteret || '—'}</span>;
                       case 'erka':
-                        return <span style={{ color: '#94a3b8' }}>{s.erka || '—'}</span>;
+                        return <span style={{ color: muted }}>{s.erka || '—'}</span>;
                       case 'weapons':
-                        return <span style={{ color: '#fbbf24', fontSize: '11px' }}>
+                        return <span style={{ color: lightMode ? '#b45309' : '#fbbf24', fontSize: '11px' }}>
                           {weapons.length === 0 ? '—' : weapons.map((w: any, i: number) => (
                             <div key={i}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
                           ))}
                         </span>;
                       case 'notes':
-                        return <span style={{ color: '#64748b', fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{s.notes || '—'}</span>;
+                        return <span style={{ color: muted, fontSize: '11px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{s.notes || '—'}</span>;
                       case 'targets':
-                        return <span style={{ color: '#86efac', fontSize: '11px' }}>{(Array.isArray(s.targets) ? s.targets : []).map((t: any) => t.name || t).join(', ') || '—'}</span>;
+                        return <span style={{ color: lightMode ? '#15803d' : '#86efac', fontSize: '11px' }}>{(Array.isArray(s.targets) ? s.targets : []).map((t: any) => t.name || t).join(', ') || '—'}</span>;
                       case 'status':
-                        return <span style={{ color: '#94a3b8' }}>{s.status || '—'}</span>;
+                        return <span style={{ color: muted }}>{s.status || '—'}</span>;
                       default:
-                        return <span style={{ color: '#94a3b8' }}>{s[key] || '—'}</span>;
+                        return <span style={{ color: muted }}>{s[key] || '—'}</span>;
                     }
                   };
 
                   return (
                     <div style={{ flex: 1, overflowY: 'auto', maxHeight: '400px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', paddingBottom: '4px', marginBottom: '4px', borderBottom: '1px solid #334155' }}>
-                        {`${presetStrips.length} פ״מ`}{activeMode ? <span style={{ marginRight: '8px', color: '#475569' }}>| {activeMode.name}</span> : null}
+                      <div style={{ fontSize: '11px', color: lightMode ? '#475569' : '#64748b', paddingBottom: '4px', marginBottom: '4px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
+                        {`${presetStrips.length} פ״מ`}{activeMode ? <span style={{ marginRight: '8px', color: lightMode ? '#64748b' : '#475569' }}>| {activeMode.name}</span> : null}
                       </div>
                       {presetStrips.length === 0 ? (
-                        <div style={{ textAlign: 'center', color: '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
+                        <div style={{ textAlign: 'center', color: lightMode ? '#475569' : '#64748b', padding: '24px', fontSize: '13px' }}>אין פ״מ לתצוגה</div>
                       ) : (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', direction: 'rtl' }}>
                           <thead>
-                            <tr style={{ background: '#0f172a', color: '#64748b' }}>
+                            <tr style={{ background: lightMode ? '#f1f5f9' : '#0f172a', color: lightMode ? '#475569' : '#64748b' }}>
                               {columns.map((col: any) => (
-                                <th key={col.key || col.field} style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>
+                                <th key={col.key || col.field} style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 'normal', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, whiteSpace: 'nowrap' }}>
                                   {col.label || col.key}
                                 </th>
                               ))}
@@ -9665,9 +9667,9 @@ const AdminDashboard: React.FC<{
                           </thead>
                           <tbody>
                             {presetStrips.map((s: any, idx: number) => {
-                              const rowBg = idx % 2 === 0 ? '#1e293b' : '#0f172a';
+                              const rowBg = lightMode ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : (idx % 2 === 0 ? '#1e293b' : '#0f172a');
                               return (
-                                <tr key={s.id} style={{ background: rowBg, borderBottom: '1px solid #1e2d3f' }}>
+                                <tr key={s.id} style={{ background: rowBg, borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3f'}` }}>
                                   {columns.map((col: any) => (
                                     <td key={col.key || col.field} style={{ padding: '5px 6px' }}>
                                       {renderDashCell(s, col)}
@@ -9698,19 +9700,19 @@ const AdminDashboard: React.FC<{
                     </div>
                   </div>
                   {/* Editable thresholds */}
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
-                    <span style={{ fontSize: '11px', color: '#94a3b8' }}>סף:</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
+                    <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>סף:</span>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#f97316' }}>
                       🟠
                       <input type="number" min={1} max={99} value={partialVal}
                         onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: Number(e.target.value), full: prev[preset.id]?.full ?? (preset.full_load ?? 5) } }))}
-                        style={{ width: '38px', background: '#1e293b', color: '#f97316', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                        style={{ width: '38px', background: lightMode ? '#ffffff' : '#1e293b', color: '#f97316', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: '#ef4444' }}>
                       🔴
                       <input type="number" min={1} max={99} value={fullVal}
                         onChange={e => setThresholds(prev => ({ ...prev, [preset.id]: { partial: prev[preset.id]?.partial ?? (preset.partial_load ?? 3), full: Number(e.target.value) } }))}
-                        style={{ width: '38px', background: '#1e293b', color: '#ef4444', border: '1px solid #475569', borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
+                        style={{ width: '38px', background: lightMode ? '#ffffff' : '#1e293b', color: '#ef4444', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', padding: '2px 4px', fontSize: '12px', textAlign: 'center' }} />
                     </label>
                     {hasEdit && (
                       <button onClick={() => saveThresholds(preset)}
