@@ -10255,17 +10255,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isFlightZonesMode || !fzDragStripId || !currentMapId) return;
+    const dragId = fzDragStripId;
+    const dragLabel = fzDragLabel;
+    if (!isFlightZonesMode || !dragId || !currentMapId) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
-    const pxInMap = ((dropX - mapPan.x) / mapZoom / rect.width) * 100;
-    const pyInMap = ((dropY - mapPan.y) / mapZoom / rect.height) * 100;
+    // Map uses transform: translate(panX,panY) scale(zoom) with transformOrigin: center center
+    const zoom = mapZoomRef.current;
+    const pan = mapPanRef.current;
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const contentX = cx + (dropX - pan.x - cx) / zoom;
+    const contentY = cy + (dropY - pan.y - cy) / zoom;
+    const pxInMap = (contentX / rect.width) * 100;
+    const pyInMap = (contentY / rect.height) * 100;
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
     if (!zone) { setFzDragStripId(null); setFzDragLabel(null); return; }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    setFzDialog({ stripId: fzDragStripId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'planned', note: '', displayLabel: fzDragLabel ?? undefined });
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'planned', note: '', displayLabel: dragLabel ?? undefined });
     setFzDragStripId(null);
     setFzDragLabel(null);
   };
@@ -14770,11 +14779,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               />
             ))}
 
-            {/* Flight Zones Drop Overlay — covers full map, accepts drops in flight zones mode */}
-            {isFlightZonesMode && fzDragStripId && (
+            {/* Flight Zones Drop Overlay — always rendered in FZ mode so dragenter fires reliably */}
+            {isFlightZonesMode && (
               <div
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'copy', background: 'rgba(14,165,233,0.06)', border: '2px dashed #0ea5e9', borderRadius: '4px', pointerEvents: 'all' }}
-                onDragOver={e => e.preventDefault()}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: fzDragStripId ? 'copy' : 'default', background: fzDragStripId ? 'rgba(14,165,233,0.06)' : 'transparent', border: fzDragStripId ? '2px dashed #0ea5e9' : 'none', borderRadius: '4px', pointerEvents: fzDragStripId ? 'all' : 'none' }}
+                onDragOver={e => { if (fzDragStripId) e.preventDefault(); }}
                 onDrop={handleFzMapDrop}
               />
             )}
