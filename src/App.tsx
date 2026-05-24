@@ -4982,26 +4982,29 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     });
     const useTimeWindow = datkShowMinutes != null && datkShowMinutes > 0;
     const windowMs = useTimeWindow ? datkShowMinutes! * 60 * 1000 : null;
+    const dbgRows: any[] = [];
     strips.forEach((strip: any) => {
       // If time-window filter is active, apply takeoff_time check
       if (useTimeWindow) {
-        if (!strip.takeoff_time) return;
+        if (!strip.takeoff_time) { dbgRows.push({ id: strip.id, skip: 'no_takeoff_time' }); return; }
         const takeoffMs = new Date(strip.takeoff_time).getTime();
         const diff = takeoffMs - nowMs;
-        if (diff < -(5 * 60 * 1000) || diff > windowMs!) return;
+        if (diff < -(5 * 60 * 1000) || diff > windowMs!) { dbgRows.push({ id: strip.id, skip: 'time_window', diff: Math.round(diff/60000)+'min', windowMin: datkShowMinutes }); return; }
       }
       const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
       const existingPositions = normalizeAircraftPositions(strip);
       acData.forEach((ac: GroundAircraftRow) => {
-        if (ac.datk == null) return;
         const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
+        const matchPt = ac.datk != null ? points.find((p: any) => pointDatkNum[p.id] === Number(ac.datk)) : undefined;
+        dbgRows.push({ stripId: strip.id, idx: ac.idx, datk: ac.datk, datkType: typeof ac.datk, existingPtId: existing?.point_id ?? null, matchPtId: matchPt?.id ?? null, pointDatkNums: pointDatkNum });
+        if (ac.datk == null) return;
         if (existing?.point_id) return;
-        const matchPt = points.find((p: any) => pointDatkNum[p.id] === Number(ac.datk));
         if (!matchPt) return;
         if (!result[String(strip.id)]) result[String(strip.id)] = {};
         result[String(strip.id)][ac.idx] = matchPt.id;
       });
     });
+    console.log('[datk-debug2]', { pointDatkNum, result, dbgRows: dbgRows.slice(0, 10), nowMs: new Date(nowMs).toLocaleTimeString() });
     return result;
   }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
 
