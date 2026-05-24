@@ -9824,6 +9824,21 @@ const AdminDashboard: React.FC<{
                       <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>עומס</div>
                     </div>
                   </div>
+                  {/* Load meter bar */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#22c55e' }}>
+                        {level === 'full' ? '🔴 עומס מלא' : level === 'partial' ? '🟠 עומס חלקי' : '⚪ תקין'}
+                      </span>
+                      <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{count} / {full}</span>
+                    </div>
+                    <div style={{ height: '7px', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius: '4px', overflow: 'hidden', position: 'relative' }}>
+                      <div style={{ height: '100%', width: `${full > 0 ? Math.min(100, (count / full) * 100) : 0}%`, background: level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#22c55e', borderRadius: '4px', transition: 'width 0.4s ease, background 0.4s ease' }} />
+                      {full > 0 && partial > 0 && partial < full && (
+                        <div style={{ position: 'absolute', top: 0, left: `${(partial / full) * 100}%`, height: '100%', width: '2px', background: '#f97316', opacity: 0.8 }} />
+                      )}
+                    </div>
+                  </div>
                   {/* Editable thresholds */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '6px 10px' }}>
                     <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>סף:</span>
@@ -11795,11 +11810,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleAcceptTransfer = async (transferId: string) => {
     const t = incomingTransfers.find((x: any) => String(x.id) === String(transferId));
     try {
-      await fetch(`${API_URL}/transfers/${transferId}/accept`, {
+      const res = await fetch(`${API_URL}/transfers/${transferId}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ receivingPresetId: session?.presetId ?? null })
       });
+      const data = res.ok ? await res.json() : {};
+      // Optimistic update: immediately place strip in table so it appears without waiting for loadData
+      if (t?.strip_id && session?.presetId) {
+        const stripKey = 's' + t.strip_id;
+        setStrips(prev => prev.map(s =>
+          String(s.id) === stripKey
+            ? { ...s, status: 'active', inTable: true, workstation_preset_id: session.presetId }
+            : s
+        ));
+        setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
+      }
       logActivity('transfer_accepted', {
         stripId: t?.strip_id ? String(t.strip_id) : undefined,
         stripCallsign: t?.callsign || t?.callSign,
