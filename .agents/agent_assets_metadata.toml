@@ -47,4 +47,10 @@ title = "SKY KING — קוד מלא (ZIP)"
 id = "_cvHr87d7nAtz_QUqfkbH"
 uri = "file://skyking_db.zip"
 type = "unspecified"
-title = "SKY KING — גיבוי מסד נתונים (SQL)"
+title = "SKY KING — ייצוא מסד נתונים (SQL)"
+
+[[outputs]]
+id = "hztlNYBU5VCHlFPg80Avo"
+uri = "file://skyking_code.zip"
+type = "unspecified"
+title = "SKY KING — קוד מקור מלא"
