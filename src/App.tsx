@@ -16066,11 +16066,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </div>
                               {showAddWgNote === gid && isAdmin && (
                                 <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', padding: '6px', marginBottom: '4px' }}>
-                                  <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
-                                    placeholder="כותרת..." style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                    <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
+                                      placeholder="כותרת..." style={{ flex: 1, padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                    <VKTrigger value={newWgNote.title} onChange={v => setNewWgNote(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
+                                  </div>
                                   <textarea value={newWgNote.content} onChange={e => setNewWgNote(v => ({...v, content: e.target.value}))}
                                     placeholder="תוכן..."
                                     rows={2} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                  <div style={{ marginBottom: '4px', textAlign: 'left' }}>
+                                    <VKTrigger value={newWgNote.content} onChange={v => setNewWgNote(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
+                                  </div>
                                   <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                                     <button onClick={async () => {
                                       await fetch(`${API_URL}/work-groups/${gid}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newWgNote.title, content: newWgNote.content, updated_by_name: session.crewMember?.name || '' }) });
@@ -16098,10 +16104,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', padding: '6px 8px' }}>
                                         {isEditingThis && isAdmin ? (
                                           <div>
-                                            <input value={wgNoteForm.title} onChange={e => setWgNoteForm(v => ({...v, title: e.target.value}))}
-                                              style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                              <input value={wgNoteForm.title} onChange={e => setWgNoteForm(v => ({...v, title: e.target.value}))}
+                                                style={{ flex: 1, padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                              <VKTrigger value={wgNoteForm.title} onChange={v => setWgNoteForm(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
+                                            </div>
                                             <textarea value={wgNoteForm.content} onChange={e => setWgNoteForm(v => ({...v, content: e.target.value}))}
                                               rows={3} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                            <div style={{ marginBottom: '4px', textAlign: 'left' }}>
+                                              <VKTrigger value={wgNoteForm.content} onChange={v => setWgNoteForm(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
+                                            </div>
                                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                                               <button onClick={async () => {
                                                 await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: wgNoteForm.title, content: wgNoteForm.content, updated_by_name: session.crewMember?.name || '' }) });
