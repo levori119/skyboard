@@ -9629,7 +9629,7 @@ const AdminDashboard: React.FC<{
     const type = preset.preset_type || 'standard';
     const fq: QGroup | null = preset.filter_query || null;
     const hasFq = hasConditions(fq);
-    const ctx = { presetId: preset.id, aviationBases };
+    const ctx = { presetId: preset.id, aviationBases: [] as any[] };
     return strips.filter(s => {
       if (s.status !== 'active') return false;
       if (type === 'ground' || type === 'airfield') {
