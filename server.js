@@ -1234,6 +1234,7 @@ app.post('/api/strips/import', async (req, res) => {
     let updated = 0;
     let skipped = 0;
     const errors = [];
+    const unresolvedAirfields = new Set();
     
     for (const strip of strips) {
       if (!strip.callSign) {
@@ -1267,6 +1268,16 @@ app.post('/api/strips/import', async (req, res) => {
         addField('parent_callsign', strip.parent_callsign);
         if (strip.takeoff_airfield_id != null) { updateParts.push(`takeoff_airfield_id = $${pi++}`); updateVals.push(strip.takeoff_airfield_id || null); }
         if (strip.landing_airfield_id != null) { updateParts.push(`landing_airfield_id = $${pi++}`); updateVals.push(strip.landing_airfield_id || null); }
+        if (strip.takeoff_airfield_name) {
+          const tbRes = await pool.query('SELECT id FROM aviation_bases WHERE LOWER(name)=LOWER($1) OR LOWER(code)=LOWER($1) LIMIT 1', [strip.takeoff_airfield_name]);
+          if (tbRes.rows.length > 0) { updateParts.push(`takeoff_airfield_id = $${pi++}`); updateVals.push(tbRes.rows[0].id); }
+          else { unresolvedAirfields.add(strip.takeoff_airfield_name); }
+        }
+        if (strip.landing_airfield_name) {
+          const lbRes = await pool.query('SELECT id FROM aviation_bases WHERE LOWER(name)=LOWER($1) OR LOWER(code)=LOWER($1) LIMIT 1', [strip.landing_airfield_name]);
+          if (lbRes.rows.length > 0) { updateParts.push(`landing_airfield_id = $${pi++}`); updateVals.push(lbRes.rows[0].id); }
+          else { unresolvedAirfields.add(strip.landing_airfield_name); }
+        }
         if (strip.weapons && strip.weapons.length > 0) { updateParts.push(`weapons = $${pi++}`); updateVals.push(JSON.stringify(strip.weapons)); }
         if (strip.targets && strip.targets.length > 0) { updateParts.push(`targets = $${pi++}`); updateVals.push(JSON.stringify(strip.targets)); }
         if (strip.systems && strip.systems.length > 0) { updateParts.push(`systems = $${pi++}`); updateVals.push(JSON.stringify(strip.systems)); }
@@ -1302,10 +1313,29 @@ app.post('/api/strips/import', async (req, res) => {
               strip.koteret || null,
               strip.mivtza || null,
               strip.parent_callsign || null,
-              strip.takeoff_airfield_id || null,
-              strip.landing_airfield_id || null
+              (() => { if (strip.takeoff_airfield_id) return strip.takeoff_airfield_id; return null; })(),
+              (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })()
             ]
           );
+          // Resolve airfield names for newly inserted strips
+          if (strip.takeoff_airfield_name || strip.landing_airfield_name) {
+            const updateAirfieldParts = [], updateAirfieldVals = [];
+            let api = 1;
+            if (strip.takeoff_airfield_name) {
+              const tbRes = await pool.query('SELECT id FROM aviation_bases WHERE LOWER(name)=LOWER($1) OR LOWER(code)=LOWER($1) LIMIT 1', [strip.takeoff_airfield_name]);
+              if (tbRes.rows.length > 0) { updateAirfieldParts.push(`takeoff_airfield_id = $${api++}`); updateAirfieldVals.push(tbRes.rows[0].id); }
+              else { unresolvedAirfields.add(strip.takeoff_airfield_name); }
+            }
+            if (strip.landing_airfield_name) {
+              const lbRes = await pool.query('SELECT id FROM aviation_bases WHERE LOWER(name)=LOWER($1) OR LOWER(code)=LOWER($1) LIMIT 1', [strip.landing_airfield_name]);
+              if (lbRes.rows.length > 0) { updateAirfieldParts.push(`landing_airfield_id = $${api++}`); updateAirfieldVals.push(lbRes.rows[0].id); }
+              else { unresolvedAirfields.add(strip.landing_airfield_name); }
+            }
+            if (updateAirfieldParts.length > 0) {
+              updateAirfieldVals.push(strip.callSign.toLowerCase());
+              await pool.query(`UPDATE strips SET ${updateAirfieldParts.join(', ')} WHERE LOWER(callsign) = $${api}`, updateAirfieldVals);
+            }
+          }
           existingMap.set(strip.callSign.toLowerCase(), true);
           imported++;
         } catch (err) {
@@ -1314,7 +1344,7 @@ app.post('/api/strips/import', async (req, res) => {
       }
     }
     
-    res.json({ imported, updated, skipped, errors });
+    res.json({ imported, updated, skipped, errors, unresolvedAirfields: [...unresolvedAirfields] });
   } catch (err) {
     console.error('Error importing strips:', err);
     res.status(500).json({ error: 'Failed to import strips' });

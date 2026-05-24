@@ -17717,7 +17717,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
-  const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[] } | null>(null);
+  const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[] } | null>(null);
   const [acImportResult, setAcImportResult] = useState<{ imported: number; skipped: number; errors: string[]; colMap?: string } | null>(null);
   const [acDiag, setAcDiag] = useState<{ cols: string[]; colCallsign?: string; colIdx?: string; colDatk?: string; colKipa?: string; colArmaments?: string; colSystems?: string; rowCount: number; mapped: any[] } | null>(null);
   const [globalStrips, setGlobalStrips] = useState<any[]>([]);
@@ -19328,10 +19328,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         const dateVal = getField(row, 'DATE', 'date', 'תאריך');
                         const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה');
                         const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
-                        const takeoffAirfieldName = getField(row, 'שדה המראה', 'takeoff_airfield', 'TAKEOFF_AIRFIELD', 'takeoff airfield');
-                        const landingAirfieldName = getField(row, 'שדה נחיתה', 'landing_airfield', 'LANDING_AIRFIELD', 'landing airfield');
-                        const takeoffBase = takeoffAirfieldName ? adminAviationBases.find((b: any) => b.name === takeoffAirfieldName || b.code === takeoffAirfieldName) : null;
-                        const landingBase = landingAirfieldName ? adminAviationBases.find((b: any) => b.name === landingAirfieldName || b.code === landingAirfieldName) : null;
+                        const takeoffAirfieldName = getField(row, 'שדה המראה', 'takeoff_airfield', 'TAKEOFF_AIRFIELD', 'takeoff airfield', 'שדההמראה');
+                        const landingAirfieldName = getField(row, 'שדה נחיתה', 'landing_airfield', 'LANDING_AIRFIELD', 'landing airfield', 'שדהנחיתה');
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
@@ -19346,8 +19344,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                           koteret: getField(row, 'koteret', 'כותרת', 'KOTERET'),
                           mivtza: getField(row, 'mivtza', 'מבצע', 'MIVTZA'),
                           parent_callsign: getField(row, 'parent_callsign', 'חלק מפ"מ', 'חלק מפמ', 'PARENT_CALLSIGN', 'parent callsign', 'חלק_מפמ'),
-                          takeoff_airfield_id: takeoffBase ? takeoffBase.id : null,
-                          landing_airfield_id: landingBase ? landingBase.id : null,
+                          takeoff_airfield_name: takeoffAirfieldName || null,
+                          landing_airfield_name: landingAirfieldName || null,
                           takeoff_time
                         };
                       });
@@ -19413,6 +19411,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     {csvImportResult.errors.length > 0 && (
                       <div style={{ color: '#dc2626', fontSize: '13px' }}>
                         שגיאות: {csvImportResult.errors.join(', ')}
+                      </div>
+                    )}
+                    {csvImportResult.unresolvedAirfields && csvImportResult.unresolvedAirfields.length > 0 && (
+                      <div style={{ color: '#f59e0b', fontSize: '13px', marginTop: '8px', padding: '8px 10px', background: '#1c1a0a', borderRadius: '5px', border: '1px solid #78350f' }}>
+                        ⚠️ שדות תעופה לא מזוהים (שם לא נמצא בבסיסי תעופה במערכת): <strong>{csvImportResult.unresolvedAirfields.join(', ')}</strong><br/>
+                        <span style={{ fontSize: '11px', color: '#d97706' }}>וודא שהשם בקובץ זהה לשם הבסיס כפי שמוגדר בלשונית "✈️ בסיסים"</span>
                       </div>
                     )}
                   </div>
