@@ -13962,13 +13962,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const saveTakeoffTime = async (val: string) => {
                       if (!val) {
                         setStrips(prev => prev.map(st => st.id === s.id ? { ...st, takeoffTime: null, takeoff_time: null } : st));
-                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoffTime: null }) });
+                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoff_time: null }) });
                       } else {
                         const [h, m] = val.split(':');
                         const now = new Date();
                         const iso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), Number(h), Number(m))).toISOString();
                         setStrips(prev => prev.map(st => st.id === s.id ? { ...st, takeoffTime: iso, takeoff_time: iso } : st));
-                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoffTime: iso }) });
+                        await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ takeoff_time: iso }) });
                       }
                     };
                     return (
