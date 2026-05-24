@@ -10390,6 +10390,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, []);
 
   const [showCrewSwap, setShowCrewSwap] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1' });
+  const [quickAddError, setQuickAddError] = useState('');
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
   const [lightMode, setLightMode] = useState(() => localStorage.getItem('bt-lightMode') === 'true');
 
