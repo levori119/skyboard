@@ -5189,8 +5189,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <button
                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                     title="קבל העברה"
-                    style={{ padding: '2px 6px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '3px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
-                    ✓
+                    style={{ padding: '2px 8px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '3px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}>
+                    קבל
                   </button>
                 </div>
                 <div style={{ fontSize: '9px', color: lightMode ? '#3b82f6' : '#60a5fa', opacity: 0.6, marginTop: '2px', textAlign: 'center' }}>גרור לנקודה במפה לקבלה ומיקום</div>
@@ -8054,7 +8054,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>קבל</button>
                                 </div>
                               ))
                             }
@@ -8094,7 +8094,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
-                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
+                                    style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>קבל</button>
                                 </div>
                               ))
                             }
