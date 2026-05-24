@@ -4982,29 +4982,26 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     });
     const useTimeWindow = datkShowMinutes != null && datkShowMinutes > 0;
     const windowMs = useTimeWindow ? datkShowMinutes! * 60 * 1000 : null;
-    const dbgRows: any[] = [];
     strips.forEach((strip: any) => {
       // If time-window filter is active, apply takeoff_time check
       if (useTimeWindow) {
-        if (!strip.takeoff_time) { dbgRows.push({ id: strip.id, skip: 'no_takeoff_time' }); return; }
+        if (!strip.takeoff_time) return;
         const takeoffMs = new Date(strip.takeoff_time).getTime();
         const diff = takeoffMs - nowMs;
-        if (diff < -(5 * 60 * 1000) || diff > windowMs!) { dbgRows.push({ id: strip.id, skip: 'time_window', diff: Math.round(diff/60000)+'min', windowMin: datkShowMinutes }); return; }
+        if (diff < -(5 * 60 * 1000) || diff > windowMs!) return;
       }
       const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
       const existingPositions = normalizeAircraftPositions(strip);
       acData.forEach((ac: GroundAircraftRow) => {
-        const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
-        const matchPt = ac.datk != null ? points.find((p: any) => pointDatkNum[p.id] === Number(ac.datk)) : undefined;
-        dbgRows.push({ stripId: strip.id, idx: ac.idx, datk: ac.datk, datkType: typeof ac.datk, existingPtId: existing?.point_id ?? null, matchPtId: matchPt?.id ?? null, pointDatkNums: pointDatkNum });
         if (ac.datk == null) return;
+        const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
         if (existing?.point_id) return;
+        const matchPt = points.find((p: any) => pointDatkNum[p.id] === Number(ac.datk));
         if (!matchPt) return;
         if (!result[String(strip.id)]) result[String(strip.id)] = {};
         result[String(strip.id)][ac.idx] = matchPt.id;
       });
     });
-    console.log('[datk-debug2]', { pointDatkNum, result, dbgRows: dbgRows.slice(0, 10), nowMs: new Date(nowMs).toLocaleTimeString() });
     return result;
   }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
 
@@ -6877,24 +6874,38 @@ const CLASSIC_STRIP_FIELDS = [
   { key: '', label: '— ריק —' },
   { key: 'callSign', label: 'או"ק' },
   { key: 'sq', label: 'טייסת' },
+  { key: 'numberOfFormation', label: 'מספר מצבה' },
   { key: 'alt', label: 'גובה' },
   { key: 'task', label: 'משימה' },
   { key: 'takeoff_time', label: 'שעת המראה' },
+  { key: 'airborne', label: 'מאוויר/קרקע' },
   { key: 'erka', label: 'ערקה' },
   { key: 'mivtza', label: 'מבצע' },
   { key: 'koteret', label: 'כותרת' },
-  { key: 'numberOfFormation', label: 'מספר מצבה' },
   { key: 'notes', label: 'הערות' },
+  { key: 'shkadia', label: 'שקדיה' },
+  { key: 'weapons', label: 'חימושים' },
+  { key: 'targets', label: 'מטרות' },
+  { key: 'systems', label: 'מערכות' },
+  { key: 'parent_callsign', label: 'או"ק פמ מקורי' },
+  { key: 'formation_notes', label: 'הערה לפמ' },
+  { key: 'takeoff_airfield', label: 'שדה המראה' },
+  { key: 'landing_airfield', label: 'שדה נחיתה' },
+  { key: 'sector', label: 'אזור' },
+  { key: 'status', label: 'סטטוס' },
+  { key: 'ground_status', label: 'סטטוס קרקע' },
   { key: 'sid', label: 'SID' },
   { key: 'star', label: 'STAR' },
 ];
 
-const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit }: {
+const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors }: {
   strip: any; rows: any[]; lightMode: boolean;
   onUpdateField?: (field: string, value: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   isDragging?: boolean;
   singleClickEdit?: boolean;
+  aviationBases?: any[];
+  allSectors?: any[];
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -6915,6 +6926,33 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
       const d = new Date(raw);
       if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
       return raw;
+    }
+    if (fieldKey === 'airborne') return strip.airborne ? 'מאוויר' : 'קרקע';
+    if (fieldKey === 'weapons') return (Array.isArray(strip.weapons) ? strip.weapons : []).map((w: any) => w.type || w.name || '').filter(Boolean).join(', ');
+    if (fieldKey === 'targets') return (Array.isArray(strip.targets) ? strip.targets : []).map((t: any) => t.name || '').filter(Boolean).join(', ');
+    if (fieldKey === 'systems') return (Array.isArray(strip.systems) ? strip.systems : []).map((s: any) => typeof s === 'string' ? s : (s.name || s.type || '')).filter(Boolean).join(', ');
+    if (fieldKey === 'takeoff_airfield') {
+      const id = strip.takeoff_airfield_id || strip.departure_base_id;
+      if (!id) return '';
+      const base = (aviationBases || []).find((b: any) => b.id === id || b.id === Number(id));
+      return base ? (base.code || base.name || String(id)) : String(id);
+    }
+    if (fieldKey === 'landing_airfield') {
+      const id = strip.landing_airfield_id || strip.landing_base_id;
+      if (!id) return '';
+      const base = (aviationBases || []).find((b: any) => b.id === id || b.id === Number(id));
+      return base ? (base.code || base.name || String(id)) : String(id);
+    }
+    if (fieldKey === 'sector') {
+      if (strip.sector_id) {
+        const sec = (allSectors || []).find((s: any) => s.id === strip.sector_id || s.id === Number(strip.sector_id));
+        return sec ? (sec.name || String(strip.sector_id)) : String(strip.sector_id);
+      }
+      return strip.sector || '';
+    }
+    if (fieldKey === 'status') {
+      const STATUS_HE: Record<string,string> = { queued: 'ממתין', active: 'פעיל', pending_transfer: 'בהעברה', completed: 'הושלם' };
+      return STATUS_HE[strip.status] || strip.status || '';
     }
     return strip[fieldKey] || '';
   };
@@ -7518,11 +7556,12 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
   allSectors: any[]; lightMode: boolean;
+  aviationBases?: any[];
   presetId?: number | string;
   crewMemberId?: number | null;
   initialPanelOrder?: { rightPartners: number[]; rightPoints: number[]; leftPartners: number[]; leftPoints: number[] } | null;
@@ -7792,7 +7831,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
@@ -7864,7 +7903,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
@@ -7950,7 +7989,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                     </div>
                   )}
                   <div data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                    <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)}
+                    <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)} aviationBases={aviationBases} allSectors={allSectors}
                       onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
                   </div>
                 </div>
@@ -8012,7 +8051,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
                               : ptIn.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                                     style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
@@ -8052,7 +8091,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
                               : ptT.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} />
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                                     style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', width: '22px', height: '22px', borderRadius: '50%', background: '#166534', color: '#86efac', border: 'none', fontSize: '13px', lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>✓</button>
@@ -13319,6 +13358,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 transferPoints={tfrPts}
                 partnerPresets={isNewClassic ? partnerPresets : undefined}
                 allSectors={allSectors}
+                aviationBases={aviationBases}
                 lightMode={lightMode}
                 presetId={session.presetId}
                 crewMemberId={session?.crewMember?.id ?? null}
