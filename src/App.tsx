@@ -5988,18 +5988,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
             const elColor = el.type_color || '#f59e0b';
-            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
+            const isTakul = el.status === 'תקול';
+            const isShamish = el.status === 'שמיש';
             const pos = imgBounds
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             return (
               <div key={el.id} style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 12, textAlign: 'center' }}
-                title={`${el.name}${el.note ? ` — ${el.note}` : ''}`}>
-                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: elColor, border: `2px solid ${sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto' }}>
-                  {el.type_icon || '🔧'}
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}`}>
+                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isTakul ? '#ef4444' : elColor, border: isShamish ? '4px solid #22c55e' : `2px solid ${sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto' }}>
+                  {!isTakul && (el.type_icon || '🔧')}
                 </div>
-                <div style={{ background: '#000000cc', color: elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
+                <div style={{ background: '#000000cc', color: isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
               </div>
             );
           })}
@@ -6568,8 +6570,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
       {/* Element edit modal */}
       {elemEditModal && (() => {
-        const ELEM_STATUS_OPTS = ['תקין', 'לא תקין', 'חלקי'];
-        const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+        const ELEM_STATUS_OPTS = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+        const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const el = elemEditModal.el;
         const save = async () => {
           if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note });
@@ -15793,9 +15795,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                 {/* Airfield elements — bottom third, only in ground mode */}
                 {isGroundMode && airfieldElements && airfieldElements.length > 0 && (() => {
-                  const ELEM_STATUS_CYCLE = ['תקין', 'לא תקין', 'חלקי'];
-                  const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
-                  const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'לא תקין': '#7f1d1d', 'חלקי': '#431407' };
+                  const ELEM_STATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+                  const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+                  const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'שמיש': '#14532d', 'לא תקין': '#7f1d1d', 'תקול': '#7f1d1d', 'חלקי': '#431407' };
                   const catMap: Record<string, any[]> = {};
                   for (const el of airfieldElements) {
                     const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
@@ -21636,7 +21638,7 @@ CHARLIE,1,301,`}
                         </div>
                         <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                           {(() => {
-                            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+                            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
                             const catMap: Record<string, any[]> = {};
                             for (const el of adminAirfieldElements) {
                               const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
@@ -21681,7 +21683,7 @@ CHARLIE,1,301,`}
                                 {adminElementTypes.map(et => <option key={et.id} value={et.id}>{et.icon} {et.name}</option>)}
                               </select>
                               <select value={elementForm.status} onChange={e => setElementForm(p => ({ ...p, status: e.target.value }))} style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                <option>תקין</option><option>לא תקין</option><option>חלקי</option>
+                                <option>תקין</option><option>שמיש</option><option>חלקי</option><option>לא תקין</option><option>תקול</option>
                               </select>
                               <textarea value={elementForm.note} onChange={e => setElementForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה (אופציונלי)" rows={2} style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none' }} />
                               <div style={{ display: 'flex', gap: '4px' }}>
@@ -22027,10 +22029,11 @@ CHARLIE,1,301,`}
                       const pos = adminMapImgBounds
                         ? { left: `${adminMapImgBounds.left + (el.x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (el.y_pct / 100) * adminMapImgBounds.height}px` }
                         : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
-                      const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316' };
+                      const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+                      const isTakul = el.status === 'תקול'; const isShamish = el.status === 'שמיש';
                       return (
                         <div key={el.id} style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 8, textAlign: 'center' }}>
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>{el.type_icon || '🔧'}</div>
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: isTakul ? '#ef4444' : el.type_color || '#f59e0b', border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>{!isTakul && (el.type_icon || '🔧')}</div>
                           <div style={{ background: '#000000cc', color: el.type_color || '#f59e0b', fontSize: '7px', fontWeight: 'bold', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.name}</div>
                         </div>
                       );
