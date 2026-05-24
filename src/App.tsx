@@ -19328,6 +19328,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         const dateVal = getField(row, 'DATE', 'date', 'תאריך');
                         const timeVal = getField(row, 'TAKEOFF TIME', 'takeoff_time', 'takeoff time', 'time', 'זמן המראה', 'המראה');
                         const takeoff_time = parseTakeoffDatetime(dateVal, timeVal);
+                        const takeoffAirfieldName = getField(row, 'שדה המראה', 'takeoff_airfield', 'TAKEOFF_AIRFIELD', 'takeoff airfield');
+                        const landingAirfieldName = getField(row, 'שדה נחיתה', 'landing_airfield', 'LANDING_AIRFIELD', 'landing airfield');
+                        const takeoffBase = takeoffAirfieldName ? adminAviationBases.find((b: any) => b.name === takeoffAirfieldName || b.code === takeoffAirfieldName) : null;
+                        const landingBase = landingAirfieldName ? adminAviationBases.find((b: any) => b.name === landingAirfieldName || b.code === landingAirfieldName) : null;
                         return {
                           callSign: getField(row, 'callSign', 'call_sign', 'קריאה'),
                           sq: getField(row, 'sq', 'SQ', 'סקוודרון', 'squadron', 'טייסת'),
@@ -19342,6 +19346,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                           koteret: getField(row, 'koteret', 'כותרת', 'KOTERET'),
                           mivtza: getField(row, 'mivtza', 'מבצע', 'MIVTZA'),
                           parent_callsign: getField(row, 'parent_callsign', 'חלק מפ"מ', 'חלק מפמ', 'PARENT_CALLSIGN', 'parent callsign', 'חלק_מפמ'),
+                          takeoff_airfield_id: takeoffBase ? takeoffBase.id : null,
+                          landing_airfield_id: landingBase ? landingBase.id : null,
                           takeoff_time
                         };
                       });
@@ -19371,7 +19377,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </button>
                   <button
                     onClick={() => {
-                      const headers = ['callSign', 'sq', 'NUMBEROFFORMATION', 'alt', 'task', 'DATE', 'TAKEOFF TIME', 'חלק מפ"מ', 'weapons', 'targets', 'systems', 'shkadia', 'erka', 'koteret', 'mivtza'];
+                      const headers = ['callSign', 'sq', 'NUMBEROFFORMATION', 'alt', 'task', 'DATE', 'TAKEOFF TIME', 'חלק מפ"מ', 'weapons', 'targets', 'systems', 'shkadia', 'erka', 'koteret', 'mivtza', 'שדה המראה', 'שדה נחיתה'];
                       const example1 = ['BLUE01', '69', '2', 'FL350', 'CAP', '23/03/2026', '0630', '', 'AIM120:4; AIM9:2', 'TANGO1:IP_NORTH', 'LANTIRN; EW', '', '', '', ''];
                       const example2 = ['BLUE02', '69', '2', 'FL350', 'CAP', '23/03/2026', '0630', 'BLUE01', 'AIM120:4; AIM9:2', 'TANGO1:IP_NORTH', 'LANTIRN; EW', '', '', '', ''];
                       const example3 = ['HAWK23', '105', '1', 'FL280', 'ESCORT', '23/03/2026', '0800', '', '', '', 'FLIR', '', '', '', ''];
@@ -19431,7 +19437,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>weapons</code> — חימושים, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>סוג1:כמות1; סוג2:כמות2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>targets</code> — מטרות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>שם מטרה:נ.מכוון; מטרה2:נ.מכוון2</code><br/>
                     <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>systems</code> — מערכות, פורמט: <code style={{background:'#1e293b', padding:'1px 6px', borderRadius:'3px'}}>מערכת1; מערכת2</code><br/>
-                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> — שקדיה (טקסט חופשי)
+                    <code style={{background:'#334155', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>shkadia</code> — שקדיה (טקסט חופשי)<br/>
+                    <code style={{background:'#0c4a6e', color:'#7dd3fc', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>שדה המראה</code> — שם שדה ההמראה (חייב להתאים לשם בסיס תעופה מוגדר במערכת; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>takeoff_airfield</code>)<br/>
+                    <code style={{background:'#0c4a6e', color:'#7dd3fc', padding:'1px 6px', borderRadius:'3px', marginLeft:'8px'}}>שדה נחיתה</code> — שם שדה הנחיתה (חייב להתאים לשם בסיס תעופה מוגדר במערכת; גם: <code style={{background:'#1e293b', padding:'1px 4px', borderRadius:'3px'}}>landing_airfield</code>)
                   </div>
                   <div style={{marginTop:'10px', padding:'10px 14px', background:'#0c2218', border:'1px solid #16a34a', borderRadius:'6px', fontSize:'12px', color:'#86efac', lineHeight:'1.7'}}>
                     <strong>💡 שימוש בעמודת "חלק מפ"מ":</strong><br/>

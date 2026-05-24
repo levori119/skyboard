@@ -1265,6 +1265,8 @@ app.post('/api/strips/import', async (req, res) => {
         addField('koteret', strip.koteret);
         addField('mivtza', strip.mivtza);
         addField('parent_callsign', strip.parent_callsign);
+        if (strip.takeoff_airfield_id != null) { updateParts.push(`takeoff_airfield_id = $${pi++}`); updateVals.push(strip.takeoff_airfield_id || null); }
+        if (strip.landing_airfield_id != null) { updateParts.push(`landing_airfield_id = $${pi++}`); updateVals.push(strip.landing_airfield_id || null); }
         if (strip.weapons && strip.weapons.length > 0) { updateParts.push(`weapons = $${pi++}`); updateVals.push(JSON.stringify(strip.weapons)); }
         if (strip.targets && strip.targets.length > 0) { updateParts.push(`targets = $${pi++}`); updateVals.push(JSON.stringify(strip.targets)); }
         if (strip.systems && strip.systems.length > 0) { updateParts.push(`systems = $${pi++}`); updateVals.push(JSON.stringify(strip.systems)); }
@@ -1283,7 +1285,7 @@ app.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign, takeoff_airfield_id, landing_airfield_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
             [
               strip.callSign,
               strip.sq || '',
@@ -1299,7 +1301,9 @@ app.post('/api/strips/import', async (req, res) => {
               strip.erka || null,
               strip.koteret || null,
               strip.mivtza || null,
-              strip.parent_callsign || null
+              strip.parent_callsign || null,
+              strip.takeoff_airfield_id || null,
+              strip.landing_airfield_id || null
             ]
           );
           existingMap.set(strip.callSign.toLowerCase(), true);
