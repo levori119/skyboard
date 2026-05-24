@@ -9730,6 +9730,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
+  const [fzShowZones, setFzShowZones] = useState(false);
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
@@ -14656,7 +14657,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
 
             {/* Map Zones Overlay */}
-            {mapZones.length > 0 && !isFlightZonesMode && (
+            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
                 {mapZones.map(zone => (
                   <g key={zone.id}>
@@ -14795,8 +14796,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           {/* Flight Zones status bar */}
           {isFlightZonesMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 60, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)' }}>
-              ✈️ מוד הקצאת אזורים — {stripZoneAssignments.length} מוקצים מתוך {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}
+            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 60, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
+              <span>✈️ מוד הקצאת אזורים — {stripZoneAssignments.length} מוקצים מתוך {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
+              <button
+                onClick={() => setFzShowZones(v => !v)}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+              >
+                {fzShowZones ? '🗺 הסתר אזורים' : '🗺 הצג אזורים'}
+              </button>
             </div>
           )}
 
