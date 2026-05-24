@@ -3328,6 +3328,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
   const bodyTouchRef = useRef<{ startX: number; startY: number; cleanup: () => void } | null>(null);
+  const bodyDragReadyRef = useRef(false);
+  const [bodyDragReady, setBodyDragReady] = useState(false);
   const [contextMenu, setContextMenu] = useState<{x: number; y: number} | null>(null);
   const [serialRowMenu, setSerialRowMenu] = useState<{x: number; y: number; station: string; latestSerialId: number; specificSerialId?: number} | null>(null);
   const [expandedStationHistory, setExpandedStationHistory] = useState<string | null>(null);
@@ -3583,16 +3585,30 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     if ((e.target as HTMLElement).closest('button, input, textarea, select')) return;
     const startX = e.clientX;
     const startY = e.clientY;
+    bodyDragReadyRef.current = false;
+
+    const longPressTimer = setTimeout(() => {
+      if (!bodyTouchRef.current) return;
+      bodyDragReadyRef.current = true;
+      setBodyDragReady(true);
+      if (navigator.vibrate) navigator.vibrate(60);
+    }, 2000);
 
     const onMove = (me: PointerEvent) => {
       if (!bodyTouchRef.current) return;
-      if (Math.abs(me.clientX - startX) > 8 || Math.abs(me.clientY - startY) > 8) {
-        bodyTouchRef.current.cleanup();
-        bodyTouchRef.current = null;
+      if (bodyDragReadyRef.current) {
+        cleanup();
         handlePointerDown({ clientX: startX, clientY: startY, preventDefault: () => {}, stopPropagation: () => {} } as any);
+        return;
+      }
+      if (Math.abs(me.clientX - startX) > 10 || Math.abs(me.clientY - startY) > 10) {
+        cleanup();
       }
     };
     const cleanup = () => {
+      clearTimeout(longPressTimer);
+      bodyDragReadyRef.current = false;
+      setBodyDragReady(false);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
@@ -3613,7 +3629,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={style} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
+    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={{ ...style, outline: bodyDragReady ? '3px solid #22c55e' : undefined, transition: 'outline 0.15s' }} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
       <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div
           onPointerDown={e => {
