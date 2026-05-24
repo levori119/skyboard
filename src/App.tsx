@@ -18214,6 +18214,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     }));
   };
 
+  const duplicatePreset = async (preset: any) => {
+    try {
+      const res = await fetch(`${API_URL}/workstation-presets/${preset.id}/duplicate`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'שגיאה לא ידועה' }));
+        alert(`שגיאה בשכפול: ${err.error || 'שגיאה לא ידועה'}`);
+        return;
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Failed to duplicate preset:', err);
+      alert('שגיאה בחיבור לשרת');
+    }
+  };
+
   const deletePreset = async (id: number) => {
     if (!confirm('למחוק עמדה זו?')) return;
     try {
@@ -18952,6 +18967,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   <button onClick={() => editPreset(preset)} style={{ padding: '6px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>עריכה</button>
+                                  <button onClick={() => duplicatePreset(preset)} style={{ padding: '6px 15px', background: '#0f766e', color: '#99f6e4', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>⧉ שכפל</button>
                                   <button onClick={() => deletePreset(preset.id)} style={{ padding: '6px 15px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>מחיקה</button>
                                 </div>
                               </div>

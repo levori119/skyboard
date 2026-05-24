@@ -2530,6 +2530,26 @@ app.put('/api/workstation-presets/:id', async (req, res) => {
   }
 });
 
+app.post('/api/workstation-presets/:id/duplicate', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM workstation_presets WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Preset not found' });
+    const src = rows[0];
+    const newName = `${src.name} העתק`;
+    const result = await pool.query(
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard)
+       SELECT $1, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard
+       FROM workstation_presets WHERE id = $2 RETURNING *`,
+      [newName, req.params.id]
+    );
+    const row = result.rows[0];
+    res.json({ ...row, relevant_sectors: Array.isArray(row.relevant_sectors) ? row.relevant_sectors : JSON.parse(row.relevant_sectors || '[]') });
+  } catch (err) {
+    console.error('Error duplicating workstation preset:', err);
+    res.status(500).json({ error: 'Failed to duplicate workstation preset' });
+  }
+});
+
 app.delete('/api/workstation-presets/:id', async (req, res) => {
   try {
     // Unassign strips before deleting so the FK (NO ACTION) doesn't block
