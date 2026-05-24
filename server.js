@@ -682,6 +682,36 @@ async function initDb() {
     )
   `);
 
+  // zone_altitude_ranges — altitude ranges per map zone (for flight zones mode)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS zone_altitude_ranges (
+      id SERIAL PRIMARY KEY,
+      zone_id INTEGER NOT NULL REFERENCES map_zones(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL DEFAULT '',
+      alt_min INTEGER,
+      alt_max INTEGER,
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+
+  // strip_zone_assignments — strip assigned to a zone+altitude in flight zones mode
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_zone_assignments (
+      id SERIAL PRIMARY KEY,
+      strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+      zone_id INTEGER NOT NULL REFERENCES map_zones(id) ON DELETE CASCADE,
+      altitude_range_id INTEGER REFERENCES zone_altitude_ranges(id) ON DELETE SET NULL,
+      status VARCHAR(50) DEFAULT 'planned',
+      note TEXT DEFAULT '',
+      coordination_note TEXT DEFAULT '',
+      is_coordinated BOOLEAN DEFAULT false,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(strip_id)
+    )
+  `);
+
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id SERIAL PRIMARY KEY,
@@ -2170,6 +2200,71 @@ app.delete('/api/map-zones/:id', async (req, res) => {
   }
 });
 
+// Zone Altitude Ranges API
+app.get('/api/zone-altitude-ranges', async (req, res) => {
+  try {
+    const { zone_id } = req.query;
+    if (!zone_id) return res.status(400).json({ error: 'zone_id required' });
+    const result = await pool.query('SELECT * FROM zone_altitude_ranges WHERE zone_id = $1 ORDER BY sort_order, id', [zone_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/zone-altitude-ranges', async (req, res) => {
+  try {
+    const { zone_id, name, alt_min, alt_max, sort_order } = req.body;
+    const r = await pool.query('INSERT INTO zone_altitude_ranges (zone_id, name, alt_min, alt_max, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *', [zone_id, name || '', alt_min ?? null, alt_max ?? null, sort_order ?? 0]);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.put('/api/zone-altitude-ranges/:id', async (req, res) => {
+  try {
+    const { name, alt_min, alt_max, sort_order } = req.body;
+    const r = await pool.query('UPDATE zone_altitude_ranges SET name=$1, alt_min=$2, alt_max=$3, sort_order=$4 WHERE id=$5 RETURNING *', [name || '', alt_min ?? null, alt_max ?? null, sort_order ?? 0, req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/zone-altitude-ranges/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM zone_altitude_ranges WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Strip Zone Assignments API
+app.get('/api/strip-zone-assignments', async (req, res) => {
+  try {
+    const { map_id } = req.query;
+    if (!map_id) return res.status(400).json({ error: 'map_id required' });
+    const r = await pool.query(`
+      SELECT sza.*, mz.name AS zone_name, mz.color AS zone_color,
+             zar.name AS alt_range_name, zar.alt_min, zar.alt_max
+      FROM strip_zone_assignments sza
+      JOIN map_zones mz ON mz.id = sza.zone_id
+      LEFT JOIN zone_altitude_ranges zar ON zar.id = sza.altitude_range_id
+      WHERE mz.map_id = $1
+      ORDER BY sza.id`, [map_id]);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+app.post('/api/strip-zone-assignments', async (req, res) => {
+  try {
+    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated } = req.body;
+    const r = await pool.query(`
+      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, updated_at=NOW()
+      RETURNING *`, [strip_id, zone_id, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true]);
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+app.delete('/api/strip-zone-assignments/:strip_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_zone_assignments WHERE strip_id=$1', [req.params.strip_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
 // System Defaults API
 app.get('/api/defaults', async (req, res) => {
   try {
@@ -2546,13 +2641,13 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, flight_zones_mode } = req.body;
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33 WHERE id = $22 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34 WHERE id = $22 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
