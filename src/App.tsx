@@ -11256,6 +11256,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean) => void>(() => {});
   const handleTransferRef = useRef<(stripId: string, toSectorId: number) => void>(() => {});
   const tableModeRef = useRef(false);
+  const sessionRef = useRef(session);
   const mapZoomRef = useRef(1);
   const mapPanRef = useRef({ x: 0, y: 0 });
   const mapImgBoundsRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -11287,6 +11288,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
   handleMoveRef.current = handleMove;
   tableModeRef.current = tableMode;
+  sessionRef.current = session;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
   mapImgBoundsRef.current = mapImgBounds;
@@ -11697,8 +11699,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const r = mapArea.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
           if (tableModeRef.current) {
-            // Table mode: add strip to the board (center)
-            setTableOnBoard(prev => new Set([...prev, String(id)]));
+            // Table mode: add strip to the board (center) and persist assignment
+            const stripKey = String(id); // id is already 's123' from sidebarPointerDragRef
+            setTableOnBoard(prev => new Set([...prev, stripKey]));
+            const pid = sessionRef.current?.presetId ? Number(sessionRef.current.presetId) : null;
+            if (pid) {
+              const numId = stripKey.replace(/^s/, '');
+              fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numId, preset_id: pid }) }).catch(() => {});
+            }
             handleMoveRef.current(String(id), 0, 0, false);
           } else {
             // Map mode: place strip on map at drop coordinates (accounting for zoom/pan)
@@ -13436,13 +13444,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const sid = rawId ? Number(rawId) : null;
             if (sid) {
               // Add strip to the board (center) and persist via many-to-many assignment
-              setTableOnBoard(prev => new Set([...prev, String(sid)]));
+              // sid is numeric (Number(rawId)), so strip key must be 's'+sid to match s.id format
+              setTableOnBoard(prev => new Set([...prev, 's' + sid]));
               tableSidebarDragId.current = null;
               if (session.presetId) {
                 const pid = Number(session.presetId);
                 fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: sid, preset_id: pid }) }).catch(() => {});
                 setStrips(prev => prev.map((s: any) => {
-                  if (String(s.id) === 's' + sid || s.id === sid) {
+                  if (s.id === 's' + sid) {
                     const ids: number[] = Array.isArray(s.table_preset_ids) ? s.table_preset_ids : [];
                     return { ...s, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
                   }
