@@ -3755,12 +3755,15 @@ app.post('/api/strips/partial-create', async (req, res) => {
     const newY = srcOnMap ? (parseFloat(src.y || 0) + 45) : 0;
 
     // Create the partial strip (clone of source)
+    const srcTablePresetIds = Array.isArray(src.table_preset_ids)
+      ? src.table_preset_ids
+      : (src.table_preset_ids ? (() => { try { return JSON.parse(src.table_preset_ids); } catch { return []; } })() : []);
     const partialResult = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
         erka, koteret, mivtza, notes, status, workstation_preset_id, in_table,
         parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
-        on_map, x, y)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,true,$14,$15,$16,$17,$18,$19,$20)
+        on_map, x, y, table_preset_ids)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,true,$14,$15,$16,$17,$18,$19,$20,$21)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
@@ -3770,7 +3773,8 @@ app.post('/api/strips/partial-create', async (req, res) => {
         workstation_preset_id || src.workstation_preset_id,
         rootParentId, JSON.stringify(validIndices), origCount,
         JSON.stringify(partialPositions),
-        srcOnMap, newX, newY
+        srcOnMap, newX, newY,
+        JSON.stringify(srcTablePresetIds)
       ]
     );
     const partialStripId = partialResult.rows[0].id;
