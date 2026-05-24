@@ -849,6 +849,16 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
   await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
 
+  // Many-to-many: which workstation presets a strip is explicitly assigned to (table mode)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_table_assignments (
+      strip_id  INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+      preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      assigned_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (strip_id, preset_id)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -1949,6 +1959,13 @@ app.post('/api/transfers/:id/accept', async (req, res) => {
     }
     
     await client.query('UPDATE strip_transfers SET status=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2', ['accepted', transferId]);
+    // Record explicit assignment in many-to-many table
+    if (assignedPresetId && !mergedIntoId) {
+      await client.query(
+        'INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [strip_id, assignedPresetId]
+      );
+    }
     await client.query('COMMIT');
     res.json({ success: true, mergedIntoId });
   } catch (err) {
@@ -2425,9 +2442,42 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
 });
 
 // All strips in workstation-compatible format (for classic mode query-based filtering)
+// --- Strip Table Assignments (many-to-many) ---
+app.post('/api/strip-table-assignments', async (req, res) => {
+  const { strip_id, preset_id } = req.body;
+  if (!strip_id || !preset_id) return res.status(400).json({ error: 'strip_id and preset_id required' });
+  try {
+    await pool.query(
+      'INSERT INTO strip_table_assignments (strip_id, preset_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [parseInt(strip_id), parseInt(preset_id)]
+    );
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-table-assignments/:stripId/:presetId', async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM strip_table_assignments WHERE strip_id=$1 AND preset_id=$2',
+      [parseInt(req.params.stripId), parseInt(req.params.presetId)]
+    );
+    res.json({ success: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
 app.get('/api/strips/global', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM strips ORDER BY id');
+    const result = await pool.query(`
+      SELECT s.*,
+        COALESCE(
+          array_agg(sta.preset_id ORDER BY sta.preset_id) FILTER (WHERE sta.preset_id IS NOT NULL),
+          '{}'::integer[]
+        ) AS table_preset_ids
+      FROM strips s
+      LEFT JOIN strip_table_assignments sta ON sta.strip_id = s.id
+      GROUP BY s.id
+      ORDER BY s.id
+    `);
     res.json(result.rows.map(r => ({
       id: 's' + r.id,
       callSign: r.callsign,
@@ -2464,7 +2514,8 @@ app.get('/api/strips/global', async (req, res) => {
       takeoff_airfield_id: r.takeoff_airfield_id || null,
       landing_airfield_id: r.landing_airfield_id || null,
       map_lat: r.map_lat ?? null,
-      map_lon: r.map_lon ?? null
+      map_lon: r.map_lon ?? null,
+      table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : []
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);

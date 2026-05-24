@@ -9628,7 +9628,7 @@ const AdminDashboard: React.FC<{
     const pid = Number(preset.id);
     return strips.filter(s => {
       if (s.status === 'cancelled' || s.status === 'rejected') return false;
-      return !!s.inTable && Number(s.workstation_preset_id) === pid;
+      return Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid);
     });
   };
 
@@ -10135,11 +10135,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setActiveBlockTableId(null);
     initialViewSetRef.current = false;
     setAidExpandedIds(new Set());
-    // Restore tableOnBoard from DB: strips that were previously dragged to this workstation's board
+    // Restore tableOnBoard from DB: strips explicitly assigned to this workstation
     if (session.presetId) {
       const pid = Number(session.presetId);
       setTableOnBoard(new Set(
-        strips.filter((s: any) => s.inTable && Number(s.workstation_preset_id) === pid).map((s: any) => String(s.id))
+        strips.filter((s: any) => Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)).map((s: any) => String(s.id))
       ));
     } else {
       setTableOnBoard(new Set());
@@ -10744,9 +10744,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return !effectiveFilter || evaluateQuery(s, effectiveFilter, _qCtx);
   });
 
-  // myTableStrips: same logic — query-driven, no inTable/preset restriction.
-  // Every strip visible in the workstation is determined solely by the filter query.
-  const myTableStrips = myStrips;
+  // myTableStrips: query-driven strips PLUS strips explicitly assigned to this workstation.
+  const myTableStrips = (() => {
+    if (!session.presetId) return myStrips;
+    const pid = Number(session.presetId);
+    const querySet = new Set(myStrips.map((s: any) => s.id));
+    const assigned = strips.filter((s: any) =>
+      !querySet.has(s.id) &&
+      s.status !== 'cancelled' && s.status !== 'rejected' &&
+      Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)
+    );
+    return assigned.length ? [...myStrips, ...assigned] : myStrips;
+  })();
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
@@ -11825,14 +11834,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ receivingPresetId: session?.presetId ?? null })
       });
       const data = res.ok ? await res.json() : {};
-      // Optimistic update: immediately place strip in table so it appears without waiting for loadData
+      // Optimistic update: immediately place strip in table and record assignment
       if (t?.strip_id && session?.presetId) {
         const stripKey = 's' + t.strip_id;
-        setStrips(prev => prev.map(s =>
-          String(s.id) === stripKey
-            ? { ...s, status: 'active', inTable: true, workstation_preset_id: session.presetId }
-            : s
-        ));
+        const pid = Number(session.presetId);
+        setStrips(prev => prev.map(s => {
+          if (String(s.id) !== stripKey) return s;
+          const ids: number[] = Array.isArray((s as any).table_preset_ids) ? (s as any).table_preset_ids : [];
+          return { ...s, status: 'active', inTable: true, workstation_preset_id: session.presetId, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
+        }));
+        setTableOnBoard(prev => new Set([...prev, stripKey]));
         setIncomingTransfers((prev: any[]) => prev.filter((x: any) => String(x.id) !== String(transferId)));
       }
       logActivity('transfer_accepted', {
@@ -13424,13 +13435,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const rawId = e.dataTransfer.getData('text/strip-id') || String(tableSidebarDragId.current ?? '');
             const sid = rawId ? Number(rawId) : null;
             if (sid) {
-              // Add strip to the board (center) and persist to DB
+              // Add strip to the board (center) and persist via many-to-many assignment
               setTableOnBoard(prev => new Set([...prev, String(sid)]));
               tableSidebarDragId.current = null;
               if (session.presetId) {
                 const pid = Number(session.presetId);
-                fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: true, workstation_preset_id: pid }) }).catch(() => {});
-                setStrips(prev => prev.map((s: any) => s.id === sid ? { ...s, inTable: true, workstation_preset_id: pid } : s));
+                fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: sid, preset_id: pid }) }).catch(() => {});
+                setStrips(prev => prev.map((s: any) => {
+                  if (String(s.id) === 's' + sid || s.id === sid) {
+                    const ids: number[] = Array.isArray(s.table_preset_ids) ? s.table_preset_ids : [];
+                    return { ...s, table_preset_ids: ids.includes(pid) ? ids : [...ids, pid] };
+                  }
+                  return s;
+                }));
               }
             }
           } : undefined}
@@ -14762,8 +14779,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const removedId = tableRowCtxMenu.stripId;
                   setTableOnBoard(prev => { const n = new Set(prev); n.delete(removedId); return n; });
                   setTableRowCtxMenu(null);
-                  fetch(`${API_URL}/strips/${removedId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: false, workstation_preset_id: null }) }).catch(() => {});
-                  setStrips(prev => prev.map((s: any) => String(s.id) === removedId ? { ...s, inTable: false, workstation_preset_id: null } : s));
+                  if (session.presetId) {
+                    const numId = removedId.replace(/^s/, '');
+                    const pid = Number(session.presetId);
+                    fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
+                    setStrips(prev => prev.map((s: any) => String(s.id) === removedId
+                      ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => x !== pid) }
+                      : s));
+                  }
                 }}
                 style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
               >✕ הסר מהלוח</button>
@@ -15312,11 +15335,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             setSidebarHtmlDragOver(false);
             const sid = e.dataTransfer.getData('text/strip-id-for-transfer');
             if (sid) {
-              // Strip dragged from center back to sidebar = remove from board, persist to DB
+              // Strip dragged from center back to sidebar = remove from board, delete assignment
               setTableOnBoard(prev => { const n = new Set(prev); n.delete(sid); return n; });
               if (!sidebarPinned) setSidebarPinned(true);
-              fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ in_table: false, workstation_preset_id: null }) }).catch(() => {});
-              setStrips(prev => prev.map((s: any) => String(s.id) === sid ? { ...s, inTable: false, workstation_preset_id: null } : s));
+              if (session.presetId) {
+                const numId = String(sid).replace(/^s/, '');
+                const pid = Number(session.presetId);
+                fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
+                setStrips(prev => prev.map((s: any) => String(s.id) === sid
+                  ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => x !== pid) }
+                  : s));
+              }
             }
           } : undefined}
         >
