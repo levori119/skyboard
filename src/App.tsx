@@ -17082,6 +17082,7 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const dragRef = useRef<{ noteId: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -17203,11 +17204,16 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
             {/* Body */}
             {!note.minimized && (
               <div style={{ background: note.background_color, borderRadius: '0 0 8px 8px', filter: 'brightness(1.04)' }}>
-                <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
-                  onBlur={e => updateNote(note.id, { title: e.target.value })}
-                  disabled={!editable} placeholder="כותרת..."
-                  style={{ width: '100%', boxSizing: 'border-box', border: 'none', background: 'transparent', borderBottom: '1px solid rgba(0,0,0,0.1)', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none' }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.1)' }}>
+                  <input value={note.title} onChange={e => updateNote(note.id, { title: e.target.value }, false)}
+                    onBlur={e => updateNote(note.id, { title: e.target.value })}
+                    disabled={!editable} placeholder="כותרת..."
+                    style={{ flex: 1, border: 'none', background: 'transparent', padding: '4px 8px', fontSize: '11px', direction: 'rtl', fontWeight: 'bold', color: '#1e293b', outline: 'none', minWidth: 0 }}
+                  />
+                  {isTouch && editable && (
+                    <VKTrigger value={note.title} onChange={v => updateNote(note.id, { title: v })} mode="full" label="כותרת" size={12} style={{ marginLeft: '4px', marginRight: '4px', border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
+                  )}
+                </div>
                 <textarea value={note.content} onChange={e => updateNote(note.id, { content: e.target.value }, false)}
                   onBlur={e => updateNote(note.id, { content: e.target.value })}
                   disabled={!editable} placeholder={editable ? 'כתוב כאן...' : '(קריאה בלבד)'}
@@ -17217,6 +17223,9 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
                 />
                 {/* Bottom bar */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px 6px', borderTop: '1px solid rgba(0,0,0,0.08)', position: 'relative' }}>
+                  {isTouch && editable && (
+                    <VKTrigger value={note.content} onChange={v => updateNote(note.id, { content: v })} mode="full" label="תוכן" size={14} style={{ border: '1px solid rgba(0,0,0,0.15)', color: '#475569' }} />
+                  )}
                   <button onClick={() => setShowColorPicker(showColorPicker === note.id ? null : note.id)} title="צבע רקע"
                     style={{ background: note.background_color, border: '2px solid rgba(0,0,0,0.2)', borderRadius: '50%', width: '16px', height: '16px', cursor: 'pointer', padding: 0, flexShrink: 0 }} />
                   {showColorPicker === note.id && (
