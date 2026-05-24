@@ -9709,8 +9709,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [zoneAltRanges, setZoneAltRanges] = useState<Record<number, ZoneAltRange[]>>({});
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
   const [fzDragStripId, setFzDragStripId] = useState<number | null>(null);
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string } | null>(null);
+  const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
+  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
+  const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
+  const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
+  const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [showLearn, setShowLearn] = useState(false);
@@ -10259,15 +10263,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const pxInMap = ((dropX - mapPan.x) / mapZoom / rect.width) * 100;
     const pyInMap = ((dropY - mapPan.y) / mapZoom / rect.height) * 100;
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
-    if (!zone) { setFzDragStripId(null); return; }
+    if (!zone) { setFzDragStripId(null); setFzDragLabel(null); return; }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    setFzDialog({ stripId: fzDragStripId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'planned', note: '' });
+    setFzDialog({ stripId: fzDragStripId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'planned', note: '', displayLabel: fzDragLabel ?? undefined });
     setFzDragStripId(null);
+    setFzDragLabel(null);
   };
 
   const handleFzSave = async () => {
     if (!fzDialog || !currentMapId) return;
-    const existing = stripZoneAssignments.filter(a => a.altitude_range_id === fzDialog.selectedAltId && a.zone_id === fzDialog.zoneId && a.strip_id !== fzDialog.stripId);
+    const existing = stripZoneAssignments.filter(a => a.zone_id === fzDialog.zoneId && a.strip_id !== fzDialog.stripId);
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId }, conflicts: existing, coordNote: '' });
       return;
@@ -14654,27 +14659,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </svg>
             )}
 
-            {/* Flight Zones Mode: invisible drop zone polygons with labels + strip badges */}
+            {/* Flight Zones Mode: zone name labels + assignment counts only (no polygon fill/stroke) */}
             {isFlightZonesMode && mapZones.length > 0 && (
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2 }}>
                 {mapZones.map(zone => {
                   const zoneAssignments = stripZoneAssignments.filter(a => a.zone_id === zone.id);
-                  const cx = zone.polygon.length >= 3 ? zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length : 50;
-                  const cy = zone.polygon.length >= 3 ? zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length : 50;
+                  if (zone.polygon.length < 3) return null;
+                  const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
+                  const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
                   return (
                     <g key={zone.id}>
-                      {zone.polygon.length >= 3 && (
-                        <polygon
-                          points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')}
-                          fill={zone.color + '15'}
-                          stroke={zone.color + '60'}
-                          strokeWidth="0.3"
-                          strokeDasharray="1.5,1"
-                        />
-                      )}
-                      <text x={cx} y={cy - 2} textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
+                      <text x={cx} y={cy - 1.5} textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
                       {zoneAssignments.length > 0 && (
-                        <text x={cx} y={cy + 2.5} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize="2" style={{ userSelect: 'none' }}>{zoneAssignments.length} פממים</text>
+                        <text x={cx} y={cy + 2} textAnchor="middle" dominantBaseline="middle" fill="#94a3b8" fontSize="2" style={{ userSelect: 'none' }}>{zoneAssignments.length} פממים</text>
                       )}
                     </g>
                   );
@@ -14784,57 +14781,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             
           </div>
 
-          {/* Flight Zones Side Panel */}
+          {/* Flight Zones status bar */}
           {isFlightZonesMode && (
-            <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '270px', background: 'rgba(15,23,42,0.96)', borderLeft: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', zIndex: 60, backdropFilter: 'blur(8px)' }}>
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid #1e3a5f', background: '#0f172a', flexShrink: 0 }}>
-                <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>✈️ פממים — גרור למפה</div>
-                <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>גרור פ"מ אל אזור על המפה</div>
-              </div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-                {myTableStrips
-                  .filter((s: any) => s.status !== 'pending_transfer')
-                  .map((s: any) => {
-                    const assignment = stripZoneAssignments.find(a => a.strip_id === s.id);
-                    const statusColors: Record<string, string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', conflict: '#ef4444' };
-                    return (
-                      <div
-                        key={s.id}
-                        draggable
-                        onDragStart={() => setFzDragStripId(s.id)}
-                        onDragEnd={() => setFzDragStripId(null)}
-                        style={{ background: fzDragStripId === s.id ? '#1e3a5f' : '#1e293b', border: `1px solid ${assignment ? (statusColors[assignment.status] || '#334155') : '#334155'}`, borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', cursor: 'grab', userSelect: 'none', transition: 'background 0.1s' }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 'bold' }}>✈ {s.callSign || `#${s.id}`}</span>
-                          {assignment ? (
-                            <button onClick={() => handleFzUnassign(s.id)} title="הסר הקצאה"
-                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '0 2px' }}>✕</button>
-                          ) : (
-                            <span style={{ color: '#475569', fontSize: '10px' }}>⊙ לא מוקצה</span>
-                          )}
-                        </div>
-                        {assignment && (
-                          <div style={{ marginTop: '5px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <span style={{ background: assignment.zone_color + '33', border: `1px solid ${assignment.zone_color}66`, borderRadius: '3px', padding: '1px 5px', fontSize: '10px', color: assignment.zone_color }}>📍 {assignment.zone_name}</span>
-                            {assignment.alt_range_name && (
-                              <span style={{ background: '#1e3a5f', borderRadius: '3px', padding: '1px 5px', fontSize: '10px', color: '#7dd3fc' }}>📐 {assignment.alt_range_name}</span>
-                            )}
-                            <span style={{ background: '#0f172a', borderRadius: '3px', padding: '1px 5px', fontSize: '10px', color: statusColors[assignment.status] || '#64748b' }}>● {assignment.status}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length === 0 && (
-                  <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', marginTop: '20px' }}>אין פממים בעמדה</div>
-                )}
-              </div>
-              <div style={{ padding: '8px', borderTop: '1px solid #1e3a5f', flexShrink: 0 }}>
-                <div style={{ color: '#475569', fontSize: '10px', textAlign: 'center' }}>
-                  {stripZoneAssignments.length} מוקצים / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length} סה"כ
-                </div>
-              </div>
+            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 60, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)' }}>
+              ✈️ מוד הקצאת אזורים — {stripZoneAssignments.length} מוקצים מתוך {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}
             </div>
           )}
 
@@ -15176,14 +15126,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }
                 const isDraggingThis = tableDragOver && sidebarPointerDragRef.current?.id === s.id;
                 return (
+                <div key={s.id} style={{ display: 'contents' }}>
                 <div
-                  key={s.id}
-                  onPointerDown={e => {
+                  draggable={isFlightZonesMode}
+                  onDragStart={isFlightZonesMode ? () => { setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
+                  onDragEnd={isFlightZonesMode ? () => { setFzDragStripId(null); setFzDragLabel(null); } : undefined}
+                  onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
-                  }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: isDraggingThis ? '#1d4ed8' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  })}
+                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (isFlightZonesMode && fzDragStripId === s.id) ? '#1e3a5f' : isDraggingThis ? '#1d4ed8' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${isFlightZonesMode && stripZoneAssignments.find(a => a.strip_id === s.id) ? '#22c55e' : tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
@@ -15243,7 +15196,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </div>
                       );
                     })()}
+                    {isFlightZonesMode && (() => {
+                      const assignment = stripZoneAssignments.find(a => a.strip_id === s.id);
+                      const statusColors: Record<string, string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', conflict: '#ef4444' };
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
+                          {assignment ? (
+                            <>
+                              <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: assignment.zone_color + '33', color: assignment.zone_color, border: `1px solid ${assignment.zone_color}66` }}>📍 {assignment.zone_name}</span>
+                              {assignment.alt_range_name && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: '#1e3a5f', color: '#7dd3fc' }}>📐 {assignment.alt_range_name}</span>}
+                              <span style={{ fontSize: '9px', color: statusColors[assignment.status] || '#64748b' }}>● {assignment.status}</span>
+                              <button onClick={e => { e.stopPropagation(); handleFzUnassign(s.id); }} style={{ fontSize: '9px', padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', marginRight: 'auto' }}>✕</button>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: '9px', color: '#475569' }}>⊙ לא מוקצה</span>
+                          )}
+                          <button onClick={e => { e.stopPropagation(); setFzSplitForm({ label: (s.callSign || '') + '-א', count: '1' }); setFzSplitModal({ strip: s }); }}
+                            style={{ fontSize: '9px', padding: '1px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer', flexShrink: 0 }}>✂ פצל</button>
+                        </div>
+                      );
+                    })()}
                   </div>
+                </div>
+                {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
+                  <div key={si.key}
+                    draggable
+                    onDragStart={() => { setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
+                    onDragEnd={() => { setFzDragStripId(null); setFzDragLabel(null); }}
+                    style={{ marginBottom: '2px', marginRight: '8px', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '4px', padding: '4px 8px', direction: 'rtl' }}
+                  >
+                    <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
+                    <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
+                    <button onClick={() => setFzSplitItems(prev => prev.filter(x => x.key !== si.key))}
+                      style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
+                  </div>
+                ))}
                 </div>
               );})}
               {myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer' && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()))).length === 0 && (
@@ -15373,7 +15361,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           );
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0) return null;
+          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0) return null;
           return (
             <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
               {/* Pin toggle */}
@@ -16163,7 +16151,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000 }}
           onClick={e => { if (e.target === e.currentTarget) setFzDialog(null); }}>
           <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '380px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-            <div style={{ color: '#7dd3fc', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>📍 הקצאת אזור — {fzDialog.zoneName}</div>
+            <div style={{ color: '#7dd3fc', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px' }}>📍 הקצאת אזור — {fzDialog.zoneName}{fzDialog.displayLabel ? ` (${fzDialog.displayLabel})` : ''}</div>
             
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📐 טווח גובה:</label>
@@ -16190,9 +16178,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>● סטטוס:</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['planned','active','coordinated','conflict'] as const).map(st => {
-                  const stColors: Record<string,string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', conflict: '#ef4444' };
-                  const stLabels: Record<string,string> = { planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם', conflict: 'קונפליקט' };
+                {(['planned','active','coordinated'] as const).map(st => {
+                  const stColors: Record<string,string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9' };
+                  const stLabels: Record<string,string> = { planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם' };
                   return (
                     <button key={st} type="button"
                       onClick={() => setFzDialog(p => p ? { ...p, selectedStatus: st } : p)}
@@ -16263,6 +16251,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 ✓ סמן כמתואם
               </button>
               <button onClick={() => setFzConflictDialog(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* FZ Split Modal */}
+      {fzSplitModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
+          onClick={e => { if (e.target === e.currentTarget) setFzSplitModal(null); }}>
+          <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: '12px', padding: '24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+            <div style={{ color: '#c4b5fd', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>✂ פיצול פמ"מ — {fzSplitModal.strip.callSign}</div>
+            <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>הוסף חלקי פמ"מ לגרירה נפרדת על המפה</div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>שם חלק (לדוגמה: {fzSplitModal.strip.callSign}-א)</label>
+              <input
+                value={fzSplitForm.label}
+                onChange={e => setFzSplitForm(p => ({ ...p, label: e.target.value }))}
+                placeholder={`${fzSplitModal.strip.callSign}-א`}
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>כמות מטוסים בחלק זה</label>
+              <input
+                type="number" min="1"
+                value={fzSplitForm.count}
+                onChange={e => setFzSplitForm(p => ({ ...p, count: e.target.value }))}
+                style={{ width: '80px', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => {
+                if (!fzSplitForm.label.trim()) return;
+                setFzSplitItems(prev => [...prev, { key: Date.now(), parentStripId: fzSplitModal!.strip.id, label: fzSplitForm.label.trim(), count: parseInt(fzSplitForm.count) || 1 }]);
+                setFzSplitForm(p => ({ ...p, label: fzSplitModal!.strip.callSign + '-ב' }));
+              }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף חלק</button>
+              <button onClick={() => setFzSplitModal(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>סגור</button>
             </div>
           </div>
         </div>,
