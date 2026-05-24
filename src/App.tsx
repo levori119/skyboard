@@ -10053,6 +10053,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(true);
+  const prevBaseAdRef = useRef<Record<number, string>>({});
+  const [adAlerts, setAdAlerts] = useState<{ key: number; baseName: string; prev: string; next: string; color: string }[]>([]);
   const [contactsPanelOpen, setContactsPanelOpen] = useState(false);
   const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
@@ -10108,6 +10110,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     loadAidsData();
   }, [session.presetId]);
+
+  // Poll base statuses every 5s and detect מז"א changes
+  useEffect(() => {
+    const presetCfg = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+    if (!presetCfg?.show_base_statuses || !session.presetId) return;
+    const relevantIds: number[] = Array.isArray(presetCfg.base_status_ids) ? presetCfg.base_status_ids.map(Number) : [];
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/base-statuses`);
+        if (!res.ok) return;
+        const all: any[] = await res.json();
+        const relevant = relevantIds.length > 0 ? all.filter(b => relevantIds.includes(Number(b.id))) : all;
+        const newAlerts: { key: number; baseName: string; prev: string; next: string; color: string }[] = [];
+        relevant.forEach(b => {
+          const newAd: string = b.air_defense_status || '';
+          const prevAd: string = prevBaseAdRef.current[b.id] ?? null;
+          if (prevAd !== null && prevAd !== newAd) {
+            const color = AIR_DEFENSE_STATUSES.find(s => s.label === newAd)?.color || '#94a3b8';
+            newAlerts.push({ key: Date.now() + b.id, baseName: b.name, prev: prevAd, next: newAd, color });
+          }
+          prevBaseAdRef.current[b.id] = newAd;
+        });
+        if (newAlerts.length > 0) {
+          setAdAlerts(prev => [...prev, ...newAlerts]);
+        }
+      } catch {}
+    };
+
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
+  }, [session.presetId, workstationPresets.length, livePresetConfig]);
+
+  // Auto-dismiss מז"א alerts after 15 seconds
+  useEffect(() => {
+    if (adAlerts.length === 0) return;
+    const oldest = adAlerts[0];
+    const timer = setTimeout(() => {
+      setAdAlerts(prev => prev.filter(a => a.key !== oldest.key));
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [adAlerts]);
 
   // Load session contacts when preset changes (session-only — not persisted)
   useEffect(() => {
@@ -16082,6 +16126,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       ))}
 
       {/* Flight Zones Assignment Dialog */}
+      {/* מז"א Alert Notifications */}
+      {adAlerts.length > 0 && createPortal(
+        <div style={{ position: 'fixed', bottom: '24px', left: '24px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', direction: 'rtl', pointerEvents: 'none' }}>
+          {adAlerts.map(alert => (
+            <div key={alert.key} style={{ pointerEvents: 'all', background: '#0f172a', border: `2px solid ${alert.color}`, borderRadius: '10px', padding: '14px 16px', minWidth: '280px', maxWidth: '340px', boxShadow: `0 0 24px ${alert.color}66, 0 4px 20px rgba(0,0,0,0.8)`, animation: 'pulse 1s ease-in-out 3' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ fontSize: '13px' }}>🔔</span>
+                    <span>עדכון מצב מז"א</span>
+                  </div>
+                  <div style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', marginBottom: '6px' }}>{alert.baseName}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {alert.prev && (
+                      <>
+                        <span style={{ color: '#475569', fontSize: '12px', textDecoration: 'line-through' }}>{alert.prev || '—'}</span>
+                        <span style={{ color: '#475569', fontSize: '14px' }}>→</span>
+                      </>
+                    )}
+                    <span style={{ color: alert.color, fontSize: '14px', fontWeight: 'bold', padding: '2px 8px', background: alert.color + '22', borderRadius: '4px', border: `1px solid ${alert.color}55` }}>{alert.next || '(ריק)'}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAdAlerts(prev => prev.filter(a => a.key !== alert.key))}
+                  style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '16px', padding: '0', lineHeight: 1, flexShrink: 0, marginTop: '2px' }}
+                >✕</button>
+              </div>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+
       {fzDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000 }}
           onClick={e => { if (e.target === e.currentTarget) setFzDialog(null); }}>
