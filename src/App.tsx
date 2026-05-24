@@ -4996,21 +4996,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         if (ac.datk == null) return;
         const existing = existingPositions.find((p: AircraftPos) => p.idx === ac.idx);
         if (existing?.point_id) return;
-        const matchPt = points.find((p: any) => pointDatkNum[p.id] === ac.datk);
+        const matchPt = points.find((p: any) => pointDatkNum[p.id] === Number(ac.datk));
         if (!matchPt) return;
         if (!result[String(strip.id)]) result[String(strip.id)] = {};
         result[String(strip.id)][ac.idx] = matchPt.id;
       });
-    });
-    const stripIds = strips.map((s: any) => s.id);
-    console.log('[datk-debug]', {
-      points: points.map((p: any) => ({ id: p.id, name: p.name, datkNum: extractDatkPointNumber(p.name) })),
-      strips: stripIds,
-      acDataKeys: Object.keys(stripAircraftData),
-      acData1089: stripAircraftData['1089'],
-      result,
-      datkShowMinutes,
-      useTimeWindow: datkShowMinutes != null && datkShowMinutes > 0,
     });
     return result;
   }, [strips, stripAircraftData, points, datkShowMinutes, nowMs]);
@@ -6105,13 +6095,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               </div>
             );
           })}
-
-          {/* DEBUG OVERLAY - remove after fix */}
-          <div style={{ position: 'absolute', top: 4, right: 4, zIndex: 999, background: 'rgba(0,0,0,0.85)', color: '#fff', fontSize: '10px', padding: '4px 8px', borderRadius: '6px', maxWidth: '220px', direction: 'ltr' }}>
-            <div>strips: {strips.length} | pts: {points.length}</div>
-            <div>acKeys: {Object.keys(stripAircraftData).join(',') || 'none'}</div>
-            <div>autoPlacements: {JSON.stringify(autoDatkPlacements)}</div>
-          </div>
 
           {/* Aircraft markers on the map.
               Per strip, group placed aircraft by point. When ALL aircraft of a formation are
@@ -11658,7 +11641,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         rows.forEach(r => {
           const sid = String(r.strip_id);
           if (!byStrip[sid]) byStrip[sid] = [];
-          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk, kipa: r.kipa });
+          byStrip[sid].push({ id: r.id, idx: r.idx, datk: r.datk != null ? Number(r.datk) : null, kipa: r.kipa });
         });
         setGroundStripAircraft(byStrip);
       })
