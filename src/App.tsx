@@ -1739,18 +1739,21 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
       zIndex: 10001, 
       background: 'white', 
       border: '2px solid #2563eb', 
-      padding: '12px', 
+      padding: '10px', 
       borderRadius: '10px', 
       boxShadow: '0 6px 20px rgba(0,0,0,0.25)', 
-      minWidth: '360px', 
+      minWidth: '270px',
+      maxWidth: '290px',
       direction: 'rtl' 
     }}>
-      <div style={{fontSize: '14px', marginBottom: '8px', fontWeight: 'bold', color: '#2563eb', textAlign: 'center'}}>
-        עדכון גובה
+      {/* Title + close */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#2563eb' }}>עדכון גובה</span>
+        <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
       </div>
 
-      {/* Text input option */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
+      {/* Text input + VK trigger */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', alignItems: 'center' }}>
         <input
           type="text"
           value={textInput}
@@ -1758,26 +1761,38 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
           onKeyDown={e => { if (e.key === 'Enter' && textInput.trim()) { onComplete(textInput.trim()); } }}
           placeholder="הקלד גובה..."
           autoFocus
-          style={{ flex: 1, padding: '8px 10px', fontSize: '16px', border: '2px solid #93c5fd', borderRadius: '6px', textAlign: 'center', direction: 'ltr', outline: 'none' }}
+          style={{ flex: 1, padding: '6px 8px', fontSize: '16px', border: '2px solid #93c5fd', borderRadius: '6px', textAlign: 'center', direction: 'ltr', outline: 'none' }}
         />
+        <VKTrigger value={textInput} onChange={v => setTextInput(v)} mode="numeric" label="גובה" size={15} />
         <button
+          onPointerDown={e => e.preventDefault()}
           onClick={() => { if (textInput.trim()) onComplete(textInput.trim()); }}
           disabled={!textInput.trim()}
-          style={{ padding: '8px 14px', background: textInput.trim() ? '#10b981' : '#d1fae5', color: textInput.trim() ? 'white' : '#6ee7b7', border: 'none', borderRadius: '6px', cursor: textInput.trim() ? 'pointer' : 'default', fontSize: '14px', fontWeight: 'bold' }}
-        >אישור</button>
+          style={{ padding: '6px 12px', background: textInput.trim() ? '#10b981' : '#d1fae5', color: textInput.trim() ? 'white' : '#6ee7b7', border: 'none', borderRadius: '6px', cursor: textInput.trim() ? 'pointer' : 'default', fontSize: '14px', fontWeight: 'bold', flexShrink: 0 }}
+        >✓</button>
       </div>
 
-      <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>— או כתוב בכתב יד —</div>
+      {/* Confirm recognized value — ABOVE the canvas */}
+      {recognized && (
+        <>
+          <div style={{ marginBottom: '6px', padding: '6px 8px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '6px', textAlign: 'center', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#065f46' }}>זוהה: <strong style={{ fontSize: '16px' }}>{recognized}</strong></span>
+          </div>
+          <button onClick={confirmValue} style={{ marginBottom: '6px', width: '100%', padding: '7px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✓ אישור — {recognized}</button>
+        </>
+      )}
 
-      <div style={{fontSize: '12px', marginBottom: '6px', fontWeight: 'bold', color: '#64748b', textAlign: 'center'}}>
-        {loading ? "מזהה..." : ""}
+      {/* Divider + status */}
+      <div style={{ textAlign: 'center', fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>
+        {loading ? '⏳ מזהה...' : '— כתב יד —'}
       </div>
       
+      {/* Canvas — smaller */}
       <canvas 
         ref={canvasRef} 
-        width={336} 
-        height={180} 
-        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '336px', height: '180px' }}
+        width={250} 
+        height={130} 
+        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '250px', height: '130px' }}
         onMouseDown={startDrawing} 
         onMouseMove={draw} 
         onMouseUp={stopDrawing}
@@ -1787,21 +1802,11 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
         onTouchEnd={stopDrawing} 
       />
       
-      {recognized && (
-        <div style={{ marginTop: '8px', padding: '8px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '6px', textAlign: 'center' }}>
-          <span style={{ fontSize: '12px', color: '#065f46' }}>זוהה: </span>
-          <span style={{ fontSize: '20px', fontWeight: 'bold', color: '#065f46' }}>{recognized}</span>
-        </div>
-      )}
-      
-      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-        <button onClick={clearCanvas} style={{ flex: 1, padding: '6px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
-        <button onClick={processOCR} disabled={loading} style={{ flex: 1, padding: '6px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>עבד מחדש</button>
-        <button onClick={onCancel} style={{ flex: 1, padding: '6px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+      {/* Canvas controls */}
+      <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+        <button onClick={clearCanvas} style={{ flex: 1, padding: '5px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
+        <button onClick={processOCR} disabled={loading} style={{ flex: 1, padding: '5px', background: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עבד</button>
       </div>
-      {recognized && (
-        <button onClick={confirmValue} style={{ marginTop: '6px', width: '100%', padding: '8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>אישור - {recognized}</button>
-      )}
     </div>,
     document.body
   );
@@ -2632,7 +2637,9 @@ const DraggableMapMarker = ({
   const [tempNotes, setTempNotes] = useState(notes || '');
   const [editingAltId, setEditingAltId] = useState<string | null>(null);
   const [editingAltVal, setEditingAltVal] = useState('');
+  const [isTransferMode, setIsTransferMode] = useState(false);
   const startPosRef = useRef({ x: 0, y: 0 });
+  const dragStartClientRef = useRef({ x: 0, y: 0 });
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -2643,6 +2650,7 @@ const DraggableMapMarker = ({
     if ((e.target as HTMLElement).tagName === 'BUTTON') return;
     e.preventDefault();
     e.stopPropagation();
+    dragStartClientRef.current = { x: e.clientX, y: e.clientY };
     startPosRef.current = { x: e.clientX - marker.x, y: e.clientY - marker.y };
     setDragPos({ x: marker.x, y: marker.y });
     setIsDragging(true);
@@ -2652,6 +2660,7 @@ const DraggableMapMarker = ({
     if (!isDragging) return;
 
     const lastPos = { x: marker.x, y: marker.y };
+    let hasDragged = false;
 
     const screenToMap = (clientX: number, clientY: number, rect: DOMRect) => {
       const cx = rect.left + rect.width / 2;
@@ -2665,6 +2674,9 @@ const DraggableMapMarker = ({
     };
 
     const handleMoveEvent = (e: PointerEvent) => {
+      const dx = e.clientX - dragStartClientRef.current.x;
+      const dy = e.clientY - dragStartClientRef.current.y;
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) hasDragged = true;
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
@@ -2687,9 +2699,21 @@ const DraggableMapMarker = ({
       }
     };
 
-    const handleUp = (e: PointerEvent) => drop(e.clientX, e.clientY);
+    const handleUp = (e: PointerEvent) => {
+      if (!hasDragged) {
+        // Tap on header → toggle transfer mode
+        setIsDragging(false);
+        setIsTransferMode(v => !v);
+        window.removeEventListener('pointermove', handleMoveEvent);
+        window.removeEventListener('pointerup', handleUp);
+        window.removeEventListener('pointercancel', handleCancel);
+        return;
+      }
+      drop(e.clientX, e.clientY);
+    };
     const handleCancel = () => {
       setIsDragging(false);
+      if (!hasDragged) return;
       const mapArea = document.getElementById('map-area');
       if (mapArea) {
         const rect = mapArea.getBoundingClientRect();
@@ -2819,16 +2843,19 @@ const DraggableMapMarker = ({
     >
       <div 
         onPointerDown={handlePointerDown}
+        title={isTransferMode ? 'מוד מעבר פעיל — לחץ לביטול' : 'לחץ לפתיחת מוד מעבר / גרור להזזה'}
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '6px 8px',
-          background: markerHasConflict ? '#7f1d1d' : '#2563eb',
-          cursor: isDragging ? 'grabbing' : 'grab'
+          background: isTransferMode ? '#065f46' : markerHasConflict ? '#7f1d1d' : '#2563eb',
+          cursor: isDragging ? 'grabbing' : 'grab',
+          borderBottom: isTransferMode ? '2px solid #10b981' : undefined,
         }}
       >
         <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {isTransferMode && <span style={{ fontSize: '10px', background: '#10b981', borderRadius: '3px', padding: '1px 4px' }}>↔ מעבר</span>}
           {marker.label}
           {marker.subLabel && <span style={{ fontSize: '10px', opacity: 0.8 }}> ({marker.subLabel})</span>}
           {markerHasConflict && <span style={{ fontSize: '9px', background: '#ef4444', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>⚠️ קונפליקט גובה</span>}
@@ -3295,6 +3322,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [dragReady, setDragReady] = useState(false);
+  const dragReadyTimerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const altRef = useRef<HTMLDivElement>(null);
   const startPosRef = useRef({ x: 0, y: 0 });
@@ -3555,8 +3584,24 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
     <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={style} onContextMenu={handleContextMenu}>
-      <div style={{ width: 18, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
-        <div onPointerDown={handlePointerDown} style={{ cursor: 'grab', color: 'white', fontSize: '12px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⋮</div>
+      <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
+        <div
+          onPointerDown={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (dragReady) {
+              if (dragReadyTimerRef.current) clearTimeout(dragReadyTimerRef.current);
+              setDragReady(false);
+              handlePointerDown(e);
+            } else {
+              setDragReady(true);
+              if (dragReadyTimerRef.current) clearTimeout(dragReadyTimerRef.current);
+              dragReadyTimerRef.current = setTimeout(() => setDragReady(false), 3000);
+            }
+          }}
+          title={dragReady ? 'גרור כעת' : 'לחץ לאפשר גרירה'}
+          style={{ cursor: dragReady ? 'grab' : 'pointer', color: dragReady ? '#f59e0b' : 'white', background: dragReady ? '#78350f' : 'transparent', fontSize: '13px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', width: '100%' }}
+        >{dragReady ? '✥' : '⋮'}</div>
         <button
           onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}

@@ -267,6 +267,7 @@ export function VKTrigger({
     <button
       type="button"
       title="פתח מקלדת וירטואלית"
+      onClick={e => e.stopPropagation()}
       onPointerDown={e => {
         e.preventDefault();
         e.stopPropagation();
