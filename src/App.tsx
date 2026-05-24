@@ -9705,12 +9705,21 @@ const AdminDashboard: React.FC<{
               {/* Card header — always visible */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white' }}>{preset.name}</div>
-                {isOpen && (
-                  <button onClick={() => toggleDrilldown(preset.id)}
-                    style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#475569' : '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
-                    ✕
-                  </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {level !== 'none' && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: level === 'full' ? '#dc2626' : '#d97706', color: 'white', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', border: `1px solid ${level === 'full' ? '#fca5a5' : '#fde68a'}` }}>
+                      {level === 'full' ? '🔴' : '🟠'}
+                      {level === 'full' ? 'עומס מלא' : 'עומס חלקי'}
+                      <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{count}</span>
+                    </span>
+                  )}
+                  {isOpen && (
+                    <button onClick={() => toggleDrilldown(preset.id)}
+                      style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#475569' : '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isOpen ? (
