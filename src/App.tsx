@@ -9597,6 +9597,7 @@ const AdminDashboard: React.FC<{
 }> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [] }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [allStrips, setAllStrips] = useState<any[]>([]);
+  const [allBlocks, setAllBlocks] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
   const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
@@ -9616,6 +9617,10 @@ const AdminDashboard: React.FC<{
     fetch(`${API_URL}/table-modes`)
       .then(r => r.ok ? r.json() : [])
       .then(d => setTableModes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    fetch(`${API_URL}/blocks`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setAllBlocks(Array.isArray(d) ? d : []))
       .catch(() => {});
     const doFetch = () => {
       fetch(`${API_URL}/strips/global`)
@@ -9640,6 +9645,56 @@ const AdminDashboard: React.FC<{
 
   const getPartial = (preset: any) => thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
   const getFull = (preset: any) => thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
+
+  const getPresetAlerts = (preset: any): { deviationIds: Set<string>; conflictIds: Set<string> } => {
+    const strips = filterStripsForPreset(allStrips, preset);
+    const pid = Number(preset.id);
+
+    // --- Block deviation ---
+    const btIds: number[] = Array.isArray(preset.block_table_ids) ? preset.block_table_ids.map(Number) : [];
+    const relBlocks = allBlocks.filter((b: any) =>
+      btIds.includes(Number(b.block_table_id)) ||
+      (Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
+    );
+    const tableIds = Array.from(new Set(relBlocks.map((b: any) => Number(b.block_table_id))));
+    const effectiveBtId: number | null = tableIds.length >= 1 ? tableIds[0] as number : null;
+
+    const deviationIds = new Set<string>();
+    if (effectiveBtId !== null) {
+      for (const s of strips) {
+        if (computeBlockDeviation(s, allBlocks, [], effectiveBtId, pid)) {
+          deviationIds.add(String(s.id));
+        }
+      }
+    }
+
+    // --- Altitude conflict ---
+    const delta: number = preset.conflict_alt_delta ?? 500;
+    const conflictIds = new Set<string>();
+    if (delta > 0 && strips.length >= 2) {
+      const parseAlt = (alt: string | null | undefined): number | null => {
+        if (!alt) return null;
+        const m = String(alt).match(/\d+/);
+        return m ? parseInt(m[0]) : null;
+      };
+      for (let i = 0; i < strips.length; i++) {
+        const a = strips[i];
+        const altA = parseAlt(a.alt);
+        if (altA == null) continue;
+        for (let j = i + 1; j < strips.length; j++) {
+          const b = strips[j];
+          const altB = parseAlt(b.alt);
+          if (altB == null) continue;
+          if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+            conflictIds.add(String(a.id));
+            conflictIds.add(String(b.id));
+          }
+        }
+      }
+    }
+
+    return { deviationIds, conflictIds };
+  };
 
   const saveThresholds = async (preset: any) => {
     const partial = getPartial(preset);
@@ -9696,7 +9751,10 @@ const AdminDashboard: React.FC<{
           const full = getFull(preset);
           const level = count >= full ? 'full' : count >= partial ? 'partial' : 'none';
           const hasEdit = thresholds[preset.id] !== undefined;
-          const borderColor = level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
+          const { deviationIds, conflictIds } = getPresetAlerts(preset);
+          const hasDeviation = deviationIds.size > 0;
+          const hasConflict = conflictIds.size > 0;
+          const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
           const isOpen = openDrilldowns.has(preset.id);
@@ -9707,9 +9765,21 @@ const AdminDashboard: React.FC<{
               style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '230px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}
             >
               {/* Card header — always visible */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white' }}>{preset.name}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white', flexShrink: 0 }}>{preset.name}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                  {hasConflict && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#dc2626', color: 'white', borderRadius: '6px', padding: '2px 7px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fca5a5' }}>
+                      ⚡ קונפליקט גובה
+                      <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{conflictIds.size}</span>
+                    </span>
+                  )}
+                  {hasDeviation && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#d97706', color: 'white', borderRadius: '6px', padding: '2px 7px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fde68a' }}>
+                      ⚠️ חריגת בלוק
+                      <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{deviationIds.size}</span>
+                    </span>
+                  )}
                   {level !== 'none' && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: level === 'full' ? '#dc2626' : '#d97706', color: 'white', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', border: `1px solid ${level === 'full' ? '#fca5a5' : '#fde68a'}` }}>
                       {level === 'full' ? '🔴' : '🟠'}
@@ -9805,11 +9875,22 @@ const AdminDashboard: React.FC<{
                           </thead>
                           <tbody>
                             {presetStrips.map((s: any, idx: number) => {
-                              const rowBg = lightMode ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : (idx % 2 === 0 ? '#1e293b' : '#0f172a');
+                              const sid = String(s.id);
+                              const isConflictRow = conflictIds.has(sid);
+                              const isDeviationRow = deviationIds.has(sid);
+                              const rowBg = isConflictRow
+                                ? (lightMode ? '#fef2f2' : '#3b0000')
+                                : isDeviationRow
+                                  ? (lightMode ? '#fffbeb' : '#2d1a00')
+                                  : (lightMode ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : (idx % 2 === 0 ? '#1e293b' : '#0f172a'));
+                              const rowBorder = isConflictRow ? '1px solid #ef4444' : isDeviationRow ? '1px solid #f59e0b' : `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3f'}`;
                               return (
-                                <tr key={s.id} style={{ background: rowBg, borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3f'}` }}>
-                                  {columns.map((col: any) => (
+                                <tr key={s.id} className={isConflictRow ? 'alt-conflict-flash' : isDeviationRow ? 'block-deviation-flash' : undefined} style={{ background: rowBg, borderBottom: rowBorder }}>
+                                  {columns.map((col: any, ci: number) => (
                                     <td key={col.key || col.field} style={{ padding: '5px 6px' }}>
+                                      {ci === 0 && (isConflictRow || isDeviationRow) && (
+                                        <span style={{ marginLeft: '4px', fontSize: '10px' }}>{isConflictRow ? '⚡' : '⚠️'}</span>
+                                      )}
                                       {renderDashCell(s, col)}
                                     </td>
                                   ))}
