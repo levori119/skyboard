@@ -9696,7 +9696,8 @@ const AdminDashboard: React.FC<{
   groundElementTypes?: any[];
   onUpdateGroundElementStatus?: (elementId: number, status: string) => void;
   onUpdateGroundElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string }) => Promise<void>;
-}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [], groundElements, onUpdateGroundElementStatus, onUpdateGroundElement }) => {
+  onCreateGroundElement?: (fields: { name: string; category: string; status: string; note: string; element_type_id?: number | null }) => Promise<void>;
+}> = ({ groups, presets, lightMode, onClose, aviationBases: aviationBasesProp = [], groundElements, groundElementTypes, onUpdateGroundElementStatus, onUpdateGroundElement, onCreateGroundElement }) => {
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [allBlocks, setAllBlocks] = useState<any[]>([]);
@@ -9707,6 +9708,9 @@ const AdminDashboard: React.FC<{
   const [tableModes, setTableModes] = useState<any[]>([]);
   const [elemEditId, setElemEditId] = useState<number | null>(null);
   const [elemEditFields, setElemEditFields] = useState<{ name: string; category: string; status: string; note: string }>({ name: '', category: '', status: '', note: '' });
+  const [showAddElem, setShowAddElem] = useState(false);
+  const [addElemForm, setAddElemForm] = useState<{ name: string; category: string; status: string; note: string; element_type_id: string }>({ name: '', category: '', status: 'תקין', note: '', element_type_id: '' });
+  const [addElemSaving, setAddElemSaving] = useState(false);
 
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
@@ -10072,24 +10076,74 @@ const AdminDashboard: React.FC<{
           );
         })}
       </div>
-      {/* Ground Elements Panel — shown only when groundElements are provided */}
-      {groundElements && groundElements.length > 0 && (() => {
+      {/* Ground Elements Panel — shown when groundElements are provided */}
+      {groundElements !== undefined && (() => {
         const ELEM_STATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const catMap: Record<string, any[]> = {};
-        for (const el of groundElements) {
+        for (const el of (groundElements || [])) {
           const cat = el.category && el.category.trim() ? el.category.trim() : 'כללי';
           if (!catMap[cat]) catMap[cat] = [];
           catMap[cat].push(el);
         }
         const cats = Object.keys(catMap).sort();
         return (
-          <div style={{ width: '300px', flexShrink: 0, borderRight: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0a0f1a' }}>
-            <div style={{ padding: '10px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>🔧 אלמנטי שדה</span>
-              <span style={{ fontSize: '12px', color: lightMode ? '#64748b' : '#94a3b8' }}>({groundElements.length})</span>
+          <div style={{ width: '320px', flexShrink: 0, borderRight: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', background: lightMode ? '#f8fafc' : '#0a0f1a' }}>
+            <div style={{ padding: '8px 12px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#0f172a', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <span style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>🔧 אלמנטי שדה</span>
+              <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>({(groundElements || []).length})</span>
+              <div style={{ marginRight: 'auto' }} />
+              {onCreateGroundElement && (
+                <button onClick={() => { setShowAddElem(v => !v); setAddElemForm({ name: '', category: '', status: 'תקין', note: '', element_type_id: '' }); }}
+                  style={{ background: showAddElem ? '#475569' : '#2563eb', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {showAddElem ? '✕' : '+ הוסף'}
+                </button>
+              )}
             </div>
+            {/* Add element form */}
+            {showAddElem && onCreateGroundElement && (
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, background: lightMode ? '#eff6ff' : '#0f1e38', display: 'flex', flexDirection: 'column', gap: '5px', flexShrink: 0 }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd', marginBottom: '2px' }}>אלמנט חדש</div>
+                <input value={addElemForm.name} onChange={e => setAddElemForm(p => ({ ...p, name: e.target.value }))} placeholder="שם *"
+                  style={{ padding: '4px 8px', fontSize: '12px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
+                <input value={addElemForm.category} onChange={e => setAddElemForm(p => ({ ...p, category: e.target.value }))} placeholder="קטגוריה"
+                  style={{ padding: '4px 8px', fontSize: '12px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }} />
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <select value={addElemForm.status} onChange={e => setAddElemForm(p => ({ ...p, status: e.target.value }))}
+                    style={{ flex: 1, padding: '4px 6px', fontSize: '11px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }}>
+                    {ELEM_STATUS_CYCLE.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  {groundElementTypes && groundElementTypes.length > 0 && (
+                    <select value={addElemForm.element_type_id} onChange={e => setAddElemForm(p => ({ ...p, element_type_id: e.target.value }))}
+                      style={{ flex: 1, padding: '4px 6px', fontSize: '11px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl' }}>
+                      <option value="">סוג...</option>
+                      {groundElementTypes.map((t: any) => <option key={t.id} value={String(t.id)}>{t.icon || ''} {t.name}</option>)}
+                    </select>
+                  )}
+                </div>
+                <textarea value={addElemForm.note} onChange={e => setAddElemForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה" rows={2}
+                  style={{ padding: '4px 8px', fontSize: '11px', background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', color: lightMode ? '#0f172a' : 'white', direction: 'rtl', resize: 'none' }} />
+                <button disabled={!addElemForm.name.trim() || addElemSaving}
+                  onClick={async () => {
+                    if (!addElemForm.name.trim()) return;
+                    setAddElemSaving(true);
+                    await onCreateGroundElement({ name: addElemForm.name.trim(), category: addElemForm.category.trim(), status: addElemForm.status, note: addElemForm.note.trim(), element_type_id: addElemForm.element_type_id ? Number(addElemForm.element_type_id) : null });
+                    setAddElemForm({ name: '', category: '', status: 'תקין', note: '', element_type_id: '' });
+                    setAddElemSaving(false);
+                    setShowAddElem(false);
+                  }}
+                  style={{ background: addElemForm.name.trim() ? '#16a34a' : '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 12px', fontSize: '12px', cursor: addElemForm.name.trim() ? 'pointer' : 'default', fontWeight: 'bold' }}>
+                  {addElemSaving ? '...' : '✓ שמור אלמנט'}
+                </button>
+              </div>
+            )}
+
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {cats.length === 0 && (
+                <div style={{ textAlign: 'center', color: lightMode ? '#94a3b8' : '#475569', fontSize: '12px', padding: '24px 8px' }}>
+                  אין אלמנטים. לחץ "+ הוסף" כדי להוסיף.
+                </div>
+              )}
               {cats.map(cat => (
                 <div key={cat}>
                   <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#475569' : '#64748b', padding: '3px 4px', marginBottom: '4px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>{cat}</div>
@@ -12296,6 +12350,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
+  const handleCreateElement = async (fields: { name: string; category: string; status: string; note: string; element_type_id?: number | null }) => {
+    const airfieldId = (myPresetConfig as any)?.airfield_id ?? airfieldElements[0]?.airfield_id ?? null;
+    if (!airfieldId) return;
+    try {
+      const res = await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: airfieldId, name: fields.name, category: fields.category || '', status: fields.status || 'תקין', note: fields.note || '', element_type_id: fields.element_type_id ?? null, x_pct: null, y_pct: null }) });
+      if (res.ok) {
+        const created = await res.json();
+        if (created?.id) setAirfieldElements(prev => [...prev, created]);
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleCreateGroundStrip = async (callSign: string, sq: string, count: number, sectorId: number | null) => {
     try {
       const body = {
@@ -13224,6 +13290,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             groundElementTypes={isGroundMode ? airfieldElementTypes : undefined}
             onUpdateGroundElementStatus={isGroundMode ? handleUpdateElementStatus : undefined}
             onUpdateGroundElement={isGroundMode ? handleUpdateElement : undefined}
+            onCreateGroundElement={isGroundMode ? handleCreateElement : undefined}
           />
         );
       })()}
