@@ -10135,16 +10135,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setActiveBlockTableId(null);
     initialViewSetRef.current = false;
     setAidExpandedIds(new Set());
-    // Restore tableOnBoard from DB: strips explicitly assigned to this workstation
-    if (session.presetId) {
-      const pid = Number(session.presetId);
-      setTableOnBoard(new Set(
-        strips.filter((s: any) => Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)).map((s: any) => String(s.id))
-      ));
-    } else {
-      setTableOnBoard(new Set());
-    }
+    setTableOnBoard(new Set());
   }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync tableOnBoard from DB strip_table_assignments whenever strips update.
+  // Uses merge (add-only) so manual drag additions and explicit removals are respected.
+  useEffect(() => {
+    if (!session.presetId || !strips.length) return;
+    const pid = Number(session.presetId);
+    setTableOnBoard(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      strips.forEach((s: any) => {
+        const id = String(s.id);
+        if (Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid) && !next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [strips, session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Altitude update mini-form (triggered from deviation context menus)
   const [altUpdateForm, setAltUpdateForm] = useState<{ stripId: string; currentAlt: string; x: number; y: number } | null>(null);
