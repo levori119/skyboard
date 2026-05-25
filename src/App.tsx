@@ -10616,6 +10616,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const lastPolledPressureRef = React.useRef<string | null>(null);
   const [liveBaseStatuses, setLiveBaseStatuses] = useState<any[]>([]);
   const [regionalMazaa, setRegionalMazaa] = useState<string>('');
+  const [localTowerMazaa, setLocalTowerMazaa] = useState<string>('');
   const [mazaaThresholds, setMazaaThresholds] = useState<{id: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
   const [mazaaEditMode, setMazaaEditMode] = useState(false);
   const [showLoadForecast, setShowLoadForecast] = useState(false);
@@ -11154,6 +11155,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   })();
   const towerMazaaStatus: string = (() => {
     if (!isTowerMode) return '';
+    if (localTowerMazaa !== '') return localTowerMazaa;
     const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
     if (bIds.length === 0) return '';
     const bs = liveBaseStatuses.find((b: any) => bIds.includes(Number(b.id)));
@@ -13243,9 +13245,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={e => {
                       const val = e.target.value;
                       if (isTowerMode) {
+                        setLocalTowerMazaa(val);
                         const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
-                        bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) }).catch(() => {}));
-                        setLiveBaseStatuses(prev => prev.map(b => bIds.includes(Number(b.id)) ? { ...b, air_defense_status: val || null } : b));
+                        if (bIds.length > 0) {
+                          bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(updated => { if (updated) setLiveBaseStatuses(prev => prev.map(b => Number(b.id) === Number(updated.id) ? updated : b)); })
+                            .catch(() => {}));
+                        }
                       } else {
                         setRegionalMazaa(val);
                         fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
