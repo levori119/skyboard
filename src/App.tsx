@@ -10416,6 +10416,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [pressureMbInput, setPressureMbInput] = useState('');
   const [pressureAlert, setPressureAlert] = useState<string | null>(null);
   const lastPolledPressureRef = React.useRef<string | null>(null);
+  const [showLoadForecast, setShowLoadForecast] = useState(false);
+  const [loadForecastMetric, setLoadForecastMetric] = useState<'formations' | 'aircraft'>('formations');
+  const [loadForecastResolution, setLoadForecastResolution] = useState<15 | 30 | 60 | 120>(60);
+  const [loadForecastDay, setLoadForecastDay] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
   const pressureSavedLocallyRef = React.useRef(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
@@ -12910,6 +12917,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {/* כפתור חוזי עומס */}
+          <button
+            onClick={() => setShowLoadForecast(v => !v)}
+            title="חוזי עומס — גרף עומס לפי שעה"
+            style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+          >📈 עומס</button>
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
@@ -16503,6 +16516,203 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>עזרים</span>
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* ===== Load Forecast Panel ===== */}
+        {showLoadForecast && (() => {
+          const resMin = loadForecastResolution;
+          const slotsPerDay = (24 * 60) / resMin;
+          const dayStart = new Date(loadForecastDay + 'T00:00:00');
+          const slots: { label: string; count: number }[] = [];
+          for (let i = 0; i < slotsPerDay; i++) {
+            const slotStart = new Date(dayStart.getTime() + i * resMin * 60000);
+            const hh = slotStart.getHours().toString().padStart(2, '0');
+            const mm = slotStart.getMinutes().toString().padStart(2, '0');
+            slots.push({ label: `${hh}:${mm}`, count: 0 });
+          }
+          for (const s of myTableStrips) {
+            if (!s.takeoff_time) continue;
+            const dt = new Date(s.takeoff_time);
+            const dtDay = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+            if (dtDay !== loadForecastDay) continue;
+            const minuteOfDay = dt.getHours() * 60 + dt.getMinutes();
+            const slotIdx = Math.floor(minuteOfDay / resMin);
+            if (slotIdx >= 0 && slotIdx < slotsPerDay) {
+              const add = loadForecastMetric === 'aircraft'
+                ? (parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1)
+                : 1;
+              slots[slotIdx].count += add;
+            }
+          }
+          const maxCount = Math.max(...slots.map(s => s.count), 1);
+          const totalCount = slots.reduce((sum, s) => sum + s.count, 0);
+          const now = new Date();
+          const nowDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+          const isToday = loadForecastDay === nowDay;
+          const nowMinuteFrac = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
+
+          const chartInnerW = Math.max(slotsPerDay * 18, 560);
+          const chartH = 150;
+          const leftPad = 32;
+          const bottomPad = 22;
+          const slotW = chartInnerW / slotsPerDay;
+          const barW = Math.max(slotW - 1, 1);
+          const innerH = chartH - bottomPad;
+
+          const labelEvery = slotsPerDay <= 24 ? 1 : slotsPerDay <= 48 ? 2 : slotsPerDay <= 96 ? 4 : 8;
+
+          const changeDay = (delta: number) => {
+            const d = new Date(loadForecastDay + 'T12:00:00');
+            d.setDate(d.getDate() + delta);
+            setLoadForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+          };
+
+          const [yr, mo, dy] = loadForecastDay.split('-');
+          const dayDisplay = `${dy}/${mo}/${yr}`;
+
+          return (
+            <div style={{
+              position: 'fixed', top: 54, left: '50%', transform: 'translateX(-50%)',
+              background: lightMode ? '#f8fafc' : '#0f172a',
+              border: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+              borderRadius: '12px', zIndex: 4500,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
+              direction: 'rtl', minWidth: '580px', maxWidth: '96vw',
+              overflow: 'hidden'
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>📈 חוזי עומס</span>
+                  <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
+                    סה"כ: {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {/* Metric toggle */}
+                  <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                    {(['formations', 'aircraft'] as const).map(m => (
+                      <button key={m} onClick={() => setLoadForecastMetric(m)} style={{
+                        padding: '2px 9px', fontSize: '11px', border: 'none', cursor: 'pointer',
+                        background: loadForecastMetric === m ? '#7c3aed' : 'transparent',
+                        color: loadForecastMetric === m ? 'white' : (lightMode ? '#475569' : '#94a3b8'),
+                        fontWeight: loadForecastMetric === m ? 'bold' : 'normal'
+                      }}>{m === 'formations' ? 'פממים' : 'מטוסים'}</button>
+                    ))}
+                  </div>
+                  {/* Resolution selector */}
+                  <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                    {([15, 30, 60, 120] as const).map(r => (
+                      <button key={r} onClick={() => setLoadForecastResolution(r)} style={{
+                        padding: '2px 8px', fontSize: '10px', border: 'none', cursor: 'pointer',
+                        background: loadForecastResolution === r ? '#0ea5e9' : 'transparent',
+                        color: loadForecastResolution === r ? 'white' : (lightMode ? '#475569' : '#94a3b8'),
+                        fontWeight: loadForecastResolution === r ? 'bold' : 'normal'
+                      }}>{r < 60 ? `${r}ד'` : `${r / 60}ש'`}</button>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowLoadForecast(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '15px', color: lightMode ? '#64748b' : '#94a3b8', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                </div>
+              </div>
+
+              {/* Day navigation */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '5px 12px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
+                <button onClick={() => changeDay(-1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold' }}>›</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{dayDisplay}</span>
+                  {isToday && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>היום</span>}
+                </div>
+                <button onClick={() => changeDay(1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold' }}>‹</button>
+                <button onClick={() => { const d = new Date(); setLoadForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }} style={{ background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#3b82f6'}`, borderRadius: '4px', cursor: 'pointer', padding: '1px 8px', fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold' }}>היום</button>
+              </div>
+
+              {/* Chart */}
+              <div style={{ overflowX: 'auto', padding: '10px 12px 12px' }}>
+                <svg width={leftPad + chartInnerW} height={chartH + 4} style={{ display: 'block' }}>
+                  {/* Gridlines + Y labels */}
+                  {[0.25, 0.5, 0.75, 1].map(pct => {
+                    const y = Math.round(innerH * (1 - pct));
+                    const val = Math.ceil(maxCount * pct);
+                    return (
+                      <g key={pct}>
+                        <line x1={leftPad} x2={leftPad + chartInnerW} y1={y} y2={y}
+                          stroke={lightMode ? '#e2e8f0' : '#1e293b'} strokeWidth={1} strokeDasharray={pct < 1 ? '3,3' : undefined} />
+                        <text x={leftPad - 3} y={y + 3} textAnchor="end" fontSize={9} fill={lightMode ? '#94a3b8' : '#475569'}>{val}</text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Bars */}
+                  {slots.map((slot, i) => {
+                    const x = leftPad + i * slotW;
+                    const barH = innerH * slot.count / maxCount;
+                    const y = innerH - barH;
+                    const fillColor = slot.count === 0
+                      ? (lightMode ? '#e2e8f0' : '#1e293b')
+                      : slot.count >= maxCount * 0.8 ? '#ef4444'
+                      : slot.count >= maxCount * 0.5 ? '#f59e0b'
+                      : '#22c55e';
+                    const isNowSlot = isToday && i === Math.floor((now.getHours() * 60 + now.getMinutes()) / resMin);
+                    return (
+                      <g key={i}>
+                        <rect
+                          x={x + 0.5} y={y} width={Math.max(barW - 0.5, 0.5)} height={Math.max(barH, slot.count > 0 ? 2 : 1)}
+                          fill={fillColor} rx={1}
+                          opacity={isNowSlot ? 1 : 0.82}
+                          stroke={isNowSlot ? '#3b82f6' : 'none'} strokeWidth={isNowSlot ? 1.5 : 0}
+                        />
+                        {slot.count > 0 && barH > 16 && (
+                          <text x={x + slotW / 2} y={y + 11} textAnchor="middle" fontSize={9} fill="white" fontWeight="bold">{slot.count}</text>
+                        )}
+                        {slot.count > 0 && barH <= 16 && barH >= 1 && (
+                          <text x={x + slotW / 2} y={y - 2} textAnchor="middle" fontSize={8} fill={lightMode ? '#1e293b' : '#e2e8f0'}>{slot.count}</text>
+                        )}
+                      </g>
+                    );
+                  })}
+
+                  {/* X axis labels */}
+                  {slots.map((slot, i) => {
+                    if (i % labelEvery !== 0) return null;
+                    const x = leftPad + i * slotW;
+                    return (
+                      <text key={i} x={x + slotW / 2} y={chartH - 2} textAnchor="middle" fontSize={8} fill={lightMode ? '#64748b' : '#64748b'}>{slot.label}</text>
+                    );
+                  })}
+
+                  {/* X axis baseline */}
+                  <line x1={leftPad} x2={leftPad + chartInnerW} y1={innerH} y2={innerH}
+                    stroke={lightMode ? '#94a3b8' : '#334155'} strokeWidth={1} />
+
+                  {/* Current time indicator */}
+                  {isToday && (
+                    <line
+                      x1={leftPad + nowMinuteFrac * chartInnerW}
+                      x2={leftPad + nowMinuteFrac * chartInnerW}
+                      y1={0} y2={innerH}
+                      stroke="#3b82f6" strokeWidth={2} strokeDasharray="5,3"
+                    />
+                  )}
+                </svg>
+
+                {/* Legend */}
+                <div style={{ display: 'flex', gap: '10px', marginTop: '4px', justifyContent: 'flex-end' }}>
+                  {[{ color: '#22c55e', label: 'נמוך' }, { color: '#f59e0b', label: 'בינוני' }, { color: '#ef4444', label: 'גבוה' }].map(l => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <div style={{ width: 10, height: 10, background: l.color, borderRadius: 2 }} />
+                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8' }}>{l.label}</span>
+                    </div>
+                  ))}
+                  {isToday && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <div style={{ width: 12, height: 2, background: '#3b82f6', borderRadius: 1 }} />
+                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8' }}>עכשיו</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })()}
