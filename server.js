@@ -5180,6 +5180,17 @@ app.put('/api/base-statuses/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to update base status' }); }
 });
 
+app.patch('/api/base-statuses/:id/air-defense', async (req, res) => {
+  try {
+    const { air_defense_status } = req.body;
+    const result = await pool.query(
+      `UPDATE base_statuses SET air_defense_status=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
+      [air_defense_status || null, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update air defense status' }); }
+});
+
 app.delete('/api/base-statuses/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM base_statuses WHERE id=$1', [req.params.id]);
