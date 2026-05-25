@@ -857,6 +857,14 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_change_status BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS workstation_session_roles (
+    id SERIAL PRIMARY KEY,
+    preset_id INTEGER UNIQUE REFERENCES workstation_presets(id) ON DELETE CASCADE,
+    kshp VARCHAR(200) DEFAULT '',
+    mefale VARCHAR(200) DEFAULT '',
+    achori VARCHAR(200) DEFAULT '',
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
 
   // Partial formation support
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS parent_strip_id INTEGER REFERENCES strips(id) ON DELETE SET NULL`);
@@ -5298,6 +5306,40 @@ app.get('/api/workstation-contacts', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch contacts' }); }
+});
+
+app.get('/api/workstation-session-roles', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (preset_id) {
+      const result = await pool.query(
+        `SELECT * FROM workstation_session_roles WHERE preset_id = $1`, [preset_id]
+      );
+      res.json(result.rows[0] || { preset_id: Number(preset_id), kshp: '', mefale: '', achori: '' });
+    } else {
+      const result = await pool.query(
+        `SELECT wsr.*, wp.name AS preset_name FROM workstation_session_roles wsr
+         JOIN workstation_presets wp ON wp.id = wsr.preset_id
+         ORDER BY wp.name`
+      );
+      res.json(result.rows);
+    }
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch session roles' }); }
+});
+
+app.put('/api/workstation-session-roles/:preset_id', async (req, res) => {
+  try {
+    const { preset_id } = req.params;
+    const { kshp, mefale, achori } = req.body;
+    const result = await pool.query(
+      `INSERT INTO workstation_session_roles (preset_id, kshp, mefale, achori, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (preset_id) DO UPDATE SET kshp=$2, mefale=$3, achori=$4, updated_at=NOW()
+       RETURNING *`,
+      [preset_id, kshp || '', mefale || '', achori || '']
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to save session roles' }); }
 });
 
 app.get('/api/workstation-contacts/all', async (req, res) => {

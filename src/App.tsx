@@ -204,6 +204,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [showCrewDropdown, setShowCrewDropdown] = useState(false);
   const [showHandwritingCalibration, setShowHandwritingCalibration] = useState(false);
   const [showLoginDebrief, setShowLoginDebrief] = useState(false);
+  const [pendingLoginPreset, setPendingLoginPreset] = useState<any>(null);
+  const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
+  const [roleFormLoading, setRoleFormLoading] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -618,7 +621,14 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   <select
                     onChange={(e) => {
                       const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
-                      if (preset) handlePresetLogin(preset);
+                      if (!preset) return;
+                      setRoleFormLoading(true);
+                      fetch(`${API_URL}/workstation-session-roles?preset_id=${preset.id}`)
+                        .then(r => r.ok ? r.json() : { kshp: '', mefale: '', achori: '' })
+                        .then(d => { setRoleForm({ kshp: d.kshp || '', mefale: d.mefale || '', achori: d.achori || '' }); })
+                        .catch(() => {})
+                        .finally(() => setRoleFormLoading(false));
+                      setPendingLoginPreset(preset);
                     }}
                     defaultValue=""
                     style={{
@@ -647,6 +657,64 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         </div>
       )}
       
+      {/* Role Entry Modal — shown after preset selection, before completing login */}
+      {pendingLoginPreset && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+          <div style={{ background: '#1e293b', border: '2px solid #2563eb', borderRadius: '14px', padding: '28px 32px', minWidth: '340px', maxWidth: '420px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>✈️ כניסה לעמדה: {pendingLoginPreset.name}</div>
+              <div style={{ fontSize: '12px', color: '#94a3b8' }}>מלא/י את אנשי הצוות הרלוונטיים לסשן זה (לא חובה)</div>
+            </div>
+            {[
+              { key: 'kshp', label: 'קש"פ', icon: '📻', placeholder: 'שם / אות קריאה' },
+              { key: 'mefale', label: 'מפעיל', icon: '🎯', placeholder: 'שם / אות קריאה' },
+              { key: 'achori', label: 'אחורי', icon: '🔁', placeholder: 'שם / אות קריאה' },
+            ].map(({ key, label, icon, placeholder }) => (
+              <div key={key} style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '5px' }}>{icon} {label}</label>
+                <input
+                  type="text"
+                  value={(roleForm as any)[key]}
+                  onChange={e => setRoleForm(prev => ({ ...prev, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+                  onKeyDown={e => { if (e.key === 'Enter') (document.getElementById('roleFormSubmit') as HTMLButtonElement)?.click(); }}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button
+                id="roleFormSubmit"
+                disabled={roleFormLoading}
+                onClick={async () => {
+                  const preset = pendingLoginPreset;
+                  setRoleFormLoading(true);
+                  try {
+                    await fetch(`${API_URL}/workstation-session-roles/${preset.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(roleForm)
+                    });
+                  } catch {}
+                  setRoleFormLoading(false);
+                  setPendingLoginPreset(null);
+                  handlePresetLogin(preset);
+                }}
+                style={{ flex: 1, padding: '11px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                {roleFormLoading ? '...' : '✅ כניסה לעמדה'}
+              </button>
+              <button
+                onClick={() => { const preset = pendingLoginPreset; setPendingLoginPreset(null); handlePresetLogin(preset); }}
+                style={{ padding: '11px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+              >
+                דלג
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Handwriting Calibration Modal */}
       {showHandwritingCalibration && selectedCrewMember && (
         <LearnDigitsOverlay 
@@ -9950,6 +10018,7 @@ const AdminDashboard: React.FC<{
   const setCardForecast = (pid: number, upd: Partial<{ resolution: 15|30|60|120; metric: 'formations'|'aircraft'; day: string }>) => setCardForecastSettings(prev => ({ ...prev, [pid]: { ...getCardForecast(pid), ...upd } }));
   const [activeCrew, setActiveCrew] = useState<Record<number, string>>({});
   const [allDashContacts, setAllDashContacts] = useState<any[]>([]);
+  const [allDashSessionRoles, setAllDashSessionRoles] = useState<any[]>([]);
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
     (group?.members || []).map((m: any) => localPresets.find((p: any) => p.id === m.preset_id)).filter(Boolean),
@@ -9982,6 +10051,7 @@ const AdminDashboard: React.FC<{
   useEffect(() => {
     const doFetch = () => {
       fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(d => setAllDashContacts(Array.isArray(d) ? d : [])).catch(() => {});
+      fetch(`${API_URL}/workstation-session-roles`).then(r => r.ok ? r.json() : []).then(d => setAllDashSessionRoles(Array.isArray(d) ? d : [])).catch(() => {});
       fetch(`${API_URL}/preset-active-crew`).then(r => r.ok ? r.json() : []).then((d: any[]) => {
         const map: Record<number, string> = {};
         for (const row of d) map[Number(row.preset_id)] = row.crew_name || '';
@@ -10118,6 +10188,10 @@ const AdminDashboard: React.FC<{
           const kshpContact = presetContacts.find((c: any) => (c.mahut || '').includes('קש"פ') || (c.mahut || '').includes('קשר פנים'));
           const mefalelContact = presetContacts.find((c: any) => (c.mahut || '') === 'מפעיל');
           const achoriContact = presetContacts.find((c: any) => (c.mahut || '') === 'אחורי');
+          const sessionRoles = allDashSessionRoles.find((r: any) => Number(r.preset_id) === Number(preset.id));
+          const sessionKshp = sessionRoles?.kshp || '';
+          const sessionMefale = sessionRoles?.mefale || '';
+          const sessionAchori = sessionRoles?.achori || '';
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
@@ -10127,10 +10201,12 @@ const AdminDashboard: React.FC<{
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
                 <div style={{ flexShrink: 0 }}>
                   <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white' }}>{preset.name}</div>
-                  {(crewName || kshpContact) && (
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                  {(crewName || kshpContact || sessionKshp || sessionMefale || sessionAchori) && (
+                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center', marginTop: '3px', flexWrap: 'wrap' }}>
                       {crewName && <span style={{ fontSize: '10px', color: lightMode ? '#2563eb' : '#60a5fa', fontWeight: 'bold' }}>👤 {crewName}</span>}
-                      {kshpContact && <span style={{ fontSize: '10px', color: lightMode ? '#059669' : '#34d399' }}>📻 {kshpContact.oketz || kshpContact.frequency || ''}</span>}
+                      {(sessionKshp || kshpContact) && <span style={{ fontSize: '10px', color: lightMode ? '#059669' : '#34d399', background: lightMode ? '#f0fdf4' : 'rgba(52,211,153,0.1)', borderRadius: '4px', padding: '1px 5px' }}>📻 {sessionKshp || kshpContact?.oketz || kshpContact?.frequency || ''}</span>}
+                      {(sessionMefale || mefalelContact) && <span style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#a78bfa', background: lightMode ? '#faf5ff' : 'rgba(167,139,250,0.1)', borderRadius: '4px', padding: '1px 5px' }}>🎯 {sessionMefale || mefalelContact?.oketz || mefalelContact?.frequency || ''}</span>}
+                      {(sessionAchori || achoriContact) && <span style={{ fontSize: '10px', color: lightMode ? '#d97706' : '#fbbf24', background: lightMode ? '#fffbeb' : 'rgba(251,191,36,0.1)', borderRadius: '4px', padding: '1px 5px' }}>🔁 {sessionAchori || achoriContact?.oketz || achoriContact?.frequency || ''}</span>}
                     </div>
                   )}
                 </div>
