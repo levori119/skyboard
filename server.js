@@ -748,6 +748,18 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS parent_base_id INTEGER`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_dashboard BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_mazaa BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS mazaa_regional VARCHAR(100)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS preset_mazaa_thresholds (
+      id SERIAL PRIMARY KEY,
+      preset_id INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      mazaa_status VARCHAR(100) NOT NULL,
+      partial_load INTEGER NOT NULL DEFAULT 3,
+      full_load INTEGER NOT NULL DEFAULT 5,
+      UNIQUE(preset_id, mazaa_status)
+    )
+  `);
   await pool.query(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
   // pressure_inhg lives on aviation_bases (parent base for shared pressure)
@@ -2706,15 +2718,15 @@ app.get('/api/workstation-presets/:id/config', async (req, res) => {
 
 app.post('/api/workstation-presets', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa } = req.body;
     // Backward-compat: if only legacy single list provided, treat as both directions
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29) RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true]
+      `INSERT INTO workstation_presets (name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30) RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, vertical_time_based !== false, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, can_update_mazaa === true]
     );
     const row = result.rows[0];
     await mirrorClassicPartnerLinks(row.id, incomingIds, outgoingIds);
@@ -2727,13 +2739,13 @@ app.post('/api/workstation-presets', async (req, res) => {
 
 app.put('/api/workstation-presets/:id', async (req, res) => {
   try {
-    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, flight_zones_mode } = req.body;
+    const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, block_table_ids, vertical_time_based, view_alt_min, view_alt_max, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, flight_zones_mode, can_update_mazaa } = req.body;
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const legacyUnion = Array.from(new Set([...(incomingIds || []), ...(outgoingIds || [])].map(Number).filter(Number.isFinite)));
     const result = await pool.query(
-      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34 WHERE id = $22 RETURNING *`,
-      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true]
+      `UPDATE workstation_presets SET name = $1, map_id = $2, relevant_sectors = $3, table_mode_id = $4, partial_load = $5, full_load = $6, filter_query = $7, conflict_alt_delta = $8, relevant_control_stations = $9, block_table_ids = $10, vertical_time_based = $11, view_alt_min = $12, view_alt_max = $13, display_mode = $14, classic_strip_table_id = $15, classic_strip_table_id_night = $16, classic_receive_points = $17, classic_transfer_points = $18, preset_type = $19, airfield_id = $20, classic_partner_preset_ids = $21, classic_incoming_partner_preset_ids = $23, classic_outgoing_partner_preset_ids = $24, show_serials = $25, allow_view_switching = $26, show_base_statuses = $27, base_status_ids = $28, preset_role = $29, parent_base_id = $30, can_update_pressure = $31, datk_show_minutes = $32, show_dashboard = $33, flight_zones_mode = $34, can_update_mazaa = $35 WHERE id = $22 RETURNING *`,
+      [name, map_id, JSON.stringify(relevant_sectors || []), table_mode_id || null, partial_load ?? 3, full_load ?? 5, filter_query ? JSON.stringify(filter_query) : null, conflict_alt_delta ?? 500, relevant_control_stations ? JSON.stringify(relevant_control_stations) : null, JSON.stringify(block_table_ids || []), vertical_time_based !== false, view_alt_min ?? null, view_alt_max ?? null, display_mode || 'complex', classic_strip_table_id || null, classic_strip_table_id_night || null, JSON.stringify(classic_receive_points || []), JSON.stringify(classic_transfer_points || []), preset_type || 'standard', airfield_id || null, JSON.stringify(legacyUnion), req.params.id, JSON.stringify(incomingIds || []), JSON.stringify(outgoingIds || []), show_serials !== false, allow_view_switching !== false, show_base_statuses === true, JSON.stringify(base_status_ids || []), preset_role || null, parent_base_id || null, can_update_pressure === true, datk_show_minutes != null ? parseInt(datk_show_minutes) : null, show_dashboard === true, flight_zones_mode === true, can_update_mazaa === true]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -4178,6 +4190,80 @@ app.delete('/api/work-groups/:id/members/:presetId', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
+// מצב מז"א מרחבי per work group
+app.get('/api/work-group-mazaa/:groupId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT mazaa_regional FROM work_groups WHERE id=$1`, [req.params.groupId]);
+    if (!rows.length) return res.status(404).json({ error: 'Group not found' });
+    res.json({ mazaa_regional: rows[0].mazaa_regional || '' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get mazaa regional' });
+  }
+});
+
+app.patch('/api/work-group-mazaa/:groupId', async (req, res) => {
+  try {
+    const { mazaa_regional } = req.body;
+    await pool.query(`UPDATE work_groups SET mazaa_regional=$1 WHERE id=$2`, [mazaa_regional || null, req.params.groupId]);
+    res.json({ success: true, mazaa_regional: mazaa_regional || '' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update mazaa regional' });
+  }
+});
+
+// מד עומס לפי מצב מז"א — per-preset thresholds
+app.get('/api/preset-mazaa-thresholds', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+    const { rows } = await pool.query(`SELECT * FROM preset_mazaa_thresholds WHERE preset_id=$1 ORDER BY id`, [preset_id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch mazaa thresholds' });
+  }
+});
+
+app.post('/api/preset-mazaa-thresholds', async (req, res) => {
+  try {
+    const { preset_id, mazaa_status, partial_load, full_load } = req.body;
+    if (!preset_id || !mazaa_status) return res.status(400).json({ error: 'preset_id and mazaa_status required' });
+    const { rows } = await pool.query(
+      `INSERT INTO preset_mazaa_thresholds (preset_id, mazaa_status, partial_load, full_load)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (preset_id, mazaa_status)
+       DO UPDATE SET partial_load=EXCLUDED.partial_load, full_load=EXCLUDED.full_load
+       RETURNING *`,
+      [preset_id, mazaa_status, partial_load ?? 3, full_load ?? 5]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save mazaa threshold' });
+  }
+});
+
+app.put('/api/preset-mazaa-thresholds/:id', async (req, res) => {
+  try {
+    const { partial_load, full_load } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE preset_mazaa_thresholds SET partial_load=$1, full_load=$2 WHERE id=$3 RETURNING *`,
+      [partial_load ?? 3, full_load ?? 5, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update mazaa threshold' });
+  }
+});
+
+app.delete('/api/preset-mazaa-thresholds/:id', async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM preset_mazaa_thresholds WHERE id=$1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete mazaa threshold' });
   }
 });
 

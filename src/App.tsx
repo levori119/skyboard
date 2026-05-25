@@ -10165,7 +10165,7 @@ const AdminDashboard: React.FC<{
                             const x = lp + i * slotW;
                             const barH = innerH * slot.count / maxC;
                             const y = innerH - barH;
-                            const fillColor = slot.count === 0 ? (lightMode ? '#e2e8f0' : '#1e293b') : slot.count >= maxC * 0.8 ? '#ef4444' : slot.count >= maxC * 0.5 ? '#f59e0b' : '#22c55e';
+                            const fillColor = slot.count === 0 ? (lightMode ? '#e2e8f0' : '#1e293b') : slot.count >= getFull(preset) ? '#ef4444' : slot.count >= getPartial(preset) ? '#f59e0b' : '#22c55e';
                             return (
                               <rect key={i} x={x + 0.3} y={y} width={Math.max(barW - 0.3, 0.3)} height={Math.max(barH, slot.count > 0 ? 2 : 1)} fill={fillColor} rx={1} opacity={0.85} />
                             );
@@ -10529,6 +10529,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [pressureMbInput, setPressureMbInput] = useState('');
   const [pressureAlert, setPressureAlert] = useState<string | null>(null);
   const lastPolledPressureRef = React.useRef<string | null>(null);
+  const [liveBaseStatuses, setLiveBaseStatuses] = useState<any[]>([]);
+  const [regionalMazaa, setRegionalMazaa] = useState<string>('');
+  const [mazaaThresholds, setMazaaThresholds] = useState<{id: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
+  const [mazaaEditMode, setMazaaEditMode] = useState(false);
   const [showLoadForecast, setShowLoadForecast] = useState(false);
   const [loadForecastMetric, setLoadForecastMetric] = useState<'formations' | 'aircraft'>('formations');
   const [loadForecastResolution, setLoadForecastResolution] = useState<15 | 30 | 60 | 120>(60);
@@ -10836,6 +10840,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         if (!res.ok) return;
         const all: any[] = await res.json();
         const relevant = relevantIds.length > 0 ? all.filter(b => relevantIds.includes(Number(b.id))) : all;
+        setLiveBaseStatuses(relevant);
         const newAlerts: { key: number; baseName: string; prev: string; next: string; color: string }[] = [];
         relevant.forEach(b => {
           const newAd: string = b.air_defense_status || '';
@@ -11028,6 +11033,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Derived from preset: parent base and pressure update rights
   const parentBaseId: number | null = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
+  const canUpdateMazaa: boolean = myPresetConfig?.can_update_mazaa === true;
+  const myWorkGroupId: number | null = (() => {
+    if (!session?.presetId) return null;
+    const group = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
+    return group ? Number(group.id) : null;
+  })();
+  const towerMazaaStatus: string = (() => {
+    if (!isTowerMode) return '';
+    const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+    if (bIds.length === 0) return '';
+    const bs = liveBaseStatuses.find((b: any) => bIds.includes(Number(b.id)));
+    return bs?.air_defense_status || '';
+  })();
+  const currentMazaaStatus: string = isTowerMode ? towerMazaaStatus : regionalMazaa;
+  const effectiveMazaaRow = mazaaThresholds.find(t => t.mazaa_status === currentMazaaStatus && currentMazaaStatus !== '');
+  const effectivePartial: number = effectiveMazaaRow ? effectiveMazaaRow.partial_load : (myPresetConfig?.partial_load ?? 3);
+  const effectiveFull: number = effectiveMazaaRow ? effectiveMazaaRow.full_load : (myPresetConfig?.full_load ?? 5);
 
   // Load pressure from DB and poll every 5s when a parent base is configured
   useEffect(() => {
@@ -11071,6 +11093,45 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 800);
     return () => clearTimeout(t);
   }, [pressureInHg, parentBaseId, canUpdatePressure]);
+
+  // Poll work-group מז"א מרחבי every 5s (non-tower workstations)
+  useEffect(() => {
+    if (!myWorkGroupId || isTowerMode) return;
+    const load = () => fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setRegionalMazaa(d.mazaa_regional || ''); })
+      .catch(() => {});
+    load();
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
+  }, [myWorkGroupId, isTowerMode]);
+
+  // Tower mode: poll base air_defense_status for מד עומס מז"א
+  useEffect(() => {
+    if (!isTowerMode || !myPresetConfig) return;
+    const bIds: number[] = Array.isArray(myPresetConfig.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+    if (bIds.length === 0) return;
+    const load = async () => {
+      try {
+        const r = await fetch(`${API_URL}/base-statuses`);
+        if (!r.ok) return;
+        const all: any[] = await r.json();
+        setLiveBaseStatuses(all.filter((b: any) => bIds.includes(Number(b.id))));
+      } catch {}
+    };
+    load();
+    const iv = setInterval(load, 5000);
+    return () => clearInterval(iv);
+  }, [isTowerMode, myPresetConfig?.id]);
+
+  // Load mazaa thresholds for current workstation preset
+  useEffect(() => {
+    if (!session?.presetId) return;
+    fetch(`${API_URL}/preset-mazaa-thresholds?preset_id=${session.presetId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setMazaaThresholds(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [session?.presetId]);
 
   // Auto-dismiss pressure alert after 5s
   useEffect(() => {
@@ -11323,8 +11384,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
-  const partialLoadThreshold: number = myPresetConfig?.partial_load ?? 3;
-  const fullLoadThreshold: number = myPresetConfig?.full_load ?? 5;
+  const partialLoadThreshold: number = effectivePartial;
+  const fullLoadThreshold: number = effectiveFull;
 
   // --- single-block mini view logic ---
   const miniViewBlocks = (() => {
@@ -13007,6 +13068,43 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     size={13}
                     style={{ marginRight: '2px' }}
                   />
+                )}
+              </div>
+            );
+          })()}
+          {/* מצב מז"א */}
+          {(() => {
+            const mazaaColor = AIR_DEFENSE_STATUSES.find(s => s.label === currentMazaaStatus)?.color || (lightMode ? '#94a3b8' : '#475569');
+            const hasStatus = currentMazaaStatus !== '';
+            const label = isTowerMode ? 'מז"א בסיס' : 'מז"א מרחבי';
+            return (
+              <div
+                title={`${label}${hasStatus ? ': ' + currentMazaaStatus : ''}${effectiveMazaaRow ? ` | סף חלקי: ${effectivePartial}, מלא: ${effectiveFull}` : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasStatus ? '#fef3c7' : '#f1f5f9') : (hasStatus ? '#1c1200' : '#1e293b'), border: `2px solid ${hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 9px', minWidth: '110px', cursor: (!isTowerMode && canUpdateMazaa) ? 'pointer' : 'default', userSelect: 'none' }}
+                onClick={() => { if (!isTowerMode && canUpdateMazaa) setMazaaEditMode(v => !v); }}
+              >
+                <span style={{ fontSize: '12px' }}>🛡</span>
+                <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>{label}:</span>
+                {!isTowerMode && canUpdateMazaa && mazaaEditMode ? (
+                  <select
+                    autoFocus
+                    value={currentMazaaStatus}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setRegionalMazaa(val);
+                      setMazaaEditMode(false);
+                      fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
+                    }}
+                    onBlur={() => setMazaaEditMode(false)}
+                    style={{ fontSize: '12px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl' }}
+                  >
+                    <option value="">— בחר —</option>
+                    {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569') }}>
+                    {hasStatus ? currentMazaaStatus : '—'}
+                  </span>
                 )}
               </div>
             );
@@ -16791,8 +16889,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const y = innerH - barH;
                     const fillColor = slot.count === 0
                       ? (lightMode ? '#e2e8f0' : '#1e293b')
-                      : slot.count >= maxCount * 0.8 ? '#ef4444'
-                      : slot.count >= maxCount * 0.5 ? '#f59e0b'
+                      : slot.count >= effectiveFull ? '#ef4444'
+                      : slot.count >= effectivePartial ? '#f59e0b'
                       : '#22c55e';
                     const isNowSlot = isToday && i === Math.floor((now.getHours() * 60 + now.getMinutes()) / resMin);
                     return (
@@ -19336,6 +19434,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     can_update_pressure: false as boolean,
     show_dashboard: false as boolean,
     flight_zones_mode: false as boolean,
+    can_update_mazaa: false as boolean,
     datk_show_minutes: '' as string | number,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
@@ -19343,6 +19442,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Preset links state
   const [editingPresetLinks, setEditingPresetLinks] = useState<any[]>([]);
+  const [editingPresetMazaaRows, setEditingPresetMazaaRows] = useState<{id?: number; mazaa_status: string; partial_load: number; full_load: number}[]>([]);
+  const [newMazaaRow, setNewMazaaRow] = useState<{mazaa_status: string; partial_load: number; full_load: number}>({ mazaa_status: '', partial_load: 3, full_load: 5 });
   const [newLinkForm, setNewLinkForm] = useState({ url: '', name: '', category: '', note: '' });
   const [showAddLinkForm, setShowAddLinkForm] = useState(false);
   const [editingLinkId, setEditingLinkId] = useState<number | null>(null);
@@ -19352,6 +19453,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     const res = await fetch(`${API_URL}/preset-links/${presetId}`);
     if (res.ok) setEditingPresetLinks(await res.json());
   };
+
+  useEffect(() => {
+    if (!editingPreset?.id) { setEditingPresetMazaaRows([]); setNewMazaaRow({ mazaa_status: '', partial_load: 3, full_load: 5 }); return; }
+    fetch(`${API_URL}/preset-mazaa-thresholds?preset_id=${editingPreset.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => setEditingPresetMazaaRows(Array.isArray(rows) ? rows : []))
+      .catch(() => {});
+  }, [editingPreset?.id]);
 
   // Classic Strip Tables state
   const [classicTables, setClassicTables] = useState<any[]>([]);
@@ -19656,6 +19765,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           can_update_pressure: presetForm.can_update_pressure === true,
           show_dashboard: presetForm.show_dashboard === true,
           flight_zones_mode: presetForm.flight_zones_mode === true,
+          can_update_mazaa: presetForm.can_update_mazaa === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
         })
       });
@@ -19670,7 +19780,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '' });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false });
       } else if (saved) {
         editPreset(saved);
       }
@@ -19715,6 +19825,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       can_update_pressure: preset.can_update_pressure === true,
       show_dashboard: preset.show_dashboard === true,
       flight_zones_mode: preset.flight_zones_mode === true,
+      can_update_mazaa: preset.can_update_mazaa === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
     };
     setPresetForm(f);
@@ -19833,7 +19944,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -19843,7 +19954,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '' }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -20189,6 +20300,73 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות עם אותו בסיס אב משתפות לחץ אטמוספרי. רק עמדת "מעדכן" יכולה לשנות — האחרות קריאה בלבד עם עדכון אוטומטי כל 5 שניות.</p>
                 </div>
 
+                {/* can_update_mazaa toggle */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🛡 הרשאת עדכון מצב מז"א מרחבי:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl', alignItems: 'center' }}>
+                    {([{ val: true, label: '✏️ מעדכן' }, { val: false, label: '👁 קריאה בלבד' }] as { val: boolean; label: string }[]).map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, can_update_mazaa: opt.val }))}
+                        style={{ padding: '5px 14px', borderRadius: '6px', border: `1px solid ${presetForm.can_update_mazaa === opt.val ? '#f59e0b' : '#334155'}`, background: presetForm.can_update_mazaa === opt.val ? '#1c1200' : '#1e293b', color: presetForm.can_update_mazaa === opt.val ? '#fbbf24' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.can_update_mazaa === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות "מעדכן" יכולות לשנות את מצב מז"א המרחבי עבור כל קבוצת העבודה. עמדות מגדל לוקחות מצב מז"א מסטטוס הבסיס שלהן.</p>
+                </div>
+
+                {/* מד עומס לפי מצב מז"א */}
+                {editingPreset && (
+                  <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
+                    <label style={{ display: 'block', marginBottom: '10px', color: '#fbbf24', fontSize: '14px', fontWeight: 'bold' }}>🛡 מד עומס לפי מצב מז"א:</label>
+                    {editingPresetMazaaRows.length > 0 && (
+                      <div style={{ marginBottom: '10px' }}>
+                        {editingPresetMazaaRows.map(row => (
+                          <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', direction: 'rtl' }}>
+                            <span style={{ fontSize: '12px', color: AIR_DEFENSE_STATUSES.find(s => s.label === row.mazaa_status)?.color || '#94a3b8', fontWeight: 'bold', minWidth: '130px' }}>{row.mazaa_status}</span>
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>חלקי:</span>
+                            <input type="number" value={row.partial_load} min={1} max={99}
+                              onChange={e => { const v = Number(e.target.value); setEditingPresetMazaaRows(prev => prev.map(r => r.id === row.id ? { ...r, partial_load: v } : r)); }}
+                              onBlur={e => { const v = Number(e.target.value); fetch(`${API_URL}/preset-mazaa-thresholds/${row.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partial_load: v, full_load: row.full_load }) }).catch(() => {}); }}
+                              style={{ width: '50px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#f59e0b', fontSize: '12px', textAlign: 'center' }} />
+                            <span style={{ fontSize: '11px', color: '#64748b' }}>מלא:</span>
+                            <input type="number" value={row.full_load} min={1} max={99}
+                              onChange={e => { const v = Number(e.target.value); setEditingPresetMazaaRows(prev => prev.map(r => r.id === row.id ? { ...r, full_load: v } : r)); }}
+                              onBlur={e => { const v = Number(e.target.value); fetch(`${API_URL}/preset-mazaa-thresholds/${row.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ partial_load: row.partial_load, full_load: v }) }).catch(() => {}); }}
+                              style={{ width: '50px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#ef4444', fontSize: '12px', textAlign: 'center' }} />
+                            <button onClick={async () => { await fetch(`${API_URL}/preset-mazaa-thresholds/${row.id}`, { method: 'DELETE' }); setEditingPresetMazaaRows(prev => prev.filter(r => r.id !== row.id)); }}
+                              style={{ padding: '2px 8px', background: '#450a0a', border: '1px solid #dc2626', color: '#fca5a5', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl', paddingTop: editingPresetMazaaRows.length > 0 ? '8px' : '0', borderTop: editingPresetMazaaRows.length > 0 ? '1px solid #334155' : 'none' }}>
+                      <select value={newMazaaRow.mazaa_status} onChange={e => setNewMazaaRow(p => ({ ...p, mazaa_status: e.target.value }))}
+                        style={{ padding: '4px 8px', background: '#1e293b', border: `1px solid ${newMazaaRow.mazaa_status ? (AIR_DEFENSE_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#475569') : '#475569'}`, borderRadius: '5px', color: newMazaaRow.mazaa_status ? (AIR_DEFENSE_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#e2e8f0') : '#94a3b8', fontSize: '12px', direction: 'rtl' }}>
+                        <option value="">— בחר מצב מז"א —</option>
+                        {AIR_DEFENSE_STATUSES.filter(s => !editingPresetMazaaRows.some(r => r.mazaa_status === s.label)).map(s => (
+                          <option key={s.label} value={s.label}>{s.label}</option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>חלקי:</span>
+                      <input type="number" value={newMazaaRow.partial_load} min={1} max={99}
+                        onChange={e => setNewMazaaRow(p => ({ ...p, partial_load: Number(e.target.value) }))}
+                        style={{ width: '50px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#f59e0b', fontSize: '12px', textAlign: 'center' }} />
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>מלא:</span>
+                      <input type="number" value={newMazaaRow.full_load} min={1} max={99}
+                        onChange={e => setNewMazaaRow(p => ({ ...p, full_load: Number(e.target.value) }))}
+                        style={{ width: '50px', padding: '3px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', color: '#ef4444', fontSize: '12px', textAlign: 'center' }} />
+                      <button onClick={async () => {
+                        if (!newMazaaRow.mazaa_status || !editingPreset) return;
+                        const res = await fetch(`${API_URL}/preset-mazaa-thresholds`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ preset_id: editingPreset.id, mazaa_status: newMazaaRow.mazaa_status, partial_load: newMazaaRow.partial_load, full_load: newMazaaRow.full_load }) });
+                        if (res.ok) { const saved = await res.json(); setEditingPresetMazaaRows(prev => [...prev, saved]); setNewMazaaRow({ mazaa_status: '', partial_load: 3, full_load: 5 }); }
+                      }} disabled={!newMazaaRow.mazaa_status}
+                        style={{ padding: '4px 12px', background: newMazaaRow.mazaa_status ? '#1c4532' : '#1e293b', border: `1px solid ${newMazaaRow.mazaa_status ? '#22c55e' : '#334155'}`, color: newMazaaRow.mazaa_status ? '#86efac' : '#64748b', borderRadius: '5px', cursor: newMazaaRow.mazaa_status ? 'pointer' : 'default', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף</button>
+                    </div>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמוגדרים ספים למצב מז"א — מד העומס ישתמש בספים אלה כשהמצב פעיל. ברירת-מחדל (ללא מז"א): חלקי={presetForm.partial_load}, מלא={presetForm.full_load}.</p>
+                  </div>
+                )}
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>📊 דש בורד:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
@@ -20454,7 +20632,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '' }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
