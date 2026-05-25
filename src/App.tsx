@@ -9711,12 +9711,17 @@ const AdminDashboard: React.FC<{
   const [showAddElem, setShowAddElem] = useState(false);
   const [addElemForm, setAddElemForm] = useState<{ name: string; category: string; status: string; note: string; element_type_id: string }>({ name: '', category: '', status: 'תקין', note: '', element_type_id: '' });
   const [addElemSaving, setAddElemSaving] = useState(false);
-  const [showForecastInDash, setShowForecastInDash] = useState(false);
+  const [openForecasts, setOpenForecasts] = useState<Set<number>>(new Set());
   const [dashForecastResolution, setDashForecastResolution] = useState<15 | 30 | 60 | 120>(60);
   const [dashForecastMetric, setDashForecastMetric] = useState<'formations' | 'aircraft'>('formations');
   const [dashForecastDay, setDashForecastDay] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
+  const toggleForecast = (presetId: number) => setOpenForecasts(prev => {
+    const next = new Set(prev);
+    if (next.has(presetId)) { next.delete(presetId); } else { next.add(presetId); }
+    return next;
   });
 
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
@@ -9849,18 +9854,15 @@ const AdminDashboard: React.FC<{
         {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
-          {/* Forecast toggle + controls */}
-          <button onClick={() => setShowForecastInDash(v => !v)}
-            style={{ background: showForecastInDash ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#334155'), color: showForecastInDash ? 'white' : (lightMode ? '#475569' : '#94a3b8'), border: `1px solid ${showForecastInDash ? '#7c3aed' : (lightMode ? '#cbd5e1' : '#475569')}`, borderRadius: '5px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer', fontWeight: showForecastInDash ? 'bold' : 'normal' }}>
-            📈 גרף עומס
-          </button>
-          {showForecastInDash && (<>
+          {/* Shared forecast controls — shown when any card has forecast open */}
+          {openForecasts.size > 0 && (<>
+            <span style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#a78bfa', fontWeight: 'bold' }}>📈 גרף עומס:</span>
             {/* Day navigation */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button onClick={() => { const d = new Date(dashForecastDay + 'T12:00:00'); d.setDate(d.getDate() - 1); setDashForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }}
                 style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', color: lightMode ? '#1e293b' : 'white' }}>›</button>
               <span style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', minWidth: '72px', textAlign: 'center' }}>
-                {(() => { const [yr, mo, dy] = dashForecastDay.split('-'); const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`; return dashForecastDay === todayStr ? 'היום' : `${dy}/${mo}`; })()}
+                {(() => { const [, mo, dy] = dashForecastDay.split('-'); const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`; return dashForecastDay === todayStr ? 'היום' : `${dy}/${mo}`; })()}
               </span>
               <button onClick={() => { const d = new Date(dashForecastDay + 'T12:00:00'); d.setDate(d.getDate() + 1); setDashForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }}
                 style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', color: lightMode ? '#1e293b' : 'white' }}>‹</button>
@@ -10101,13 +10103,20 @@ const AdminDashboard: React.FC<{
                       </button>
                     )}
                   </div>
-                  {/* Drill-down button */}
-                  <button onClick={() => toggleDrilldown(preset.id)}
-                    style={{ marginTop: 'auto', width: '100%', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                    👁 תצוגת פ״מ
-                  </button>
+                  {/* Drill-down + Forecast buttons row */}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
+                    <button onClick={() => toggleDrilldown(preset.id)}
+                      style={{ flex: 1, background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                      👁 תצוגת פ״מ
+                    </button>
+                    <button onClick={() => toggleForecast(preset.id)}
+                      title="גרף עומס לעמדה זו"
+                      style={{ background: openForecasts.has(preset.id) ? '#7c3aed' : '#1e293b', color: openForecasts.has(preset.id) ? '#e9d5ff' : '#94a3b8', border: `1px solid ${openForecasts.has(preset.id) ? '#7c3aed' : '#475569'}`, borderRadius: '6px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      📈
+                    </button>
+                  </div>
                   {/* ── Mini load forecast chart ── */}
-                  {showForecastInDash && (() => {
+                  {openForecasts.has(preset.id) && (() => {
                     const resMin = dashForecastResolution;
                     const slotsPerDay = (24 * 60) / resMin;
                     const dayStart = new Date(dashForecastDay + 'T00:00:00');
