@@ -813,6 +813,14 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS device_type VARCHAR(50) DEFAULT ''`);
   await pool.query(`ALTER TABLE workstation_contacts ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'ראשי'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS preset_active_crew (
+      preset_id INTEGER PRIMARY KEY REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      crew_name VARCHAR(200) DEFAULT '',
+      crew_id INTEGER,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
   // Strip SID/STAR and departure/landing base fields
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS sid VARCHAR(50)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS star VARCHAR(50)`);
@@ -5312,6 +5320,28 @@ app.delete('/api/workstation-contacts/:id', async (req, res) => {
     await pool.query('DELETE FROM workstation_contacts WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete contact' }); }
+});
+
+// --- Preset Active Crew ---
+app.get('/api/preset-active-crew', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM preset_active_crew ORDER BY preset_id');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch active crew' }); }
+});
+
+app.put('/api/preset-active-crew/:presetId', async (req, res) => {
+  try {
+    const { presetId } = req.params;
+    const { crew_name, crew_id } = req.body;
+    await pool.query(
+      `INSERT INTO preset_active_crew (preset_id, crew_name, crew_id, updated_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (preset_id) DO UPDATE SET crew_name=$2, crew_id=$3, updated_at=NOW()`,
+      [presetId, crew_name || '', crew_id || null]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to update active crew' }); }
 });
 
 const PORT = process.env.PORT || 3001;

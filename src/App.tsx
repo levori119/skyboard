@@ -9735,6 +9735,8 @@ const AdminDashboard: React.FC<{
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
+  const [activeCrew, setActiveCrew] = useState<Record<number, string>>({});
+  const [allDashContacts, setAllDashContacts] = useState<any[]>([]);
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
     (group?.members || []).map((m: any) => localPresets.find((p: any) => p.id === m.preset_id)).filter(Boolean),
@@ -9761,6 +9763,20 @@ const AdminDashboard: React.FC<{
     };
     doFetch();
     const t = setInterval(doFetch, 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const doFetch = () => {
+      fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(d => setAllDashContacts(Array.isArray(d) ? d : [])).catch(() => {});
+      fetch(`${API_URL}/preset-active-crew`).then(r => r.ok ? r.json() : []).then((d: any[]) => {
+        const map: Record<number, string> = {};
+        for (const row of d) map[Number(row.preset_id)] = row.crew_name || '';
+        setActiveCrew(map);
+      }).catch(() => {});
+    };
+    doFetch();
+    const t = setInterval(doFetch, 10000);
     return () => clearInterval(t);
   }, []);
 
@@ -9925,14 +9941,27 @@ const AdminDashboard: React.FC<{
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
           const presetStrips = dashCardView === 'strips' ? filterStripsForPreset(allStrips, preset) : [];
+          const crewName = activeCrew[Number(preset.id)] || '';
+          const presetContacts = allDashContacts.filter((c: any) => Number(c.preset_id) === Number(preset.id));
+          const kshpContact = presetContacts.find((c: any) => (c.mahut || '').includes('קש"פ') || (c.mahut || '').includes('קשר פנים'));
+          const mefalelContact = presetContacts.find((c: any) => (c.mahut || '') === 'מפעיל');
+          const achoriContact = presetContacts.find((c: any) => (c.mahut || '') === 'אחורי');
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
-              style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', height: '260px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', overflow: 'hidden' }}
+              style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '260px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', overflow: 'hidden' }}
             >
               {/* Card header — always visible */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white', flexShrink: 0 }}>{preset.name}</div>
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px', color: lightMode ? '#0f172a' : 'white' }}>{preset.name}</div>
+                  {(crewName || kshpContact) && (
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px', flexWrap: 'wrap' }}>
+                      {crewName && <span style={{ fontSize: '10px', color: lightMode ? '#2563eb' : '#60a5fa', fontWeight: 'bold' }}>👤 {crewName}</span>}
+                      {kshpContact && <span style={{ fontSize: '10px', color: lightMode ? '#059669' : '#34d399' }}>📻 {kshpContact.oketz || kshpContact.frequency || ''}</span>}
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
                   {hasConflict && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#dc2626', color: 'white', borderRadius: '6px', padding: '2px 7px', fontSize: '11px', fontWeight: 'bold', border: '1px solid #fca5a5' }}>
@@ -10197,6 +10226,26 @@ const AdminDashboard: React.FC<{
                 </>
               )}
               </div>{/* end fixed-height content area */}
+              {/* Contacts footer: קש"פ / מפעיל / אחורי */}
+              {(kshpContact || mefalelContact || achoriContact) && (
+                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, paddingTop: '5px', display: 'flex', gap: '10px', flexWrap: 'wrap', flexShrink: 0, direction: 'rtl' }}>
+                  {kshpContact && (
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
+                      📻 קש"פ: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{kshpContact.oketz || kshpContact.frequency || '—'}</b>
+                    </span>
+                  )}
+                  {mefalelContact && (
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
+                      🎯 מפעיל: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{mefalelContact.oketz || mefalelContact.frequency || '—'}</b>
+                    </span>
+                  )}
+                  {achoriContact && (
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>
+                      🔁 אחורי: <b style={{ color: lightMode ? '#0f172a' : '#e2e8f0' }}>{achoriContact.oketz || achoriContact.frequency || '—'}</b>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -10481,6 +10530,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       })
       .catch(() => {});
   }, [session.presetId, session.crewMember?.id]);
+
+  // Register active crew for this workstation in the dashboard
+  useEffect(() => {
+    if (!session.presetId) return;
+    fetch(`${API_URL}/preset-active-crew/${session.presetId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crew_name: session.crewMember?.name || '', crew_id: session.crewMember?.id || null })
+    }).catch(() => {});
+  }, [session.presetId, session.crewMember?.id, session.crewMember?.name]);
 
   const savePersonalFilter = async (q: QGroup | null) => {
     const presetId = session.presetId;
