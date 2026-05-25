@@ -15686,6 +15686,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           }
                           return cell;
                         })}
+                        {/* Inline block-deviation action button */}
+                        {(isRowDeviation || isRowDeviationAck) && (
+                          <td style={{ padding: '2px 5px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg }}>
+                            {isRowDeviation && !isRowDeviationAck ? (
+                              <button
+                                onClick={async e => {
+                                  e.stopPropagation();
+                                  try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                                  setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x));
+                                }}
+                                title="אשר חריגה מבלוק"
+                                style={{ fontSize: '10px', padding: '2px 7px', background: '#7c2d12', color: '#fb923c', border: '1px solid #ea580c', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                              >⚠️ אשר חריגה</button>
+                            ) : (
+                              <button
+                                onClick={async e => {
+                                  e.stopPropagation();
+                                  try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                                  setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x));
+                                }}
+                                title="בטל אישור חריגה מבלוק"
+                                style={{ fontSize: '10px', padding: '2px 7px', background: '#14532d', color: '#86efac', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                              >✅ בטל אישור</button>
+                            )}
+                          </td>
+                        )}
                         <td style={{ position: 'sticky', left: 0, zIndex: 10, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
                           {isPendingTransfer && (
                             <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
@@ -15736,7 +15762,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {ctxDev && !ctxAck && (
                     <button
                       onClick={async () => {
-                        try { await fetch(`${API_URL}/strips/${tableRowCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                        const sid = tableRowCtxMenu.stripId;
+                        try { await fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                        setStrips(prev => prev.map((x: any) => String(x.id) === String(sid) ? { ...x, block_deviation: true } : x));
                         setTableRowCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
@@ -15745,7 +15773,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {ctxAck && (
                     <button
                       onClick={async () => {
-                        try { await fetch(`${API_URL}/strips/${tableRowCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                        const sid = tableRowCtxMenu.stripId;
+                        try { await fetch(`${API_URL}/strips/${sid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                        setStrips(prev => prev.map((x: any) => String(x.id) === String(sid) ? { ...x, block_deviation: false } : x));
                         setTableRowCtxMenu(null);
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
