@@ -14059,147 +14059,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onMergePartial={(targetId, sourceId) => { const src = classicCenterStrips.find((x: any) => String(x.id) === sourceId); const sibs = getSectorSiblings(src || {}); if (sibs.length === 1) { setSectorMergeConfirm({ targetId, sourceId, targetName: sibs[0]?.callSign || targetId, sourceName: src?.callSign || sourceId }); } else if (sibs.length > 1) { setSectorMergeModal({ strip: src, siblings: sibs }); } }}
                   getSiblings={getSectorSiblings}
                 />
-                {/* Drawing disabled in classic strips mode */}
-                <div style={{ display: 'none' }}>
-                  {/* 🖊️ Toggle inside classic draw zone */}
-                  <button
-                    onClick={() => {
-                      const newMode = !drawingMode;
-                      drawingModeRef.current = newMode;
-                      if (!newMode) { isDrawingRef.current = false; lastPosRef.current = null; }
-                      setDrawingMode(newMode);
-                    }}
-                    title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
-                    style={{
-                      position: 'absolute', top: 6, left: 6, zIndex: 1000,
-                      width: 32, height: 32, borderRadius: '8px', border: 'none',
-                      background: drawingMode ? '#3b82f6' : 'rgba(15,23,42,0.75)',
-                      color: drawingMode ? 'white' : '#94a3b8',
-                      fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
-                      pointerEvents: 'auto',
-                    }}
-                  >🖊️</button>
-                  <canvas
-                    ref={canvasRef}
-                    onPointerDown={e => {
-                      e.preventDefault(); e.stopPropagation();
-                      if (drawTool === 'pen' || drawTool === 'eraser') {
-                        startDrawing(e);
-                      } else if (drawingModeRef.current) {
-                        e.currentTarget.setPointerCapture(e.pointerId);
-                        setSelectedShapeId(null);
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                        setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
-                      }
-                    }}
-                    onPointerMove={e => {
-                      e.stopPropagation();
-                      if (drawTool === 'pen' || drawTool === 'eraser') {
-                        draw(e);
-                      } else if (shapeStartRef.current) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-                        setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
-                      }
-                    }}
-                    onPointerUp={e => {
-                      e.stopPropagation();
-                      if (drawTool === 'pen' || drawTool === 'eraser') {
-                        stopDrawing();
-                      } else if (shapeStartRef.current && shapePreview) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
-                        const x = Math.min(shapeStartRef.current.x, x2);
-                        const y = Math.min(shapeStartRef.current.y, y2);
-                        const w = Math.abs(x2 - shapeStartRef.current.x);
-                        const h = Math.abs(y2 - shapeStartRef.current.y);
-                        if (w > 5 || h > 5) {
-                          setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
-                        }
-                        shapeStartRef.current = null; setShapePreview(null);
-                      }
-                    }}
-                    onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
-                    onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
-                    style={{
-                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                      pointerEvents: drawingMode ? 'auto' : 'none',
-                      cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
-                      touchAction: 'none', zIndex: 200
-                    }}
-                  />
-                </div>
-                {/* 🖊️ Toggle — map mode only */}
-                {!isClassicMode && <button
-                  onClick={() => {
-                    const newMode = !drawingMode;
-                    drawingModeRef.current = newMode;
-                    if (!newMode) { isDrawingRef.current = false; lastPosRef.current = null; }
-                    setDrawingMode(newMode);
-                  }}
-                  title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
-                  style={{
-                    position: 'absolute', top: 10, left: 10, zIndex: 1000,
-                    width: 36, height: 36, borderRadius: '8px', border: 'none',
-                    background: drawingMode ? '#3b82f6' : 'rgba(15,23,42,0.75)',
-                    color: drawingMode ? 'white' : '#94a3b8',
-                    fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
-                  }}
-                >🖊️</button>}
-                {!isClassicMode && drawingMode && <div style={{
-                  position: 'absolute', top: 10, left: 54,
-                  background: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', padding: '8px',
-                  display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 1000
-                }}>
-                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                    {([
-                      { id: 'pen', label: '✏️', title: 'עט' },
-                      { id: 'eraser', label: '🧹', title: 'מחק' },
-                      { id: 'rect', label: '⬜', title: 'מלבן' },
-                      { id: 'circle', label: '⭕', title: 'עיגול' },
-                    ] as const).map(t => (
-                      <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
-                        padding: '5px 7px', fontSize: '15px', lineHeight: 1,
-                        background: drawTool === t.id ? '#3b82f6' : '#334155',
-                        color: 'white', border: drawTool === t.id ? '2px solid #fff' : '1px solid #64748b',
-                        borderRadius: '5px', cursor: 'pointer',
-                      }}>{t.label}</button>
-                    ))}
-                  </div>
-                  {(drawTool === 'rect' || drawTool === 'circle') && (
-                    <button onClick={() => setShapeFilled(f => !f)} style={{
-                      padding: '5px 8px', fontSize: '11px', fontWeight: 'bold',
-                      background: shapeFilled ? '#10b981' : '#475569',
-                      color: 'white', border: shapeFilled ? '2px solid #fff' : '1px solid #64748b',
-                      borderRadius: '5px', cursor: 'pointer'
-                    }}>{shapeFilled ? 'מלא ✓' : 'קו בלבד'}</button>
-                  )}
-                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
-                      <button key={color} onClick={() => { setPenColor(color); if (drawTool === 'eraser') setDrawTool('pen'); }}
-                        style={{
-                          width: 24, height: 24, background: color,
-                          border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
-                          borderRadius: '4px', cursor: 'pointer',
-                          boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
-                        }} />
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
-                    <input type="range" min="1" max="10" value={penSize}
-                      onChange={e => setPenSize(Number(e.target.value))}
-                      style={{ flex: 1, cursor: 'pointer' }} />
-                    <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
-                  </div>
-                  <button onClick={() => { clearCanvas(); setMapShapes([]); setSelectedShapeId(null); }} style={{
-                    padding: '6px', background: '#dc2626', color: 'white', border: 'none',
-                    borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
-                  }}>נקה הכל</button>
-                </div>}
               </div>
             );
           })()}
@@ -15664,6 +15523,127 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </button>
             </div>
           )}
+
+          {/* 🖊️ Drawing canvas — map mode only */}
+          <canvas
+            ref={canvasRef}
+            onPointerDown={e => {
+              e.preventDefault(); e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                startDrawing(e);
+              } else if (drawingModeRef.current) {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                setSelectedShapeId(null);
+                const rect = e.currentTarget.getBoundingClientRect();
+                shapeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                setShapePreview({ x1: shapeStartRef.current.x, y1: shapeStartRef.current.y, x2: shapeStartRef.current.x, y2: shapeStartRef.current.y });
+              }
+            }}
+            onPointerMove={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                draw(e);
+              } else if (shapeStartRef.current) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                setShapePreview(prev => prev ? { ...prev, x2: x, y2: y } : null);
+              }
+            }}
+            onPointerUp={e => {
+              e.stopPropagation();
+              if (drawTool === 'pen' || drawTool === 'eraser') {
+                stopDrawing();
+              } else if (shapeStartRef.current && shapePreview) {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x2 = e.clientX - rect.left; const y2 = e.clientY - rect.top;
+                const x = Math.min(shapeStartRef.current.x, x2);
+                const y = Math.min(shapeStartRef.current.y, y2);
+                const w = Math.abs(x2 - shapeStartRef.current.x);
+                const h = Math.abs(y2 - shapeStartRef.current.y);
+                if (w > 5 || h > 5) {
+                  setMapShapes(prev => [...prev, { id: Date.now().toString(), type: drawTool as 'circle'|'rect', x, y, w: Math.max(w, 10), h: Math.max(h, 10), color: penColor, filled: shapeFilled, strokeWidth: penSize }]);
+                }
+                shapeStartRef.current = null; setShapePreview(null);
+              }
+            }}
+            onPointerLeave={e => { e.stopPropagation(); stopDrawing(); }}
+            onPointerCancel={e => { e.stopPropagation(); stopDrawing(); shapeStartRef.current = null; setShapePreview(null); }}
+            style={{
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+              pointerEvents: drawingMode ? 'auto' : 'none',
+              cursor: drawingMode ? (eraserMode ? 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000\' stroke-width=\'2\'%3E%3Cpath d=\'M20 20H7L3 16c-.8-.8-.8-2 0-2.8l10-10c.8-.8 2-.8 2.8 0l7 7c.8.8.8 2 0 2.8L14 22\'/%3E%3Cpath d=\'M6.5 13.5 15 5\'/%3E%3C/svg%3E") 12 12, auto' : 'crosshair') : 'default',
+              touchAction: 'none', zIndex: 200
+            }}
+          />
+          {/* 🖊️ Toggle button */}
+          <button
+            onClick={() => {
+              const newMode = !drawingMode;
+              drawingModeRef.current = newMode;
+              if (!newMode) { isDrawingRef.current = false; lastPosRef.current = null; }
+              setDrawingMode(newMode);
+            }}
+            title={drawingMode ? 'כבה ציור' : 'הפעל ציור'}
+            style={{
+              position: 'absolute', top: 10, left: 10, zIndex: 1000,
+              width: 36, height: 36, borderRadius: '8px', border: 'none',
+              background: drawingMode ? '#3b82f6' : 'rgba(15,23,42,0.75)',
+              color: drawingMode ? 'white' : '#94a3b8',
+              fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: drawingMode ? '0 0 0 2px #60a5fa' : undefined,
+            }}
+          >🖊️</button>
+          {drawingMode && <div style={{
+            position: 'absolute', top: 10, left: 54,
+            background: 'rgba(15, 23, 42, 0.9)', borderRadius: '8px', padding: '8px',
+            display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 1000
+          }}>
+            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+              {([
+                { id: 'pen', label: '✏️', title: 'עט' },
+                { id: 'eraser', label: '🧹', title: 'מחק' },
+                { id: 'rect', label: '⬜', title: 'מלבן' },
+                { id: 'circle', label: '⭕', title: 'עיגול' },
+              ] as const).map(t => (
+                <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
+                  padding: '5px 7px', fontSize: '15px', lineHeight: 1,
+                  background: drawTool === t.id ? '#3b82f6' : '#334155',
+                  color: 'white', border: drawTool === t.id ? '2px solid #fff' : '1px solid #64748b',
+                  borderRadius: '5px', cursor: 'pointer',
+                }}>{t.label}</button>
+              ))}
+            </div>
+            {(drawTool === 'rect' || drawTool === 'circle') && (
+              <button onClick={() => setShapeFilled(f => !f)} style={{
+                padding: '5px 8px', fontSize: '11px', fontWeight: 'bold',
+                background: shapeFilled ? '#10b981' : '#475569',
+                color: 'white', border: shapeFilled ? '2px solid #fff' : '1px solid #64748b',
+                borderRadius: '5px', cursor: 'pointer'
+              }}>{shapeFilled ? 'מלא ✓' : 'קו בלבד'}</button>
+            )}
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#000000', '#ffffff'].map(color => (
+                <button key={color} onClick={() => { setPenColor(color); if (drawTool === 'eraser') setDrawTool('pen'); }}
+                  style={{
+                    width: 24, height: 24, background: color,
+                    border: penColor === color ? '3px solid #fff' : '1px solid #64748b',
+                    borderRadius: '4px', cursor: 'pointer',
+                    boxShadow: penColor === color ? '0 0 0 2px #3b82f6' : 'none'
+                  }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ color: 'white', fontSize: '10px' }}>עובי:</span>
+              <input type="range" min="1" max="10" value={penSize}
+                onChange={e => setPenSize(Number(e.target.value))}
+                style={{ flex: 1, cursor: 'pointer' }} />
+              <span style={{ color: 'white', fontSize: '10px', minWidth: '16px' }}>{penSize}</span>
+            </div>
+            <button onClick={() => { clearCanvas(); setMapShapes([]); setSelectedShapeId(null); }} style={{
+              padding: '6px', background: '#dc2626', color: 'white', border: 'none',
+              borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
+            }}>נקה הכל</button>
+          </div>}
 
           </>}
         </div>
