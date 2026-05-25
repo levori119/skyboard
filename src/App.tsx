@@ -13674,39 +13674,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '8px', padding: '1px 7px', fontSize: '10px', flexShrink: 0 }}>{bdhViewerDoc.category}</span>}
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
-            {/* Strip / Aircraft selector */}
-            <div style={{ padding: '6px 10px', background: lightMode ? '#f0f7ff' : '#0c1a2e', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flexShrink: 0 }}>פ"מ:</span>
+            {/* Strip / Aircraft selector + הפץ — single prominent row */}
+            <div style={{ padding: '8px 12px', background: lightMode ? '#e8f0fe' : '#0d1f3c', borderBottom: `2px solid ${lightMode ? '#93c5fd' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '8px', alignItems: 'center', direction: 'rtl' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>✈️ פ"מ:</span>
               <select
                 value={bdhStripRef}
                 onChange={e => { setBdhStripRef(e.target.value); setBdhAircraftRef(''); }}
-                style={{ flex: 1, fontSize: '11px', padding: '2px 4px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '4px', direction: 'rtl' }}
+                style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
               >
-                <option value=''>-- בחר פ"מ --</option>
+                <option value=''>— בחר פ"מ —</option>
                 {myStrips.filter((s: any) => s.callSign).map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.callSign}{s.num_aircraft && s.num_aircraft > 1 ? ` (${s.num_aircraft})` : ''}{s.squadron ? ` / ${s.squadron}` : ''}</option>
+                  <option key={s.id} value={s.id}>{s.callSign}{s.num_aircraft && s.num_aircraft > 1 ? ` ×${s.num_aircraft}` : ''}{s.squadron ? ` / ${s.squadron}` : ''}</option>
                 ))}
               </select>
-              {bdhStripRef && (() => {
-                const sel = myStrips.find((s: any) => String(s.id) === String(bdhStripRef));
-                const count = sel?.num_aircraft || 1;
-                if (count <= 1) return null;
+              {(() => {
+                const sel = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
+                const count = sel?.num_aircraft || 0;
+                if (!sel || count <= 1) return null;
                 return (
-                  <>
-                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flexShrink: 0 }}>מטוס:</span>
-                    <select
-                      value={bdhAircraftRef}
-                      onChange={e => setBdhAircraftRef(e.target.value)}
-                      style={{ width: '60px', fontSize: '11px', padding: '2px 4px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '4px', direction: 'rtl' }}
-                    >
-                      <option value=''>כולם</option>
-                      {Array.from({ length: count }, (_, i) => i + 1).map(n => (
-                        <option key={n} value={String(n)}>{n}</option>
-                      ))}
-                    </select>
-                  </>
+                  <select
+                    value={bdhAircraftRef}
+                    onChange={e => setBdhAircraftRef(e.target.value)}
+                    style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
+                  >
+                    <option value=''>כולם</option>
+                    {Array.from({ length: count }, (_, i) => i + 1).map(n => (
+                      <option key={n} value={String(n)}>מטוס {n}</option>
+                    ))}
+                  </select>
                 );
               })()}
+              <button
+                onClick={() => { setBdhDistributePresets([]); setBdhDistributeOpen(true); }}
+                style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}
+              >🔔 הפץ</button>
             </div>
             {/* Doc title */}
             {bdhViewerDoc.title && (
@@ -13755,10 +13756,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ padding: '6px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
               <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
               <div style={{ display: 'flex', gap: '5px' }}>
-                <button
-                  onClick={() => { setBdhDistributePresets([]); setBdhDistributeOpen(true); }}
-                  style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                >🔔 הפץ</button>
                 <button onClick={() => { const all: Record<string, boolean> = {}; regularItems.forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
                 <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
               </div>
