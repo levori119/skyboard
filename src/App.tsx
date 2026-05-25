@@ -841,9 +841,18 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
 
   useEffect(() => { loadZones(); }, [mapId]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => computeEditorImgBounds());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
   const getRelativePoint = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
+    const container = containerRef.current;
+    if (!container) return { x: 0, y: 0 };
+    const rect = container.getBoundingClientRect();
     return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
   };
 
