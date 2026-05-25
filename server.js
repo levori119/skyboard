@@ -529,6 +529,17 @@ async function initDb() {
       PRIMARY KEY (preset_id, bdh_id)
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bdh_alerts (
+      id SERIAL PRIMARY KEY,
+      target_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      bdh_name VARCHAR(200),
+      sender_preset_name VARCHAR(200),
+      dismissed BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 
   // --- Classic Strip Tables ---
   await pool.query(`
@@ -5069,6 +5080,41 @@ app.get('/api/bdh-preset-assignments', async (req, res) => {
     }
     res.json(map);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch BDH assignments' }); }
+});
+
+// --- BDH Alerts ---
+app.get('/api/bdh-alerts', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.json([]);
+    const result = await pool.query(
+      'SELECT * FROM bdh_alerts WHERE target_preset_id=$1 AND dismissed=false ORDER BY created_at DESC',
+      [preset_id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch BDH alerts' }); }
+});
+
+app.post('/api/bdh-alerts', async (req, res) => {
+  try {
+    const { target_preset_ids, message, bdh_name, sender_preset_name } = req.body;
+    const ids = [];
+    for (const pid of (target_preset_ids || [])) {
+      const r = await pool.query(
+        'INSERT INTO bdh_alerts (target_preset_id, message, bdh_name, sender_preset_name) VALUES ($1,$2,$3,$4) RETURNING id',
+        [pid, message, bdh_name || '', sender_preset_name || '']
+      );
+      ids.push(r.rows[0].id);
+    }
+    res.json({ success: true, ids });
+  } catch (err) { res.status(500).json({ error: 'Failed to create BDH alerts' }); }
+});
+
+app.patch('/api/bdh-alerts/:id/dismiss', async (req, res) => {
+  try {
+    await pool.query('UPDATE bdh_alerts SET dismissed=true WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to dismiss BDH alert' }); }
 });
 
 // --- Base Pressure API (shared atmospheric pressure per base) ---

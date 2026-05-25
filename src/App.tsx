@@ -10352,6 +10352,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
+  const [bdhStripRef, setBdhStripRef] = useState<string>('');
+  const [bdhAircraftRef, setBdhAircraftRef] = useState<string>('');
+  const [bdhDistributeOpen, setBdhDistributeOpen] = useState(false);
+  const [bdhDistributePresets, setBdhDistributePresets] = useState<number[]>([]);
+  const [bdhAlerts, setBdhAlerts] = useState<any[]>([]);
+  const [bdhAlertPopup, setBdhAlertPopup] = useState<any | null>(null);
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
@@ -10828,6 +10834,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     loadAidsData();
   }, [session.presetId]);
+
+  // Poll BDH alerts every 5s
+  useEffect(() => {
+    if (!session.presetId) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/bdh-alerts?preset_id=${session.presetId}`);
+        if (!res.ok) return;
+        const alerts: any[] = await res.json();
+        setBdhAlerts(alerts);
+        if (alerts.length > 0 && !bdhAlertPopup) {
+          setBdhAlertPopup(alerts[0]);
+        }
+      } catch {}
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
+  }, [session.presetId]);
+
+  // Show next queued BDH alert when current is dismissed
+  useEffect(() => {
+    if (!bdhAlertPopup && bdhAlerts.length > 0) {
+      setBdhAlertPopup(bdhAlerts[0]);
+    }
+  }, [bdhAlerts, bdhAlertPopup]);
 
   // Poll base statuses every 5s and detect מז"א changes
   useEffect(() => {
@@ -13605,6 +13637,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {bdhViewerDoc.category && <span style={{ background: '#1d4ed8', color: '#bfdbfe', borderRadius: '8px', padding: '1px 7px', fontSize: '10px', flexShrink: 0 }}>{bdhViewerDoc.category}</span>}
               <button onClick={() => setBdhViewerDoc(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>✕</button>
             </div>
+            {/* Strip / Aircraft selector */}
+            <div style={{ padding: '6px 10px', background: lightMode ? '#f0f7ff' : '#0c1a2e', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flexShrink: 0 }}>פ"מ:</span>
+              <select
+                value={bdhStripRef}
+                onChange={e => { setBdhStripRef(e.target.value); setBdhAircraftRef(''); }}
+                style={{ flex: 1, fontSize: '11px', padding: '2px 4px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '4px', direction: 'rtl' }}
+              >
+                <option value=''>-- בחר פ"מ --</option>
+                {myStrips.filter((s: any) => s.callSign).map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.callSign}{s.num_aircraft && s.num_aircraft > 1 ? ` (${s.num_aircraft})` : ''}{s.squadron ? ` / ${s.squadron}` : ''}</option>
+                ))}
+              </select>
+              {bdhStripRef && (() => {
+                const sel = myStrips.find((s: any) => String(s.id) === String(bdhStripRef));
+                const count = sel?.num_aircraft || 1;
+                if (count <= 1) return null;
+                return (
+                  <>
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', flexShrink: 0 }}>מטוס:</span>
+                    <select
+                      value={bdhAircraftRef}
+                      onChange={e => setBdhAircraftRef(e.target.value)}
+                      style={{ width: '60px', fontSize: '11px', padding: '2px 4px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '4px', direction: 'rtl' }}
+                    >
+                      <option value=''>כולם</option>
+                      {Array.from({ length: count }, (_, i) => i + 1).map(n => (
+                        <option key={n} value={String(n)}>{n}</option>
+                      ))}
+                    </select>
+                  </>
+                );
+              })()}
+            </div>
             {/* Doc title */}
             {bdhViewerDoc.title && (
               <div style={{ padding: '5px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0 }}>
@@ -13652,6 +13718,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ padding: '6px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
               <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
               <div style={{ display: 'flex', gap: '5px' }}>
+                <button
+                  onClick={() => { setBdhDistributePresets([]); setBdhDistributeOpen(true); }}
+                  style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                >🔔 הפץ</button>
                 <button onClick={() => { const all: Record<string, boolean> = {}; regularItems.forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
                 <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
               </div>
@@ -13659,6 +13729,160 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         );
       })()}
+
+      {/* BDH Distribute Modal */}
+      {bdhDistributeOpen && bdhViewerDoc && (() => {
+        const selStrip = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
+        const callSignPart = selStrip ? selStrip.callSign + (bdhAircraftRef ? ` ${bdhAircraftRef}` : '') : '';
+        const bdhNamePart = bdhViewerDoc.name || '';
+        const senderName = session.workstationName || '';
+        const previewMsg = callSignPart
+          ? `שים לב ${callSignPart} ${bdhNamePart} - נשלח מעמדת ${senderName}`
+          : `שים לב ${bdhNamePart} - נשלח מעמדת ${senderName}`;
+
+        const roleLabel: Record<string, string> = { tower: 'מגדל', controller: 'יב"א', ground: 'מגרש' };
+        const otherLabel = 'אחר';
+        const baseMap: Record<string, string> = {};
+        workstationPresets.forEach((p: any) => {
+          if (p.parent_base_id) baseMap[p.parent_base_id] = p.aviation_base_name || p.parent_base_name || `בסיס ${p.parent_base_id}`;
+        });
+        type GroupedPreset = { role: string; baseId: string | null; presets: any[] };
+        const roleOrder = ['tower', 'controller', 'ground', ''];
+        const grouped: { roleKey: string; roleDisplay: string; bases: { baseId: string | null; baseName: string; presets: any[] }[] }[] = [];
+        for (const role of roleOrder) {
+          const rolePres = workstationPresets.filter((p: any) => {
+            const r = p.preset_role || '';
+            return role === '' ? !['tower','controller','ground'].includes(r) : r === role;
+          }).filter((p: any) => Number(p.id) !== Number(session.presetId));
+          if (rolePres.length === 0) continue;
+          const bases: { baseId: string | null; baseName: string; presets: any[] }[] = [];
+          const seenBases = new Set<string>();
+          for (const p of rolePres) {
+            const bid = p.parent_base_id ? String(p.parent_base_id) : null;
+            const bname = bid ? (baseMap[bid] || `בסיס ${bid}`) : 'ללא בסיס';
+            const key = bid ?? '__none__';
+            if (!seenBases.has(key)) {
+              seenBases.add(key);
+              bases.push({ baseId: bid, baseName: bname, presets: [] });
+            }
+            bases.find(b => b.baseId === bid)!.presets.push(p);
+          }
+          grouped.push({ roleKey: role, roleDisplay: roleLabel[role] ?? otherLabel, bases });
+        }
+        const allPresetIds = workstationPresets.filter((p: any) => Number(p.id) !== Number(session.presetId)).map((p: any) => Number(p.id));
+        const allSelected = allPresetIds.every(id => bdhDistributePresets.includes(id));
+        const togglePreset = (id: number) => setBdhDistributePresets(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+        const toggleAll = () => setBdhDistributePresets(allSelected ? [] : allPresetIds);
+        const handleSend = async () => {
+          if (bdhDistributePresets.length === 0) return;
+          await fetch(`${API_URL}/bdh-alerts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_preset_ids: bdhDistributePresets, message: previewMsg, bdh_name: bdhNamePart, sender_preset_name: senderName })
+          });
+          setBdhDistributeOpen(false);
+          setBdhDistributePresets([]);
+        };
+
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9600, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid #7c3aed`, borderRadius: '12px', width: '480px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', direction: 'rtl', boxShadow: '0 16px 60px rgba(0,0,0,0.8)' }}>
+              {/* Header */}
+              <div style={{ background: '#581c87', padding: '12px 16px', borderRadius: '10px 10px 0 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', flex: 1 }}>🔔 הפץ בד"ח</span>
+                <button onClick={() => setBdhDistributeOpen(false)} style={{ background: 'none', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}>✕</button>
+              </div>
+              {/* Preview message */}
+              <div style={{ padding: '10px 14px', background: lightMode ? '#faf5ff' : '#1e1035', borderBottom: `1px solid ${lightMode ? '#e9d5ff' : '#4c1d95'}`, flexShrink: 0 }}>
+                <div style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#c4b5fd', marginBottom: '4px', fontWeight: 'bold' }}>תצוגה מקדימה של ההתראה:</div>
+                <div style={{ fontSize: '13px', color: lightMode ? '#1e293b' : '#f1f5f9', fontWeight: 'bold', background: lightMode ? '#ede9fe' : '#2e1065', padding: '8px 12px', borderRadius: '6px', border: `1px solid ${lightMode ? '#c4b5fd' : '#7c3aed'}` }}>⚠️ {previewMsg}</div>
+              </div>
+              {/* Select all */}
+              <div style={{ padding: '8px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ width: '14px', height: '14px', accentColor: '#7c3aed', cursor: 'pointer' }} />
+                <span style={{ fontSize: '12px', color: lightMode ? '#475569' : '#94a3b8', fontWeight: 'bold' }}>בחר הכל ({allPresetIds.length} עמדות)</span>
+                <span style={{ fontSize: '11px', color: '#7c3aed', marginRight: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} נבחרו</span>
+              </div>
+              {/* List */}
+              <div style={{ overflowY: 'auto', flex: 1, padding: '8px' }}>
+                {grouped.map(({ roleKey, roleDisplay, bases }) => (
+                  <div key={roleKey} style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: roleKey === 'tower' ? '#f59e0b' : roleKey === 'controller' ? '#38bdf8' : roleKey === 'ground' ? '#4ade80' : '#94a3b8', padding: '4px 8px', background: lightMode ? '#f8fafc' : '#0c1a2e', borderRadius: '5px', marginBottom: '4px', borderRight: `3px solid ${roleKey === 'tower' ? '#f59e0b' : roleKey === 'controller' ? '#38bdf8' : roleKey === 'ground' ? '#4ade80' : '#475569'}` }}>
+                      {roleKey === 'tower' ? '🗼' : roleKey === 'controller' ? '🎮' : roleKey === 'ground' ? '🛫' : '📡'} {roleDisplay}
+                    </div>
+                    {bases.map(({ baseId, baseName, presets }) => (
+                      <div key={baseId ?? '__none__'} style={{ marginRight: '12px', marginBottom: '6px' }}>
+                        <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b', marginBottom: '3px', fontStyle: 'italic' }}>🏛 {baseName}</div>
+                        {presets.map((p: any) => (
+                          <div key={p.id}
+                            onClick={() => togglePreset(Number(p.id))}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', marginRight: '12px', marginBottom: '2px', background: bdhDistributePresets.includes(Number(p.id)) ? (lightMode ? '#ede9fe' : '#2e1065') : (lightMode ? '#f8fafc' : '#0f172a'), border: `1px solid ${bdhDistributePresets.includes(Number(p.id)) ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e3a5f')}`, borderRadius: '5px', cursor: 'pointer', transition: 'background 0.1s' }}
+                          >
+                            <input type="checkbox" checked={bdhDistributePresets.includes(Number(p.id))} onChange={() => togglePreset(Number(p.id))} onClick={e => e.stopPropagation()} style={{ width: '13px', height: '13px', accentColor: '#7c3aed', cursor: 'pointer', flexShrink: 0 }} />
+                            <span style={{ fontSize: '12px', color: lightMode ? '#1e293b' : '#e2e8f0', flex: 1 }}>{p.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {grouped.length === 0 && <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px' }}>אין עמדות אחרות</div>}
+              </div>
+              {/* Footer */}
+              <div style={{ padding: '10px 14px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, display: 'flex', gap: '8px', justifyContent: 'flex-start', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e', borderRadius: '0 0 10px 10px' }}>
+                <button
+                  onClick={handleSend}
+                  disabled={bdhDistributePresets.length === 0}
+                  style={{ background: bdhDistributePresets.length === 0 ? '#374151' : '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 20px', cursor: bdhDistributePresets.length === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                >📤 שלח ל-{bdhDistributePresets.length} עמדות</button>
+                <button onClick={() => setBdhDistributeOpen(false)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* BDH Alert Popup */}
+      {bdhAlertPopup && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9700, background: '#1a0a00', border: '3px solid #f97316', borderRadius: '14px', padding: '0', boxShadow: '0 0 60px rgba(249,115,22,0.7)', minWidth: '340px', maxWidth: '500px', direction: 'rtl', overflow: 'hidden' }}>
+          {/* Pulsing header */}
+          <div style={{ background: 'linear-gradient(135deg, #9a3412 0%, #c2410c 100%)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '22px', animation: 'pulse 1s infinite' }}>⚠️</span>
+            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', flex: 1 }}>התראת בד"ח</span>
+            {bdhAlerts.length > 1 && <span style={{ fontSize: '10px', background: '#dc2626', color: 'white', borderRadius: '10px', padding: '1px 7px' }}>{bdhAlerts.length} התראות</span>}
+          </div>
+          {/* Message */}
+          <div style={{ padding: '20px 20px 14px', background: '#1c0e00' }}>
+            <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#fed7aa', lineHeight: 1.6, textAlign: 'center', letterSpacing: '0.3px' }}>
+              {bdhAlertPopup.message}
+            </div>
+          </div>
+          {/* Footer */}
+          <div style={{ padding: '10px 20px 16px', background: '#1c0e00', display: 'flex', justifyContent: 'center', gap: '10px' }}>
+            <button
+              onClick={async () => {
+                await fetch(`${API_URL}/bdh-alerts/${bdhAlertPopup.id}/dismiss`, { method: 'PATCH' });
+                setBdhAlerts(prev => prev.filter(a => a.id !== bdhAlertPopup.id));
+                const remaining = bdhAlerts.filter(a => a.id !== bdhAlertPopup.id);
+                setBdhAlertPopup(remaining.length > 0 ? remaining[0] : null);
+              }}
+              style={{ background: '#ea580c', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 28px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+            >✓ הבנתי</button>
+            {bdhAlerts.length > 1 && (
+              <button
+                onClick={async () => {
+                  for (const a of bdhAlerts) {
+                    await fetch(`${API_URL}/bdh-alerts/${a.id}/dismiss`, { method: 'PATCH' });
+                  }
+                  setBdhAlerts([]);
+                  setBdhAlertPopup(null);
+                }}
+                style={{ background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '8px', padding: '8px 16px', cursor: 'pointer', fontSize: '12px' }}
+              >נקה הכל</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Serials Panel Modal */}
       {showSerialsPanel && (
