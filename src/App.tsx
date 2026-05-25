@@ -11356,15 +11356,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   })();
 
   // Table-mode altitude conflict detection — must be after myTableStrips declaration.
-  // When a block table is active, two strips in DIFFERENT blocks are not a conflict
-  // (the blocks coordinate them). Same block or outside any block → conflict.
+  // Rules:
+  //  1. Two strips in DIFFERENT named ערכות (erka field) → no conflict (different airspaces).
+  //  2. Two strips resolved to DIFFERENT block tables (via erka→table name match) → no conflict.
+  //  3. Two strips in DIFFERENT blocks within the same block table → no conflict.
+  //  4. Otherwise (same block, same table, or no block assignment) → conflict when delta met.
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
     const delta = myPresetConfig?.conflict_alt_delta ?? 500;
     const result = new Set<string>();
     if (delta <= 0) return result;
 
-    // Resolve the active block table for this workstation (same logic as effectiveBlockTableId)
+    // Collect all blocks relevant to this workstation (across ALL its block tables)
     const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
     const btIds: number[] = (preset?.block_table_ids || []).map(Number);
     const pid = preset ? Number(preset.id) : null;
@@ -11372,23 +11375,47 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       btIds.includes(Number(b.block_table_id)) ||
       (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
     );
-    const relTableIds = Array.from(new Set(relBlocks.map((b: any) => Number(b.block_table_id))));
-    const inlineBtId: number | null = activeBlockTableId ?? (relTableIds.length === 1 ? relTableIds[0] : null);
-    // Blocks belonging to the active table, keyed by id for quick lookup
-    const tableBlocks: any[] = inlineBtId !== null
-      ? dashboardBlocks.filter((b: any) => Number(b.block_table_id) === inlineBtId)
-      : [];
-
-    // Given an FL number, return the id of the block whose range contains it (or null)
-    const findBlockId = (fl: number): number | null => {
-      const blk = tableBlocks.find((b: any) => fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
-      return blk ? Number(blk.id) : null;
-    };
+    const hasMultipleTables = new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size > 1;
 
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
       const m = alt.match(/\d+/);
       return m ? parseInt(m[0]) : null;
+    };
+
+    // For a strip+altitude, find { tableId, blockId } using erka→table-name match first,
+    // then falling back to altitude-range search within the single active table.
+    const resolveBlock = (strip: any, fl: number): { tableId: number; blockId: number } | null => {
+      const erka = (strip.erka || '').trim();
+      if (erka && hasMultipleTables) {
+        // Match erka text to a block-table name
+        const matchedTable = dashboardBlockTables.find((bt: any) =>
+          (bt.name || '').trim() === erka
+        );
+        if (matchedTable) {
+          const mtId = Number(matchedTable.id);
+          const blk = relBlocks.find((b: any) =>
+            Number(b.block_table_id) === mtId &&
+            fl >= Number(b.alt_from) && fl <= Number(b.alt_to)
+          );
+          // Strip is confirmed in this table (block found or not) → return tableId
+          return blk
+            ? { tableId: mtId, blockId: Number(blk.id) }
+            : { tableId: mtId, blockId: -1 }; // in table but outside any block range
+        }
+      }
+      // Single table or no erka match: search across all relBlocks
+      const inlineBtId: number | null = activeBlockTableId ?? (
+        new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size === 1
+          ? Number(relBlocks[0]?.block_table_id)
+          : null
+      );
+      if (inlineBtId === null) return null; // multiple tables, no erka match → can't resolve
+      const blk = relBlocks.find((b: any) =>
+        Number(b.block_table_id) === inlineBtId &&
+        fl >= Number(b.alt_from) && fl <= Number(b.alt_to)
+      );
+      return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
     };
 
     const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
@@ -11400,20 +11427,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const b = boardStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (Math.abs(altA - altB) * 100 <= delta) {
-          // With an active block table: skip only when BOTH are in DIFFERENT defined blocks
-          if (tableBlocks.length > 0) {
-            const blockA = findBlockId(altA);
-            const blockB = findBlockId(altB);
-            if (blockA !== null && blockB !== null && blockA !== blockB) continue;
+
+        if (Math.abs(altA - altB) * 100 > delta) continue; // outside delta → no conflict
+
+        // Rule 1: different non-empty ערכות → no conflict
+        const erkaA = (a.erka || '').trim();
+        const erkaB = (b.erka || '').trim();
+        if (erkaA && erkaB && erkaA !== erkaB) continue;
+
+        // Rule 2 & 3: block-table / block resolution
+        if (relBlocks.length > 0) {
+          const infoA = resolveBlock(a, altA);
+          const infoB = resolveBlock(b, altB);
+          if (infoA !== null && infoB !== null) {
+            if (infoA.tableId !== infoB.tableId) continue; // rule 2: different tables
+            if (infoA.blockId !== infoB.blockId && infoA.blockId !== -1 && infoB.blockId !== -1) continue; // rule 3: different blocks
           }
-          result.add(String(a.id));
-          result.add(String(b.id));
         }
+
+        result.add(String(a.id));
+        result.add(String(b.id));
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, activeBlockTableId, session.presetId, workstationPresets]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
