@@ -9721,6 +9721,9 @@ const AdminDashboard: React.FC<{
   const [allBlocks, setAllBlocks] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
   const [dashCardView, setDashCardView] = useState<'loads' | 'strips' | 'charts'>('loads');
+  const [cardViewByPreset, setCardViewByPreset] = useState<Record<number, 'loads'|'strips'|'charts'>>({});
+  const getCardView = (pid: number): 'loads'|'strips'|'charts' => cardViewByPreset[pid] ?? 'loads';
+  const setCardView = (pid: number, v: 'loads'|'strips'|'charts') => setCardViewByPreset(prev => ({ ...prev, [pid]: v }));
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [tableModes, setTableModes] = useState<any[]>([]);
@@ -9875,22 +9878,6 @@ const AdminDashboard: React.FC<{
           </button>
         ))}
         {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
-        {/* View tabs */}
-        <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '7px', overflow: 'hidden', flexShrink: 0 }}>
-          {([
-            { v: 'loads', label: '📊 עומסים' },
-            { v: 'strips', label: '✈️ פ"מ' },
-            { v: 'charts', label: '📈 גאנט' },
-          ] as { v: 'loads'|'strips'|'charts'; label: string }[]).map(({ v, label }) => (
-            <button key={v} onClick={() => setDashCardView(v)}
-              style={{ padding: '5px 14px', fontSize: '12px', border: 'none', cursor: 'pointer', fontWeight: dashCardView === v ? 'bold' : 'normal',
-                background: dashCardView === v ? (lightMode ? '#1e293b' : '#1e3a5f') : 'transparent',
-                color: dashCardView === v ? '#fff' : (lightMode ? '#64748b' : '#64748b'),
-                borderLeft: v !== 'loads' ? `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` : 'none' }}>
-              {label}
-            </button>
-          ))}
-        </div>
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
           <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
@@ -9918,7 +9905,8 @@ const AdminDashboard: React.FC<{
           const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
-          const presetStrips = dashCardView === 'strips' ? filterStripsForPreset(allStrips, preset) : [];
+          const cardView = getCardView(preset.id);
+          const presetStrips = cardView === 'strips' ? filterStripsForPreset(allStrips, preset) : [];
           const crewName = activeCrew[Number(preset.id)] || '';
           const presetContacts = allDashContacts.filter((c: any) => Number(c.preset_id) === Number(preset.id));
           const kshpContact = presetContacts.find((c: any) => (c.mahut || '').includes('קש"פ') || (c.mahut || '').includes('קשר פנים'));
@@ -9964,9 +9952,26 @@ const AdminDashboard: React.FC<{
                 </div>
               </div>
 
+              {/* Per-card view tabs */}
+              <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden', flexShrink: 0, alignSelf: 'flex-start' }}>
+                {([
+                  { v: 'loads', label: '📊 עומסים' },
+                  { v: 'strips', label: '✈️ פ"מ' },
+                  { v: 'charts', label: '📈 גאנט' },
+                ] as { v: 'loads'|'strips'|'charts'; label: string }[]).map(({ v, label }) => (
+                  <button key={v} onClick={() => setCardView(preset.id, v)}
+                    style={{ padding: '3px 10px', fontSize: '11px', border: 'none', cursor: 'pointer', fontWeight: cardView === v ? 'bold' : 'normal',
+                      background: cardView === v ? (lightMode ? '#1e293b' : '#1e3a5f') : 'transparent',
+                      color: cardView === v ? '#fff' : (lightMode ? '#64748b' : '#94a3b8'),
+                      borderLeft: v !== 'loads' ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               {/* ── Fixed-height content area, 3 views ── */}
               <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              {dashCardView === 'strips' ? (
+              {cardView === 'strips' ? (
                 /* ── Strips view — table matching workstation table mode ── */
                 (() => {
                   const activeMode = tableModes.find((tm: any) => tm.id === preset.table_mode_id);
@@ -10073,7 +10078,7 @@ const AdminDashboard: React.FC<{
                     </div>
                   );
                 })()
-              ) : dashCardView === 'charts' ? (
+              ) : cardView === 'charts' ? (
                 /* ── Charts view — mini load forecast (per-card controls) ── */
                 (() => {
                   const cf = getCardForecast(preset.id);
@@ -10102,14 +10107,14 @@ const AdminDashboard: React.FC<{
                   const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
                   const isToday = cardDay === todayStr;
                   const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
-                  const cW = 260;
-                  const cH = 64;
-                  const lp = 24;
-                  const bpad = 16;
+                  const cW = 520;
+                  const cH = 120;
+                  const lp = 28;
+                  const bpad = 18;
                   const innerH = cH - bpad;
                   const slotW = (cW - lp) / slotsPerDay;
                   const barW = Math.max(slotW - 0.5, 0.5);
-                  const labelEvery = slotsPerDay <= 24 ? 4 : slotsPerDay <= 48 ? 8 : 12;
+                  const labelEvery = slotsPerDay <= 24 ? 2 : slotsPerDay <= 48 ? 4 : slotsPerDay <= 96 ? 8 : 12;
                   const changeCardDay = (delta: number) => {
                     const d = new Date(cardDay + 'T12:00:00');
                     d.setDate(d.getDate() + delta);
@@ -10140,7 +10145,7 @@ const AdminDashboard: React.FC<{
                         </div>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginRight: 'auto' }}>{totalC} {cardMetric === 'aircraft' ? 'מטוסים' : 'פממים'}</span>
                       </div>
-                      <svg width={cW} height={cH + 10} style={{ display: 'block', overflow: 'visible', maxWidth: '100%' }}>
+                      <svg width="100%" viewBox={`0 0 ${cW} ${cH + 10}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible', height: `${cH + 10}px` }}>
                         {[partialVal, fullVal].map((th, ti) => {
                           const y = innerH - (innerH * th / maxC);
                           if (th > maxC) return null;
