@@ -12333,7 +12333,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Auto-clear acknowledged block deviations whenever the computed deviation is no longer true.
   // Triggers: strip altitude changed, block altitude changed, active block table changed (incl. null = cleared).
+  // Guards (mirrors the Strip-card component guard):
+  //   1. effectiveBlockTableId must be non-null — if null, computeBlockDeviation returns false for EVERY strip,
+  //      which would incorrectly wipe all approvals whenever the block-table context is temporarily absent.
+  //   2. dashboardBlocks must be non-empty — during initial load / reload the array is briefly [], making every
+  //      strip appear deviation-free and triggering a spurious clear.
   useEffect(() => {
+    if (!effectiveBlockTableId || dashboardBlocks.length === 0) return;
     const toClear = strips.filter(s => s.block_deviation && !computeBlockDeviation(s, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null));
     if (toClear.length === 0) return;
     setStrips(prev => prev.map(s => toClear.find((tc: any) => tc.id === s.id) ? { ...s, block_deviation: false } : s));
