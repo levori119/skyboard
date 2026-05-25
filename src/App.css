@@ -34,6 +34,22 @@
   --accent-blue: #3b82f6;
 }
 
+/* ═══ Ocean / תכלת theme ═══ */
+body.ocean-mode {
+  --bg-dark: #071520;
+  --strip-bg: #0d2137;
+  --accent-blue: #38bdf8;
+  background-color: #071520 !important;
+  color: #cce4f7;
+}
+body.ocean-mode .load-badge-full     { background: linear-gradient(135deg, #7f1d1d, #991b1b) !important; }
+body.ocean-mode .load-badge-partial  { background: linear-gradient(135deg, #78350f, #92400e) !important; }
+body.ocean-mode input,
+body.ocean-mode select,
+body.ocean-mode textarea {
+  color-scheme: dark;
+}
+
 html {
   overscroll-behavior: none;
   touch-action: none;

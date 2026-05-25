@@ -10592,12 +10592,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [quickAddForm, setQuickAddForm] = useState({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1' });
   const [quickAddError, setQuickAddError] = useState('');
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
-  const [lightMode, setLightMode] = useState(() => localStorage.getItem('bt-lightMode') === 'true');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(() => {
+    const s = localStorage.getItem('bt-themeMode');
+    if (s === 'light' || s === 'dark' || s === 'ocean') return s;
+    return localStorage.getItem('bt-lightMode') === 'true' ? 'light' : 'dark';
+  });
+  const lightMode = themeMode === 'light';
+  const T = themeMode === 'ocean' ? {
+    bg: '#071520', bgAlt: '#091f38', surface: '#0d2137', surface2: '#0d2137',
+    border: '#1e3a5c', borderLight: '#2a4f7a',
+    text: '#cce4f7', textInv: '#071520', muted: '#6b9fbe',
+    input: '#071520',
+  } : lightMode ? {
+    bg: '#f8fafc', bgAlt: '#f1f5f9', surface: '#f1f5f9', surface2: 'white',
+    border: '#e2e8f0', borderLight: '#cbd5e1',
+    text: '#1e293b', textInv: '#f1f5f9', muted: '#64748b',
+    input: 'white',
+  } : {
+    bg: '#0f172a', bgAlt: '#0f172a', surface: '#1e293b', surface2: '#1e293b',
+    border: '#334155', borderLight: '#475569',
+    text: '#e2e8f0', textInv: '#1e293b', muted: '#94a3b8',
+    input: '#0f172a',
+  };
+  const setLightMode = (fn: ((v: boolean) => boolean) | boolean) => {
+    setThemeMode(prev => {
+      const next = typeof fn === 'function' ? fn(prev === 'light') : fn;
+      return next ? 'light' : 'dark';
+    });
+  };
 
   useEffect(() => {
     document.body.classList.toggle('light-mode', lightMode);
+    document.body.classList.toggle('ocean-mode', themeMode === 'ocean');
+    localStorage.setItem('bt-themeMode', themeMode);
     localStorage.setItem('bt-lightMode', String(lightMode));
-  }, [lightMode]);
+  }, [themeMode]);
 
   const [tableMode, setTableMode] = useState(false);
   const initialViewSetRef = useRef(false);
@@ -13467,10 +13496,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
 
           <button
-            onClick={() => setLightMode(v => !v)}
-            title={lightMode ? 'עבור למצב כהה' : 'עבור למצב בהיר'}
-            style={{ background: lightMode ? '#334155' : '#f1f5f9', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}
-          >{lightMode ? '🌙' : '☀️'}</button>
+            onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
+            title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
+            style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
+          >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>
           <button onClick={() => {
             if (showNotepad) {
               const canvas = notepadCanvasRef.current;
@@ -13786,7 +13815,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <select
                 value={bdhStripRef}
                 onChange={e => { setBdhStripRefByDoc(p => ({ ...p, [docId]: e.target.value })); setBdhAircraftRefByDoc(p => ({ ...p, [docId]: '' })); }}
-                style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
+                style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
               >
                 <option value=''>— בחר פ"מ —</option>
                 {myStrips.filter((s: any) => s.callSign).map((s: any) => (
@@ -13801,7 +13830,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <select
                     value={bdhAircraftRef}
                     onChange={e => setBdhAircraftRefByDoc(p => ({ ...p, [docId]: e.target.value }))}
-                    style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
+                    style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: T.text, border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
                   >
                     <option value=''>כולם</option>
                     {Array.from({ length: count }, (_, i) => i + 1).map(n => (
@@ -13822,7 +13851,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
             {/* Doc title */}
             {bdhViewerDoc.title && (
-              <div style={{ padding: '5px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0 }}>
+              <div style={{ padding: '5px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
                 <span style={{ color: lightMode ? '#1e40af' : '#60a5fa', fontSize: '12px', fontWeight: 'bold' }}>{bdhViewerDoc.title}</span>
               </div>
             )}
@@ -13847,12 +13876,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const isChecked = !!bdhChecked[item.id ?? `${gi}-${idx}`];
                       return (
                         <div key={item.id ?? `${gi}-${idx}`}
-                          style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', padding: '5px 8px', borderRadius: '4px', marginBottom: '3px', background: isChecked ? (lightMode ? '#f1f5f9' : '#1e293b') : (lightMode ? '#f8fafc' : '#131f35'), border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, opacity: isChecked ? 0.45 : 1, transition: 'opacity 0.15s' }}>
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', padding: '5px 8px', borderRadius: '4px', marginBottom: '3px', background: isChecked ? (T.surface) : (lightMode ? '#f8fafc' : '#131f35'), border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, opacity: isChecked ? 0.45 : 1, transition: 'opacity 0.15s' }}>
                           <input type="checkbox" checked={isChecked}
                             onChange={() => setBdhChecked(prev => ({ ...prev, [item.id ?? `${gi}-${idx}`]: !isChecked }))}
                             style={{ marginTop: '2px', width: '13px', height: '13px', flexShrink: 0, cursor: 'pointer', accentColor: '#3b82f6' }}
                           />
-                          <div style={{ flex: 1, color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', lineHeight: '1.5', direction: 'rtl' }}
+                          <div style={{ flex: 1, color: T.text, fontSize: '12px', lineHeight: '1.5', direction: 'rtl' }}
                             dangerouslySetInnerHTML={{ __html: item.content || '' }}
                           />
                         </div>
@@ -13864,7 +13893,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {allItems.length === 0 && <div style={{ color: '#475569', textAlign: 'center', padding: '16px 0', fontSize: '12px' }}>אין סעיפים</div>}
             </div>
             {/* Footer */}
-            <div style={{ padding: '6px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
+            <div style={{ padding: '6px 10px', borderTop: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
               <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
               <div style={{ display: 'flex', gap: '5px' }}>
                 <button onClick={() => { const all: Record<string, boolean> = {}; groups.forEach((group: any, gi: number) => { group.items.forEach((item: any, idx: number) => { all[item.id ?? `${gi}-${idx}`] = true; }); }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
@@ -13951,7 +13980,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {/* Select all */}
               <div style={{ padding: '8px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ width: '14px', height: '14px', accentColor: '#7c3aed', cursor: 'pointer' }} />
-                <span style={{ fontSize: '12px', color: lightMode ? '#475569' : '#94a3b8', fontWeight: 'bold' }}>בחר הכל ({allPresetIds.length} עמדות)</span>
+                <span style={{ fontSize: '12px', color: T.muted, fontWeight: 'bold' }}>בחר הכל ({allPresetIds.length} עמדות)</span>
                 <span style={{ fontSize: '11px', color: '#7c3aed', marginRight: 'auto', fontWeight: 'bold' }}>{bdhDistributePresets.length} נבחרו</span>
               </div>
               {/* List */}
@@ -13967,10 +13996,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         {presets.map((p: any) => (
                           <div key={p.id}
                             onClick={() => togglePreset(Number(p.id))}
-                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', marginRight: '12px', marginBottom: '2px', background: bdhDistributePresets.includes(Number(p.id)) ? (lightMode ? '#ede9fe' : '#2e1065') : (lightMode ? '#f8fafc' : '#0f172a'), border: `1px solid ${bdhDistributePresets.includes(Number(p.id)) ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e3a5f')}`, borderRadius: '5px', cursor: 'pointer', transition: 'background 0.1s' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', marginRight: '12px', marginBottom: '2px', background: bdhDistributePresets.includes(Number(p.id)) ? (lightMode ? '#ede9fe' : '#2e1065') : (T.bg), border: `1px solid ${bdhDistributePresets.includes(Number(p.id)) ? '#7c3aed' : (lightMode ? '#e2e8f0' : '#1e3a5f')}`, borderRadius: '5px', cursor: 'pointer', transition: 'background 0.1s' }}
                           >
                             <input type="checkbox" checked={bdhDistributePresets.includes(Number(p.id))} onChange={() => togglePreset(Number(p.id))} onClick={e => e.stopPropagation()} style={{ width: '13px', height: '13px', accentColor: '#7c3aed', cursor: 'pointer', flexShrink: 0 }} />
-                            <span style={{ fontSize: '12px', color: lightMode ? '#1e293b' : '#e2e8f0', flex: 1 }}>{p.name}</span>
+                            <span style={{ fontSize: '12px', color: T.text, flex: 1 }}>{p.name}</span>
                           </div>
                         ))}
                       </div>
@@ -14506,7 +14535,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (lightMode ? '#f1f5f9' : '#0f172a')) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -14708,7 +14737,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   setStrips(prev => prev.map(st => st.id === s.id ? { ...st, custom_fields: newCF } : st));
                 };
                 if (col.editable === 'none') {
-                  return <td key={colKey} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
+                  return <td key={colKey} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
                 }
                 const isImg = customVal.startsWith('data:image');
                 const cellKey = s.id + '__' + colKey;
@@ -14751,7 +14780,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     ) : (
                       <div
                         onClick={() => canEdit && (col.editable === 'keyboard' || col.editable === 'both') && setTableEditingCell(cellKey)}
-                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
+                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
                           ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
@@ -14819,7 +14848,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
+                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: T.muted, fontSize: '12px' }}>—</span>}
                     </td>
                   );
                 case 'sq':
@@ -14846,7 +14875,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: currentSq ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
                             {canEdit && <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -14856,9 +14885,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
+                      {s.alt && <div style={{ fontSize: '11px', color: T.muted, marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
                     </td>
                   );
                 }
@@ -14884,7 +14913,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(nofCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
                             {current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
@@ -14892,7 +14921,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '13px' }}>
+                    <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '13px' }}>
                       {s.numberOfFormation || '—'}
                     </td>
                   );
@@ -14920,7 +14949,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>גובה</span>}</span>
                             {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -14930,7 +14959,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
                   );
                 }
                 case 'weapons': {
@@ -14970,7 +14999,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {weapons.length === 0
-                        ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {weapons.map((w: any, i: number) => (
                               <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
@@ -15017,7 +15046,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {targets.length === 0
-                        ? <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {targets.map((t: any, i: number) => (
                               <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
@@ -15081,14 +15110,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : (lightMode ? '#475569' : '#94a3b8'), verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : (T.muted), verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
                   );
                 case 'notes': {
                   const noteParsed = parseNoteValue(currentNote);
                   const hasAnyNote = noteParsed.text.trim().length > 0 || noteParsed.hw.startsWith('data:');
                   if (col.editable === 'none') {
                     return (
-                      <td key={colKey} style={{ padding: '6px 8px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>
+                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>
                         {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
                         {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
@@ -15124,7 +15153,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(notesCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', userSelect: 'none', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {noteParsed.text && <div style={{ color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
+                            {noteParsed.text && <div style={{ color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '3px', padding: '2px 5px', fontSize: '11px' }}>{noteParsed.text}</div>}
                             {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                             {!hasAnyNote && <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>הערה...</span>}
                             
@@ -15138,7 +15167,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minHeight: '24px' }}>
                           {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
-                          {!hasAnyNote && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>}
+                          {!hasAnyNote && <span style={{ color: T.muted, fontSize: '12px' }}>—</span>}
                         </div>
                       </td>
                     );
@@ -15147,11 +15176,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <td key={colKey} style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                       {hasAnyNote ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
+                          {noteParsed.text && <div style={{ direction: 'rtl', fontSize: '11px', color: T.text, background: lightMode ? '#e2e8f0' : '#1e293b', borderRadius: '4px', padding: '3px 6px' }}>{noteParsed.text}</div>}
                           {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '34px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />}
                         </div>
                       ) : (
-                        <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px' }}>—</span>
+                        <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
                       )}
                     </td>
                   );
@@ -15169,7 +15198,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     // Expanded picker
                     return (
                       <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', minWidth: '180px' }}>
-                        <div style={{ background: lightMode ? '#f1f5f9' : '#0f172a', borderRadius: '6px', padding: '8px', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}` }}>
+                        <div style={{ background: T.bgAlt, borderRadius: '6px', padding: '8px', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📡 ספרורים</span>
                             <button onClick={() => setTableEditingCell(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1 }}>✕</button>
@@ -15190,7 +15219,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             });
                             return (
                               <div key={station} style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px', fontSize: '11px' }}>
-                                <span style={{ color: lightMode ? '#475569' : '#94a3b8', minWidth: '60px', flexShrink: 0 }}>{station}:</span>
+                                <span style={{ color: T.muted, minWidth: '60px', flexShrink: 0 }}>{station}:</span>
                                 <span style={{ color: isOutdated ? '#dc2626' : hasDismissalWarning ? '#f97316' : (lightMode ? '#374151' : '#e2e8f0'), fontWeight: (isOutdated || hasDismissalWarning) ? 'bold' : 'normal', flex: 1 }}>
                                   {mySerial ? `#${mySerial.serial_number}${isOutdated ? ` ⚠️→#${latestSerial.serial_number}` : hasDismissalWarning ? ' 🚫' : ''}` : (hasDismissalWarning ? '🚫 לא רלוונטי' : '—')}
                                 </span>
@@ -15362,14 +15391,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             )}
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (lightMode ? '#475569' : '#94a3b8') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(toCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', color: display !== '—' ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
                             {display !== '—' ? display : <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '11px' }}>HH:MM</span>}
                           </div>
                         )}
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px', fontFamily: 'monospace' }}>{display}</td>;
                 }
                 case 'systems': {
                   const sysCellKey = s.id + '__systems';
@@ -15393,14 +15422,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             />
                           </div>
                         ) : (
-                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: sysText ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
+                          <div onClick={() => setTableEditingCell(sysCellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: sysText ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), userSelect: 'none' }}>
                             {sysText || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>—</span>}
                           </div>
                         )}
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{sysArr.map((x: any) => typeof x === 'string' ? x : (x.name || x.type || '')).join(', ') || '—'}</td>;
                 }
                 default: {
                   const EDITABLE_TEXT_FIELDS: Record<string, string> = {
@@ -15416,7 +15445,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </td>
                       );
                     }
-                    return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>{currentBsName}</td>;
+                    return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{currentBsName}</td>;
                   }
                   if (colKey in EDITABLE_TEXT_FIELDS) {
                     const cellKey = s.id + '__' + colKey;
@@ -15441,7 +15470,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </div>
                             </div>
                           ) : (
-                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (lightMode ? '#1e293b' : '#e2e8f0') : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                            <div onClick={() => setTableEditingCell(cellKey)} style={{ cursor: 'text', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: current ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                               <span style={{ flex: 1 }}>{current || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{EDITABLE_TEXT_FIELDS[colKey]}</span>}</span>
                               
                             </div>
@@ -15449,9 +15478,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </td>
                       );
                     }
-                    return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#1e293b' : '#e2e8f0', verticalAlign: 'top', fontSize: '12px' }}>{current || '—'}</td>;
+                    return <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>{current || '—'}</td>;
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: lightMode ? '#475569' : '#94a3b8', verticalAlign: 'top', fontSize: '12px' }}>—</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>—</td>;
                 }
               }
             };
@@ -15473,7 +15502,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <th
                       className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
-                        padding: '8px 6px', width: '28px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+                        padding: '8px 6px', width: '28px', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10,
                         ...(hasFrozen ? { right: tableStickyOffsets[0] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
@@ -15488,7 +15517,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
                       const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 1] ?? undefined) : undefined;
                       return (
-                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (lightMode ? '#475569' : '#94a3b8'), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
+                        <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
                             <span>{col.label}</span>
                             {isGrouped && <span style={{ fontSize: '9px', background: '#4c1d95', color: '#c4b5fd', padding: '1px 4px', borderRadius: '3px' }}>⊞</span>}
@@ -15502,7 +15531,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             )}
                             <button
                               onClick={e => { e.stopPropagation(); setTableHeaderMenuKey(prev => prev === colKey ? null : colKey); }}
-                              style={{ background: isMenuOpen ? (lightMode ? '#e2e8f0' : '#334155') : 'transparent', border: 'none', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
+                              style={{ background: isMenuOpen ? (T.border) : 'transparent', border: 'none', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', fontSize: '10px', lineHeight: 1, flexShrink: 0 }}
                             >▾</button>
                           </div>
                           {isMenuOpen && (
@@ -15525,20 +15554,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   }
                                   setTableHeaderMenuKey(null);
                                 }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (lightMode ? '#1e293b' : '#e2e8f0'), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isGrouped ? (lightMode ? '#ede9fe' : '#2d1b69') : 'transparent', color: isGrouped ? (lightMode ? '#5b21b6' : '#c4b5fd') : (T.text), border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >{isGrouped ? '✕ הסר קיבוץ' : '⊞ קבץ לפי'}</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('asc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'asc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↑ מיין עולה</button>
                               <button
                                 onClick={() => { setTableSortKey(colKey); setTableSortDir('desc'); setTableHeaderMenuKey(null); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: isSorted && tableSortDir === 'desc' ? (lightMode ? '#dbeafe' : '#1e3a5f') : 'transparent', color: T.text, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                               >↓ מיין יורד</button>
                               {isSorted && (
                                 <button
                                   onClick={() => { setTableSortKey(null); setTableHeaderMenuKey(null); }}
-                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: lightMode ? '#64748b' : '#94a3b8', border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
+                                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: T.muted, border: 'none', padding: '7px 10px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px' }}
                                 >✕ הסר מיון</button>
                               )}
                             </div>
@@ -15591,10 +15620,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         >
                           <td colSpan={columns.length + 2} style={{ padding: '0', direction: 'rtl' }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
-                              <span data-drag-handle style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span data-drag-handle style={{ color: T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
                               <span style={{ background: lightMode ? '#ddd6fe' : '#3b0764', color: lightMode ? '#5b21b6' : '#c4b5fd', fontWeight: 'bold', fontSize: '12px', padding: '2px 10px', borderRadius: '4px' }}>{item.groupKey}</span>
-                              <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', flexShrink: 0 }}>({item.count})</span>
+                              <span style={{ color: T.muted, fontSize: '11px', flexShrink: 0 }}>({item.count})</span>
                             </div>
                           </td>
                         </tr>
@@ -15614,7 +15643,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
                       : isRowDeviationAckEff ? (lightMode ? '#fff0e0' : '#3d1508')
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
-                      : (isEven ? (lightMode ? '#ffffff' : '#1e293b') : (lightMode ? '#f1f5f9' : '#000000'));
+                      : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
                       <tr
                         key={s.id}
@@ -16399,13 +16428,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {sidebarPinned && !isGroundMode && (tableMode ? (
             <>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>פממים זמינים ({myTableStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
-              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '6px' }}>גרור פמם ללוח הטבלה</div>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>פממים זמינים ({myTableStrips.filter(s => !tableOnBoard.has(s.id)).length}):</h4>
+              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '6px' }}>גרור פמם ללוח הטבלה</div>
               <input
                 value={sidebarAvailableSearch}
                 onChange={e => setSidebarAvailableSearch(e.target.value)}
                 placeholder="חיפוש..."
-                style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '4px 8px', marginBottom: '8px', background: T.surface, color: T.text, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }}
               />
               {[...myTableStrips.filter(s => !tableOnBoard.has(s.id) && s.status !== 'pending_transfer' && (!sidebarAvailableSearch.trim() || (s.callSign || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.sq || s.squadron || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase()) || (s.task || '').toLowerCase().includes(sidebarAvailableSearch.toLowerCase())))].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
@@ -16448,7 +16477,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
                       </div>
-                      <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
+                      <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
                       <div>
@@ -16459,7 +16488,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {normalizeAlt(s.alt)}</span>}
+                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
@@ -16472,7 +16501,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
                             const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
                             return (
-                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (T.border), color: isOutdated ? 'white' : (T.muted) }}>
                                 {sel.control_station}–{selSerial?.serial_number ?? '?'}
                               </span>
                             );
@@ -16548,8 +16577,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
                 );
                 return (<>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length}):</h4>
-              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length}):</h4>
+              <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {[...sidebarStripList].sort((a,b) => {
                 if (a.airborne && !b.airborne) return -1;
                 if (!a.airborne && b.airborne) return 1;
@@ -16589,7 +16618,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
                       </div>
-                      <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
+                      <span style={{ fontSize: '10px', color: T.muted, whiteSpace: 'nowrap', flexShrink: 0 }}>{s.task}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '3px' }}>
                       <div>
@@ -16600,7 +16629,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </span>
                         )}
                       </div>
-                      {s.alt && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0f172a' }}>גובה: {normalizeAlt(s.alt)}</span>}
+                      {s.alt && <span style={{ fontSize: '10px', color: T.muted, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, padding: '1px 5px', borderRadius: '3px', background: T.bgAlt }}>גובה: {normalizeAlt(s.alt)}</span>}
                     </div>
                     {(() => {
                       if (!myTableStrips.find(ts => ts.id === s.id)) return null;
@@ -16613,7 +16642,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             const dismissedForStation = new Set((stripSerialDismissals as any[]).filter(d => String(d.strip_id) === String(s.id) && (relevantSerials as any[]).some((sr: any) => sr.id === d.serial_id && sr.control_station === sel.control_station)).map(d => d.serial_id));
                             const isOutdated = !!(selSerial && (relevantSerials as any[]).some((sr: any) => sr.control_station === sel.control_station && sr.serial_number > selSerial.serial_number && !dismissedForStation.has(sr.id)));
                             return (
-                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (lightMode ? '#e2e8f0' : '#334155'), color: isOutdated ? 'white' : (lightMode ? '#475569' : '#94a3b8') }}>
+                              <span key={sel.control_station} className={isOutdated ? 'serial-flash' : ''} style={{ fontSize: '8px', padding: '0 3px', borderRadius: '2px', background: isOutdated ? '#dc2626' : (T.border), color: isOutdated ? 'white' : (T.muted) }}>
                                 {sel.control_station}–{selSerial?.serial_number ?? '?'}
                               </span>
                             );
@@ -16663,28 +16692,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0) return null;
           return (
-            <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
+            <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
               {/* Pin toggle */}
-              <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', flexShrink: 0 }}>
-                {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
+              <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
+                {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
                 <button onClick={() => setAidsPinned(v => !v)} title={aidsPinned ? 'סגור' : 'פתח עזרים'}
-                  style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>📌</button>
+                  style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 5px', color: T.muted, flexShrink: 0 }}>📌</button>
               </div>
               {/* Items accordion */}
               {aidsPinned && (<>
                 <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '6px' }}>
                   {/* Regular aid items */}
                   {aidGroup && (aidGroup.items || []).map((item: any) => (
-                    <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', overflow: 'hidden' }}>
+                    <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
                       <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
-                        <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8', flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
                       </button>
                       {aidExpandedIds.has(`item-${item.id}`) && (
                         <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
-                          {item.type === 'text' && <div style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
+                          {item.type === 'text' && <div style={{ fontSize: '11px', color: T.text, direction: 'rtl', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{item.content}</div>}
                           {item.type === 'image' && item.content && <img src={item.content} alt={item.name} style={{ maxWidth: '100%', borderRadius: '4px' }} />}
                         </div>
                       )}
@@ -16692,7 +16721,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   ))}
                   {/* Auto block tables — always-open בלוקים section with mini block view */}
                   {aidBlockTables.length > 0 && (
-                    <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
+                    <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${T.border}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: '4px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc', flex: 1 }}>🗂️ בלוקים</span>
                       </div>
@@ -16723,7 +16752,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               >{isActiveBt ? '★' : '☆'}</button>
                             </div>
                             {isOpen && (
-                              <div style={{ background: lightMode ? '#f8fafc' : '#0f172a', padding: '6px' }}>
+                              <div style={{ background: T.bg, padding: '6px' }}>
                                 {btBlocks.length === 0 && <div style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '4px 0' }}>אין בלוקים</div>}
                                 {btBlocks.map((b: any) => {
                                   const bWs = Array.isArray(b.workstations) ? b.workstations.map(Number) : [];
@@ -16734,8 +16763,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   return (
                                     <div key={b.id} className={isMine ? 'mine-block-flash' : undefined} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '3px 4px', borderRadius: '4px', marginBottom: '2px', background: b.color ? b.color + '22' : 'transparent', border: `1px solid ${b.color || '#6366f1'}44` }}>
                                       <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: b.color || '#6366f1', flexShrink: 0 }} />
-                                      <span style={{ fontSize: '11px', fontWeight: isMine ? '800' : 'normal', color: lightMode ? '#1e293b' : '#e2e8f0', flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
-                                      {b.mission && <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.mission}</span>}
+                                      <span style={{ fontSize: '11px', fontWeight: isMine ? '800' : 'normal', color: T.text, flexShrink: 0 }}>{b.alt_from}–{b.alt_to}</span>
+                                      {b.mission && <span style={{ fontSize: '10px', color: T.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.mission}</span>}
                                       {allWsNames.length > 0 && (
                                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', flexShrink: 0, fontStyle: 'italic', marginLeft: 'auto', whiteSpace: 'nowrap' }}>({allWsNames.join(', ')})</span>
                                       )}
@@ -16754,7 +16783,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const hasPrev = aidGroup || aidBlockTables.length > 0;
                     const groups = Array.from(new Set(workGroupNotes.map((n: any) => n.work_group_id)));
                     return (
-                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                      <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px', marginBottom: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#2dd4bf' }}>📌 מדניות</span>
                         </div>
@@ -16775,12 +16804,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <div style={{ background: lightMode ? '#f0fdfa' : '#042f2e', border: `1px solid ${lightMode ? '#99f6e4' : '#0d9488'}`, borderRadius: '5px', padding: '6px', marginBottom: '4px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                                     <input value={newWgNote.title} onChange={e => setNewWgNote(v => ({...v, title: e.target.value}))}
-                                      placeholder="כותרת..." style={{ flex: 1, padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                      placeholder="כותרת..." style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
                                     <VKTrigger value={newWgNote.title} onChange={v => setNewWgNote(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
                                   </div>
                                   <textarea value={newWgNote.content} onChange={e => setNewWgNote(v => ({...v, content: e.target.value}))}
                                     placeholder="תוכן..."
-                                    rows={2} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                    rows={2} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
                                   <div style={{ marginBottom: '4px', textAlign: 'left' }}>
                                     <VKTrigger value={newWgNote.content} onChange={v => setNewWgNote(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
                                   </div>
@@ -16813,11 +16842,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                           <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                                               <input value={wgNoteForm.title} onChange={e => setWgNoteForm(v => ({...v, title: e.target.value}))}
-                                                style={{ flex: 1, padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
+                                                style={{ flex: 1, padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', minWidth: 0 }} />
                                               <VKTrigger value={wgNoteForm.title} onChange={v => setWgNoteForm(p => ({...p, title: v}))} mode="full" label="כותרת" size={13} />
                                             </div>
                                             <textarea value={wgNoteForm.content} onChange={e => setWgNoteForm(v => ({...v, content: e.target.value}))}
-                                              rows={3} style={{ width: '100%', padding: '3px 6px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
+                                              rows={3} style={{ width: '100%', padding: '3px 6px', background: T.bg, color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '3px', fontSize: '11px', direction: 'rtl', resize: 'vertical', boxSizing: 'border-box', marginBottom: '4px' }} />
                                             <div style={{ marginBottom: '4px', textAlign: 'left' }}>
                                               <VKTrigger value={wgNoteForm.content} onChange={v => setWgNoteForm(p => ({...p, content: v}))} mode="full" label="תוכן" size={13} />
                                             </div>
@@ -16864,7 +16893,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0;
                     const cats = Array.from(new Set(presetLinks.map((l: any) => l.category || 'כללי'))).sort() as string[];
                     return (
-                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                      <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setLinksPanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: linksPanelOpen ? '4px' : 0 }}
@@ -16900,7 +16929,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {(() => {
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
                     return (
-                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                      <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setContactsPanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0a1929', marginBottom: contactsPanelOpen ? '4px' : 0 }}
@@ -16971,7 +17000,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {baseStatuses.length > 0 && (() => {
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
                     return (
-                      <div style={{ borderTop: hasPrev ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
+                      <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setBasePanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#fef3c7' : '#1c1a07', marginBottom: basePanelOpen ? '4px' : 0 }}
@@ -16992,14 +17021,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 )}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px' }}>
                                   {bs.air_defense_status && (() => {
-                                    const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || (lightMode ? '#1e293b' : '#e2e8f0');
+                                    const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || (T.text);
                                     return <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>מז"א: </span><span style={{ color: adColor, fontWeight: 'bold', fontSize: '10px' }}>{bs.air_defense_status}</span></div>;
                                   })()}
                                   {bs.absorption_status && (
-                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ספיגה: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.absorption_status}</span></div>
+                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ספיגה: </span><span style={{ color: T.text, fontWeight: 'bold', fontSize: '10px' }}>{bs.absorption_status}</span></div>
                                   )}
                                   {bs.bird_status && (
-                                    <div style={{ gridColumn: '1 / -1' }}><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ציפורי: </span><span style={{ color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold', fontSize: '10px' }}>{bs.bird_status}</span></div>
+                                    <div style={{ gridColumn: '1 / -1' }}><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ציפורי: </span><span style={{ color: T.text, fontWeight: 'bold', fontSize: '10px' }}>{bs.bird_status}</span></div>
                                   )}
                                 </div>
                               </div>
@@ -17012,7 +17041,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                   {/* BDH Section */}
                   {workstationBdhDocs.length > 0 && (
-                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
+                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${T.border}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
                       <div
                         onClick={() => setBdhPanelOpen(v => !v)}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: '4px' }}
@@ -17026,7 +17055,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             value={bdhSearchQuery}
                             onChange={e => setBdhSearchQuery(e.target.value)}
                             placeholder={'חיפוש בד"ח...'}
-                            style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#f1f5f9' : '#0f172a', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
+                            style={{ width: '100%', padding: '4px 6px', background: T.bgAlt, border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '6px' }}
                           />
                           {(() => {
                             const filtered = workstationBdhDocs.filter((doc: any) =>
@@ -17085,13 +17114,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const cats = Object.keys(catMap).sort();
                   const elSecOpen = !aidExpandedIds.has('__ground_elements__');
                   return (
-                    <div style={{ borderTop: `2px solid ${lightMode ? '#e2e8f0' : '#334155'}`, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                       {/* Elements sub-header */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', background: lightMode ? '#f1f5f9' : '#0f172a', borderBottom: elSecOpen ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : 'none' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', background: T.bgAlt, borderBottom: elSecOpen ? `1px solid ${T.border}` : 'none' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text, whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>
                         <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
                           title={elSecOpen ? 'הסתר אלמנטים' : 'הצג אלמנטים'}
-                          style={{ background: 'transparent', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', color: lightMode ? '#64748b' : '#94a3b8' }}>
+                          style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', color: T.muted }}>
                           {elSecOpen ? '▲' : '▼'}
                         </button>
                       </div>
@@ -17101,7 +17130,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             const els = catMap[cat];
                             const catCollapsed = aidExpandedIds.has(`__elcat__${cat}`);
                             return (
-                              <div key={cat} style={{ marginBottom: '3px', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                              <div key={cat} style={{ marginBottom: '3px', border: `1px solid ${T.border}`, borderRadius: '5px', overflow: 'hidden' }}>
                                 <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has(`__elcat__${cat}`) ? s.delete(`__elcat__${cat}`) : s.add(`__elcat__${cat}`); return s; })}
                                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '4px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>
                                   <span style={{ fontSize: '8px', flexShrink: 0 }}>{catCollapsed ? '▶' : '▼'}</span>
@@ -17118,7 +17147,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
                                           <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', flexShrink: 0 }}>{el.type_icon || '🔧'}</div>
                                           <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
+                                            <div style={{ fontSize: '10px', fontWeight: 'bold', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
                                           </div>
                                           <button onClick={() => handleUpdateElementStatus && handleUpdateElementStatus(el.id, nextStatus)}
                                             title={`→ ${nextStatus}`}
@@ -17208,7 +17237,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           return (
             <div data-forecast-panel="true" style={{
               ...panelStyle,
-              background: lightMode ? '#f8fafc' : '#0f172a',
+              background: T.bg,
               border: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
               borderRadius: '12px', zIndex: 4500,
               boxShadow: '0 12px 40px rgba(0,0,0,0.55)',
@@ -17236,49 +17265,49 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   document.addEventListener('mouseup', onUp);
                   e.preventDefault();
                 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, cursor: 'grab', userSelect: 'none' }}>
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: T.surface, borderBottom: `1px solid ${T.border}`, cursor: 'grab', userSelect: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>📈 חוזי עומס</span>
-                  <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>📈 חוזי עומס</span>
+                  <span style={{ fontSize: '11px', color: T.muted, background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
                     סה"כ: {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {/* Metric toggle */}
-                  <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', border: `1px solid ${T.borderLight}`, borderRadius: '5px', overflow: 'hidden' }}>
                     {(['formations', 'aircraft'] as const).map(m => (
                       <button key={m} onClick={() => setLoadForecastMetric(m)} style={{
                         padding: '2px 9px', fontSize: '11px', border: 'none', cursor: 'pointer',
                         background: loadForecastMetric === m ? '#7c3aed' : 'transparent',
-                        color: loadForecastMetric === m ? 'white' : (lightMode ? '#475569' : '#94a3b8'),
+                        color: loadForecastMetric === m ? 'white' : (T.muted),
                         fontWeight: loadForecastMetric === m ? 'bold' : 'normal'
                       }}>{m === 'formations' ? 'פממים' : 'מטוסים'}</button>
                     ))}
                   </div>
                   {/* Resolution selector */}
-                  <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '5px', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', border: `1px solid ${T.borderLight}`, borderRadius: '5px', overflow: 'hidden' }}>
                     {([15, 30, 60, 120] as const).map(r => (
                       <button key={r} onClick={() => setLoadForecastResolution(r)} style={{
                         padding: '2px 8px', fontSize: '10px', border: 'none', cursor: 'pointer',
                         background: loadForecastResolution === r ? '#0ea5e9' : 'transparent',
-                        color: loadForecastResolution === r ? 'white' : (lightMode ? '#475569' : '#94a3b8'),
+                        color: loadForecastResolution === r ? 'white' : (T.muted),
                         fontWeight: loadForecastResolution === r ? 'bold' : 'normal'
                       }}>{r < 60 ? `${r}ד'` : `${r / 60}ש'`}</button>
                     ))}
                   </div>
-                  <button onClick={() => { setShowLoadForecast(false); setLoadForecastPos(null); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '15px', color: lightMode ? '#64748b' : '#94a3b8', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                  <button onClick={() => { setShowLoadForecast(false); setLoadForecastPos(null); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '15px', color: T.muted, lineHeight: 1, padding: '0 2px' }}>✕</button>
                 </div>
               </div>
 
               {/* Day navigation */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '5px 12px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
-                <button onClick={() => changeDay(-1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold' }}>›</button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '5px 12px', borderBottom: `1px solid ${T.border}` }}>
+                <button onClick={() => changeDay(-1)} style={{ background: T.border, border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: T.text, fontWeight: 'bold' }}>›</button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>{dayDisplay}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: T.text }}>{dayDisplay}</span>
                   {isToday && <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>היום</span>}
                 </div>
-                <button onClick={() => changeDay(1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: lightMode ? '#1e293b' : '#e2e8f0', fontWeight: 'bold' }}>‹</button>
+                <button onClick={() => changeDay(1)} style={{ background: T.border, border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '2px 12px', fontSize: '15px', color: T.text, fontWeight: 'bold' }}>‹</button>
                 <button onClick={() => { const d = new Date(); setLoadForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }} style={{ background: lightMode ? '#dbeafe' : '#1e3a5f', border: `1px solid ${lightMode ? '#93c5fd' : '#3b82f6'}`, borderRadius: '4px', cursor: 'pointer', padding: '1px 8px', fontSize: '10px', color: lightMode ? '#1d4ed8' : '#93c5fd', fontWeight: 'bold' }}>היום</button>
               </div>
 
@@ -17321,7 +17350,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <text x={x + slotW / 2} y={y + 11} textAnchor="middle" fontSize={9} fill="white" fontWeight="bold">{slot.count}</text>
                         )}
                         {slot.count > 0 && barH <= 16 && barH >= 1 && (
-                          <text x={x + slotW / 2} y={y - 2} textAnchor="middle" fontSize={8} fill={lightMode ? '#1e293b' : '#e2e8f0'}>{slot.count}</text>
+                          <text x={x + slotW / 2} y={y - 2} textAnchor="middle" fontSize={8} fill={T.text}>{slot.count}</text>
                         )}
                       </g>
                     );
@@ -17356,13 +17385,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {[{ color: '#22c55e', label: 'נמוך' }, { color: '#f59e0b', label: 'בינוני' }, { color: '#ef4444', label: 'גבוה' }].map(l => (
                     <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <div style={{ width: 10, height: 10, background: l.color, borderRadius: 2 }} />
-                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8' }}>{l.label}</span>
+                      <span style={{ fontSize: '9px', color: T.muted }}>{l.label}</span>
                     </div>
                   ))}
                   {isToday && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                       <div style={{ width: 12, height: 2, background: '#3b82f6', borderRadius: 1 }} />
-                      <span style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#94a3b8' }}>עכשיו</span>
+                      <span style={{ fontSize: '9px', color: T.muted }}>עכשיו</span>
                     </div>
                   )}
                 </div>
@@ -19079,6 +19108,17 @@ const AidsManager = ({ presets }: { presets: any[] }) => {
   );
 };
 
+// Module-level theme helper for sub-components that receive lightMode as prop
+const mkT = (lightMode: boolean) => lightMode ? {
+  bg: '#f8fafc', bgAlt: '#f1f5f9', surface: '#f1f5f9', surface2: 'white',
+  border: '#e2e8f0', borderLight: '#cbd5e1',
+  text: '#1e293b', textInv: '#f1f5f9', muted: '#64748b', input: 'white',
+} : {
+  bg: '#0f172a', bgAlt: '#0f172a', surface: '#1e293b', surface2: '#1e293b',
+  border: '#334155', borderLight: '#475569',
+  text: '#e2e8f0', textInv: '#1e293b', muted: '#94a3b8', input: '#0f172a',
+};
+
 // --- ניהול ספרורים (Admin) ---
 const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDurationMs?: number | null }) => {
   const [serials, setSerials] = useState<any[]>([]);
@@ -19292,11 +19332,12 @@ const SerialsAdminTab = ({ initialUndoDurationMs }: { initialUndoDurationMs?: nu
 
 // --- פאנל ספרורים במוד עמדה ---
 const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; onClose: () => void; lightMode: boolean }) => {
-  const bg = lightMode ? '#ffffff' : '#0f172a';
-  const bg2 = lightMode ? '#f1f5f9' : '#1e293b';
-  const textMain = lightMode ? '#1e293b' : '#e2e8f0';
-  const textSub = lightMode ? '#64748b' : '#94a3b8';
-  const border = lightMode ? '#e2e8f0' : '#334155';
+  const T = mkT(lightMode);
+  const bg = T.bg;
+  const bg2 = T.surface;
+  const textMain = T.text;
+  const textSub = T.muted;
+  const border = T.border;
 
   const allStations = Array.from(new Set(serials.map(s => s.control_station))).sort();
   const [selectedStations, setSelectedStations] = useState<Set<string>>(new Set(allStations));
@@ -19368,7 +19409,7 @@ const SerialsPanelModal = ({ serials, onClose, lightMode }: { serials: any[]; on
           <button onClick={() => setSelectedStations(new Set())} style={{ background: 'transparent', border: `1px solid ${border}`, color: textSub, borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
           {allStations.map(st => (
             <button key={st} onClick={() => toggleStation(st)}
-              style={{ background: selectedStations.has(st) ? '#2563eb' : (lightMode ? '#e2e8f0' : '#334155'), color: selectedStations.has(st) ? 'white' : textMain, border: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: selectedStations.has(st) ? 'bold' : 'normal' }}>
+              style={{ background: selectedStations.has(st) ? '#2563eb' : (T.border), color: selectedStations.has(st) ? 'white' : textMain, border: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: selectedStations.has(st) ? 'bold' : 'normal' }}>
               {st}
             </button>
           ))}
@@ -19430,11 +19471,12 @@ const SEVERITY_STYLES: Record<string, React.CSSProperties> = {
 };
 
 const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lightMode, initialUndoDurationMs }: { presets?: any[]; crewMembers?: any[]; lightMode: boolean; initialUndoDurationMs?: number | null }) => {
-  const bg = lightMode ? '#f8fafc' : '#0f172a';
+  const T = mkT(lightMode);
+  const bg = T.bg;
   const cardBg = lightMode ? '#fff' : '#1e293b';
-  const border = lightMode ? '#e2e8f0' : '#334155';
+  const border = T.border;
   const text = lightMode ? '#0f172a' : '#e2e8f0';
-  const muted = lightMode ? '#64748b' : '#94a3b8';
+  const muted = T.muted;
   const inputStyle: React.CSSProperties = { background: lightMode ? '#fff' : '#0f172a', color: text, border: `1px solid ${border}`, borderRadius: '6px', padding: '5px 8px', fontSize: '13px', direction: 'rtl' };
 
   const today = new Date().toISOString().slice(0, 10);
@@ -24216,10 +24258,13 @@ export default function App() {
   const [managementMode, setManagementMode] = useState<'admin' | 'team_lead'>('admin');
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
 
-  // Apply stored light/dark preference immediately on app load
+  // Apply stored theme preference immediately on app load
   useEffect(() => {
-    const stored = localStorage.getItem('bt-lightMode') === 'true';
-    document.body.classList.toggle('light-mode', stored);
+    const t = localStorage.getItem('bt-themeMode');
+    const isLight = t === 'light' || (!t && localStorage.getItem('bt-lightMode') === 'true');
+    const isOcean = t === 'ocean';
+    document.body.classList.toggle('light-mode', isLight);
+    document.body.classList.toggle('ocean-mode', isOcean);
   }, []);
 
   // Load workstation presets so load-mode thresholds are available in SectorDashboard
