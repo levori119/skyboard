@@ -16087,8 +16087,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               touchAction: 'none', zIndex: 200
             }}
           />
-          {/* 🖊️ Toggle button */}
-          <button
+          {/* 🖊️ Toggle button — hidden in classic strips mode */}
+          {!isClassicMode && <><button
             onClick={() => {
               const newMode = !drawingMode;
               drawingModeRef.current = newMode;
@@ -16156,6 +16156,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               borderRadius: '4px', cursor: 'pointer', fontSize: '11px'
             }}>נקה הכל</button>
           </div>}
+          </>}
 
           </>}
         </div>
