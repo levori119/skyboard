@@ -10527,6 +10527,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
+  const [loadForecastPos, setLoadForecastPos] = useState<{ x: number; y: number } | null>(null);
+  const loadForecastDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const pressureSavedLocallyRef = React.useRef(false);
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
@@ -16676,9 +16678,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const [yr, mo, dy] = loadForecastDay.split('-');
           const dayDisplay = `${dy}/${mo}/${yr}`;
 
+          const panelStyle: React.CSSProperties = loadForecastPos
+            ? { position: 'fixed', top: loadForecastPos.y, left: loadForecastPos.x }
+            : { position: 'fixed', top: 54, left: '50%', transform: 'translateX(-50%)' };
+
           return (
-            <div style={{
-              position: 'fixed', top: 54, left: '50%', transform: 'translateX(-50%)',
+            <div data-forecast-panel="true" style={{
+              ...panelStyle,
               background: lightMode ? '#f8fafc' : '#0f172a',
               border: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
               borderRadius: '12px', zIndex: 4500,
@@ -16686,9 +16692,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               direction: 'rtl', minWidth: '580px', maxWidth: '96vw',
               overflow: 'hidden'
             }}>
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` }}>
+              {/* Header — drag handle */}
+              <div
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).closest('button')) return;
+                  const panel = (e.currentTarget as HTMLElement).closest('[data-forecast-panel]') as HTMLElement | null;
+                  const rect = panel ? panel.getBoundingClientRect() : { left: 0, top: 54 };
+                  loadForecastDragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top };
+                  const onMove = (me: MouseEvent) => {
+                    if (!loadForecastDragRef.current) return;
+                    const { startX, startY, origX, origY } = loadForecastDragRef.current;
+                    setLoadForecastPos({ x: origX + me.clientX - startX, y: origY + me.clientY - startY });
+                  };
+                  const onUp = () => {
+                    loadForecastDragRef.current = null;
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                  };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                  e.preventDefault();
+                }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', background: lightMode ? '#f1f5f9' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, cursor: 'grab', userSelect: 'none' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569' }}>⠿</span>
                   <span style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0' }}>📈 חוזי עומס</span>
                   <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', background: lightMode ? '#e2e8f0' : '#0f172a', padding: '1px 7px', borderRadius: '10px' }}>
                     סה"כ: {totalCount} {loadForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
@@ -16717,7 +16744,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       }}>{r < 60 ? `${r}ד'` : `${r / 60}ש'`}</button>
                     ))}
                   </div>
-                  <button onClick={() => setShowLoadForecast(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '15px', color: lightMode ? '#64748b' : '#94a3b8', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                  <button onClick={() => { setShowLoadForecast(false); setLoadForecastPos(null); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '15px', color: lightMode ? '#64748b' : '#94a3b8', lineHeight: 1, padding: '0 2px' }}>✕</button>
                 </div>
               </div>
 
