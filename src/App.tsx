@@ -5,6 +5,7 @@ import { createPortal, flushSync } from 'react-dom';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
 import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
+import { ClockWidget } from './ClockWidget';
 
 const API_URL = '/api';
 
@@ -13441,6 +13442,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </>
             )}
           </div>
+          {/* Clock widget */}
+          <ClockWidget lightMode={lightMode} />
         </div>
       </header>
 
