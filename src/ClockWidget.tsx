@@ -172,18 +172,18 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
           <div
             style={{
               position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-              zIndex: 9500, width: '310px',
+              zIndex: 9500, width: '260px',
               background: panelBg, border: `2px solid #3b82f6`,
               borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
               direction: 'rtl', overflow: 'hidden',
             }}
           >
             {/* Big clock header */}
-            <div style={{ background: '#0a1628', padding: '10px 14px 6px', textAlign: 'center', borderBottom: `1px solid ${border}` }}>
-              <div style={{ fontFamily: 'monospace', fontSize: '36px', fontWeight: 'bold', color: '#7dd3fc', letterSpacing: '3px', lineHeight: 1 }}>
-                {timeStr}<span style={{ fontSize: '20px', color: '#475569' }}>:{secStr}</span>
+            <div style={{ background: '#0a1628', padding: '6px 10px 4px', textAlign: 'center', borderBottom: `1px solid ${border}` }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '26px', fontWeight: 'bold', color: '#7dd3fc', letterSpacing: '2px', lineHeight: 1 }}>
+                {timeStr}<span style={{ fontSize: '15px', color: '#475569' }}>:{secStr}</span>
               </div>
-              <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+              <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
                 {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
               </div>
             </div>
@@ -196,7 +196,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
                 { key: 'stopwatch', label: '🏃 סטופר' },
               ] as { key: Tab; label: string }[]).map(t => (
                 <button key={t.key} onClick={() => setTab(t.key)} style={{
-                  flex: 1, padding: '7px 4px', fontSize: '12px', fontWeight: tab === t.key ? 'bold' : 'normal',
+                  flex: 1, padding: '5px 3px', fontSize: '11px', fontWeight: tab === t.key ? 'bold' : 'normal',
                   background: tab === t.key ? (lightMode ? '#e0f2fe' : '#0c2a40') : 'transparent',
                   color: tab === t.key ? '#38bdf8' : sub,
                   border: 'none', borderBottom: tab === t.key ? '2px solid #38bdf8' : '2px solid transparent',
@@ -205,44 +205,44 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
               ))}
             </div>
 
-            <div style={{ padding: '10px', maxHeight: '260px', overflowY: 'auto' }}>
+            <div style={{ padding: '7px', maxHeight: '220px', overflowY: 'auto' }}>
               {/* REMINDERS TAB */}
               {tab === 'reminders' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {/* Add reminder */}
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
                     <input value={newHour} onChange={e => setNewHour(e.target.value.replace(/\D/g, '').slice(0, 2))}
                       placeholder="שע" maxLength={2}
-                      style={{ width: '38px', padding: '5px 4px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: text, fontSize: '14px', fontFamily: 'monospace' }} />
-                    <span style={{ color: sub, fontFamily: 'monospace', fontWeight: 'bold' }}>:</span>
+                      style={{ width: '30px', padding: '3px 2px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '12px', fontFamily: 'monospace' }} />
+                    <span style={{ color: sub, fontFamily: 'monospace', fontWeight: 'bold', fontSize: '11px' }}>:</span>
                     <input value={newMin} onChange={e => setNewMin(e.target.value.replace(/\D/g, '').slice(0, 2))}
                       placeholder="דק" maxLength={2}
-                      style={{ width: '38px', padding: '5px 4px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: text, fontSize: '14px', fontFamily: 'monospace' }} />
+                      style={{ width: '30px', padding: '3px 2px', textAlign: 'center', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '12px', fontFamily: 'monospace' }} />
                     <input value={newText} onChange={e => setNewText(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && addReminder()}
                       placeholder="תוכן התזכורת..."
-                      style={{ flex: 1, padding: '5px 7px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '5px', color: text, fontSize: '12px', direction: 'rtl' }} />
+                      style={{ flex: 1, padding: '3px 5px', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${border}`, borderRadius: '4px', color: text, fontSize: '11px', direction: 'rtl' }} />
                     <button onClick={addReminder}
-                      style={{ padding: '5px 10px', background: '#15803d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>+</button>
+                      style={{ padding: '3px 8px', background: '#15803d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+</button>
                   </div>
 
                   {/* Reminders list */}
                   {reminders.length === 0 ? (
-                    <div style={{ textAlign: 'center', color: sub, fontSize: '12px', padding: '10px 0' }}>אין תזכורות</div>
+                    <div style={{ textAlign: 'center', color: sub, fontSize: '11px', padding: '8px 0' }}>אין תזכורות</div>
                   ) : (
                     reminders.map(r => (
                       <div key={r.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '6px',
+                        display: 'flex', alignItems: 'center', gap: '4px',
                         background: r.triggered ? (lightMode ? '#f0fdf4' : '#052e16') : (lightMode ? '#f8fafc' : '#1e293b'),
-                        border: `1px solid ${r.triggered ? '#22c55e' : border}`, borderRadius: '6px', padding: '6px 8px',
+                        border: `1px solid ${r.triggered ? '#22c55e' : border}`, borderRadius: '5px', padding: '4px 6px',
                       }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '15px', color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: '44px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '12px', color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: '36px' }}>
                           {pad2(r.hour)}:{pad2(r.minute)}
                         </span>
-                        <span style={{ flex: 1, fontSize: '12px', color: r.triggered ? '#4ade80' : text, textDecoration: r.triggered ? 'line-through' : 'none' }}>{r.text}</span>
-                        {r.triggered && <span title="הופעל">✓</span>}
+                        <span style={{ flex: 1, fontSize: '11px', color: r.triggered ? '#4ade80' : text, textDecoration: r.triggered ? 'line-through' : 'none' }}>{r.text}</span>
+                        {r.triggered && <span title="הופעל" style={{ fontSize: '11px' }}>✓</span>}
                         <button onClick={() => setReminders(prev => prev.filter(x => x.id !== r.id))}
-                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', padding: '0 2px', lineHeight: 1 }}>✕</button>
                       </div>
                     ))
                   )}
