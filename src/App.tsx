@@ -10369,6 +10369,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [bdhDistributePresets, setBdhDistributePresets] = useState<number[]>([]);
   const [bdhAlerts, setBdhAlerts] = useState<any[]>([]);
   const [bdhAlertPopup, setBdhAlertPopup] = useState<any | null>(null);
+  const bdhSessionStartRef = React.useRef<string>(new Date().toISOString());
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
@@ -10853,7 +10854,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       try {
         const res = await fetch(`${API_URL}/bdh-alerts?preset_id=${session.presetId}`);
         if (!res.ok) return;
-        const alerts: any[] = await res.json();
+        const allAlerts: any[] = await res.json();
+        const alerts = allAlerts.filter((a: any) => !a.created_at || a.created_at >= bdhSessionStartRef.current);
         setBdhAlerts(alerts);
         if (alerts.length > 0 && !bdhAlertPopup) {
           setBdhAlertPopup(alerts[0]);
