@@ -24657,6 +24657,8 @@ export default function App() {
     clearSession();
     setSession(null);
     setPage('login');
+    document.body.classList.remove('light-mode');
+    localStorage.removeItem('bt-lightMode');
   };
 
   const handleCrewChange = (newCrewMember: CrewMember) => {
