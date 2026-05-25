@@ -13255,7 +13255,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         }
                       } else {
                         setRegionalMazaa(val);
-                        fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
+                        if (myWorkGroupId) {
+                          fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
+                        }
+                        const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+                        if (bIds.length > 0) {
+                          bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(updated => { if (updated) setLiveBaseStatuses(prev => { const next = prev.map(b => Number(b.id) === Number(updated.id) ? updated : b); return next.some(b => Number(b.id) === Number(updated.id)) ? next : [...next, updated]; }); })
+                            .catch(() => {}));
+                        }
                       }
                     }}
                     style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl', maxWidth: '100px' }}
