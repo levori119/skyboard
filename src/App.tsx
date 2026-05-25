@@ -13794,7 +13794,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 );
               })()}
               <button
-                onClick={() => { setBdhDistributePresets([]); setBdhDistributeOpen(true); }}
+                onClick={() => {
+                  const myGroups = allWorkGroups.filter((g: any) => (g.members || []).some((m: any) => Number(m.preset_id) === Number(session.presetId)));
+                  const adminIds = [...new Set(myGroups.map((g: any) => g.admin_preset_id).filter((id: any) => id && Number(id) !== Number(session.presetId)).map(Number))];
+                  setBdhDistributePresets(adminIds);
+                  setBdhDistributeOpen(true);
+                }}
                 style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', padding: '5px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}
               >🔔 הפץ</button>
             </div>
@@ -13860,6 +13865,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
         const selStrip = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
         const callSignPart = selStrip ? selStrip.callSign + (bdhAircraftRef ? ` ${bdhAircraftRef}` : '') : '';
+        const stripRefPart = selStrip
+          ? (selStrip.callSign + (bdhAircraftRef ? bdhAircraftRef : '') + (selStrip.squadron ? ` / ${selStrip.squadron}` : ''))
+          : '';
         const bdhNamePart = bdhViewerDoc.name || '';
         const senderName = session.workstationName || '';
         const previewMsg = callSignPart
@@ -13904,7 +13912,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           await fetch(`${API_URL}/bdh-alerts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target_preset_ids: bdhDistributePresets, message: previewMsg, bdh_name: bdhNamePart, sender_preset_name: senderName })
+            body: JSON.stringify({ target_preset_ids: bdhDistributePresets, message: previewMsg, bdh_name: bdhNamePart, sender_preset_name: senderName, strip_ref: stripRefPart || null })
           });
           setBdhDistributeOpen(false);
           setBdhDistributePresets([]);
@@ -13980,7 +13988,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Message */}
           <div style={{ padding: '20px 20px 14px', background: '#1c0e00' }}>
             <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#fed7aa', lineHeight: 1.6, textAlign: 'center', letterSpacing: '0.3px' }}>
-              {bdhAlertPopup.message}
+              {bdhAlertPopup.strip_ref ? (
+                <>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#38bdf8', marginBottom: '8px', background: 'rgba(56,189,248,0.12)', borderRadius: '7px', padding: '4px 14px', display: 'inline-block', letterSpacing: '1px', border: '1px solid rgba(56,189,248,0.3)' }}>
+                    ✈️ {bdhAlertPopup.strip_ref}
+                  </div>
+                  <div>{bdhAlertPopup.message}</div>
+                </>
+              ) : bdhAlertPopup.message}
             </div>
           </div>
           {/* Footer */}

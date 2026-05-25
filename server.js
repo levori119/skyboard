@@ -536,6 +536,7 @@ async function initDb() {
       message TEXT NOT NULL,
       bdh_name VARCHAR(200),
       sender_preset_name VARCHAR(200),
+      strip_ref VARCHAR(200),
       dismissed BOOLEAN DEFAULT false,
       created_at TIMESTAMP DEFAULT NOW()
     )
@@ -760,6 +761,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_pressure BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_dashboard BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS can_update_mazaa BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE bdh_alerts ADD COLUMN IF NOT EXISTS strip_ref VARCHAR(200)`);
   await pool.query(`ALTER TABLE work_groups ADD COLUMN IF NOT EXISTS mazaa_regional VARCHAR(100)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS preset_mazaa_thresholds (
@@ -5105,12 +5107,12 @@ app.get('/api/bdh-alerts', async (req, res) => {
 
 app.post('/api/bdh-alerts', async (req, res) => {
   try {
-    const { target_preset_ids, message, bdh_name, sender_preset_name } = req.body;
+    const { target_preset_ids, message, bdh_name, sender_preset_name, strip_ref } = req.body;
     const ids = [];
     for (const pid of (target_preset_ids || [])) {
       const r = await pool.query(
-        'INSERT INTO bdh_alerts (target_preset_id, message, bdh_name, sender_preset_name) VALUES ($1,$2,$3,$4) RETURNING id',
-        [pid, message, bdh_name || '', sender_preset_name || '']
+        'INSERT INTO bdh_alerts (target_preset_id, message, bdh_name, sender_preset_name, strip_ref) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+        [pid, message, bdh_name || '', sender_preset_name || '', strip_ref || null]
       );
       ids.push(r.rows[0].id);
     }
