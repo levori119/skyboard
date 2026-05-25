@@ -1990,7 +1990,7 @@ const DraggableNeighborPanel = ({
         if (String(inc.id) === String(out.id)) continue; // same record in both arrays → skip
         const incAlt = parseAlt(inc.alt);
         if (incAlt == null) continue;
-        if (outAlt !== incAlt && Math.abs(outAlt - incAlt) * 100 <= delta) {
+        if (Math.abs(outAlt - incAlt) * 100 <= delta) {
           conflictingTransferIds.add(String(out.id));
           conflictingTransferIds.add(String(inc.id));
         }
@@ -2007,7 +2007,7 @@ const DraggableNeighborPanel = ({
         if (lblI && lblJ && lblI !== lblJ) continue; // different transfer points → skip
         const altB = parseAlt(sectorOutgoing[j].alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+        if (Math.abs(altA - altB) * 100 <= delta) {
           conflictingTransferIds.add(String(sectorOutgoing[i].id));
           conflictingTransferIds.add(String(sectorOutgoing[j].id));
         }
@@ -2024,7 +2024,7 @@ const DraggableNeighborPanel = ({
         if (lblI && lblJ && lblI !== lblJ) continue; // different transfer points → skip
         const altB = parseAlt(sectorIncoming[j].alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+        if (Math.abs(altA - altB) * 100 <= delta) {
           conflictingTransferIds.add(String(sectorIncoming[i].id));
           conflictingTransferIds.add(String(sectorIncoming[j].id));
         }
@@ -11400,7 +11400,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const b = boardStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+        if (Math.abs(altA - altB) * 100 <= delta) {
           // With an active block table: skip only when BOTH are in DIFFERENT defined blocks
           if (tableBlocks.length > 0) {
             const blockA = findBlockId(altA);
