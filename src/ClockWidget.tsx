@@ -157,8 +157,9 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
             color: text, userSelect: 'none', fontFamily: 'monospace',
           }}
         >
-          <span style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px' }}>{timeStr}</span>
-          <span style={{ fontSize: '11px', color: sub, letterSpacing: '0.5px' }}>{secStr}</span>
+          <span style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '1px', fontFamily: 'monospace' }}>
+            {timeStr}<span style={{ fontSize: '12px', fontWeight: 'normal', color: sub }}>:{secStr}</span>
+          </span>
           {pendingReminders > 0 && (
             <span style={{ marginRight: '4px', background: '#f59e0b', color: '#000', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', padding: '0 5px', fontFamily: 'sans-serif' }}>
               {pendingReminders}
