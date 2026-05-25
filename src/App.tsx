@@ -10363,8 +10363,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const bdhViewerDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [bdhSearchQuery, setBdhSearchQuery] = useState('');
   const [bdhPanelOpen, setBdhPanelOpen] = useState(false);
-  const [bdhStripRef, setBdhStripRef] = useState<string>('');
-  const [bdhAircraftRef, setBdhAircraftRef] = useState<string>('');
+  const [bdhStripRefByDoc, setBdhStripRefByDoc] = useState<Record<string, string>>({});
+  const [bdhAircraftRefByDoc, setBdhAircraftRefByDoc] = useState<Record<string, string>>({});
   const [bdhDistributeOpen, setBdhDistributeOpen] = useState(false);
   const [bdhDistributePresets, setBdhDistributePresets] = useState<number[]>([]);
   const [bdhAlerts, setBdhAlerts] = useState<any[]>([]);
@@ -13649,9 +13649,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
       {/* BDH Viewer — floating draggable on-top panel */}
       {bdhViewerDoc && (() => {
+        const docId = String(bdhViewerDoc.id ?? '');
+        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
+        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
         const allItems: any[] = bdhViewerDoc.items || [];
         const regularItems = allItems.filter((it: any) => !it.is_header);
-        const checkedCount = regularItems.filter((it: any, i: number) => bdhChecked[it.id ?? i]).length;
         // Build groups: [{header: item|null, items: item[]}]
         const groups: { header: any | null; items: any[] }[] = [];
         let currentGroup: { header: any | null; items: any[] } = { header: null, items: [] };
@@ -13664,6 +13666,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           }
         }
         groups.push(currentGroup);
+        // checkedCount uses same key format as checkbox rendering: item.id ?? `${gi}-${idx}`
+        const checkedCount = groups.reduce((sum, group, gi) =>
+          sum + group.items.filter((item: any, idx: number) => !!bdhChecked[item.id ?? `${gi}-${idx}`]).length, 0);
         return (
           <div
             style={{ position: 'fixed', left: bdhViewerPos.x, top: bdhViewerPos.y, zIndex: 9500, width: '420px', maxHeight: '70vh', background: lightMode ? '#ffffff' : '#0f172a', border: `2px solid ${lightMode ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', pointerEvents: 'auto' }}
@@ -13694,7 +13699,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <span style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e40af' : '#60a5fa', flexShrink: 0 }}>✈️ פ"מ:</span>
               <select
                 value={bdhStripRef}
-                onChange={e => { setBdhStripRef(e.target.value); setBdhAircraftRef(''); }}
+                onChange={e => { setBdhStripRefByDoc(p => ({ ...p, [docId]: e.target.value })); setBdhAircraftRefByDoc(p => ({ ...p, [docId]: '' })); }}
                 style={{ flex: 1, fontSize: '13px', padding: '4px 7px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
               >
                 <option value=''>— בחר פ"מ —</option>
@@ -13704,12 +13709,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </select>
               {(() => {
                 const sel = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
-                const count = sel?.num_aircraft || 0;
+                const count = sel ? (parseInt(sel.numberOfFormation ?? sel.number_of_formation ?? '1') || 1) : 0;
                 if (!sel || count <= 1) return null;
                 return (
                   <select
                     value={bdhAircraftRef}
-                    onChange={e => setBdhAircraftRef(e.target.value)}
+                    onChange={e => setBdhAircraftRefByDoc(p => ({ ...p, [docId]: e.target.value }))}
                     style={{ width: '72px', fontSize: '13px', padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: `1px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '5px', direction: 'rtl', fontWeight: 'bold' }}
                   >
                     <option value=''>כולם</option>
@@ -13771,7 +13776,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ padding: '6px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: lightMode ? '#f8fafc' : '#0c1a2e' }}>
               <span style={{ color: '#64748b', fontSize: '10px' }}>{checkedCount} / {regularItems.length} סומנו</span>
               <div style={{ display: 'flex', gap: '5px' }}>
-                <button onClick={() => { const all: Record<string, boolean> = {}; regularItems.forEach((it: any, i: number) => { all[it.id ?? i] = true; }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
+                <button onClick={() => { const all: Record<string, boolean> = {}; groups.forEach((group: any, gi: number) => { group.items.forEach((item: any, idx: number) => { all[item.id ?? `${gi}-${idx}`] = true; }); }); setBdhChecked(all); }} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>✓ הכל</button>
                 <button onClick={() => setBdhChecked({})} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>נקה</button>
               </div>
             </div>
@@ -13781,6 +13786,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
       {/* BDH Distribute Modal */}
       {bdhDistributeOpen && bdhViewerDoc && (() => {
+        const docId = String(bdhViewerDoc.id ?? '');
+        const bdhStripRef = bdhStripRefByDoc[docId] ?? '';
+        const bdhAircraftRef = bdhAircraftRefByDoc[docId] ?? '';
         const selStrip = bdhStripRef ? myStrips.find((s: any) => String(s.id) === String(bdhStripRef)) : null;
         const callSignPart = selStrip ? selStrip.callSign + (bdhAircraftRef ? ` ${bdhAircraftRef}` : '') : '';
         const bdhNamePart = bdhViewerDoc.name || '';
