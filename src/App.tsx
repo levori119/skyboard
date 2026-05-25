@@ -9735,6 +9735,10 @@ const AdminDashboard: React.FC<{
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
+  const [cardForecastSettings, setCardForecastSettings] = useState<Record<number, { resolution: 15|30|60|120; metric: 'formations'|'aircraft'; day: string }>>({});
+  const todayForecastStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const getCardForecast = (pid: number) => cardForecastSettings[pid] || { resolution: 60 as 15|30|60|120, metric: 'formations' as 'formations'|'aircraft', day: todayForecastStr };
+  const setCardForecast = (pid: number, upd: Partial<{ resolution: 15|30|60|120; metric: 'formations'|'aircraft'; day: string }>) => setCardForecastSettings(prev => ({ ...prev, [pid]: { ...getCardForecast(pid), ...upd } }));
   const [activeCrew, setActiveCrew] = useState<Record<number, string>>({});
   const [allDashContacts, setAllDashContacts] = useState<any[]>([]);
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
@@ -9889,32 +9893,6 @@ const AdminDashboard: React.FC<{
         </div>
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
-          {/* Forecast controls — shown only in charts view */}
-          {dashCardView === 'charts' && (<>
-            <span style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#a78bfa', fontWeight: 'bold' }}>📈 גרף עומס:</span>
-            {/* Day navigation */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button onClick={() => { const d = new Date(dashForecastDay + 'T12:00:00'); d.setDate(d.getDate() - 1); setDashForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }}
-                style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', color: lightMode ? '#1e293b' : 'white' }}>›</button>
-              <span style={{ fontSize: '11px', color: lightMode ? '#1e293b' : '#e2e8f0', minWidth: '72px', textAlign: 'center' }}>
-                {(() => { const [, mo, dy] = dashForecastDay.split('-'); const today = new Date(); const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`; return dashForecastDay === todayStr ? 'היום' : `${dy}/${mo}`; })()}
-              </span>
-              <button onClick={() => { const d = new Date(dashForecastDay + 'T12:00:00'); d.setDate(d.getDate() + 1); setDashForecastDay(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }}
-                style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', color: lightMode ? '#1e293b' : 'white' }}>‹</button>
-            </div>
-            {/* Resolution */}
-            <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', overflow: 'hidden' }}>
-              {([15, 30, 60, 120] as const).map(r => (
-                <button key={r} onClick={() => setDashForecastResolution(r)} style={{ padding: '2px 6px', fontSize: '10px', border: 'none', cursor: 'pointer', background: dashForecastResolution === r ? '#0ea5e9' : 'transparent', color: dashForecastResolution === r ? 'white' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: dashForecastResolution === r ? 'bold' : 'normal' }}>{r < 60 ? `${r}ד'` : `${r/60}ש'`}</button>
-              ))}
-            </div>
-            {/* Metric */}
-            <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', overflow: 'hidden' }}>
-              {(['formations', 'aircraft'] as const).map(m => (
-                <button key={m} onClick={() => setDashForecastMetric(m)} style={{ padding: '2px 7px', fontSize: '10px', border: 'none', cursor: 'pointer', background: dashForecastMetric === m ? '#7c3aed' : 'transparent', color: dashForecastMetric === m ? 'white' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: dashForecastMetric === m ? 'bold' : 'normal' }}>{m === 'formations' ? 'פממים' : 'מטוסים'}</button>
-              ))}
-            </div>
-          </>)}
           <button onClick={onClose} style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#1e293b' : 'white', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '6px', padding: '4px 16px', fontSize: '12px', cursor: 'pointer' }}>✕ סגור</button>
         </div>
       </div>
@@ -10096,21 +10074,24 @@ const AdminDashboard: React.FC<{
                   );
                 })()
               ) : dashCardView === 'charts' ? (
-                /* ── Charts view — mini load forecast ── */
+                /* ── Charts view — mini load forecast (per-card controls) ── */
                 (() => {
-                  const resMin = dashForecastResolution;
+                  const cf = getCardForecast(preset.id);
+                  const resMin = cf.resolution;
+                  const cardDay = cf.day;
+                  const cardMetric = cf.metric;
                   const slotsPerDay = (24 * 60) / resMin;
-                  const dayStart = new Date(dashForecastDay + 'T00:00:00');
+                  const dayStart = new Date(cardDay + 'T00:00:00');
                   const presetSlots: { count: number }[] = Array.from({ length: slotsPerDay }, () => ({ count: 0 }));
                   const cardStrips = filterStripsForPreset(allStrips, preset);
                   for (const s of cardStrips) {
                     if (!s.takeoff_time) continue;
                     const dt = new Date(s.takeoff_time);
                     const dtDay = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-                    if (dtDay !== dashForecastDay) continue;
+                    if (dtDay !== cardDay) continue;
                     const slotIdx = Math.floor((dt.getHours() * 60 + dt.getMinutes()) / resMin);
                     if (slotIdx >= 0 && slotIdx < slotsPerDay) {
-                      presetSlots[slotIdx].count += dashForecastMetric === 'aircraft'
+                      presetSlots[slotIdx].count += cardMetric === 'aircraft'
                         ? (parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1)
                         : 1;
                     }
@@ -10119,7 +10100,7 @@ const AdminDashboard: React.FC<{
                   const totalC = presetSlots.reduce((sum, s) => sum + s.count, 0);
                   const now = new Date();
                   const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-                  const isToday = dashForecastDay === todayStr;
+                  const isToday = cardDay === todayStr;
                   const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
                   const cW = 260;
                   const cH = 64;
@@ -10129,13 +10110,35 @@ const AdminDashboard: React.FC<{
                   const slotW = (cW - lp) / slotsPerDay;
                   const barW = Math.max(slotW - 0.5, 0.5);
                   const labelEvery = slotsPerDay <= 24 ? 4 : slotsPerDay <= 48 ? 8 : 12;
+                  const changeCardDay = (delta: number) => {
+                    const d = new Date(cardDay + 'T12:00:00');
+                    d.setDate(d.getDate() + delta);
+                    setCardForecast(preset.id, { day: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` });
+                  };
+                  const [, cmo, cdy] = cardDay.split('-');
                   return (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>📈 חוזי עומס</span>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', background: lightMode ? '#f1f5f9' : '#0f172a', padding: '0 5px', borderRadius: '8px' }}>
-                          {totalC} {dashForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
-                        </span>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px 0' }}>
+                      {/* Per-card controls row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', direction: 'rtl' }}>
+                        {/* Day navigation */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                          <button onClick={() => changeCardDay(-1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 5px', fontSize: '12px', color: lightMode ? '#1e293b' : 'white', lineHeight: 1 }}>›</button>
+                          <span style={{ fontSize: '10px', color: lightMode ? '#1e293b' : '#e2e8f0', minWidth: '38px', textAlign: 'center' }}>{isToday ? 'היום' : `${cdy}/${cmo}`}</span>
+                          <button onClick={() => changeCardDay(1)} style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: '1px 5px', fontSize: '12px', color: lightMode ? '#1e293b' : 'white', lineHeight: 1 }}>‹</button>
+                        </div>
+                        {/* Resolution */}
+                        <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          {([15, 30, 60, 120] as const).map(r => (
+                            <button key={r} onClick={() => setCardForecast(preset.id, { resolution: r })} style={{ padding: '1px 5px', fontSize: '9px', border: 'none', cursor: 'pointer', background: resMin === r ? '#0ea5e9' : 'transparent', color: resMin === r ? 'white' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: resMin === r ? 'bold' : 'normal' }}>{r < 60 ? `${r}ד'` : `${r/60}ש'`}</button>
+                          ))}
+                        </div>
+                        {/* Metric */}
+                        <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                          {(['formations', 'aircraft'] as const).map(m => (
+                            <button key={m} onClick={() => setCardForecast(preset.id, { metric: m })} style={{ padding: '1px 5px', fontSize: '9px', border: 'none', cursor: 'pointer', background: cardMetric === m ? '#7c3aed' : 'transparent', color: cardMetric === m ? 'white' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: cardMetric === m ? 'bold' : 'normal' }}>{m === 'formations' ? 'פמ"מ' : 'מטוס'}</button>
+                          ))}
+                        </div>
+                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', marginRight: 'auto' }}>{totalC} {cardMetric === 'aircraft' ? 'מטוסים' : 'פממים'}</span>
                       </div>
                       <svg width={cW} height={cH + 10} style={{ display: 'block', overflow: 'visible', maxWidth: '100%' }}>
                         {[partialVal, fullVal].map((th, ti) => {
