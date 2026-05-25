@@ -12148,7 +12148,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const fc = frozenColCountRef.current;
       const offsets: number[] = [];
       let right = 0;
-      for (let i = 0; i <= fc && i < ths.length; i++) {
+      for (let i = 0; i <= fc + 1 && i < ths.length; i++) {
         offsets.push(right);
         right += ths[i]?.offsetWidth || 0;
       }
@@ -15499,12 +15499,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >
                 <thead>
                   <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
+                    <th style={{ padding: 0, width: 0, minWidth: 0, position: 'sticky', top: 0, right: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, overflow: 'hidden' }} />
                     <th
                       className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
                         padding: '8px 6px', width: '28px', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
                         position: 'sticky', top: 0, zIndex: hasFrozen ? 15 : 10,
-                        ...(hasFrozen ? { right: tableStickyOffsets[0] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
+                        ...(hasFrozen ? { right: tableStickyOffsets[1] ?? 0, background: lightMode ? '#e2e8f0' : '#1e293b' } : {})
                       }}
                       title="גרור לסידור מחדש"
                     >⠿</th>
@@ -15515,7 +15516,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const isMenuOpen = tableHeaderMenuKey === colKey;
                       const isFrozen = colIdx < frozenCount;
                       const isLastFrozen = isFrozen && colIdx === frozenCount - 1;
-                      const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 1] ?? undefined) : undefined;
+                      const frozenRight = isFrozen ? (tableStickyOffsets[colIdx + 2] ?? undefined) : undefined;
                       return (
                         <th key={colKey} className={isFrozen ? (isLastFrozen ? 'frozen-col-last' : 'frozen-col') : undefined} style={{ padding: '8px 12px', textAlign: 'right', color: isGrouped ? '#a78bfa' : isSorted ? '#38bdf8' : (T.muted), borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, minWidth: '80px', userSelect: 'none', zIndex: isFrozen ? 12 : 10, ...(isFrozen ? { right: frozenRight, background: lightMode ? '#e2e8f0' : '#1e293b', borderLeft: isLastFrozen ? '2px solid #7c3aed' : undefined } : {}) }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}>
@@ -15618,7 +15619,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 2} style={{ padding: '0', direction: 'rtl' }}>
+                          <td colSpan={columns.length + 3} style={{ padding: '0', direction: 'rtl' }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
@@ -15641,7 +15642,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
-                      : isRowDeviationAckEff ? (lightMode ? '#fff0e0' : '#3d1508')
                       : isPendingTransfer ? (isEven ? (lightMode ? '#dde6f5' : '#2d3344') : (lightMode ? '#d4dde8' : '#252b3a'))
                       : (isEven ? (T.surface) : (lightMode ? '#f1f5f9' : '#000000'));
                     return (
@@ -15696,9 +15696,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           transition: 'background 0.1s'
                         }}
                       >
+                        <td style={{ padding: (isRowDeviation || isRowDeviationAck) ? '2px 5px' : '0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, minWidth: (isRowDeviation || isRowDeviationAck) ? undefined : 0, width: (isRowDeviation || isRowDeviationAck) ? undefined : 0, overflow: 'hidden' }}>
+                          {isRowDeviation && !isRowDeviationAck ? (
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                                setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x));
+                              }}
+                              title="אשר חריגה מבלוק"
+                              style={{ fontSize: '10px', padding: '2px 7px', background: '#7c2d12', color: '#fb923c', border: '1px solid #ea580c', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                            >⚠️ אשר חריגה</button>
+                          ) : isRowDeviationAck ? (
+                            <button
+                              onClick={async e => {
+                                e.stopPropagation();
+                                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                                setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x));
+                              }}
+                              title="בטל אישור חריגה מבלוק"
+                              style={{ fontSize: '10px', padding: '2px 7px', background: '#14532d', color: '#86efac', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                            >✅ בטל אישור</button>
+                          ) : null}
+                        </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
-                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[0] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
+                          style={{ padding: '6px 4px', color: '#475569', textAlign: 'center', cursor: (tableSortBySector || tableSortKey) ? 'default' : 'grab', fontSize: '16px', verticalAlign: 'middle', touchAction: 'none', ...(hasFrozen ? { position: 'sticky', right: tableStickyOffsets[1] ?? 0, background: rowBg, zIndex: 3 } : {}) }}
                           onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                           onPointerDown={e => {
                             if (tableSortBySector || tableSortKey) return;
@@ -15741,7 +15764,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           const cell = renderCell(s, col);
                           const isFrozen = colIdx < frozenCount;
                           if (isFrozen) {
-                            const fr = tableStickyOffsets[colIdx + 1];
+                            const fr = tableStickyOffsets[colIdx + 2];
                             const isLastFrozenTd = colIdx === frozenCount - 1;
                             return React.cloneElement(cell, {
                               className: isLastFrozenTd ? 'frozen-col-last' : 'frozen-col',
@@ -15750,32 +15773,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           }
                           return cell;
                         })}
-                        {/* Inline block-deviation action button */}
-                        {(isRowDeviation || isRowDeviationAck) && (
-                          <td style={{ padding: '2px 5px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg }}>
-                            {isRowDeviation && !isRowDeviationAck ? (
-                              <button
-                                onClick={async e => {
-                                  e.stopPropagation();
-                                  try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
-                                  setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x));
-                                }}
-                                title="אשר חריגה מבלוק"
-                                style={{ fontSize: '10px', padding: '2px 7px', background: '#7c2d12', color: '#fb923c', border: '1px solid #ea580c', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
-                              >⚠️ אשר חריגה</button>
-                            ) : (
-                              <button
-                                onClick={async e => {
-                                  e.stopPropagation();
-                                  try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
-                                  setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x));
-                                }}
-                                title="בטל אישור חריגה מבלוק"
-                                style={{ fontSize: '10px', padding: '2px 7px', background: '#14532d', color: '#86efac', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
-                              >✅ בטל אישור</button>
-                            )}
-                          </td>
-                        )}
                         <td style={{ position: 'sticky', left: 0, zIndex: 10, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
                           {isPendingTransfer && (
                             <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
