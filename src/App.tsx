@@ -10839,6 +10839,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableEditingNotes, setTableEditingNotes] = useState<Record<string, string>>({});
   const [tableRowOrder, setTableRowOrder] = useState<string[]>([]);
   const [tableSortBySector, setTableSortBySector] = useState(false);
+  const [tableFontSize, setTableFontSize] = useState(13);
   const [tableHandwritingId, setTableHandwritingId] = useState<string | null>(null);
   const [tableEditingCell, setTableEditingCell] = useState<string | null>(null); // "stripId__colKey"
   const [tableEditableCols, setTableEditableCols] = useState<Set<string>>(new Set());
@@ -15669,9 +15670,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             return (
               <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, direction: 'rtl', flexShrink: 0 }}>
+                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap' }}>גודל טקסט:</span>
+                <button
+                  onClick={() => setTableFontSize(s => Math.max(9, s - 1))}
+                  title="הקטן טקסט"
+                  style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '4px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', fontWeight: 'bold', lineHeight: 1.3, minWidth: '26px' }}
+                >A</button>
+                <button
+                  onClick={() => setTableFontSize(s => Math.min(22, s + 1))}
+                  title="הגדל טקסט"
+                  style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '4px', cursor: 'pointer', padding: '1px 7px', fontSize: '17px', fontWeight: 'bold', lineHeight: 1.3, minWidth: '30px' }}
+                >A</button>
+                <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#64748b', minWidth: '24px', textAlign: 'center' }}>{tableFontSize}px</span>
+              </div>
               <table
                 ref={tableElRef}
-                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl' }}
+                style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: 'rtl' }}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => tableHeaderMenuKey && setTableHeaderMenuKey(null)}
               >
