@@ -9720,7 +9720,7 @@ const AdminDashboard: React.FC<{
   const [allStrips, setAllStrips] = useState<any[]>([]);
   const [allBlocks, setAllBlocks] = useState<any[]>([]);
   const [thresholds, setThresholds] = useState<Record<number, { partial: number; full: number }>>({});
-  const [openDrilldowns, setOpenDrilldowns] = useState<Set<number>>(new Set());
+  const [dashCardView, setDashCardView] = useState<'loads' | 'strips' | 'charts'>('loads');
   const [localPresets, setLocalPresets] = useState<any[]>(presets);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [tableModes, setTableModes] = useState<any[]>([]);
@@ -9729,19 +9729,12 @@ const AdminDashboard: React.FC<{
   const [showAddElem, setShowAddElem] = useState(false);
   const [addElemForm, setAddElemForm] = useState<{ name: string; category: string; status: string; note: string; element_type_id: string }>({ name: '', category: '', status: 'תקין', note: '', element_type_id: '' });
   const [addElemSaving, setAddElemSaving] = useState(false);
-  const [openForecasts, setOpenForecasts] = useState<Set<number>>(new Set());
   const [dashForecastResolution, setDashForecastResolution] = useState<15 | 30 | 60 | 120>(60);
   const [dashForecastMetric, setDashForecastMetric] = useState<'formations' | 'aircraft'>('formations');
   const [dashForecastDay, setDashForecastDay] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
-  const toggleForecast = (presetId: number) => setOpenForecasts(prev => {
-    const next = new Set(prev);
-    if (next.has(presetId)) { next.delete(presetId); } else { next.add(presetId); }
-    return next;
-  });
-
   const group = groups.find(g => g.id === selectedGroupId) || groups[0];
   const memberPresets = useMemo(() =>
     (group?.members || []).map((m: any) => localPresets.find((p: any) => p.id === m.preset_id)).filter(Boolean),
@@ -9850,18 +9843,10 @@ const AdminDashboard: React.FC<{
     setSavingId(null);
   };
 
-  const toggleDrilldown = (presetId: number) => {
-    setOpenDrilldowns(prev => {
-      const next = new Set(prev);
-      if (next.has(presetId)) { next.delete(presetId); } else { next.add(presetId); }
-      return next;
-    });
-  };
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 8000, background: lightMode ? 'rgba(241,245,249,0.97)' : 'rgba(0,0,0,0.92)', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', fontFamily: 'inherit' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#ffffff' : '#0f172a', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 20px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#ffffff' : '#0f172a', flexShrink: 0, flexWrap: 'wrap' }}>
         <span style={{ fontSize: '17px', fontWeight: 'bold', color: lightMode ? '#0f172a' : 'white' }}>📊 דש בורד מנהל</span>
         {groups.length > 1 && groups.map((g: any) => (
           <button key={g.id} onClick={() => setSelectedGroupId(g.id)}
@@ -9870,10 +9855,26 @@ const AdminDashboard: React.FC<{
           </button>
         ))}
         {groups.length === 1 && <span style={{ color: lightMode ? '#475569' : '#94a3b8', fontSize: '13px' }}>{group?.name}</span>}
+        {/* View tabs */}
+        <div style={{ display: 'flex', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '7px', overflow: 'hidden', flexShrink: 0 }}>
+          {([
+            { v: 'loads', label: '📊 עומסים' },
+            { v: 'strips', label: '✈️ פ"מ' },
+            { v: 'charts', label: '📈 גאנט' },
+          ] as { v: 'loads'|'strips'|'charts'; label: string }[]).map(({ v, label }) => (
+            <button key={v} onClick={() => setDashCardView(v)}
+              style={{ padding: '5px 14px', fontSize: '12px', border: 'none', cursor: 'pointer', fontWeight: dashCardView === v ? 'bold' : 'normal',
+                background: dashCardView === v ? (lightMode ? '#1e293b' : '#1e3a5f') : 'transparent',
+                color: dashCardView === v ? '#fff' : (lightMode ? '#64748b' : '#64748b'),
+                borderLeft: v !== 'loads' ? `1px solid ${lightMode ? '#cbd5e1' : '#334155'}` : 'none' }}>
+              {label}
+            </button>
+          ))}
+        </div>
         <div style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ color: lightMode ? '#475569' : '#64748b', fontSize: '12px' }}>{n} עמדות</span>
-          {/* Shared forecast controls — shown when any card has forecast open */}
-          {openForecasts.size > 0 && (<>
+          {/* Forecast controls — shown only in charts view */}
+          {dashCardView === 'charts' && (<>
             <span style={{ fontSize: '10px', color: lightMode ? '#7c3aed' : '#a78bfa', fontWeight: 'bold' }}>📈 גרף עומס:</span>
             {/* Day navigation */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -9923,12 +9924,11 @@ const AdminDashboard: React.FC<{
           const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
-          const isOpen = openDrilldowns.has(preset.id);
-          const presetStrips = isOpen ? filterStripsForPreset(allStrips, preset) : [];
+          const presetStrips = dashCardView === 'strips' ? filterStripsForPreset(allStrips, preset) : [];
           return (
             <div key={preset.id}
               className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
-              style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '230px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}
+              style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', height: '260px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', overflow: 'hidden' }}
             >
               {/* Card header — always visible */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
@@ -9953,17 +9953,14 @@ const AdminDashboard: React.FC<{
                       <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{count}</span>
                     </span>
                   )}
-                  {isOpen && (
-                    <button onClick={() => toggleDrilldown(preset.id)}
-                      style={{ background: lightMode ? '#e2e8f0' : '#334155', color: lightMode ? '#475569' : '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '13px', cursor: 'pointer', lineHeight: 1 }}>
-                      ✕
-                    </button>
-                  )}
+                  <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal' }}>{count} פ"מ</span>
                 </div>
               </div>
 
-              {isOpen ? (
-                /* ── Drilldown view — table matching workstation table mode ── */
+              {/* ── Fixed-height content area, 3 views ── */}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {dashCardView === 'strips' ? (
+                /* ── Strips view — table matching workstation table mode ── */
                 (() => {
                   const activeMode = tableModes.find((tm: any) => tm.id === preset.table_mode_id);
                   const fallbackCols = [
@@ -10069,8 +10066,78 @@ const AdminDashboard: React.FC<{
                     </div>
                   );
                 })()
+              ) : dashCardView === 'charts' ? (
+                /* ── Charts view — mini load forecast ── */
+                (() => {
+                  const resMin = dashForecastResolution;
+                  const slotsPerDay = (24 * 60) / resMin;
+                  const dayStart = new Date(dashForecastDay + 'T00:00:00');
+                  const presetSlots: { count: number }[] = Array.from({ length: slotsPerDay }, () => ({ count: 0 }));
+                  const cardStrips = filterStripsForPreset(allStrips, preset);
+                  for (const s of cardStrips) {
+                    if (!s.takeoff_time) continue;
+                    const dt = new Date(s.takeoff_time);
+                    const dtDay = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+                    if (dtDay !== dashForecastDay) continue;
+                    const slotIdx = Math.floor((dt.getHours() * 60 + dt.getMinutes()) / resMin);
+                    if (slotIdx >= 0 && slotIdx < slotsPerDay) {
+                      presetSlots[slotIdx].count += dashForecastMetric === 'aircraft'
+                        ? (parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1)
+                        : 1;
+                    }
+                  }
+                  const maxC = Math.max(...presetSlots.map(s => s.count), 1);
+                  const totalC = presetSlots.reduce((sum, s) => sum + s.count, 0);
+                  const now = new Date();
+                  const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+                  const isToday = dashForecastDay === todayStr;
+                  const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
+                  const cW = 260;
+                  const cH = 64;
+                  const lp = 24;
+                  const bpad = 16;
+                  const innerH = cH - bpad;
+                  const slotW = (cW - lp) / slotsPerDay;
+                  const barW = Math.max(slotW - 0.5, 0.5);
+                  const labelEvery = slotsPerDay <= 24 ? 4 : slotsPerDay <= 48 ? 8 : 12;
+                  return (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '4px 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>📈 חוזי עומס</span>
+                        <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', background: lightMode ? '#f1f5f9' : '#0f172a', padding: '0 5px', borderRadius: '8px' }}>
+                          {totalC} {dashForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
+                        </span>
+                      </div>
+                      <svg width={cW} height={cH + 10} style={{ display: 'block', overflow: 'visible', maxWidth: '100%' }}>
+                        {[partialVal, fullVal].map((th, ti) => {
+                          const y = innerH - (innerH * th / maxC);
+                          if (th > maxC) return null;
+                          return <line key={ti} x1={lp} x2={cW} y1={y} y2={y} stroke={ti === 0 ? '#f59e0b' : '#ef4444'} strokeWidth={1} strokeDasharray="3,2" opacity={0.6} />;
+                        })}
+                        {presetSlots.map((slot, i) => {
+                          const x = lp + i * slotW;
+                          const barH = innerH * slot.count / maxC;
+                          const y = innerH - barH;
+                          const fillColor = slot.count === 0 ? (lightMode ? '#e2e8f0' : '#1e293b') : slot.count >= fullVal ? '#ef4444' : slot.count >= partialVal ? '#f59e0b' : '#22c55e';
+                          return (
+                            <rect key={i} x={x + 0.3} y={y} width={Math.max(barW - 0.3, 0.3)} height={Math.max(barH, slot.count > 0 ? 2 : 1)} fill={fillColor} rx={1} opacity={0.85} />
+                          );
+                        })}
+                        {presetSlots.map((_, i) => {
+                          if (i % labelEvery !== 0) return null;
+                          const dt2 = new Date(dayStart.getTime() + i * resMin * 60000);
+                          const label = `${dt2.getHours().toString().padStart(2,'0')}:${dt2.getMinutes().toString().padStart(2,'0')}`;
+                          return <text key={i} x={lp + i * slotW + slotW / 2} y={cH + 1} textAnchor="middle" fontSize={7} fill={lightMode ? '#94a3b8' : '#475569'}>{label}</text>;
+                        })}
+                        <line x1={lp} x2={cW} y1={innerH} y2={innerH} stroke={lightMode ? '#94a3b8' : '#334155'} strokeWidth={1} />
+                        {isToday && <line x1={lp + nowFrac * (cW - lp)} x2={lp + nowFrac * (cW - lp)} y1={0} y2={innerH} stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="3,2" />}
+                        <text x={lp - 2} y={4} textAnchor="end" fontSize={7} fill={lightMode ? '#94a3b8' : '#475569'}>{maxC}</text>
+                      </svg>
+                    </div>
+                  );
+                })()
               ) : (
-                /* ── Normal view — donut + thresholds + button ── */
+                /* ── Loads view — donut + thresholds ── */
                 <>
                   {/* Donut + threshold labels */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px', justifyContent: 'center' }}>
@@ -10121,88 +10188,15 @@ const AdminDashboard: React.FC<{
                       </button>
                     )}
                   </div>
-                  {/* Drill-down + Forecast buttons row */}
-                  <div style={{ display: 'flex', gap: '6px', marginTop: 'auto' }}>
-                    <button onClick={() => toggleDrilldown(preset.id)}
-                      style={{ flex: 1, background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', padding: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                      👁 תצוגת פ״מ
-                    </button>
-                    <button onClick={() => toggleForecast(preset.id)}
-                      title="גרף עומס לעמדה זו"
-                      style={{ background: openForecasts.has(preset.id) ? '#7c3aed' : '#1e293b', color: openForecasts.has(preset.id) ? '#e9d5ff' : '#94a3b8', border: `1px solid ${openForecasts.has(preset.id) ? '#7c3aed' : '#475569'}`, borderRadius: '6px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      📈
-                    </button>
+                  {/* spacer */}
+                  <div style={{ flex: 1 }} />
+                  {/* bottom hint */}
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569' }}>החלף view בטאבים למעלה</span>
                   </div>
-                  {/* ── Mini load forecast chart ── */}
-                  {openForecasts.has(preset.id) && (() => {
-                    const resMin = dashForecastResolution;
-                    const slotsPerDay = (24 * 60) / resMin;
-                    const dayStart = new Date(dashForecastDay + 'T00:00:00');
-                    const presetSlots: { count: number }[] = Array.from({ length: slotsPerDay }, () => ({ count: 0 }));
-                    const cardStrips = filterStripsForPreset(allStrips, preset);
-                    for (const s of cardStrips) {
-                      if (!s.takeoff_time) continue;
-                      const dt = new Date(s.takeoff_time);
-                      const dtDay = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-                      if (dtDay !== dashForecastDay) continue;
-                      const slotIdx = Math.floor((dt.getHours() * 60 + dt.getMinutes()) / resMin);
-                      if (slotIdx >= 0 && slotIdx < slotsPerDay) {
-                        presetSlots[slotIdx].count += dashForecastMetric === 'aircraft'
-                          ? (parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1)
-                          : 1;
-                      }
-                    }
-                    const maxC = Math.max(...presetSlots.map(s => s.count), 1);
-                    const totalC = presetSlots.reduce((sum, s) => sum + s.count, 0);
-                    const now = new Date();
-                    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-                    const isToday = dashForecastDay === todayStr;
-                    const nowFrac = (now.getHours() * 60 + now.getMinutes()) / (24 * 60);
-                    const cW = 260;
-                    const cH = 64;
-                    const lp = 24;
-                    const bpad = 16;
-                    const innerH = cH - bpad;
-                    const slotW = (cW - lp) / slotsPerDay;
-                    const barW = Math.max(slotW - 0.5, 0.5);
-                    const labelEvery = slotsPerDay <= 24 ? 4 : slotsPerDay <= 48 ? 8 : 12;
-                    return (
-                      <div style={{ marginTop: '6px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, paddingTop: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                          <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>📈 חוזי עומס</span>
-                          <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8', background: lightMode ? '#f1f5f9' : '#0f172a', padding: '0 5px', borderRadius: '8px' }}>
-                            {totalC} {dashForecastMetric === 'aircraft' ? 'מטוסים' : 'פממים'}
-                          </span>
-                        </div>
-                        <svg width={cW} height={cH + 2} style={{ display: 'block', overflow: 'visible' }}>
-                          {[0.5, 1].map(pct => {
-                            const y = Math.round(innerH * (1 - pct));
-                            return <line key={pct} x1={lp} x2={cW} y1={y} y2={y} stroke={lightMode ? '#e2e8f0' : '#1e293b'} strokeWidth={1} strokeDasharray={pct < 1 ? '2,2' : undefined} />;
-                          })}
-                          {presetSlots.map((slot, i) => {
-                            const x = lp + i * slotW;
-                            const barH = innerH * slot.count / maxC;
-                            const y = innerH - barH;
-                            const fillColor = slot.count === 0 ? (lightMode ? '#e2e8f0' : '#1e293b') : slot.count >= getFull(preset) ? '#ef4444' : slot.count >= getPartial(preset) ? '#f59e0b' : '#22c55e';
-                            return (
-                              <rect key={i} x={x + 0.3} y={y} width={Math.max(barW - 0.3, 0.3)} height={Math.max(barH, slot.count > 0 ? 2 : 1)} fill={fillColor} rx={1} opacity={0.85} />
-                            );
-                          })}
-                          {presetSlots.map((_, i) => {
-                            if (i % labelEvery !== 0) return null;
-                            const dt2 = new Date(dayStart.getTime() + i * resMin * 60000);
-                            const label = `${dt2.getHours().toString().padStart(2,'0')}:${dt2.getMinutes().toString().padStart(2,'0')}`;
-                            return <text key={i} x={lp + i * slotW + slotW / 2} y={cH + 1} textAnchor="middle" fontSize={7} fill={lightMode ? '#94a3b8' : '#475569'}>{label}</text>;
-                          })}
-                          <line x1={lp} x2={cW} y1={innerH} y2={innerH} stroke={lightMode ? '#94a3b8' : '#334155'} strokeWidth={1} />
-                          {isToday && <line x1={lp + nowFrac * (cW - lp)} x2={lp + nowFrac * (cW - lp)} y1={0} y2={innerH} stroke="#3b82f6" strokeWidth={1.5} strokeDasharray="3,2" />}
-                          <text x={lp - 2} y={4} textAnchor="end" fontSize={7} fill={lightMode ? '#94a3b8' : '#475569'}>{maxC}</text>
-                        </svg>
-                      </div>
-                    );
-                  })()}
                 </>
               )}
+              </div>{/* end fixed-height content area */}
             </div>
           );
         })}
