@@ -13233,18 +13233,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             return (
               <div
                 title={`${label}${hasStatus ? ': ' + currentMazaaStatus : ''}${effectiveMazaaRow ? ` | סף חלקי: ${effectivePartial}, מלא: ${effectiveFull}` : ''}`}
-                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasStatus ? '#fef3c7' : '#f1f5f9') : (hasStatus ? '#1c1200' : '#1e293b'), border: `2px solid ${hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 9px', minWidth: '110px', cursor: canUpdateMazaa ? 'pointer' : 'default', userSelect: 'none' }}
-                onClick={() => { if (canUpdateMazaa) setMazaaEditMode(v => !v); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px', background: lightMode ? (hasStatus ? '#fef3c7' : '#f1f5f9') : (hasStatus ? '#1c1200' : '#1e293b'), border: `2px solid ${hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '3px 9px', minWidth: '110px', userSelect: 'none' }}
               >
                 <span style={{ fontSize: '12px' }}>🛡</span>
                 <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#64748b', flexShrink: 0 }}>{label}:</span>
-                {canUpdateMazaa && mazaaEditMode ? (
+                {canUpdateMazaa ? (
                   <select
-                    autoFocus
                     value={currentMazaaStatus}
                     onChange={e => {
                       const val = e.target.value;
-                      setMazaaEditMode(false);
                       if (isTowerMode) {
                         const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
                         bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) }).catch(() => {}));
@@ -13254,8 +13251,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
                       }
                     }}
-                    onBlur={() => setMazaaEditMode(false)}
-                    style={{ fontSize: '12px', background: lightMode ? 'white' : '#0f172a', color: lightMode ? '#1e293b' : '#e2e8f0', border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl' }}
+                    style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl', maxWidth: '100px' }}
                   >
                     <option value="">— בחר —</option>
                     {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
