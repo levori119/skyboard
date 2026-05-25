@@ -10599,10 +10599,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   });
   const lightMode = themeMode === 'light';
   const T = themeMode === 'ocean' ? {
-    bg: '#071520', bgAlt: '#091f38', surface: '#0d2137', surface2: '#0d2137',
-    border: '#1e3a5c', borderLight: '#2a4f7a',
-    text: '#cce4f7', textInv: '#071520', muted: '#6b9fbe',
-    input: '#071520',
+    bg: '#02242c', bgAlt: '#033240', surface: '#05404e', surface2: '#064e5e',
+    border: '#0e7490', borderLight: '#0891b2',
+    text: '#cffafe', textInv: '#02242c', muted: '#22d3ee',
+    input: '#02242c',
   } : lightMode ? {
     bg: '#f8fafc', bgAlt: '#f1f5f9', surface: '#f1f5f9', surface2: 'white',
     border: '#e2e8f0', borderLight: '#cbd5e1',
@@ -13134,7 +13134,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <header style={{ padding: '6px 16px', background: '#0f172a', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl' }}>
+      <header style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {/* Animated header logo — radar sweep + banking plane */}
@@ -14535,7 +14535,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : '#060d1a') : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -16350,7 +16350,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sidebar - Right Side - Shows available strips (from query / received transfers, not yet on board) */}
         <div
           id="sidebar-area"
-          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : (lightMode ? '#f8fafc' : '#0a0f1a'), padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : (lightMode ? '2px solid #e2e8f0' : '2px solid #1e293b'), overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
+          style={{ display: isGroundMode ? 'none' : undefined, width: sidebarPinned ? 240 : 36, background: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '#1a2e1a' : T.bg, padding: sidebarPinned ? '10px' : '6px 4px', borderLeft: (tablePointerGhost?.overSidebar || sidebarHtmlDragOver) ? '2px solid #4ade80' : `1px solid ${T.border}`, overflowY: sidebarPinned ? 'auto' : 'hidden', direction: 'rtl', transition: 'width 0.2s, background 0.1s, border-color 0.1s', flexShrink: 0, position: 'relative' }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSidebarHtmlDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setSidebarHtmlDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -17649,8 +17649,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div style={{
           height: 'calc(100vh / 3)',
           flexShrink: 0,
-          background: lightMode ? '#f8fafc' : '#0a0f1a',
-          borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`,
+          background: T.bg,
+          borderTop: `2px solid ${T.border}`,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',

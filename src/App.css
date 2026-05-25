@@ -36,11 +36,11 @@
 
 /* ═══ Ocean / תכלת theme ═══ */
 body.ocean-mode {
-  --bg-dark: #071520;
-  --strip-bg: #0d2137;
-  --accent-blue: #38bdf8;
-  background-color: #071520 !important;
-  color: #cce4f7;
+  --bg-dark: #02242c;
+  --strip-bg: #05404e;
+  --accent-blue: #06b6d4;
+  background-color: #02242c !important;
+  color: #cffafe;
 }
 body.ocean-mode .load-badge-full     { background: linear-gradient(135deg, #7f1d1d, #991b1b) !important; }
 body.ocean-mode .load-badge-partial  { background: linear-gradient(135deg, #78350f, #92400e) !important; }
@@ -48,7 +48,12 @@ body.ocean-mode input,
 body.ocean-mode select,
 body.ocean-mode textarea {
   color-scheme: dark;
+  background-color: #02242c;
+  color: #cffafe;
 }
+body.ocean-mode ::-webkit-scrollbar-track { background: #02242c; }
+body.ocean-mode ::-webkit-scrollbar-thumb { background: #0e7490; border-radius: 4px; }
+body.ocean-mode ::-webkit-scrollbar-thumb:hover { background: #0891b2; }
 
 html {
   overscroll-behavior: none;
