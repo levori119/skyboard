@@ -4613,10 +4613,29 @@ const GROUND_SVG_ICON_KEYS: { key: string; label: string }[] = [
   { key: 'MAP:opsvehicle',     label: 'רכב מבצעי ירוק' },
 ];
 
-const renderGroundSvgIcon = (iconKey: string, size: number = 22): JSX.Element | null => {
+const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string): JSX.Element | null => {
   const s = size;
+  const isBlinking = status === 'מנצנץ';
+  const isOpen = status === 'פתוח';
   switch (iconKey) {
     case 'MAP:barrier':
+      if (isOpen) {
+        return (
+          <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
+            {/* Left pole */}
+            <rect x="1" y="5" width="2.5" height="15" rx="1" fill="#555"/>
+            {/* Arm raised ~70° from horizontal, pivot bottom-left of arm */}
+            <g transform="rotate(-70, 2.25, 12.5)">
+              <rect x="2.25" y="10.5" width="19" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
+              <rect x="2.25" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+              <rect x="9"    y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+              <rect x="15.7" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+            </g>
+            {/* Right base stub */}
+            <rect x="20.5" y="17" width="2.5" height="4" rx="1" fill="#444"/>
+          </svg>
+        );
+      }
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="2" y="10.5" width="20" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
@@ -4631,7 +4650,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22): JSX.Element | 
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="7"  r="2.5" fill="#ef4444"/>
+          <circle cx="12" cy="7"  r="2.5" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
           <circle cx="12" cy="12" r="2.5" fill="#2d1515"/>
           <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
@@ -4642,7 +4661,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22): JSX.Element | 
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
           <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
-          <circle cx="12" cy="12" r="2.5" fill="#f97316"/>
+          <circle cx="12" cy="12" r="2.5" fill="#f97316" className={isBlinking ? 'elem-blink' : undefined}/>
           <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
         </svg>
@@ -4653,7 +4672,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22): JSX.Element | 
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
           <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
           <circle cx="12" cy="12" r="2.5" fill="#2d1c09"/>
-          <circle cx="12" cy="17" r="2.5" fill="#22c55e"/>
+          <circle cx="12" cy="17" r="2.5" fill="#22c55e" className={isBlinking ? 'elem-blink' : undefined}/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
         </svg>
       );
@@ -6369,7 +6388,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             // Status indicator ring colors for operational statuses
-            const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7' };
+            const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
             return (
               <div key={el.id}
@@ -6378,7 +6397,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                 {isSvgIcon ? (
                   <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))`, outline: canChangeStatus ? `2px solid ${opColor}` : 'none', borderRadius: '4px', background: canChangeStatus ? opColor + '22' : 'transparent' }}>
-                    {renderGroundSvgIcon(el.type_icon, 26)}
+                    {renderGroundSvgIcon(el.type_icon, 26, el.status)}
                   </div>
                 ) : (
                   <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isTakul ? '#ef4444' : elColor, border: isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto' }}>
@@ -7036,9 +7055,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const el = elemStatusPicker.el;
         const rawAllowed = el.type_allowed_statuses;
         const allowedStatuses: string[] = Array.isArray(rawAllowed) ? rawAllowed : (typeof rawAllowed === 'string' ? (() => { try { return JSON.parse(rawAllowed); } catch { return []; } })() : []);
-        const STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד'];
+        const STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד', 'פתוח', 'סגור'];
         const statuses = allowedStatuses.length > 0 ? allowedStatuses : STATUS_OPTS;
-        const statusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7' };
+        const statusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
         const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 190);
         const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 260);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
@@ -24181,7 +24200,7 @@ CHARLIE,1,301,`}
             { icon: '💧', label: 'מים' },
             { icon: '🛡️', label: 'ביטחון' },
           ];
-          const ET_STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד'];
+          const ET_STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד', 'פתוח', 'סגור'];
           const IconPicker = () => (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
@@ -24221,7 +24240,7 @@ CHARLIE,1,301,`}
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {ET_STATUS_OPTS.map(s => {
                       const isOn = elementTypeForm.allowed_statuses.includes(s);
-                      const scol: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7' };
+                      const scol: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
                       return (
                         <button key={s} onClick={() => setElementTypeForm(p => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter(x => x !== s) : [...p.allowed_statuses, s] }))}
                           style={{ padding: '5px 12px', background: isOn ? (scol[s] || '#888') + '22' : 'transparent', border: `1px solid ${isOn ? (scol[s] || '#888') : '#334155'}`, borderRadius: '6px', color: isOn ? (scol[s] || '#e2e8f0') : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: isOn ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px' }}>

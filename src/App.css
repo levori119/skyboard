@@ -379,3 +379,11 @@ tr.block-deviation-flash > td {
 .admin-dash-card-full {
   animation: admin-dash-flash-full 0.8s ease-in-out infinite;
 }
+
+@keyframes elemBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.08; }
+}
+.elem-blink {
+  animation: elemBlink 0.75s ease-in-out infinite;
+}
