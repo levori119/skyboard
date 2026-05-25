@@ -3404,14 +3404,14 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   }, [s.block_deviation]);
 
   // Auto-clear acknowledged deviation when altitude is fixed (no more deviation).
-  // Depends on both isBlockDeviation AND blockDeviation so it re-fires when DB sync
-  // sets blockDeviation=true while isBlockDeviation is already false.
+  // Guard: only runs when blocks are actually loaded — prevents premature clear during page refresh
+  // when allBlocks hasn't populated yet and computeBlockDeviation temporarily returns false.
   useEffect(() => {
-    if (!isBlockDeviation && blockDeviation) {
+    if (!isBlockDeviation && blockDeviation && (allBlocks.length > 0 || allBlockTables.length > 0)) {
       setBlockDeviation(false);
       fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }).catch(() => {});
     }
-  }, [isBlockDeviation, blockDeviation]);
+  }, [isBlockDeviation, blockDeviation, allBlocks.length, allBlockTables.length]);
 
   // Sync tempNotes when notes prop changes
   useEffect(() => {
@@ -3671,15 +3671,23 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           <div ref={altRef} onClick={handleEditClick}
             style={{ fontSize: '11px', fontWeight: 'bold', color: (isBlockDeviation || blockDeviation) ? '#f97316' : isAltConflict ? '#ef4444' : '#374151', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {s.alt ? `גובה: ${normalizeAlt(s.alt)}` : ''}
-            {(isBlockDeviation || blockDeviation) && <span style={{ fontSize: '9px', marginRight: '2px' }}>⚠️</span>}
-            {isAltConflict && <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ fontSize: '9px', marginRight: '2px' }}>⚠️</span>}
           </div>
+          {isAltConflict && (
+            <span title="קונפליקט גובה עם פ״מ אחר במפה" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>!</span>
+          )}
           {isBlockDeviation && !blockDeviation && (
-            <button
+            <span
               onClick={async (e) => { e.stopPropagation(); setBlockDeviation(true); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} }}
-              title="אשר חריגה מבלוק"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '12px', padding: '0', lineHeight: 1, flexShrink: 0, color: '#f97316' }}
-            >★</button>
+              title="אישור חריגה מבלוק"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#f97316', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, cursor: 'pointer', lineHeight: 1, userSelect: 'none' }}
+            >!</span>
+          )}
+          {blockDeviation && (
+            <span
+              onClick={async (e) => { e.stopPropagation(); setBlockDeviation(false); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {} }}
+              title="חריגה מאושרת — לחץ לביטול אישור"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, cursor: 'pointer', lineHeight: 1, userSelect: 'none' }}
+            >!</span>
           )}
           {!editingNotes && s.notes && (() => { const np = parseNoteValue(s.notes || ''); return (
             <div onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }} style={{ fontSize: '8px', color: '#64748b', cursor: 'pointer', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title="לחץ לעריכה">
@@ -15866,27 +15874,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: (isRowDeviation || isRowDeviationAck) ? '2px 5px' : '0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, minWidth: (isRowDeviation || isRowDeviationAck) ? undefined : 0, width: (isRowDeviation || isRowDeviationAck) ? undefined : 0, overflow: 'hidden' }}>
+                        <td style={{ padding: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? '2px 5px' : '0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, minWidth: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? undefined : 0, width: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? undefined : 0, overflow: 'hidden' }}>
+                          {isRowAltConflict && (
+                            <span title="קונפליקט גובה עם פ״מ אחר" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>!</span>
+                          )}
                           {isRowDeviation && !isRowDeviationAck ? (
-                            <button
+                            <span
                               onClick={async e => {
                                 e.stopPropagation();
                                 try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
                                 setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x));
                               }}
-                              title="אשר חריגה מבלוק"
-                              style={{ fontSize: '10px', padding: '2px 7px', background: '#7c2d12', color: '#fb923c', border: '1px solid #ea580c', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
-                            >⚠️ אשר חריגה</button>
+                              title="אישור חריגה מבלוק"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#f97316', color: 'white', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                            >!</span>
                           ) : isRowDeviationAck ? (
-                            <button
+                            <span
                               onClick={async e => {
                                 e.stopPropagation();
                                 try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
                                 setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x));
                               }}
-                              title="בטל אישור חריגה מבלוק"
-                              style={{ fontSize: '10px', padding: '2px 7px', background: '#14532d', color: '#86efac', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 'bold' }}
-                            >✅ בטל אישור</button>
+                              title="חריגה מאושרת — לחץ לביטול"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                            >!</span>
                           ) : null}
                         </td>
                         <td
