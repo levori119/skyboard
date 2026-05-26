@@ -6147,6 +6147,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </button>
                       <span style={{ fontWeight: 'bold', fontSize: '13px', color: strip.aircraft_indices ? '#fb923c' : (lightMode ? '#0f172a' : '#ffffff'), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.3px', flex: 1, minWidth: 0 }}>{getFormationDisplayName(strip)}</span>
                       {count > 0 && <span style={{ fontSize: '12px', color: lightMode ? '#475569' : '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>×{count}</span>}
+                      {/* strip_type badge */}
+                      {strip.strip_type === 'אז"מ' && <span title='אז"מ' style={{ flexShrink: 0, fontSize: '11px', lineHeight: 1, padding: '1px 4px', borderRadius: '4px', background: '#7f1d1d', color: '#fca5a5', fontWeight: 700 }}>🛸</span>}
+                      {strip.strip_type === 'GA' && <span title='GA' style={{ flexShrink: 0, fontSize: '11px', lineHeight: 1, padding: '1px 4px', borderRadius: '4px', background: '#14532d', color: '#86efac', fontWeight: 700 }}>✈</span>}
+                      {strip.strip_type === 'מסוק אזרחי' && <span title='מסוק אזרחי' style={{ flexShrink: 0, fontSize: '11px', lineHeight: 1, padding: '1px 4px', borderRadius: '4px', background: '#0c4a6e', color: '#7dd3fc', fontWeight: 700 }}>🚁</span>}
                       {/* שקדיה indicator */}
                       {formationSummary[sid]?.hasShakadia && (
                         <span title="שקדיה שמישה בתצורה" style={{ flexShrink: 0, fontSize: '12px', lineHeight: 1 }}>🌰</span>
@@ -11547,7 +11551,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const [showCrewSwap, setShowCrewSwap] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickAddForm, setQuickAddForm] = useState({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1' });
+  const [quickAddForm, setQuickAddForm] = useState({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1', stripType: 'אז"מ' });
   const [quickAddError, setQuickAddError] = useState('');
   const [availableCrewMembers, setAvailableCrewMembers] = useState<CrewMember[]>([]);
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'ocean'>(() => {
@@ -13889,14 +13893,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleCreateGroundStrip = async (callSign: string, sq: string, count: number, sectorId: number | null) => {
+  const handleCreateGroundStrip = async (callSign: string, sq: string, count: number, sectorId: number | null, stripType?: string) => {
     try {
       const body = {
         callSign,
         sq,
         number_of_formation: count,
         workstation_preset_id: session?.presetId || null,
-        sector_id: sectorId ?? myPresetConfig?.relevant_sectors?.[0] ?? null
+        sector_id: sectorId ?? myPresetConfig?.relevant_sectors?.[0] ?? null,
+        strip_type: stripType || ''
       };
       const res = await fetch(`${API_URL}/strips/ground-create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const newStrip = await res.json();
@@ -13904,7 +13909,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         setStrips(prev => [...prev, newStrip]);
         const rows: GroundAircraftRow[] = Array.from({ length: count }, (_, i) => ({ idx: i + 1, datk: null, kipa: null }));
         setGroundStripAircraft(prev => ({ ...prev, [String(newStrip.id)]: rows }));
-        logActivity('strip_created', { stripId: String(newStrip.id), stripCallsign: callSign, details: { sq, count } });
+        logActivity('strip_created', { stripId: String(newStrip.id), stripCallsign: callSign, details: { sq, count, stripType } });
       }
     } catch (e) { console.error(e); }
   };
@@ -15745,6 +15750,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
+                  <button
+                    onClick={() => { setQuickAddForm({ callSign: '', squadron: '', takeoff_time: '', numberOfFormation: '1', stripType: 'אז"מ' }); setQuickAddError(''); setShowQuickAdd(true); }}
+                    title='יצירת פמ"מ מיוחד (אז"מ / GA / מסוק אזרחי)'
+                    style={{ background: '#14532d', border: '1px solid #22c55e', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 7px', color: '#86efac', fontWeight: 'bold', flexShrink: 0 }}
+                  >+ פמ"מ</button>
                   <button
                     onClick={() => { setPersonalFilterDraft(personalFilter ?? sessionFilter ?? adminFilterQuery ?? null); setShowPersonalFilter(v => !v); }}
                     title={sessionFilter ? 'סינון סשן פעיל' : personalFilter ? 'סינון אישי שמור' : adminFilterQuery ? 'סינון מנהל' : 'הגדרת שאילתא'}
@@ -19388,6 +19398,85 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={async () => { await handleMergePartial(sectorMergeConfirm.targetId, sectorMergeConfirm.sourceId); setSectorMergeConfirm(null); }}
                 style={{ flex: 2, padding: '10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>⊕ אחד</button>
               <button onClick={() => setSectorMergeConfirm(null)} style={{ flex: 1, padding: '10px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add special strip modal (אז"מ / GA / מסוק אזרחי) */}
+      {showQuickAdd && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowQuickAdd(false)}>
+          <div style={{ background: '#0f172a', border: '1px solid #22c55e', borderRadius: '12px', padding: '24px', width: '320px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#22c55e', marginBottom: '18px' }}>+ יצירת פמ"מ מיוחד</div>
+            {/* סוג — 3 type buttons */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>סוג *</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { key: 'אז"מ', icon: '🛸', bg: '#7f1d1d', activeBg: '#991b1b', color: '#fca5a5', border: '#ef4444' },
+                  { key: 'GA',   icon: '✈',  bg: '#14532d', activeBg: '#166534', color: '#86efac', border: '#22c55e' },
+                  { key: 'מסוק אזרחי', icon: '🚁', bg: '#0c4a6e', activeBg: '#075985', color: '#7dd3fc', border: '#38bdf8' },
+                ].map(opt => (
+                  <button key={opt.key}
+                    onClick={() => setQuickAddForm(prev => ({ ...prev, stripType: opt.key }))}
+                    style={{
+                      flex: 1, padding: '10px 8px', borderRadius: '8px', cursor: 'pointer', border: `2px solid ${quickAddForm.stripType === opt.key ? opt.border : '#334155'}`,
+                      background: quickAddForm.stripType === opt.key ? opt.activeBg : opt.bg, color: opt.color,
+                      fontWeight: quickAddForm.stripType === opt.key ? 'bold' : 'normal', fontSize: '13px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                      boxShadow: quickAddForm.stripType === opt.key ? `0 0 0 2px ${opt.border}44` : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{opt.icon}</span>
+                    <span>{opt.key}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* או"ק */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>או"ק *</div>
+              <input
+                autoFocus
+                value={quickAddForm.callSign}
+                onChange={e => setQuickAddForm(prev => ({ ...prev, callSign: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter') document.getElementById('quickAddSubmit')?.click(); }}
+                placeholder='קריאה'
+                style={{ width: '100%', padding: '8px 10px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+              />
+            </div>
+            {/* כמות */}
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>כמות *</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button onClick={() => setQuickAddForm(prev => ({ ...prev, numberOfFormation: String(Math.max(1, parseInt(prev.numberOfFormation) - 1)) }))}
+                  style={{ width: '32px', height: '32px', borderRadius: '6px', border: '1px solid #475569', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', lineHeight: 1 }}>−</button>
+                <input
+                  type="number" min="1" max="20"
+                  value={quickAddForm.numberOfFormation}
+                  onChange={e => setQuickAddForm(prev => ({ ...prev, numberOfFormation: e.target.value }))}
+                  style={{ flex: 1, padding: '7px 10px', background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '6px', fontSize: '16px', textAlign: 'center', fontWeight: 'bold', direction: 'ltr' }}
+                />
+                <button onClick={() => setQuickAddForm(prev => ({ ...prev, numberOfFormation: String(Math.min(20, parseInt(prev.numberOfFormation || '1') + 1)) }))}
+                  style={{ width: '32px', height: '32px', borderRadius: '6px', border: '1px solid #475569', background: '#1e293b', color: '#e2e8f0', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
+              </div>
+            </div>
+            {quickAddError && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{quickAddError}</div>}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                id="quickAddSubmit"
+                onClick={async () => {
+                  if (!quickAddForm.callSign.trim()) { setQuickAddError('נא להזין או"ק'); return; }
+                  const count = Math.max(1, Math.min(20, parseInt(quickAddForm.numberOfFormation) || 1));
+                  await handleCreateGroundStrip(quickAddForm.callSign.trim(), '', count, null, quickAddForm.stripType);
+                  setShowQuickAdd(false);
+                }}
+                style={{ flex: 1, padding: '10px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+              >צור פמ"מ</button>
+              <button onClick={() => setShowQuickAdd(false)}
+                style={{ padding: '10px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>ביטול</button>
             </div>
           </div>
         </div>

@@ -919,6 +919,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_zone_alts VARCHAR(200) DEFAULT ''`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_x FLOAT`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS strip_type VARCHAR(50) DEFAULT ''`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS civilian_strip_assignments (
@@ -3453,13 +3454,13 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
 // POST create a new strip directly from ground workstation
 app.post('/api/strips/ground-create', async (req, res) => {
   try {
-    const { callSign, sq, number_of_formation, workstation_preset_id, sector_id } = req.body;
+    const { callSign, sq, number_of_formation, workstation_preset_id, sector_id, strip_type } = req.body;
     const count = Math.max(1, Math.min(parseInt(number_of_formation) || 1, 16));
     const defaultPositions = Array.from({ length: count }, (_, i) => ({ idx: i + 1, point_id: null, status: 'none' }));
     const result = await pool.query(
-      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, sector_id, status, in_table)
-       VALUES ($1, $2, $3, $4, $5, $6, 'active', true) RETURNING *`,
-      [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null]
+      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, sector_id, status, in_table, strip_type)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', true, $7) RETURNING *`,
+      [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null, strip_type || '']
     );
     const strip = result.rows[0];
     // Auto-create strip_aircraft rows
