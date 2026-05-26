@@ -11412,6 +11412,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
   const fzDragIsPin = React.useRef(false);
+  const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
@@ -12125,6 +12126,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
   zoneAltRangesRef.current = zoneAltRanges;
   useMapZonesRef.current = useMapZonesActive;
+
+  const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const dragId = fzPinDragRef.current;
+    if (!dragId || !currentMapId) return;
+    fzPinDragRef.current = null;
+    fzDragIsPin.current = false;
+    fzDragIdRef.current = null;
+    const dragLabel = fzDragLabel;
+    setFzDragStripId(null);
+    setFzDragLabel(null);
+    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const dropX = e.clientX - rect.left;
+    const dropY = e.clientY - rect.top;
+    const zoom = mapZoomRef.current;
+    const pan = mapPanRef.current;
+    const cx = rect.width / 2; const cy = rect.height / 2;
+    const contentX = cx + (dropX - pan.x - cx) / zoom;
+    const contentY = cy + (dropY - pan.y - cy) / zoom;
+    const ib = mapImgBoundsRef.current;
+    const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+    const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+    if (!zone) {
+      if (mapZones.length > 0) {
+        const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        setFzPinZonePicker({ stripId: dragId, posX: pxInMap, posY: pyInMap, dragLabel, existing });
+      }
+      return;
+    }
+    const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+    if (existing && existing.zone_id === zone.id) {
+      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap);
+      return;
+    }
+    const altRangesForZone = zoneAltRanges[zone.id] || [];
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: existing?.status || 'planned', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap });
+  };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
     const dragId = fzDragIdRef.current ?? fzDragStripId;
@@ -17383,19 +17422,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
-                  draggable
-                  onDragStart={e => {
+                  onPointerDown={e => {
                     e.stopPropagation();
+                    fzPinDragRef.current = a.strip_id;
                     fzDragIsPin.current = true;
                     fzDragIdRef.current = a.strip_id;
                     setFzDragStripId(a.strip_id);
                     setFzDragLabel(callLabel);
-                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; }
+                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; }
                   }}
-                  onDragEnd={() => {
-                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
-                  }}
-                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all' }}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
@@ -17458,6 +17494,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'default', background: 'transparent', border: 'none', borderRadius: '4px', pointerEvents: 'none' }}
               onDragOver={e => { e.preventDefault(); }}
               onDrop={handleFzMapDrop}
+              onPointerUp={handleFzPinPointerUp}
+              onPointerLeave={() => {
+                if (fzPinDragRef.current) {
+                  fzPinDragRef.current = null;
+                  fzDragIsPin.current = false;
+                  fzDragIdRef.current = null;
+                  setFzDragStripId(null);
+                  setFzDragLabel(null);
+                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                }
+              }}
             />
           )}
 
