@@ -17136,43 +17136,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
-            <button
-              onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))}
-              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
-            >+</button>
-            <button
-              onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))}
-              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
-            >−</button>
-            <button
-              onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }}
-              style={{ width: 32, height: 32, background: '#475569', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}
-            >איפוס</button>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 32, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}>▲</button>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 15, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>◀</button>
-                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 15, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>▶</button>
+          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+            <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
+            <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
+            <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
+              <div style={{ display: 'flex', gap: '1px' }}>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
+                <button onClick={() => setMapPan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
               </div>
-              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 32, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}>▼</button>
+              <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
             </div>
-            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '6px 0' }} />
-            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginBottom: '3px' }}>☀ בהירות</div>
-            <input
-              type="range"
-              min={0.2}
-              max={1.8}
-              step={0.05}
-              value={mapBrightness}
-              onChange={e => setMapBrightness(parseFloat(e.target.value))}
-              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer' }}
-              title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
-            />
-            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center' }}>{Math.round(mapBrightness * 100)}%</div>
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
+            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>☀</div>
+            <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness} onChange={e => setMapBrightness(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 12 }}
+              title={`בהירות: ${Math.round(mapBrightness * 100)}%`} />
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>{Math.round(mapBrightness * 100)}%</div>
             {mapBrightness !== 1 && (
-              <button onClick={() => setMapBrightness(1)} style={{ width: '100%', marginTop: '2px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', padding: '2px 0' }}>איפוס</button>
+              <button onClick={() => setMapBrightness(1)} style={{ width: '100%', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', padding: '1px 0', lineHeight: 1 }}>↺</button>
             )}
           </div>
           
