@@ -8,6 +8,44 @@
   animation: fzpin-conflict-flash 0.65s ease-in-out infinite;
 }
 
+/* בדרך לאזור — amber pulse heading toward zone */
+@keyframes fzpin-heading-pulse {
+  0%, 100% { opacity: 1;    filter: drop-shadow(0 0 5px #f59e0b) drop-shadow(0 0 12px #f59e0b88); }
+  50%       { opacity: 0.75; filter: drop-shadow(0 0 12px #f59e0b) drop-shadow(0 0 28px #f59e0bcc) brightness(1.35); }
+}
+.fzpin-heading {
+  animation: fzpin-heading-pulse 1.3s ease-in-out infinite;
+}
+
+/* עוזב אזור — orange outward burst leaving zone */
+@keyframes fzpin-leaving-pulse {
+  0%, 100% { opacity: 1;    filter: drop-shadow(0 0 5px #f97316) drop-shadow(0 0 10px #f9731688); transform: scale(1); }
+  55%       { opacity: 0.65; filter: drop-shadow(0 0 14px #f97316) drop-shadow(0 0 30px #f97316bb); transform: scale(1.08); }
+}
+.fzpin-leaving {
+  animation: fzpin-leaving-pulse 0.85s ease-in-out infinite;
+}
+
+/* Ring pulse for heading */
+@keyframes fzring-heading {
+  0%, 100% { box-shadow: 0 0 8px 3px #f59e0b99, 0 0 18px 7px #f59e0b44; }
+  50%       { box-shadow: 0 0 16px 8px #f59e0bcc, 0 0 32px 14px #f59e0b33; }
+}
+.fzring-heading {
+  animation: fzring-heading 1.3s ease-in-out infinite;
+  border: 2.5px dashed #f59e0b !important;
+}
+
+/* Ring burst for leaving */
+@keyframes fzring-leaving {
+  0%, 100% { box-shadow: 0 0 8px 3px #f9731699, 0 0 18px 7px #f9731644; }
+  55%       { box-shadow: 0 0 20px 12px #f97316cc, 0 0 40px 20px #f9731622; }
+}
+.fzring-leaving {
+  animation: fzring-leaving 0.85s ease-in-out infinite;
+  border: 2.5px solid #f97316 !important;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: scale(1); }

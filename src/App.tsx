@@ -17486,17 +17486,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div draggable={false} style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : `2.5px solid ${sqColor}`, boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
+                  <div draggable={false}
+                    className={hasConflict ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
+                    style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
+                      border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? '2.5px dashed #f59e0b' : a.status === 'עוזב אזור' ? '2.5px solid #f97316' : `2.5px solid ${sqColor}`,
+                      boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : a.status === 'בדרך לאזור' ? '0 0 10px 4px #f59e0b99, 0 0 22px 8px #f59e0b44' : a.status === 'עוזב אזור' ? '0 0 10px 4px #f9731699, 0 0 24px 10px #f9731633' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
-                      // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
-                      // then hue-rotate shifts to the squadron colour; transparent bg preserved.
                       let imgFilter: string;
                       if (hasConflict) {
                         imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488)';
+                      } else if (a.status === 'בדרך לאזור') {
+                        // Amber/golden — heading toward zone
+                        imgFilter = `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 ${heliW*0.22}px #f59e0b) drop-shadow(0 0 ${heliW*0.42}px #f59e0bbb) drop-shadow(0 0 ${heliW*0.6}px #f59e0b66)`;
+                      } else if (a.status === 'עוזב אזור') {
+                        // Orange/red — departing zone
+                        imgFilter = `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 ${heliW*0.22}px #f97316) drop-shadow(0 0 ${heliW*0.42}px #f97316bb) drop-shadow(0 0 ${heliW*0.6}px #f9731666)`;
                       } else if (a.status === 'כניסה') {
                         imgFilter = `brightness(1.3) drop-shadow(0 0 ${heliW * 0.15}px rgba(255,255,255,0.8)) drop-shadow(0 0 ${heliW * 0.3}px rgba(255,255,255,0.4))`;
                       } else {
-                        // Parse sqColor hex → HSL hue
+                        // Squadron colour tint
                         const rr = parseInt(sqColor.slice(1,3),16)/255;
                         const gg = parseInt(sqColor.slice(3,5),16)/255;
                         const bb = parseInt(sqColor.slice(5,7),16)/255;
@@ -17508,7 +17517,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           else                hue = 60*((rr-gg)/(mx-mn))+240;
                           hue = ((hue%360)+360)%360;
                         }
-                        const rot = Math.round(hue - 38); // sepia baseline ≈ 38°
+                        const rot = Math.round(hue - 38);
                         imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
                       return (
@@ -17517,7 +17526,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           alt=""
                           draggable={false}
                           onDragStart={e => e.preventDefault()}
-                          className={hasConflict ? 'fzpin-conflict' : ''}
+                          className={hasConflict ? 'fzpin-conflict' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : ''}
                           style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
                         />
                       );
@@ -17530,6 +17539,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
                     {callLabel}
                   </div>
+                  {/* Status label below callsign */}
+                  {(() => {
+                    const stMeta: Record<string, { label: string; color: string; bg: string }> = {
+                      'בדרך לאזור': { label: '➡ בדרך', color: '#f59e0b', bg: 'rgba(120,60,0,0.85)' },
+                      'עוזב אזור':  { label: '↗ עוזב',  color: '#f97316', bg: 'rgba(120,40,0,0.85)' },
+                      'באזור':      { label: '✓ באזור', color: '#22c55e', bg: 'rgba(0,60,20,0.85)'  },
+                      'כניסה':      { label: '⬇ כניסה', color: '#a78bfa', bg: 'rgba(60,0,100,0.85)' },
+                    };
+                    const m = stMeta[a.status];
+                    if (!m) return null;
+                    return (
+                      <div style={{ background: m.bg, color: m.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, 10/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${m.color}88`, lineHeight: 1.2, marginTop: `${1/mapZoom}px` }}>
+                        {m.label}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -17849,14 +17874,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     })()}
                     {isFlightZonesMode && (() => {
                       const assignment = stripZoneAssignments.find(a => a.strip_id === s.id);
-                      const statusColors: Record<string, string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', conflict: '#ef4444' };
+                      const allStColors: Record<string, string> = {
+                        'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316',
+                        'כניסה': '#a78bfa', planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', conflict: '#ef4444'
+                      };
+                      const allStLabels: Record<string, string> = {
+                        'בדרך לאזור': '➡ בדרך', 'באזור': '✓ באזור', 'עוזב אזור': '↗ עוזב',
+                        'כניסה': '⬇ כניסה', planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם', conflict: '⚠ קונפליקט'
+                      };
                       return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
                           {assignment ? (
                             <>
                               <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: assignment.zone_color + '33', color: assignment.zone_color, border: `1px solid ${assignment.zone_color}66` }}>📍 {assignment.zone_name}</span>
                               {assignment.alt_range_name && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: '#1e3a5f', color: '#7dd3fc' }}>📐 {assignment.alt_range_name}</span>}
-                              <span style={{ fontSize: '9px', color: statusColors[assignment.status] || '#64748b' }}>● {assignment.status}</span>
+                              {assignment.status && (() => {
+                                const stColor = allStColors[assignment.status] || '#64748b';
+                                const stLabel = allStLabels[assignment.status] || assignment.status;
+                                return (
+                                  <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', background: stColor + '25', color: stColor, border: `1px solid ${stColor}77`, fontWeight: 'bold', flexShrink: 0 }}>
+                                    {stLabel}
+                                  </span>
+                                );
+                              })()}
                               <button onClick={e => { e.stopPropagation(); handleFzUnassign(s.id); }} style={{ fontSize: '9px', padding: '1px 4px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', marginRight: 'auto' }}>✕</button>
                             </>
                           ) : (
