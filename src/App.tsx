@@ -17395,19 +17395,43 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all' }}
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Helicopter image icon — coloured overlay by squadron */}
+                  {/* Helicopter image icon — CSS filter tint keeps background transparent */}
                   <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
-                    <img
-                      src={heliSrc}
-                      alt=""
-                      draggable={false}
-                      className={hasConflict ? 'fzpin-conflict' : ''}
-                      style={{ width: heliW, height: 'auto', display: 'block', filter: hasConflict ? `drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)` : `drop-shadow(0 0 ${heliW * 0.12}px ${sqColor}cc)` }}
-                    />
-                    {/* Squadron colour tint overlay — hidden when status is כניסה (show original image colours) */}
-                    {a.status !== 'כניסה' && (
-                      <div style={{ position: 'absolute', inset: 0, background: sqColor, mixBlendMode: 'color', pointerEvents: 'none', borderRadius: 2 }} />
-                    )}
+                    {(() => {
+                      // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
+                      // then hue-rotate shifts to the squadron colour; transparent bg preserved.
+                      let imgFilter: string;
+                      if (hasConflict) {
+                        imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)';
+                      } else if (a.status === 'כניסה') {
+                        // Original image colours, soft white glow
+                        imgFilter = `drop-shadow(0 0 ${heliW * 0.1}px rgba(255,255,255,0.4))`;
+                      } else {
+                        // Parse sqColor hex → HSL hue
+                        const rr = parseInt(sqColor.slice(1,3),16)/255;
+                        const gg = parseInt(sqColor.slice(3,5),16)/255;
+                        const bb = parseInt(sqColor.slice(5,7),16)/255;
+                        const mx = Math.max(rr,gg,bb), mn = Math.min(rr,gg,bb);
+                        let hue = 0;
+                        if (mx !== mn) {
+                          if (mx === rr)      hue = 60*((gg-bb)/(mx-mn));
+                          else if (mx === gg) hue = 60*((bb-rr)/(mx-mn))+120;
+                          else                hue = 60*((rr-gg)/(mx-mn))+240;
+                          hue = ((hue%360)+360)%360;
+                        }
+                        const rot = Math.round(hue - 38); // sepia baseline ≈ 38°
+                        imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(5) drop-shadow(0 0 ${heliW*0.12}px ${sqColor}cc)`;
+                      }
+                      return (
+                        <img
+                          src={heliSrc}
+                          alt=""
+                          draggable={false}
+                          className={hasConflict ? 'fzpin-conflict' : ''}
+                          style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter }}
+                        />
+                      );
+                    })()}
                     {/* Note indicator */}
                     {(a.note || a.coordination_note) && (
                       <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2 }}>!</div>
