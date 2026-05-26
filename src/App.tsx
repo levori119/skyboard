@@ -15641,7 +15641,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
