@@ -17675,14 +17675,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 return (
                 <div
                   key={s.id}
-                  onPointerDown={e => {
+                  draggable={isFlightZonesMode}
+                  onDragStart={isFlightZonesMode ? () => { fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
+                  onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
+                  onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
                     const mapArea = document.getElementById('map-area');
                     const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
-                  }}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  })}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (isFlightZonesMode && fzDragStripId === s.id) ? '#1e3a5f' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${isFlightZonesMode && stripZoneAssignments.find(a => a.strip_id === s.id) ? '#22c55e' : tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
