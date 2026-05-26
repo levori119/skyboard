@@ -11456,6 +11456,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
   const eraserMode = drawTool === 'eraser';
   const [mapBrightness, setMapBrightness] = useState(1);
+  const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
   type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
@@ -17162,14 +17163,49 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>☀</div>
-            <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness} onChange={e => setMapBrightness(parseFloat(e.target.value))}
-              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 12 }}
-              title={`בהירות: ${Math.round(mapBrightness * 100)}%`} />
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>{Math.round(mapBrightness * 100)}%</span>
-              {mapBrightness !== 1 && <button onClick={() => setMapBrightness(1)} style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '8px', padding: 0, lineHeight: 1 }}>↺</button>}
-            </div>
+            {/* Brightness toggle button */}
+            <button
+              onClick={() => setShowBrightnessPanel(v => !v)}
+              title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
+              style={{
+                width: 20, height: 20, background: showBrightnessPanel ? '#1d4ed8' : (mapBrightness !== 1 ? '#92400e' : '#475569'),
+                color: mapBrightness !== 1 ? '#fcd34d' : 'white',
+                border: showBrightnessPanel ? '1px solid #60a5fa' : (mapBrightness !== 1 ? '1px solid #f59e0b' : 'none'),
+                borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0,
+              }}>☀</button>
+            {/* Brightness floating panel */}
+            {showBrightnessPanel && (
+              <div style={{
+                position: 'absolute', left: 34, top: 0,
+                background: 'rgba(15,23,42,0.97)', border: '1px solid #334155',
+                borderRadius: '8px', padding: '10px 12px', zIndex: 200, width: 180,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)', direction: 'rtl',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'bold' }}>☀ קבע בהירות</span>
+                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(mapBrightness * 100)}%</span>
+                </div>
+                <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness}
+                  onChange={e => setMapBrightness(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 14, marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {[50, 75, 100, 125, 150].map(pct => (
+                    <button key={pct} onClick={() => setMapBrightness(pct / 100)}
+                      style={{ flex: 1, padding: '3px 0', fontSize: '9px', borderRadius: '3px', border: 'none', cursor: 'pointer',
+                        background: Math.round(mapBrightness * 100) === pct ? '#1d4ed8' : '#1e293b',
+                        color: Math.round(mapBrightness * 100) === pct ? '#fff' : '#94a3b8', fontWeight: Math.round(mapBrightness * 100) === pct ? 'bold' : 'normal' }}>
+                      {pct}
+                    </button>
+                  ))}
+                </div>
+                {mapBrightness !== 1 && (
+                  <button onClick={() => setMapBrightness(1)}
+                    style={{ marginTop: '8px', width: '100%', padding: '4px', fontSize: '11px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                    ↺ איפוס (100%)
+                  </button>
+                )}
+              </div>
+            )}
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
@@ -17450,16 +17486,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div draggable={false} style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : `2.5px solid ${ringColor}`, boxShadow: hasConflict ? '0 0 5px 2px #ef444466' : `0 0 5px 2px ${ringColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
+                  <div draggable={false} style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : `2.5px solid ${sqColor}`, boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
                       // then hue-rotate shifts to the squadron colour; transparent bg preserved.
                       let imgFilter: string;
                       if (hasConflict) {
-                        imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)';
+                        imgFilter = 'drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 10px #ef4444) drop-shadow(0 0 18px #ef444488)';
                       } else if (a.status === 'כניסה') {
-                        // Original image colours, soft white glow
-                        imgFilter = `drop-shadow(0 0 ${heliW * 0.1}px rgba(255,255,255,0.4))`;
+                        imgFilter = `brightness(1.3) drop-shadow(0 0 ${heliW * 0.15}px rgba(255,255,255,0.8)) drop-shadow(0 0 ${heliW * 0.3}px rgba(255,255,255,0.4))`;
                       } else {
                         // Parse sqColor hex → HSL hue
                         const rr = parseInt(sqColor.slice(1,3),16)/255;
@@ -17474,7 +17509,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           hue = ((hue%360)+360)%360;
                         }
                         const rot = Math.round(hue - 38); // sepia baseline ≈ 38°
-                        imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(5) drop-shadow(0 0 ${heliW*0.12}px ${sqColor}cc)`;
+                        imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
                       return (
                         <img
