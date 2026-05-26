@@ -11447,6 +11447,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [penSize, setPenSize] = useState(3);
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
   const eraserMode = drawTool === 'eraser';
+  const [mapBrightness, setMapBrightness] = useState(1);
   type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
@@ -17110,6 +17111,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 32, height: 24, background: '#334155', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }}>▼</button>
             </div>
             <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginTop: '2px' }}>{Math.round(mapZoom * 100)}%</div>
+            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '6px 0' }} />
+            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center', marginBottom: '3px' }}>☀ בהירות</div>
+            <input
+              type="range"
+              min={0.2}
+              max={1.8}
+              step={0.05}
+              value={mapBrightness}
+              onChange={e => setMapBrightness(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer' }}
+              title={`בהירות: ${Math.round(mapBrightness * 100)}%`}
+            />
+            <div style={{ fontSize: '9px', color: '#94a3b8', textAlign: 'center' }}>{Math.round(mapBrightness * 100)}%</div>
+            {mapBrightness !== 1 && (
+              <button onClick={() => setMapBrightness(1)} style={{ width: '100%', marginTop: '2px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', padding: '2px 0' }}>איפוס</button>
+            )}
           </div>
           
           {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
@@ -17125,7 +17142,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           }}>
             {/* Map Image */}
             {mapImg ? (
-              <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+              <img ref={mapImgRef} src={mapImg} onLoad={() => computeMapImgBounds(mapImgRef.current)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${mapBrightness})` }} />
             ) : (
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', pointerEvents: 'none' }}>נא לטעון מפה</div>
             )}
