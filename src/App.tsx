@@ -12193,7 +12193,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
     if (markerEl) {
       const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
-      if (sectorId) { handleTransferWithPartialCheck(String(dragId), sectorId); return; }
+      if (sectorId) {
+        // Auto-set "עוזב אזור" when dragging to a transfer point
+        const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        if (existingAsgn && existingAsgn.status !== 'עוזב אזור') {
+          doFzSave(dragId, existingAsgn.zone_id, existingAsgn.altitude_range_id, 'עוזב אזור', existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, existingAsgn.pos_x ?? undefined, existingAsgn.pos_y ?? undefined, existingAsgn.requested_zone_ids);
+        }
+        handleTransferWithPartialCheck(String(dragId), sectorId);
+        return;
+      }
     }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
