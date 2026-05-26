@@ -839,6 +839,9 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const currentAnchor = getAnchorFromMapData(localMapData);
   const isCalibrated = currentAnchor !== null;
 
+  const [dragOffset, setDragOffset] = useState<{zoneId: number; dx: number; dy: number} | null>(null);
+  const dragRef = useRef<{zoneId: number; startX: number; startY: number; origPoly: {x:number;y:number}[]; moved: boolean} | null>(null);
+
   const computeEditorImgBounds = () => {
     const img = imgEditorRef.current;
     if (!img || !img.naturalWidth) { setImgEditorBounds(null); return; }
@@ -916,6 +919,24 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
     ro.observe(container);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (anchorMode) {
+        setAnchorMode(false);
+        setPendingAnchor1(null);
+        setPendingAnchor2(null);
+        setAnchorStep(1);
+      }
+      if (dragRef.current) {
+        dragRef.current = null;
+        setDragOffset(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [anchorMode]);
 
   const getRelativePoint = (e: React.MouseEvent<SVGSVGElement>) => {
     const container = containerRef.current;
@@ -1011,7 +1032,55 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
     return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
   };
 
+  const handleZoneMouseDown = (e: React.MouseEvent, zone: MapZone) => {
+    if (anchorMode || draftPoints.length > 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const pt = getSvgRelativePoint(e);
+    if (!pt) return;
+    dragRef.current = { zoneId: zone.id, startX: pt.x, startY: pt.y, origPoly: zone.polygon.map(p => ({...p})), moved: false };
+    setDragOffset({ zoneId: zone.id, dx: 0, dy: 0 });
+  };
+
+  const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!dragRef.current) return;
+    const pt = getSvgRelativePoint(e);
+    if (!pt) return;
+    const dx = pt.x - dragRef.current.startX;
+    const dy = pt.y - dragRef.current.startY;
+    if (Math.hypot(dx, dy) > 0.3) dragRef.current.moved = true;
+    setDragOffset({ zoneId: dragRef.current.zoneId, dx, dy });
+  };
+
+  const handleSvgMouseUp = async (e: React.MouseEvent<SVGSVGElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    setDragOffset(null);
+    if (!drag.moved) {
+      const zone = zones.find(z => z.id === drag.zoneId);
+      if (zone) { setEditingZone(zone); setDraftPoints([]); setAltRanges([]); loadAltRanges(zone.id); }
+      return;
+    }
+    const pt = getSvgRelativePoint(e);
+    if (!pt) return;
+    const dx = pt.x - drag.startX;
+    const dy = pt.y - drag.startY;
+    const newPoly = drag.origPoly.map(p => ({ x: Math.max(0, Math.min(100, p.x + dx)), y: Math.max(0, Math.min(100, p.y + dy)) }));
+    const zone = zones.find(z => z.id === drag.zoneId);
+    if (!zone) return;
+    const polygon_geo = computePolygonGeo(newPoly);
+    setZones(prev => prev.map(z => z.id === drag.zoneId ? { ...z, polygon: newPoly } : z));
+    try {
+      await fetch(`${API_URL}/map-zones/${drag.zoneId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: zone.name, color: zone.color, polygon: newPoly, polygon_geo })
+      });
+    } catch {}
+  };
+
   const handleSvgClickFixed = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (dragRef.current?.moved) return;
     if (anchorMode) {
       const pt = getSvgRelativePoint(e);
       if (!pt) return;
@@ -1073,22 +1142,33 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   top: imgEditorBounds.top,
                   width: imgEditorBounds.width,
                   height: imgEditorBounds.height,
-                  cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair'),
+                  cursor: anchorMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair')),
+                  userSelect: 'none',
                 }}
                 onClick={handleSvgClickFixed}
                 onDoubleClick={handleSvgDblClick}
+                onMouseMove={handleSvgMouseMove}
+                onMouseUp={handleSvgMouseUp}
+                onMouseLeave={() => { if (dragRef.current) { dragRef.current = null; setDragOffset(null); } }}
               >
-                {zones.map(z => (
-                  <g key={z.id}>
-                    <polygon points={polygonToSvgPoints(z.polygon)} fill={z.color + '33'} stroke={z.color} strokeWidth="0.5" style={{ cursor: 'pointer' }}
-                      onClick={(e) => { e.stopPropagation(); setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }} />
-                    {z.polygon.length > 0 && (
-                      <text x={z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length} y={z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length}
-                        textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize="3" fontWeight="bold"
+                {zones.map(z => {
+                  const isDragging = dragOffset?.zoneId === z.id;
+                  const poly = isDragging
+                    ? z.polygon.map(p => ({ x: Math.max(0, Math.min(100, p.x + dragOffset!.dx)), y: Math.max(0, Math.min(100, p.y + dragOffset!.dy)) }))
+                    : z.polygon;
+                  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+                  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+                  return (
+                  <g key={z.id} style={{ cursor: anchorMode || draftPoints.length > 0 ? 'crosshair' : 'grab' }}>
+                    <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? "1" : "0.5"}
+                      onMouseDown={(e) => handleZoneMouseDown(e, z)} />
+                    {poly.length > 0 && (
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize="3" fontWeight="bold"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}</text>
                     )}
                   </g>
-                ))}
+                  );
+                })}
                 {activePoly.length >= 2 && (
                   <polyline points={polygonToSvgPoints(activePoly)} fill="none" stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" strokeDasharray="2,1" />
                 )}
