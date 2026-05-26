@@ -4589,11 +4589,18 @@ app.delete('/api/activity-log', async (req, res) => {
   }
 });
 
-// In production, serve the built React app as static files
+// Serve frontend
 if (process.env.NODE_ENV === 'production') {
+  // Production: serve built React app
   app.use(express.static(path.join(__dirname, 'dist')));
   app.get(/^(?!\/api).*$/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  });
+} else {
+  // Development: redirect non-API requests to Vite dev server on port 5000
+  app.get(/^(?!\/api).*$/, (req, res) => {
+    const viteUrl = `${req.protocol}://${req.hostname}:5000${req.originalUrl}`;
+    res.redirect(302, viteUrl);
   });
 }
 
