@@ -17404,8 +17404,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       className={hasConflict ? 'fzpin-conflict' : ''}
                       style={{ width: heliW, height: 'auto', display: 'block', filter: hasConflict ? `drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)` : `drop-shadow(0 0 ${heliW * 0.12}px ${sqColor}cc)` }}
                     />
-                    {/* Squadron colour tint overlay */}
-                    <div style={{ position: 'absolute', inset: 0, background: sqColor, mixBlendMode: 'color', pointerEvents: 'none', borderRadius: 2 }} />
+                    {/* Squadron colour tint overlay — hidden when status is כניסה (show original image colours) */}
+                    {a.status !== 'כניסה' && (
+                      <div style={{ position: 'absolute', inset: 0, background: sqColor, mixBlendMode: 'color', pointerEvents: 'none', borderRadius: 2 }} />
+                    )}
                     {/* Note indicator */}
                     {(a.note || a.coordination_note) && (
                       <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2 }}>!</div>
@@ -18947,9 +18949,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>● סטטוס:</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['planned','active','coordinated'] as const).map(st => {
-                  const stColors: Record<string,string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9' };
-                  const stLabels: Record<string,string> = { planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם' };
+                {(['planned','active','coordinated','כניסה'] as const).map(st => {
+                  const stColors: Record<string,string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', 'כניסה': '#f97316' };
+                  const stLabels: Record<string,string> = { planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם', 'כניסה': 'כניסה' };
                   return (
                     <button key={st} type="button"
                       onClick={() => setFzDialog(p => p ? { ...p, selectedStatus: st } : p)}
