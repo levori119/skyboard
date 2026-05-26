@@ -12813,6 +12813,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     });
   };
 
+  // Recompute mapImgBounds on container resize (objectFit:contain changes real image rect)
+  useEffect(() => {
+    const img = mapImgRef.current;
+    if (!img) return;
+    const container = img.parentElement;
+    if (!container) return;
+    const ro = new ResizeObserver(() => computeMapImgBounds(mapImgRef.current));
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [mapImg]);
+
   // Auto-scroll table container to the right when table mode activates
   useEffect(() => {
     if (!tableMode || !tableScrollRef.current) return;
@@ -16761,8 +16772,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               // Zones with geo data → project via anchor to image-relative %, render in image-bounded SVG
               const geoZones = mapZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               return (<>
-                {legacyZones.length > 0 && (
-                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                {legacyZones.length > 0 && mapImgBounds && (
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {legacyZones.map(zone => (
                       <g key={zone.id}>
                         {zone.polygon.length >= 3 && (<>
