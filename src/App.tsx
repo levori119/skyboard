@@ -18938,11 +18938,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>⚠️ קונפליקט גובה מזוהה</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>הפממים הבאים תפוסים באותו טווח גובה באזור זה:</div>
             {fzConflictDialog.conflicts.map(c => {
-              const s = myTableStrips.find((x: any) => x.id === c.strip_id);
+              const s = myTableStrips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
+              const displayName = s ? getFormationDisplayName(s) : null;
+              const squadron = s ? (s.sq || s.squadron) : null;
               return (
-                <div key={c.strip_id} style={{ background: '#0f172a', border: '1px solid #ef444433', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px' }}>
-                  <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{s?.callSign || `#${c.strip_id}`}</span>
-                  <span style={{ color: '#64748b', fontSize: '11px', marginRight: '8px' }}>● {c.status}</span>
+                <div key={c.strip_id} style={{ background: '#0f172a', border: '1px solid #ef444433', borderRadius: '6px', padding: '8px 10px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '14px' }}>{displayName || s?.callSign || `#${c.strip_id}`}</span>
+                  {squadron && <span style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 'bold' }}>{squadron}</span>}
+                  {c.alt_range_name && <span style={{ color: '#64748b', fontSize: '11px', marginRight: 'auto' }}>📐 {c.alt_range_name}</span>}
                 </div>
               );
             })}
