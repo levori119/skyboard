@@ -11424,6 +11424,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
+  const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('squadron');
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number; zoneName?: string; zoneColor?: string; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
@@ -11460,7 +11461,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [penSize, setPenSize] = useState(3);
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
   const eraserMode = drawTool === 'eraser';
-  const [mapBrightness, setMapBrightness] = useState(1);
+  const [mapBrightness, setMapBrightness] = useState(1.3);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
   type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
@@ -17280,33 +17281,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (() => {
               const mapAnchor = mapGeoAnchor;
-              const occupiedZoneIds = new Set(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
-              const visibleZones = fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => occupiedZoneIds.has(z.id)) : mapZones.filter(z => !occupiedZoneIds.has(z.id));
+              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
+              const requestedOnlyZoneIds = new Set<number>();
+              stripZoneAssignments.forEach((a: StripZoneAssignment) => { (a.requested_zone_ids || []).forEach(id => { if (!occupiedZoneIds.has(id)) requestedOnlyZoneIds.add(id); }); });
+              const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
+              const visibleZones = fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => allOccupiedIds.has(z.id)) : mapZones.filter(z => !allOccupiedIds.has(z.id));
               const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               return (<>
                 {legacyZones.length > 0 && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
-                    {legacyZones.map(zone => (
-                      <g key={zone.id}>
-                        {zone.polygon.length >= 3 && (<>
-                          <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zone.color + '2a'} stroke={zone.color} strokeWidth="0.4" strokeDasharray="2,1" />
-                          <text x={zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length} y={zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length}
-                            textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}</text>
-                        </>)}
-                      </g>
-                    ))}
+                    {legacyZones.map(zone => {
+                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
+                      return (
+                        <g key={zone.id}>
+                          {zone.polygon.length >= 3 && (<>
+                            <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zone.color + (isReqOnly ? '12' : '2a')} stroke={zone.color + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
+                            {isReqOnly && <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={zone.color} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                            <text x={zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length} y={zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length}
+                              textAnchor="middle" dominantBaseline="middle" fill={zone.color + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}</text>
+                          </>)}
+                        </g>
+                      );
+                    })}
                   </svg>
                 )}
                 {geoZones.length > 0 && mapAnchor && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {geoZones.map(zone => {
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
+                      const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       return (
                         <g key={zone.id}>
-                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zone.color+'2a'} stroke={zone.color} strokeWidth="0.4" strokeDasharray="2,1" />
+                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zone.color+(isReqOnly?'12':'2a')} stroke={zone.color+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
+                          {isReqOnly && <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke={zone.color} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
                           <text x={imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length} y={imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length}
-                            textAnchor="middle" dominantBaseline="middle" fill={zone.color} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}</text>
+                            textAnchor="middle" dominantBaseline="middle" fill={zone.color+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}</text>
                         </g>
                       );
                     })}
@@ -17489,9 +17499,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
               const fontSize = Math.max(9, 11 / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
-              // Squadron colour
+              // Squadron / status colour
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
-              const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex;
+              const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
+              const sqColor = fzPinColorMode === 'status'
+                ? (_fzStC[a.status] || '#94a3b8')
+                : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
               // Uncoordinated conflict: another pin shares same zone + altitude range
               const allZonesA = [a.zone_id, ...(a.requested_zone_ids || [])];
               const hasConflict = !a.is_coordinated && a.altitude_range_id !== null && stripZoneAssignments.some(
@@ -17709,6 +17722,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
                 </button>
               ))}
+              <button
+                onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
+                title={fzPinColorMode === 'squadron' ? 'צבע לפי טייסת — לחץ לעבור לסטטוס' : 'צבע לפי סטטוס — לחץ לעבור לטייסת'}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
+              </button>
               {myPresetConfig?.use_map_zones && (
                 <button
                   onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
