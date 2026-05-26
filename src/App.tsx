@@ -884,15 +884,15 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const dragRef = useRef<{zoneId: number; startX: number; startY: number; origPoly: {x:number;y:number}[]; moved: boolean} | null>(null);
 
   const [autoMode, setAutoMode] = useState(false);
-  const [autoDetecting, setAutoDetecting] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
   const [autoTolerance, setAutoTolerance] = useState(30);
-  const [autoPreview, setAutoPreview] = useState<{
-    polygon: {x:number;y:number}[];
-    name: string;
-    color: string;
-    altRanges: {name:string;alt_min:string;alt_max:string}[];
-    saving: boolean;
-  } | null>(null);
+  const [autoTargetColor, setAutoTargetColor] = useState('#3b82f6');
+  const [autoResults, setAutoResults] = useState<{
+    id: string; polygon: {x:number;y:number}[]; name: string;
+    color: string; altRanges: {name:string;alt_min:string;alt_max:string}[];
+    saving: boolean; saved: boolean;
+  }[]>([]);
+  const [autoSelectedId, setAutoSelectedId] = useState<string|null>(null);
 
   const computeEditorImgBounds = () => {
     const img = imgEditorRef.current;
@@ -1084,95 +1084,128 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
     return [pts[0],pts[pts.length-1]];
   };
 
-  const detectZoneAtPoint = async (pctX: number, pctY: number) => {
+  const detectAllZones = async () => {
     const img = imgEditorRef.current;
     if (!img || !img.naturalWidth) return;
-    setAutoDetecting(true);
+    setAutoRunning(true);
+    setAutoResults([]);
+    setAutoSelectedId(null);
     try {
-      const MAX_DIM = 500;
+      const MAX_DIM = 600;
       const nw = img.naturalWidth, nh = img.naturalHeight;
       const sc = Math.min(1, MAX_DIM / Math.max(nw, nh));
-      const cw = Math.round(nw*sc), ch = Math.round(nh*sc);
+      const cw = Math.round(nw * sc), ch = Math.round(nh * sc);
       const canvas = document.createElement('canvas');
       canvas.width = cw; canvas.height = ch;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, cw, ch);
       const { data: pixels } = ctx.getImageData(0, 0, cw, ch);
 
-      const sx = Math.max(0, Math.min(cw-1, Math.round(pctX/100*cw)));
-      const sy = Math.max(0, Math.min(ch-1, Math.round(pctY/100*ch)));
-      const si = (sy*cw+sx)*4;
-      const tr = pixels[si], tg = pixels[si+1], tb = pixels[si+2];
-      const sampledHex = '#'+[tr,tg,tb].map(v=>v.toString(16).padStart(2,'0')).join('');
+      const tR = parseInt(autoTargetColor.slice(1,3), 16);
+      const tG = parseInt(autoTargetColor.slice(3,5), 16);
+      const tB = parseInt(autoTargetColor.slice(5,7), 16);
       const tol = autoTolerance * 3;
 
-      const visited = new Uint8Array(cw*ch);
-      const stack: number[] = [sy*cw+sx];
-      while (stack.length) {
-        const pos = stack.pop()!;
-        if (visited[pos]) continue;
-        const p4 = pos*4;
-        if (Math.abs(pixels[p4]-tr)+Math.abs(pixels[p4+1]-tg)+Math.abs(pixels[p4+2]-tb) > tol) continue;
-        visited[pos] = 1;
-        const x = pos%cw, y = Math.floor(pos/cw);
-        if (x>0) stack.push(pos-1);
-        if (x<cw-1) stack.push(pos+1);
-        if (y>0) stack.push(pos-cw);
-        if (y<ch-1) stack.push(pos+cw);
+      // Mark all pixels within tolerance
+      const marked = new Uint8Array(cw * ch);
+      for (let i = 0; i < cw * ch; i++) {
+        const p = i * 4;
+        if (Math.abs(pixels[p]-tR) + Math.abs(pixels[p+1]-tG) + Math.abs(pixels[p+2]-tB) <= tol) marked[i] = 1;
       }
 
-      const leftPts:{x:number;y:number}[] = [], rightPts:{x:number;y:number}[] = [];
-      for (let y=0; y<ch; y++) {
-        let minX=cw, maxX=-1;
-        for (let x=0; x<cw; x++) { if (visited[y*cw+x]) { if (x<minX) minX=x; if (x>maxX) maxX=x; } }
-        if (maxX>=0) { leftPts.push({x:(minX/cw)*100,y:(y/ch)*100}); rightPts.push({x:(maxX/cw)*100,y:(y/ch)*100}); }
-      }
-      if (!leftPts.length) { setAutoDetecting(false); return; }
-      const rawPoly = [...leftPts, ...rightPts.reverse()];
-      const simplified = douglasPeucker(rawPoly, 0.6);
-
-      let detectedName = '';
-      let detectedAlt: {name:string;alt_min:string;alt_max:string}[] = [];
-      try {
-        const allX = simplified.map(p=>p.x), allY = simplified.map(p=>p.y);
-        const bx = Math.max(0,Math.min(...allX)/100*nw-15);
-        const by = Math.max(0,Math.min(...allY)/100*nh-15);
-        const bw = Math.min(nw,(Math.max(...allX)-Math.min(...allX))/100*nw+30);
-        const bh = Math.min(nh,(Math.max(...allY)-Math.min(...allY))/100*nh+30);
-        const cc = document.createElement('canvas');
-        cc.width=Math.round(bw); cc.height=Math.round(bh);
-        cc.getContext('2d')!.drawImage(img,bx,by,bw,bh,0,0,bw,bh);
-        const { data: { text } } = await Tesseract.recognize(cc, 'heb+eng', { logger: ()=>{} });
-        const flRange = /FL\s*(\d+)\s*[-–]\s*FL?\s*(\d+)/gi;
-        let m: RegExpExecArray | null;
-        while ((m=flRange.exec(text))!==null) detectedAlt.push({name:`FL${m[1]}-FL${m[2]}`,alt_min:m[1],alt_max:m[2]});
-        if (!detectedAlt.length) {
-          const flS = /FL\s*(\d+)/gi; const ss:string[]=[];
-          while ((m=flS.exec(text))!==null) ss.push(m[1]);
-          for (let i=0;i+1<ss.length;i+=2) detectedAlt.push({name:`FL${ss[i]}-FL${ss[i+1]}`,alt_min:ss[i],alt_max:ss[i+1]});
+      // DFS connected components
+      const componentOf = new Int32Array(cw * ch).fill(-1);
+      const comps: { pixels: number[]; rS:number; gS:number; bS:number }[] = [];
+      for (let start = 0; start < cw * ch; start++) {
+        if (!marked[start] || componentOf[start] >= 0) continue;
+        const ci = comps.length;
+        const comp = { pixels: [] as number[], rS: 0, gS: 0, bS: 0 };
+        const stk: number[] = [start];
+        while (stk.length) {
+          const pos = stk.pop()!;
+          if (componentOf[pos] >= 0) continue;
+          componentOf[pos] = ci;
+          comp.pixels.push(pos);
+          comp.rS += pixels[pos*4]; comp.gS += pixels[pos*4+1]; comp.bS += pixels[pos*4+2];
+          const x = pos % cw, y = Math.floor(pos / cw);
+          if (x > 0 && marked[pos-1] && componentOf[pos-1] < 0) stk.push(pos-1);
+          if (x < cw-1 && marked[pos+1] && componentOf[pos+1] < 0) stk.push(pos+1);
+          if (y > 0 && marked[pos-cw] && componentOf[pos-cw] < 0) stk.push(pos-cw);
+          if (y < ch-1 && marked[pos+cw] && componentOf[pos+cw] < 0) stk.push(pos+cw);
         }
-        const cleaned = text.replace(/FL\s*\d+/gi,'').replace(/\d+/g,'').replace(/[^\u05D0-\u05EA ]/g,' ').trim();
-        const lines = cleaned.split(/\s{2,}|\n/).map(l=>l.trim()).filter(l=>l.length>1);
-        detectedName = lines[0] || '';
-      } catch(e){ console.warn('OCR fail',e); }
+        comps.push(comp);
+      }
 
-      setAutoPreview({ polygon: simplified, name: detectedName, color: sampledHex, altRanges: detectedAlt, saving: false });
-    } catch(e){ console.error('auto detect error',e); }
-    setAutoDetecting(false);
+      const minPx = cw * ch * 0.003;
+      const large = comps.filter(c => c.pixels.length >= minPx)
+        .sort((a,b) => b.pixels.length - a.pixels.length)
+        .slice(0, 12);
+
+      // Build initial results (polygons, no OCR yet)
+      const initial = large.map(comp => {
+        const mask = new Uint8Array(cw * ch);
+        for (const pos of comp.pixels) mask[pos] = 1;
+        const leftPts:{x:number;y:number}[] = [], rightPts:{x:number;y:number}[] = [];
+        for (let y = 0; y < ch; y++) {
+          let minX = cw, maxX = -1;
+          for (let x = 0; x < cw; x++) { if (mask[y*cw+x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; } }
+          if (maxX >= 0) { leftPts.push({x:(minX/cw)*100, y:(y/ch)*100}); rightPts.push({x:(maxX/cw)*100, y:(y/ch)*100}); }
+        }
+        const polygon = leftPts.length ? douglasPeucker([...leftPts, ...rightPts.reverse()], 0.7) : [];
+        const cnt = comp.pixels.length;
+        const avgColor = '#' + [comp.rS/cnt, comp.gS/cnt, comp.bS/cnt].map(v => Math.round(v).toString(16).padStart(2,'0')).join('');
+        return { id: Math.random().toString(36).slice(2), polygon, name: '', color: avgColor, altRanges: [] as {name:string;alt_min:string;alt_max:string}[], saving: false, saved: false };
+      }).filter(r => r.polygon.length >= 3);
+
+      setAutoResults(initial);
+      if (initial.length > 0) setAutoSelectedId(initial[0].id);
+
+      // OCR each zone sequentially, updating results progressively
+      for (let i = 0; i < initial.length; i++) {
+        const r = initial[i];
+        try {
+          const allX = r.polygon.map(p=>p.x), allY = r.polygon.map(p=>p.y);
+          const bx = Math.max(0, Math.min(...allX)/100*nw - 10);
+          const by = Math.max(0, Math.min(...allY)/100*nh - 10);
+          const bw = Math.min(nw - bx, (Math.max(...allX) - Math.min(...allX))/100*nw + 20);
+          const bh = Math.min(nh - by, (Math.max(...allY) - Math.min(...allY))/100*nh + 20);
+          if (bw < 5 || bh < 5) continue;
+          const cc = document.createElement('canvas');
+          cc.width = Math.round(bw); cc.height = Math.round(bh);
+          cc.getContext('2d')!.drawImage(img, bx, by, bw, bh, 0, 0, bw, bh);
+          const { data: { text } } = await Tesseract.recognize(cc, 'heb+eng', { logger: ()=>{} });
+          const altRanges: {name:string;alt_min:string;alt_max:string}[] = [];
+          const flRange = /FL\s*(\d+)\s*[-–]\s*FL?\s*(\d+)/gi;
+          let m: RegExpExecArray|null;
+          while ((m = flRange.exec(text)) !== null) altRanges.push({name:`FL${m[1]}-FL${m[2]}`, alt_min:m[1], alt_max:m[2]});
+          if (!altRanges.length) {
+            const flS = /FL\s*(\d+)/gi; const ss:string[] = [];
+            while ((m = flS.exec(text)) !== null) ss.push(m[1]);
+            for (let j = 0; j+1 < ss.length; j+=2) altRanges.push({name:`FL${ss[j]}-FL${ss[j+1]}`, alt_min:ss[j], alt_max:ss[j+1]});
+          }
+          const cleaned = text.replace(/FL\s*\d+/gi,'').replace(/\d+/g,'').replace(/[^\u05D0-\u05EA ]/g,' ').trim();
+          const lines = cleaned.split(/\s{2,}|\n/).map((l:string)=>l.trim()).filter((l:string)=>l.length>1);
+          const name = lines[0] || '';
+          setAutoResults(prev => prev.map((x,j) => j===i ? {...x, name, altRanges} : x));
+        } catch(e) { console.warn('OCR fail zone', i, e); }
+      }
+    } catch(e) { console.error('detectAllZones error', e); }
+    setAutoRunning(false);
   };
 
-  const saveAutoZone = async () => {
-    if (!autoPreview) return;
-    setAutoPreview(p => p ? {...p, saving:true} : p);
+  const saveAutoResult = async (idx: number) => {
+    const r = autoResults[idx];
+    if (!r || r.saved || r.saving) return;
+    setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, saving:true} : x));
     try {
-      const polygon_geo = computePolygonGeo(autoPreview.polygon);
+      const polygon_geo = computePolygonGeo(r.polygon);
       const res = await fetch(`${API_URL}/map-zones`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ map_id: mapId, name: autoPreview.name || 'אזור חדש', color: autoPreview.color, polygon: autoPreview.polygon, polygon_geo })
+        body: JSON.stringify({ map_id: mapId, name: r.name || 'אזור חדש', color: r.color, polygon: r.polygon, polygon_geo })
       });
       if (res.ok) {
         const newZone = await res.json();
-        for (const ar of autoPreview.altRanges) {
+        for (const ar of r.altRanges) {
           if (!ar.name.trim()) continue;
           await fetch(`${API_URL}/zone-altitude-ranges`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
@@ -1180,11 +1213,9 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
           });
         }
         await loadZones();
-        setAutoPreview(null);
-        setAutoMode(false);
-      }
-    } catch(e){}
-    setAutoPreview(p => p ? {...p, saving:false} : p);
+        setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, saving:false, saved:true} : x));
+      } else { setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, saving:false} : x)); }
+    } catch(e) { setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, saving:false} : x)); }
   };
 
   const polygonToSvgPoints = (pts: {x:number;y:number}[]) =>
@@ -1258,11 +1289,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
       else { setPendingAnchor2(pt); }
       return;
     }
-    if (autoMode && !autoDetecting) {
-      const pt = getImageRelativePoint(e);
-      if (pt) detectZoneAtPoint(pt.x, pt.y);
-      return;
-    }
+    if (autoMode) return;
     if (editingZone) return;
     const pt = getSvgRelativePoint(e);
     if (!pt) return;
@@ -1291,8 +1318,8 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               </span>
             )}
             {autoMode && !anchorMode && (
-              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#7c3aed', padding: '3px 10px', borderRadius: '10px', animation: autoDetecting ? 'elemBlink 0.7s infinite' : 'none' }}>
-                {autoDetecting ? '⏳ מזהה אזור...' : '🤖 לחץ על אזור במפה לזיהוי'}
+              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#7c3aed', padding: '3px 10px', borderRadius: '10px', animation: autoRunning ? 'elemBlink 0.7s infinite' : 'none' }}>
+                {autoRunning ? `⏳ מזהה... OCR רץ` : autoResults.length > 0 ? `🤖 נמצאו ${autoResults.length} אזורים` : '🤖 מצב זיהוי אוטומטי'}
               </span>
             )}
           </div>
@@ -1370,11 +1397,15 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                 {anchorMode && pendingAnchor2 && (
                   <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="2.5" fill="#3b82f6" stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
                 )}
-                {autoPreview && (
-                  <polygon points={polygonToSvgPoints(autoPreview.polygon)}
-                    fill={autoPreview.color + '44'} stroke={autoPreview.color} strokeWidth="1"
-                    strokeDasharray="3,2" style={{ pointerEvents: 'none' }} />
-                )}
+                {autoResults.map(r => (
+                  <g key={r.id} style={{ pointerEvents: 'none' }}>
+                    <polygon points={polygonToSvgPoints(r.polygon)}
+                      fill={r.saved ? r.color + '22' : r.id === autoSelectedId ? r.color + '55' : r.color + '33'}
+                      stroke={r.saved ? r.color + '88' : r.color}
+                      strokeWidth={r.id === autoSelectedId ? '1.2' : '0.7'}
+                      strokeDasharray={r.saved ? 'none' : '3,2'} />
+                  </g>
+                ))}
               </svg>
             ) : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
@@ -1512,68 +1543,109 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div style={{ color: '#a78bfa', fontSize: '12px', fontWeight: 'bold' }}>🤖 זיהוי אוטומטי</div>
                 <button
-                  onClick={() => { setAutoMode(m => !m); setAutoPreview(null); setEditingZone(null); setDraftPoints([]); }}
+                  onClick={() => { setAutoMode(m => !m); setAutoResults([]); setAutoSelectedId(null); setEditingZone(null); setDraftPoints([]); }}
                   style={{ background: autoMode ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontSize: '11px', fontWeight: autoMode ? 'bold' : 'normal' }}>
                   {autoMode ? '✓ פעיל' : 'הפעל'}
                 </button>
               </div>
               {autoMode && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+                  {/* Color picker */}
+                  <div>
+                    <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '5px' }}>בחר צבע האזור לזיהוי:</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input type="color" value={autoTargetColor} onChange={e => setAutoTargetColor(e.target.value)}
+                        style={{ width: '36px', height: '32px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
+                      <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: autoTargetColor, border: '1px solid #475569', flexShrink: 0 }} />
+                      <input value={autoTargetColor} onChange={e => { if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) setAutoTargetColor(e.target.value); }}
+                        style={{ flex: 1, padding: '4px 7px', borderRadius: '5px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px', fontFamily: 'monospace' }} />
+                    </div>
+                  </div>
+
+                  {/* Tolerance slider */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }}>סובלנות צבע:</span>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', flexShrink: 0 }}>סובלנות:</span>
                     <input type="range" min="5" max="80" value={autoTolerance} onChange={e => setAutoTolerance(Number(e.target.value))}
                       style={{ flex: 1, accentColor: '#7c3aed' }} />
                     <span style={{ color: '#e2e8f0', fontSize: '11px', width: '24px', textAlign: 'left' }}>{autoTolerance}</span>
                   </div>
-                  {autoDetecting && (
-                    <div style={{ color: '#a78bfa', fontSize: '11px', textAlign: 'center', padding: '6px', background: 'rgba(124,58,237,0.1)', borderRadius: '6px' }}>
-                      ⏳ מזהה... (OCR פועל)
-                    </div>
-                  )}
-                  {autoPreview && !autoDetecting && (
-                    <div style={{ background: '#1e293b', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', border: `1px solid ${autoPreview.color}55` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '16px', height: '16px', borderRadius: '3px', background: autoPreview.color, flexShrink: 0, border: '1px solid #475569' }} />
-                        <input value={autoPreview.color} onChange={e => setAutoPreview(p => p ? {...p, color: e.target.value} : p)}
-                          style={{ width: '80px', padding: '2px 5px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '11px', fontFamily: 'monospace' }} />
-                        <input type="color" value={autoPreview.color} onChange={e => setAutoPreview(p => p ? {...p, color: e.target.value} : p)}
-                          style={{ width: '28px', height: '22px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
-                      </div>
-                      <div>
-                        <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '3px' }}>שם אזור:</div>
-                        <input value={autoPreview.name} onChange={e => setAutoPreview(p => p ? {...p, name: e.target.value} : p)}
-                          placeholder="שם האזור"
-                          style={{ width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
-                      </div>
-                      <div>
-                        <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '4px' }}>גבהים שזוהו:</div>
-                        {autoPreview.altRanges.map((ar, i) => (
-                          <div key={i} style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
-                            <input value={ar.name} onChange={e => setAutoPreview(p => p ? {...p, altRanges: p.altRanges.map((x,j)=>j===i?{...x,name:e.target.value}:x)} : p)}
-                              placeholder="שם" style={{ flex: 2, padding: '3px 5px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '11px' }} />
-                            <input type="number" value={ar.alt_min} onChange={e => setAutoPreview(p => p ? {...p, altRanges: p.altRanges.map((x,j)=>j===i?{...x,alt_min:e.target.value}:x)} : p)}
-                              placeholder="מינ'" style={{ width: '48px', padding: '3px 4px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '11px' }} />
-                            <span style={{ color: '#475569', fontSize: '10px' }}>—</span>
-                            <input type="number" value={ar.alt_max} onChange={e => setAutoPreview(p => p ? {...p, altRanges: p.altRanges.map((x,j)=>j===i?{...x,alt_max:e.target.value}:x)} : p)}
-                              placeholder="מקס'" style={{ width: '48px', padding: '3px 4px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '11px' }} />
-                            <button onClick={() => setAutoPreview(p => p ? {...p, altRanges: p.altRanges.filter((_,j)=>j!==i)} : p)}
-                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+
+                  {/* Detect button */}
+                  <button onClick={detectAllZones} disabled={autoRunning}
+                    style={{ background: autoRunning ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '7px', padding: '9px', cursor: autoRunning ? 'default' : 'pointer', fontSize: '13px', fontWeight: 'bold', animation: autoRunning ? 'elemBlink 0.8s infinite' : 'none' }}>
+                    {autoRunning ? '⏳ מזהה אזורים + OCR...' : '🔍 זהה אזורים'}
+                  </button>
+
+                  {/* Results list */}
+                  {autoResults.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ color: '#64748b', fontSize: '10px' }}>נמצאו {autoResults.length} אזורים — לחץ לבחירה ועריכה:</div>
+                      {autoResults.map((r, idx) => (
+                        <div key={r.id}
+                          onClick={() => setAutoSelectedId(id => id === r.id ? null : r.id)}
+                          style={{ background: r.id === autoSelectedId ? '#1e1b4b' : '#1e293b', borderRadius: '8px', border: `1px solid ${r.id === autoSelectedId ? r.color : r.color + '55'}`, padding: '8px', cursor: 'pointer', opacity: r.saved ? 0.5 : 1 }}>
+                          {/* Row header */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: r.color, flexShrink: 0 }} />
+                            <span style={{ color: r.saved ? '#64748b' : '#e2e8f0', fontSize: '12px', flex: 1 }}>
+                              {r.name || <span style={{ color: '#475569', fontStyle: 'italic' }}>ללא שם</span>}
+                            </span>
+                            {r.saved && <span style={{ color: '#22c55e', fontSize: '11px' }}>✓ נשמר</span>}
+                            {!r.saved && <span style={{ color: '#64748b', fontSize: '10px' }}>{r.polygon.length} נק'</span>}
                           </div>
-                        ))}
-                        <button onClick={() => setAutoPreview(p => p ? {...p, altRanges: [...p.altRanges, {name:'',alt_min:'',alt_max:''}]} : p)}
-                          style={{ background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '11px', marginTop: '2px' }}>+ גובה</button>
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={saveAutoZone} disabled={autoPreview.saving}
-                          style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                          {autoPreview.saving ? '...' : '💾 שמור אזור'}
+                          {/* Expanded editor */}
+                          {r.id === autoSelectedId && !r.saved && (
+                            <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                              {/* Color */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <input type="color" value={r.color} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, color: e.target.value} : x))}
+                                  style={{ width: '26px', height: '22px', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }} />
+                                <input value={r.color} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, color: e.target.value} : x))}
+                                  style={{ flex: 1, padding: '3px 6px', borderRadius: '4px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '11px', fontFamily: 'monospace' }} />
+                              </div>
+                              {/* Name */}
+                              <input value={r.name} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, name: e.target.value} : x))}
+                                placeholder="שם האזור"
+                                style={{ width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '12px', boxSizing: 'border-box' }} />
+                              {/* Alt ranges */}
+                              {r.altRanges.length > 0 && (
+                                <div style={{ color: '#64748b', fontSize: '10px', marginBottom: '2px' }}>גבהים:</div>
+                              )}
+                              {r.altRanges.map((ar, ai) => (
+                                <div key={ai} style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                                  <input value={ar.name} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.map((a,j) => j===ai ? {...a, name: e.target.value} : a)} : x))}
+                                    placeholder="שם" style={{ flex: 2, padding: '2px 4px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
+                                  <input type="number" value={ar.alt_min} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.map((a,j) => j===ai ? {...a, alt_min: e.target.value} : a)} : x))}
+                                    placeholder="מינ'" style={{ width: '42px', padding: '2px 3px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
+                                  <span style={{ color: '#475569', fontSize: '9px' }}>—</span>
+                                  <input type="number" value={ar.alt_max} onChange={e => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.map((a,j) => j===ai ? {...a, alt_max: e.target.value} : a)} : x))}
+                                    placeholder="מקס'" style={{ width: '42px', padding: '2px 3px', borderRadius: '3px', border: '1px solid #334155', background: '#0f172a', color: 'white', fontSize: '10px' }} />
+                                  <button onClick={() => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: x.altRanges.filter((_,j) => j!==ai)} : x))}
+                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}>✕</button>
+                                </div>
+                              ))}
+                              <button onClick={() => setAutoResults(prev => prev.map((x,i) => i===idx ? {...x, altRanges: [...x.altRanges, {name:'',alt_min:'',alt_max:''}]} : x))}
+                                style={{ background: '#1e3a5f', color: '#7dd3fc', border: 'none', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px' }}>+ גובה</button>
+                              {/* Actions */}
+                              <div style={{ display: 'flex', gap: '5px', marginTop: '2px' }}>
+                                <button onClick={() => saveAutoResult(idx)} disabled={r.saving}
+                                  style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                                  {r.saving ? '...' : '💾 שמור'}
+                                </button>
+                                <button onClick={() => setAutoResults(prev => prev.filter((_,i) => i!==idx))}
+                                  style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', padding: '6px 10px', cursor: 'pointer', fontSize: '11px' }}>🗑</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {autoResults.some(r => !r.saved) && (
+                        <button onClick={async () => { for (let i=0; i<autoResults.length; i++) { if (!autoResults[i].saved) await saveAutoResult(i); } }}
+                          style={{ background: '#064e3b', color: '#6ee7b7', border: '1px solid #059669', borderRadius: '6px', padding: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                          💾 שמור הכל ({autoResults.filter(r => !r.saved).length})
                         </button>
-                        <button onClick={() => { setAutoPreview(null); }}
-                          style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 12px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-                      </div>
-                      <div style={{ color: '#475569', fontSize: '10px', textAlign: 'center' }}>
-                        {autoPreview.polygon.length} נק' • לחץ שוב על המפה לזיהוי נוסף
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
