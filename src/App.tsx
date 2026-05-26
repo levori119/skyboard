@@ -17396,7 +17396,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                  <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, borderRadius: '50%', boxShadow: hasConflict ? '0 0 0 2px #ef4444, 0 0 8px 3px #ef444488' : `0 0 0 2px rgba(255,255,255,0.85), 0 0 8px 3px rgba(255,255,255,0.35)`, background: 'rgba(255,255,255,0.08)', padding: `${heliW * 0.06}px` }}>
                     {(() => {
                       // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
                       // then hue-rotate shifts to the squadron colour; transparent bg preserved.
