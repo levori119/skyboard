@@ -11399,6 +11399,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [allStripsForClassic, setAllStripsForClassic] = useState<any[]>([]);
   const [mapImg, setMapImg] = useState<string | null>(null);
   const [currentMapId, setCurrentMapId] = useState<number | null>(null);
+  const [map2Img, setMap2Img] = useState<string | null>(null);
+  const [map2Zoom, setMap2Zoom] = useState(1);
+  const [map2Pan, setMap2Pan] = useState({ x: 0, y: 0 });
+  const [map2Brightness, setMap2Brightness] = useState(1.3);
+  const [dualMapSplit, setDualMapSplit] = useState(50);
+  const dualMapSplitterRef = useRef(false);
+  const dualMapSplitterStartRef = useRef({ pos: 0, split: 50 });
+  const map2DragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const [mapZones, setMapZones] = useState<MapZone[]>([]);
   const [zoneAltRanges, setZoneAltRanges] = useState<Record<number, ZoneAltRange[]>>({});
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
@@ -12065,6 +12073,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
   const isMapZonesMode = useMapZonesActive;
+  const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
+  const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
 
   React.useEffect(() => {
     const val = myPresetConfig?.use_map_zones === true;
@@ -13117,6 +13127,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useEffect(() => {
     loadDefaultMap();
   }, [session.mapId]);
+
+  useEffect(() => {
+    if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); return; }
+    fetch(`${API_URL}/maps/${myPresetConfig.map2_id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(map => { if (map) setMap2Img(map.image_data); })
+      .catch(() => {});
+  }, [isDualMapMode, myPresetConfig?.map2_id]);
+
+  useEffect(() => {
+    if (myPresetConfig?.dual_map_split != null) setDualMapSplit(myPresetConfig.dual_map_split);
+  }, [myPresetConfig?.id]);
 
   useEffect(() => {
     loadData();
@@ -17200,6 +17222,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
 
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
+          {/* Map 1 panel wrapper — clips to split area when dual map is on */}
+          <div style={{ position: 'absolute', overflow: 'hidden', ...(isDualMapMode ? (dualMapLayout === 'stacked' ? { top: 0, left: 0, width: '100%', height: `${dualMapSplit}%` } : { top: 0, left: 0, width: `${dualMapSplit}%`, height: '100%' }) : { top: 0, left: 0, width: '100%', height: '100%' }) }}>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
             {/* Brightness toggle button */}
@@ -17850,6 +17874,78 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               touchAction: 'none', zIndex: 200
             }}
           />
+
+          </div>{/* /Map 1 panel wrapper */}
+
+          {/* Dual Map: Splitter + Map 2 panel */}
+          {isDualMapMode && <>
+            {/* Splitter bar */}
+            <div
+              style={{
+                position: 'absolute', zIndex: 500, userSelect: 'none',
+                ...(dualMapLayout === 'stacked'
+                  ? { top: `${dualMapSplit}%`, left: 0, width: '100%', height: 5, cursor: 'ns-resize', background: '#1e293b' }
+                  : { top: 0, left: `${dualMapSplit}%`, width: 5, height: '100%', cursor: 'ew-resize', background: '#1e293b' }),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+              onPointerDown={e => {
+                e.preventDefault();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const startPos = dualMapLayout === 'stacked' ? e.clientY : e.clientX;
+                const startSplit = dualMapSplit;
+                const onMove = (me: PointerEvent) => {
+                  const container = document.getElementById('map-area');
+                  if (!container) return;
+                  const rect = container.getBoundingClientRect();
+                  const total = dualMapLayout === 'stacked' ? rect.height : rect.width;
+                  const delta = (dualMapLayout === 'stacked' ? me.clientY : me.clientX) - startPos;
+                  setDualMapSplit(Math.max(20, Math.min(80, startSplit + (delta / total) * 100)));
+                };
+                const onUp = () => { document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); };
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+              }}
+            >
+              <div style={{ ...(dualMapLayout === 'stacked' ? { width: 40, height: 3 } : { width: 3, height: 40 }), background: '#475569', borderRadius: 2, pointerEvents: 'none' }} />
+            </div>
+
+            {/* Map 2 panel */}
+            <div style={{
+              position: 'absolute', overflow: 'hidden', background: '#0d1117',
+              ...(dualMapLayout === 'stacked'
+                ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` }
+                : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' }),
+            }}>
+              {/* Map 2 mini toolbar */}
+              <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+                <button onClick={() => setMap2Zoom(z => Math.min(z + 0.25, 3))} title="הגדל" style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
+                <button onClick={() => setMap2Zoom(z => Math.max(z - 0.25, 0.5))} title="הקטן" style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
+                <button onClick={() => { setMap2Zoom(1); setMap2Pan({ x: 0, y: 0 }); }} title="איפוס" style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
+                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+                <button title={`בהירות: ${Math.round(map2Brightness * 100)}%`}
+                  onClick={() => setMap2Brightness(b => b >= 1.5 ? 0.8 : b + 0.1)}
+                  style={{ width: 20, height: 20, background: map2Brightness !== 1.3 ? '#92400e' : '#475569', color: map2Brightness !== 1.3 ? '#fcd34d' : 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>☀</button>
+                <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(map2Zoom * 100)}%</div>
+              </div>
+              {/* Map 2 image with pan/zoom */}
+              <div
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${map2Pan.x}px, ${map2Pan.y}px) scale(${map2Zoom})`, transformOrigin: 'center center', cursor: 'grab', touchAction: 'none' }}
+                onWheel={e => { e.preventDefault(); const d = e.deltaY < 0 ? 0.1 : -0.1; setMap2Zoom(z => Math.max(0.5, Math.min(3, z + d))); }}
+                onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.style.cursor = 'grabbing'; map2DragRef.current = { startX: e.clientX, startY: e.clientY, panX: map2Pan.x, panY: map2Pan.y }; }}
+                onPointerMove={e => { if (!map2DragRef.current) return; setMap2Pan({ x: map2DragRef.current.panX + (e.clientX - map2DragRef.current.startX), y: map2DragRef.current.panY + (e.clientY - map2DragRef.current.startY) }); }}
+                onPointerUp={e => { map2DragRef.current = null; e.currentTarget.style.cursor = 'grab'; }}
+                onPointerCancel={() => { map2DragRef.current = null; }}
+              >
+                {map2Img ? (
+                  <img src={map2Img} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none', filter: `brightness(${map2Brightness})` }} />
+                ) : (
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>טוען מפה שנייה...</div>
+                )}
+              </div>
+              {/* Map 2 label badge */}
+              <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(15,23,42,0.85)', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', color: '#7dd3fc', pointerEvents: 'none', zIndex: 10 }}>🗺 מפה 2</div>
+            </div>
+          </>}
 
           </>}
         </div>
@@ -21931,6 +22027,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     datk_show_minutes: '' as string | number,
     civilian_columns: [] as CivCol[],
     civilian_board_bg: '' as string,
+    dual_map_mode: false as boolean,
+    map2_id: '' as string | number,
+    dual_map_layout: 'side-by-side' as string,
+    dual_map_split: 50 as number,
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -22265,6 +22365,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
           civilian_columns: presetForm.civilian_columns || [],
           civilian_board_bg: presetForm.civilian_board_bg || '',
+          dual_map_mode: presetForm.dual_map_mode === true,
+          map2_id: presetForm.map2_id ? Number(presetForm.map2_id) : null,
+          dual_map_layout: presetForm.dual_map_layout || 'side-by-side',
+          dual_map_split: presetForm.dual_map_split ?? 50,
         })
       });
       if (!res.ok) {
@@ -22328,6 +22432,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       datk_show_minutes: preset.datk_show_minutes ?? '',
       civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
       civilian_board_bg: preset.civilian_board_bg || '',
+      dual_map_mode: preset.dual_map_mode === true,
+      map2_id: preset.map2_id?.toString() || '',
+      dual_map_layout: preset.dual_map_layout || 'side-by-side',
+      dual_map_split: preset.dual_map_split ?? 50,
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -23023,6 +23131,54 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמופעל, כל פ"מ שמונח על המפה מקבל אזור אוטומטי לפי מיקום הנחיתה. פין מקשר בין הסטריפ לנקודת ההנחה.</p>
                 </div>
+
+                {/* Dual Map Mode */}
+                {(presetForm.preset_type === 'normal' || !presetForm.preset_type) && presetForm.map_id && (
+                  <div style={{ marginTop: '15px', padding: '12px', background: '#0d1f35', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🗺🗺 מצב שתי מפות:</label>
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl', marginBottom: '10px' }}>
+                      {[{ val: true, label: '✅ פעיל' }, { val: false, label: '⬜ כבוי' }].map(opt => (
+                        <button key={String(opt.val)} type="button"
+                          onClick={() => setPresetForm(p => ({ ...p, dual_map_mode: opt.val }))}
+                          style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).dual_map_mode === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm as any).dual_map_mode === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).dual_map_mode === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).dual_map_mode === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {(presetForm as any).dual_map_mode && (<>
+                      <div style={{ marginBottom: '10px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '13px' }}>מפה שנייה:</label>
+                        <select value={(presetForm as any).map2_id} onChange={e => setPresetForm(p => ({ ...p, map2_id: e.target.value }))}
+                          style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                          <option value="">— בחר מפה שנייה —</option>
+                          {maps.filter(m => m.id !== Number(presetForm.map_id)).map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ marginBottom: '10px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '13px' }}>פריסה:</label>
+                        <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                          {[{ val: 'side-by-side', label: '◫ זו לצד זו' }, { val: 'stacked', label: '⬓ זו מעל זו' }].map(opt => (
+                            <button key={opt.val} type="button"
+                              onClick={() => setPresetForm(p => ({ ...p, dual_map_layout: opt.val }))}
+                              style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: `1px solid ${(presetForm as any).dual_map_layout === opt.val ? '#0ea5e9' : '#334155'}`, background: (presetForm as any).dual_map_layout === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).dual_map_layout === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).dual_map_layout === opt.val ? 'bold' : 'normal' }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '13px' }}>חלוקה ראשונית — מפה ראשית: <strong style={{ color: '#7dd3fc' }}>{(presetForm as any).dual_map_split}%</strong></label>
+                        <input type="range" min={20} max={80} step={5} value={(presetForm as any).dual_map_split}
+                          onChange={e => setPresetForm(p => ({ ...p, dual_map_split: parseInt(e.target.value) }))}
+                          style={{ width: '100%', accentColor: '#0ea5e9', height: 14 }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                          <span>20%</span><span>50%</span><span>80%</span>
+                        </div>
+                      </div>
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>ניתן לשנות את גודל החלוניות בזמן אמת על-ידי גרירת המחיצה ביניהן.</p>
+                    </>)}
+                  </div>
+                )}
 
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
