@@ -17357,9 +17357,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const pixY = ib.top + (pctY / 100) * ib.height;
               const zoneHex = a.zone_color || '#3b82f6';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
-              const dotR = Math.max(6, 10 / mapZoom);
               const fontSize = Math.max(9, 11 / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
+              // Squadron colour
+              const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
+              const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex;
+              // Uncoordinated conflict: another pin shares same zone + altitude range
+              const hasConflict = !a.is_coordinated && a.altitude_range_id !== null && stripZoneAssignments.some(
+                (b: StripZoneAssignment) => b.strip_id !== a.strip_id && b.zone_id === a.zone_id && b.altitude_range_id === a.altitude_range_id
+              );
+              const iconSize = Math.max(18, 24 / mapZoom);
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
@@ -17376,10 +17383,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
                   }}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all' }}
-                  title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}`}
+                  title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}`}
                 >
-                  <div style={{ width: dotR * 2, height: dotR * 2, borderRadius: '50%', background: zoneHex, border: `${Math.max(1.5, 2 / mapZoom)}px solid ${statusColor}`, boxShadow: `0 0 ${dotR}px ${zoneHex}88`, flexShrink: 0 }} />
-                  <div style={{ background: 'rgba(15,23,42,0.9)', color: zoneHex, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${zoneHex}55`, lineHeight: 1.2, direction: 'ltr' }}>
+                  {/* Helicopter SVG icon — coloured by squadron */}
+                  <svg
+                    width={iconSize} height={iconSize * 0.8}
+                    viewBox="0 0 32 26"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={hasConflict ? 'fzpin-conflict' : ''}
+                    style={{ flexShrink: 0, overflow: 'visible', filter: hasConflict ? undefined : `drop-shadow(0 0 ${iconSize * 0.25}px ${sqColor}bb)` }}
+                  >
+                    {/* Main rotor blade */}
+                    <rect x="0" y="2.5" width="24" height="2" rx="1" fill={sqColor}/>
+                    {/* Rotor hub */}
+                    <circle cx="12" cy="3.5" r="1.5" fill={sqColor}/>
+                    {/* Mast */}
+                    <rect x="11" y="5" width="2" height="2.5" fill={sqColor}/>
+                    {/* Fuselage */}
+                    <path d="M4 9 C4 7.5 6 7 9 7 L16 7 C20 7 21 8.5 21 10.5 L21 14.5 C21 15.5 20 16 17 16 L6 16 C4 16 3 15 3 13 Z" fill={sqColor}/>
+                    {/* Cockpit glass */}
+                    <path d="M4.5 10.5 Q5 8.5 8 8.5 L10.5 8.5 L10.5 14 L5.5 14 Q3.8 13.5 4.5 10.5 Z" fill="rgba(180,230,255,0.45)"/>
+                    {/* Tail boom */}
+                    <rect x="21" y="12.5" width="8.5" height="2" rx="1" fill={sqColor}/>
+                    {/* Tail fin (vertical) */}
+                    <path d="M28 9 L30 9 L30.5 12.5 L28 12.5 Z" fill={sqColor}/>
+                    {/* Tail rotor */}
+                    <rect x="29" y="8" width="1.5" height="6" rx="0.75" fill={sqColor}/>
+                    {/* Skid struts */}
+                    <rect x="6" y="16" width="1.5" height="2.5" rx="0.5" fill={sqColor}/>
+                    <rect x="13" y="16" width="1.5" height="2.5" rx="0.5" fill={sqColor}/>
+                    {/* Landing skid */}
+                    <rect x="4.5" y="18" width="12" height="1.5" rx="0.75" fill={sqColor}/>
+                  </svg>
+                  <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
                     {callLabel}
                   </div>
                 </div>
