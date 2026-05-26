@@ -8635,8 +8635,10 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
   };
 
   const getUnassigned = () => {
-    const assignedIds = new Set(assignments.map(a => Number(a.strip_id)));
-    return strips.filter(s => !assignedIds.has(Number(s.id)));
+    return strips.filter(s => {
+      const a = assignments.find(a => Number(a.strip_id) === Number(s.id));
+      return !a || a.col_key === '' || a.col_key === '__queue__';
+    });
   };
 
   const handleSlotDrop = (e: React.DragEvent, colKey: string, slotIdx: number) => {
@@ -11375,6 +11377,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
+  const [civStrips, setCivStrips] = useState<any[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
@@ -12058,24 +12061,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch(e) { console.error('loadCivAssignments', e); }
   }, []);
 
+  const loadCivStrips = React.useCallback(async (presetId: string | number) => {
+    try {
+      const data = await fetch(`${API_URL}/civ-strips?preset_id=${presetId}`).then(r => r.json());
+      if (Array.isArray(data)) setCivStrips(data);
+    } catch(e) { console.error('loadCivStrips', e); }
+  }, []);
+
   const handleCivAssign = React.useCallback(async (stripId: string, colKey: string, slotIdx = 0, subCol = '') => {
     if (!session?.presetId) return;
+    const effectiveColKey = colKey === '__queue__' ? '' : colKey;
     setCivAssignments(prev => {
       const filtered = prev.filter(a => Number(a.strip_id) !== Number(stripId));
-      return [...filtered, { id: 0, strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol, sort_order: slotIdx }];
+      return [...filtered, { id: 0, strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: effectiveColKey, sub_col: subCol, sort_order: slotIdx }];
     });
     try {
       await fetch(`${API_URL}/civilian-assignments`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol, sort_order: slotIdx })
+        body: JSON.stringify({ strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: effectiveColKey, sub_col: subCol, sort_order: slotIdx })
       });
     } catch(e) { console.error('handleCivAssign', e); }
   }, [session?.presetId]);
 
-  // Load civilian assignments when entering civilian mode
+  // Load civilian strips + assignments when entering civilian mode
   React.useEffect(() => {
     if (isCivilianMode && session?.presetId) {
       loadCivAssignments(session.presetId);
+      loadCivStrips(session.presetId);
     }
   }, [isCivilianMode, session?.presetId]);
 
@@ -15735,14 +15747,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             return (
               <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                 <CivilianView
-                  strips={myTableStrips}
+                  strips={civStrips}
                   presetId={session.presetId!}
                   civColumns={civCols}
                   assignments={civAssignments}
                   boardBg={myPresetConfig?.civilian_board_bg || ''}
                   onAssign={handleCivAssign}
                   onUpdateField={async (id, field, val) => {
-                    setStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
+                    setCivStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
                     try { await fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }); } catch(e) { console.error(e); }
                   }}
                 />
