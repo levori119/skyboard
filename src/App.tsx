@@ -5260,7 +5260,7 @@ const imagePctToGeo = (xImg: number, yImg: number, a: MapGeoAnchor): {lat: numbe
   return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
 };
 interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }
-interface StripZoneAssignment { id: number; strip_id: number; zone_id: number; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string; zone_color: string; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; }
+interface StripZoneAssignment { id: number; strip_id: number; zone_id: number; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string; zone_color: string; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; }
 
 // --- Vector map types + helpers ---
 type VectorLine = { id: string; points: {x:number;y:number}[]; color: string; width: number; };
@@ -11408,11 +11408,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const useMapZonesRef = useRef(false);
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
-  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number } | null>(null);
+  const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[] } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
   const fzDragIsPin = React.useRef(false);
   const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
+  const fzPinDownPos = useRef<{x:number;y:number;id:number}|null>(null);
+  const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
@@ -12129,7 +12131,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const dragId = fzPinDragRef.current;
-    if (!dragId || !currentMapId) return;
+    if (!dragId || !currentMapId) { fzPinDownPos.current = null; return; }
+    // Click vs drag detection
+    const downPos = fzPinDownPos.current;
+    fzPinDownPos.current = null;
     fzPinDragRef.current = null;
     fzDragIsPin.current = false;
     fzDragIdRef.current = null;
@@ -12137,6 +12142,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDragStripId(null);
     setFzDragLabel(null);
     if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+    // Click: cycle status בדרך לאזור → באזור → עוזב אזור
+    if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 8) {
+      const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
+      const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+      if (existing) {
+        const curIdx = cycleStatuses.indexOf(existing.status);
+        const nextStatus = cycleStatuses[(curIdx + 1) % cycleStatuses.length];
+        doFzSave(existing.strip_id, existing.zone_id, existing.altitude_range_id, nextStatus, existing.note, existing.coordination_note, existing.is_coordinated, existing.pos_x ?? undefined, existing.pos_y ?? undefined, existing.requested_zone_ids);
+      }
+      return;
+    }
+    // Drag to transfer marker: check element under pointer
+    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+    const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
+    if (markerEl) {
+      const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
+      if (sectorId) { handleTransferWithPartialCheck(String(dragId), sectorId); return; }
+    }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
@@ -12149,20 +12172,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
     const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
     const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
-    if (!zone) {
-      if (mapZones.length > 0) {
-        const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        setFzPinZonePicker({ stripId: dragId, posX: pxInMap, posY: pyInMap, dragLabel, existing });
-      }
-      return;
-    }
+    if (!zone) return; // outside zone — silently ignore
     const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
     if (existing && existing.zone_id === zone.id) {
-      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap);
+      doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids);
       return;
     }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: existing?.status || 'planned', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap });
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: existing?.status || 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: existing?.requested_zone_ids || [] });
   };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -12189,47 +12206,45 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDragStripId(null);
     setFzDragLabel(null);
     if (!zone) {
-      // Pin dropped outside any zone polygon → show zone picker
-      if (isPin && mapZones.length > 0) {
-        const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
-        setFzPinZonePicker({ stripId: dragId, posX: pxInMap, posY: pyInMap, dragLabel, existing });
-      }
+      // Dropped outside any zone — silently ignore (no zone picker)
       return;
     }
     if (isPin) {
-      // Dragging an existing pin — check if same zone
       const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
       if (existing && existing.zone_id === zone.id) {
-        // Same zone: just update position, no dialog
-        doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap);
+        doFzSave(dragId, zone.id, existing.altitude_range_id, existing.status, existing.note, existing.coordination_note, existing.is_coordinated, pxInMap, pyInMap, existing.requested_zone_ids);
         return;
       }
-      // Different zone: carry over existing values as defaults in dialog
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: existing?.status || 'planned', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap });
+      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: existing?.status || 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: existing?.requested_zone_ids || [] });
     } else {
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'planned', note: '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap });
+      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: [] });
     }
   };
 
   const handleFzSave = async () => {
     if (!fzDialog || !currentMapId) return;
     const numericStripId = parseInt(String(fzDialog.stripId).replace(/^s/, ''), 10);
-    const existing = stripZoneAssignments.filter(a => a.zone_id === fzDialog.zoneId && Number(a.strip_id) !== numericStripId);
+    const allDialogZones = [fzDialog.zoneId, ...(fzDialog.requestedZoneIds || [])];
+    const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
+      allDialogZones.some(z => z === a.zone_id || (a.requested_zone_ids || []).includes(z)) &&
+      Number(a.strip_id) !== numericStripId &&
+      (fzDialog.selectedAltId === null || a.altitude_range_id === null || a.altitude_range_id === fzDialog.selectedAltId)
+    );
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY }, conflicts: existing, coordNote: '' });
       return;
     }
-    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY);
+    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY, fzDialog.requestedZoneIds);
     setFzDialog(null);
   };
 
-  const doFzSave = async (stripId: number | string, zoneId: number, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number) => {
+  const doFzSave = async (stripId: number | string, zoneId: number, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[]) => {
     const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
     if (isNaN(numericStripId)) return;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [] }) });
       if (currentMapId) loadStripZoneAssignments(currentMapId);
     } catch {}
   };
@@ -17137,6 +17152,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>☀</div>
+            <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness} onChange={e => setMapBrightness(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 12 }}
+              title={`בהירות: ${Math.round(mapBrightness * 100)}%`} />
+            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{Math.round(mapBrightness * 100)}%</span>
+              {mapBrightness !== 1 && <button onClick={() => setMapBrightness(1)} style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '8px', padding: 0, lineHeight: 1 }}>↺</button>}
+            </div>
+            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
             <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
@@ -17149,15 +17173,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={() => setMapPan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
             </div>
             <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
-            <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>☀</div>
-            <input type="range" min={0.2} max={1.8} step={0.05} value={mapBrightness} onChange={e => setMapBrightness(parseFloat(e.target.value))}
-              style={{ width: '100%', accentColor: '#60a5fa', cursor: 'pointer', height: 12 }}
-              title={`בהירות: ${Math.round(mapBrightness * 100)}%`} />
-            <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center' }}>{Math.round(mapBrightness * 100)}%</div>
-            {mapBrightness !== 1 && (
-              <button onClick={() => setMapBrightness(1)} style={{ width: '100%', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', padding: '1px 0', lineHeight: 1 }}>↺</button>
-            )}
           </div>
           
           {/* Map + Strips Container with Transform (zoom/pan applies to both) */}
@@ -17181,10 +17196,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (() => {
               const mapAnchor = mapGeoAnchor;
-              // Zones without geo data → legacy full-container SVG
-              const legacyZones = mapZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
-              // Zones with geo data → project via anchor to image-relative %, render in image-bounded SVG
-              const geoZones = mapZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
+              const occupiedZoneIds = new Set(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
+              const visibleZones = fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => occupiedZoneIds.has(z.id)) : mapZones.filter(z => !occupiedZoneIds.has(z.id));
+              const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
+              const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               return (<>
                 {legacyZones.length > 0 && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
@@ -17394,8 +17409,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
               const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex;
               // Uncoordinated conflict: another pin shares same zone + altitude range
+              const allZonesA = [a.zone_id, ...(a.requested_zone_ids || [])];
               const hasConflict = !a.is_coordinated && a.altitude_range_id !== null && stripZoneAssignments.some(
-                (b: StripZoneAssignment) => b.strip_id !== a.strip_id && b.zone_id === a.zone_id && b.altitude_range_id === a.altitude_range_id
+                (b: StripZoneAssignment) => {
+                  if (b.strip_id === a.strip_id) return false;
+                  const allZonesB = [b.zone_id, ...(b.requested_zone_ids || [])];
+                  return allZonesA.some(z => allZonesB.includes(z)) && b.altitude_range_id === a.altitude_range_id && !b.is_coordinated;
+                }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
               const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
@@ -17408,6 +17428,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   key={`fzpin-${a.strip_id}`}
                   onPointerDown={e => {
                     e.stopPropagation();
+                    fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
                     fzPinDragRef.current = a.strip_id;
                     fzDragIsPin.current = true;
                     fzDragIdRef.current = a.strip_id;
@@ -17502,6 +17523,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >
                 {fzShowZones ? '🗺 הסתר אזורים' : '🗺 הצג אזורים'}
               </button>
+              {(['all','occupied','free'] as const).map(f => (
+                <button key={f} onClick={() => setFzZoneFilter(f)}
+                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
+                  {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
+                </button>
+              ))}
               {myPresetConfig?.use_map_zones && (
                 <button
                   onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
@@ -19007,20 +19034,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             <div style={{ marginBottom: '14px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>● סטטוס:</label>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {(['planned','active','coordinated','כניסה'] as const).map(st => {
-                  const stColors: Record<string,string> = { planned: '#64748b', active: '#22c55e', coordinated: '#0ea5e9', 'כניסה': '#f97316' };
-                  const stLabels: Record<string,string> = { planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם', 'כניסה': 'כניסה' };
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                {(['בדרך לאזור','באזור','עוזב אזור','planned','active','coordinated','כניסה'] as const).map(st => {
+                  const stColors: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316', planned: '#64748b', active: '#60a5fa', coordinated: '#0ea5e9', 'כניסה': '#a78bfa' };
+                  const stLabels: Record<string,string> = { 'בדרך לאזור': '➡ בדרך', 'באזור': '✓ באזור', 'עוזב אזור': '↗ עוזב', planned: 'מתוכנן', active: 'פעיל', coordinated: 'מתואם', 'כניסה': 'כניסה' };
                   return (
                     <button key={st} type="button"
                       onClick={() => setFzDialog(p => p ? { ...p, selectedStatus: st } : p)}
-                      style={{ padding: '5px 10px', borderRadius: '5px', border: `1px solid ${fzDialog.selectedStatus === st ? stColors[st] : '#334155'}`, background: fzDialog.selectedStatus === st ? stColors[st] + '22' : '#0f172a', color: fzDialog.selectedStatus === st ? stColors[st] : '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                      style={{ padding: '4px 8px', borderRadius: '5px', border: `1px solid ${fzDialog.selectedStatus === st ? stColors[st] : '#334155'}`, background: fzDialog.selectedStatus === st ? stColors[st] + '22' : '#0f172a', color: fzDialog.selectedStatus === st ? stColors[st] : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
                       {stLabels[st]}
                     </button>
                   );
                 })}
               </div>
             </div>
+
+            {mapZones.filter(z => z.id !== fzDialog.zoneId).length > 0 && (
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📍 אזורים נוספים (בו"ז):</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {mapZones.filter(z => z.id !== fzDialog.zoneId).map(z => {
+                    const sel = (fzDialog.requestedZoneIds || []).includes(z.id);
+                    return (
+                      <button key={z.id} type="button"
+                        onClick={() => setFzDialog(p => p ? { ...p, requestedZoneIds: sel ? p.requestedZoneIds.filter(id => id !== z.id) : [...p.requestedZoneIds, z.id] } : p)}
+                        style={{ padding: '4px 8px', borderRadius: '5px', border: `1px solid ${sel ? z.color : '#334155'}`, background: sel ? z.color + '22' : '#0f172a', color: sel ? z.color : '#64748b', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: z.color, display: 'inline-block', flexShrink: 0 }} />
+                        {z.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📝 הערה:</label>

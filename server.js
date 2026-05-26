@@ -724,6 +724,7 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_x FLOAT`);
   await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS pos_y FLOAT`);
+  await pool.query(`ALTER TABLE strip_zone_assignments ADD COLUMN IF NOT EXISTS requested_zone_ids JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
   await pool.query(`
@@ -2379,17 +2380,18 @@ app.get('/api/strip-zone-assignments', async (req, res) => {
       LEFT JOIN zone_altitude_ranges zar ON zar.id = sza.altitude_range_id
       WHERE mz.map_id = $1
       ORDER BY sza.id`, [map_id]);
+    r.rows = r.rows.map(row => ({ ...row, requested_zone_ids: row.requested_zone_ids || [] }));
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 app.post('/api/strip-zone-assignments', async (req, res) => {
   try {
-    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y } = req.body;
+    const { strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids } = req.body;
     const r = await pool.query(`
-      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, updated_at)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, pos_x=$8, pos_y=$9, updated_at=NOW()
-      RETURNING *`, [strip_id, zone_id, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null]);
+      INSERT INTO strip_zone_assignments (strip_id, zone_id, altitude_range_id, status, note, coordination_note, is_coordinated, pos_x, pos_y, requested_zone_ids, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      ON CONFLICT (strip_id) DO UPDATE SET zone_id=$2, altitude_range_id=$3, status=$4, note=$5, coordination_note=$6, is_coordinated=$7, pos_x=$8, pos_y=$9, requested_zone_ids=$10, updated_at=NOW()
+      RETURNING *`, [strip_id, zone_id, altitude_range_id || null, status || 'planned', note || '', coordination_note || '', is_coordinated === true, pos_x ?? null, pos_y ?? null, JSON.stringify(requested_zone_ids || [])]);
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
