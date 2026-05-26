@@ -17610,7 +17610,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? _za.zone_color : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
@@ -17754,7 +17754,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: lightMode ? '#1e293b' : '#f1f5f9', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? _za.zone_color : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
