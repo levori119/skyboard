@@ -17393,16 +17393,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
                   }}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all' }}
-                  title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}`}
+                  title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
-                  {/* Helicopter image icon — ינשוף or יסעור by squadron */}
-                  <img
-                    src={heliSrc}
-                    alt=""
-                    draggable={false}
-                    className={hasConflict ? 'fzpin-conflict' : ''}
-                    style={{ width: heliW, height: 'auto', flexShrink: 0, filter: hasConflict ? `drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)` : `drop-shadow(0 0 ${heliW * 0.12}px ${sqColor}cc)` }}
-                  />
+                  {/* Helicopter image icon — coloured overlay by squadron */}
+                  <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                    <img
+                      src={heliSrc}
+                      alt=""
+                      draggable={false}
+                      className={hasConflict ? 'fzpin-conflict' : ''}
+                      style={{ width: heliW, height: 'auto', display: 'block', filter: hasConflict ? `drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)` : `drop-shadow(0 0 ${heliW * 0.12}px ${sqColor}cc)` }}
+                    />
+                    {/* Squadron colour tint overlay */}
+                    <div style={{ position: 'absolute', inset: 0, background: sqColor, mixBlendMode: 'color', pointerEvents: 'none', borderRadius: 2 }} />
+                    {/* Note indicator */}
+                    {(a.note || a.coordination_note) && (
+                      <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2 }}>!</div>
+                    )}
+                  </div>
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
                     {callLabel}
                   </div>
