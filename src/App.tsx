@@ -11399,6 +11399,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [zoneAltRanges, setZoneAltRanges] = useState<Record<number, ZoneAltRange[]>>({});
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
   const [fzDragStripId, setFzDragStripId] = useState<number | null>(null);
+  const [fzPanelCollapsed, setFzPanelCollapsed] = useState<Set<number>>(new Set());
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
@@ -17714,27 +17715,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   // In classic mode, don't show strips already assigned to "שלי"
                   (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
                 );
+                const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
+                type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
+                const renderItems: _RI[] = [];
+                if (isFlightZonesMode) {
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return zaA.zone_name.localeCompare(zaB.zone_name,'he');if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                  const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
+                  for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);}else _ua.push(s);}
+                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id))for(const s of strips)renderItems.push({kind:'strip',s,..._gst(s)});}
+                  if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',s,..._gst(s)});}
+                } else {
+                  const _sorted=[...sidebarStripList].sort((a,b)=>{if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
+                  for(const s of _sorted)renderItems.push({kind:'strip',s,..._gst(s)});
+                }
                 return (<>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length}):</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
-              {[...sidebarStripList].sort((a,b) => {
-                if (a.airborne && !b.airborne) return -1;
-                if (!a.airborne && b.airborne) return 1;
-                const ta = a.takeoff_time ? new Date(a.takeoff_time).getTime() : Infinity;
-                const tb = b.takeoff_time ? new Date(b.takeoff_time).getTime() : Infinity;
-                return ta - tb;
-              }).map(s => {
-                const now = new Date();
-                const tkDt = s.takeoff_time ? new Date(s.takeoff_time) : null;
-                const tkPast = tkDt && !isNaN(tkDt.getTime()) && tkDt < now && !s.airborne;
-                let tkLabel = '';
-                if (tkDt && !isNaN(tkDt.getTime())) {
-                  const hh = tkDt.getHours().toString().padStart(2,'0');
-                  const mm = tkDt.getMinutes().toString().padStart(2,'0');
-                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                  const tkDay = new Date(tkDt.getFullYear(), tkDt.getMonth(), tkDt.getDate());
-                  tkLabel = tkDay.getTime() !== today.getTime() ? `${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}` : `${hh}:${mm}`;
-                }
+              {renderItems.map(item => {
+                if (item.kind === 'zone') return (
+                  <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color}`, direction:'rtl', userSelect:'none' }}>
+                    <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color, flexShrink:0, display:'inline-block' }} />
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color, flex:1 }}>{item.za.zone_name}</span>
+                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
+                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(item.zoneId) ? '▶' : '▼'}</span>
+                  </div>
+                );
+                if (item.kind === 'unassigned') return (
+                  <div key="fzh-unassigned" onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(-1)?n.delete(-1):n.add(-1); return n; })}
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius:'5px', border:`1px dashed ${lightMode ? '#94a3b8' : '#475569'}`, direction:'rtl', userSelect:'none' }}>
+                    <span style={{ fontSize:'13px' }}>⊙</span>
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:T.muted, flex:1 }}>ללא הקצאה</span>
+                    <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
+                    <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(-1) ? '▶' : '▼'}</span>
+                  </div>
+                );
+                const { s, now, tkDt, tkPast, tkLabel } = item;
                 return (
                 <div
                   key={s.id}
