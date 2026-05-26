@@ -1327,11 +1327,22 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px' }}>אזורים שמורים ({zones.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {zones.map(z => (
-                  <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}` }}
-                    onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}>
+                  <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '6px 8px', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}` }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: z.color, flexShrink: 0 }} />
-                    <span style={{ color: '#e2e8f0', fontSize: '12px', flex: 1 }}>{z.name}</span>
-                    <span style={{ color: '#475569', fontSize: '10px' }}>{z.polygon.length} נק'</span>
+                    <span style={{ color: '#e2e8f0', fontSize: '12px', flex: 1, cursor: 'default' }}>{z.name}</span>
+                    <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>{z.polygon.length} נק'</span>
+                    <button
+                      title="עריכה"
+                      onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}
+                      style={{ background: editingZone?.id === z.id ? '#1d4ed8' : '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', flexShrink: 0 }}>
+                      ✏️
+                    </button>
+                    <button
+                      title="מחיקה"
+                      onClick={(e) => { e.stopPropagation(); deleteZone(z.id); if (editingZone?.id === z.id) setEditingZone(null); }}
+                      style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', borderRadius: '4px', padding: '3px 5px', fontSize: '13px', flexShrink: 0 }}>
+                      🗑
+                    </button>
                   </div>
                 ))}
                 {zones.length === 0 && <div style={{ color: '#334155', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין אזורים עדיין</div>}
