@@ -17591,11 +17591,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
               // Uncoordinated conflict: another pin shares same zone + altitude range
               const allZonesA = [a.zone_id, ...(a.requested_zone_ids || [])];
-              const hasConflict = !a.is_coordinated && a.altitude_range_id !== null && stripZoneAssignments.some(
+              const hasConflict = !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
                   if (b.strip_id === a.strip_id) return false;
                   const allZonesB = [b.zone_id, ...(b.requested_zone_ids || [])];
-                  return allZonesA.some(z => allZonesB.includes(z)) && b.altitude_range_id === a.altitude_range_id && !b.is_coordinated;
+                  if (!allZonesA.some(z => allZonesB.includes(z))) return false;
+                  const altConflicts = a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
+                  return altConflicts && !b.is_coordinated;
                 }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
@@ -17636,8 +17638,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
                   <div draggable={false}
-                    className={hasConflict ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
+                    className={hasConflict ? 'fzring-conflict' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
+                      background: hasConflict ? 'rgba(239,68,68,0.35)' : a.status === 'בדרך לאזור' ? 'rgba(245,158,11,0.28)' : a.status === 'עוזב אזור' ? 'rgba(249,115,22,0.28)' : sqColor + '33',
                       border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? '2.5px dashed #f59e0b' : a.status === 'עוזב אזור' ? '2.5px solid #f97316' : `2.5px solid ${sqColor}`,
                       boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : a.status === 'בדרך לאזור' ? '0 0 10px 4px #f59e0b99, 0 0 22px 8px #f59e0b44' : a.status === 'עוזב אזור' ? '0 0 10px 4px #f9731699, 0 0 24px 10px #f9731633' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
@@ -18097,7 +18100,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
                   })}
-                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (isFlightZonesMode && fzDragStripId === s.id) ? '#1e3a5f' : isDraggingThis ? '#1d4ed8' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${isFlightZonesMode && stripZoneAssignments.find(a => a.strip_id === s.id) ? '#22c55e' : tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isDraggingThis) return '#1d4ed8'; if (isFlightZonesMode) { const _asgnC = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC) { const _zA2 = [_asgnC.zone_id, ...(_asgnC.requested_zone_ids || [])]; const _cfC = !_asgnC.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC.strip_id) return false; const bz2 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zA2.some(z => bz2.includes(z)) && (_asgnC.altitude_range_id === null || b.altitude_range_id === null || _asgnC.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB) { const _zB = [_asgnB.zone_id, ...(_asgnB.requested_zone_ids || [])]; const _cfB = !_asgnB.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB.strip_id) return false; const bz = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zB.some(z => bz.includes(z)) && (_asgnB.altitude_range_id === null || b.altitude_range_id === null || _asgnB.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
@@ -18286,7 +18289,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
                   })}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (isFlightZonesMode && fzDragStripId === s.id) ? '#1e3a5f' : (lightMode ? '#f8fafc' : '#1e293b'), border: `1px solid ${isFlightZonesMode && stripZoneAssignments.find(a => a.strip_id === s.id) ? '#22c55e' : tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155')}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(_asgnC2.requested_zone_ids || [])]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(_asgnB2.requested_zone_ids || [])]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
@@ -19577,7 +19580,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: 'bold', marginBottom: '12px' }}>⚠️ קונפליקט גובה מזוהה</div>
             <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>הפממים הבאים תפוסים באותו טווח גובה באזור זה:</div>
             {fzConflictDialog.conflicts.map(c => {
-              const s = myTableStrips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
+              const s = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
               const displayName = s ? getFormationDisplayName(s) : null;
               const squadron = s ? (s.sq || s.squadron) : null;
               return (

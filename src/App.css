@@ -26,6 +26,16 @@
   animation: fzpin-leaving-pulse 0.85s ease-in-out infinite;
 }
 
+/* Ring pulse for uncoordinated conflict */
+@keyframes fzring-conflict {
+  0%, 100% { box-shadow: 0 0 8px 4px #ef444488, 0 0 18px 8px #ef444433; background: rgba(239,68,68,0.30); }
+  50%       { box-shadow: 0 0 18px 10px #ef4444cc, 0 0 36px 18px #ef444422; background: rgba(239,68,68,0.50); }
+}
+.fzring-conflict {
+  animation: fzring-conflict 0.65s ease-in-out infinite;
+  border: 2.5px solid #ef4444 !important;
+}
+
 /* Ring pulse for heading */
 @keyframes fzring-heading {
   0%, 100% { box-shadow: 0 0 8px 3px #f59e0b99, 0 0 18px 7px #f59e0b44; }
