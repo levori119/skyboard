@@ -21691,50 +21691,105 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: מציג SID בפ"מ | יב"א: מציג STAR בפ"מ</p>
                 </div>
 
-                {presetForm.preset_type === 'civilian' && <div style={{ marginTop: '18px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                  <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>✈ עמודות לוח אזרחי</div>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>הגדר עמודות לצג ATC. כל עמודה יכולה לכלול תת-עמודות (מספרי ביה"ש).</p>
-                  {((presetForm as any).civilian_columns || []).map((col: CivCol, ci: number) => (
-                    <div key={ci} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'flex-start' }}>
-                      <input
-                        value={col.label}
-                        onChange={e => setPresetForm(p => {
-                          const cols = [...((p as any).civilian_columns || [])];
-                          cols[ci] = { ...cols[ci], label: e.target.value, key: e.target.value.toLowerCase().replace(/\s+/g, '_') };
-                          return { ...p, civilian_columns: cols };
-                        })}
-                        placeholder="שם עמודה"
-                        style={{ flex: 1, padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}
-                      />
-                      <input
-                        value={(col.sub_cols || []).join(',')}
-                        onChange={e => setPresetForm(p => {
-                          const cols = [...((p as any).civilian_columns || [])];
-                          cols[ci] = { ...cols[ci], sub_cols: e.target.value ? e.target.value.split(',').map(s => s.trim()) : [] };
-                          return { ...p, civilian_columns: cols };
-                        })}
-                        placeholder="תת-עמ' (מופרדות בפסיק)"
-                        style={{ flex: 1, padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}
-                      />
-                      <input type="color" value={col.color || '#94a3b8'}
-                        onChange={e => setPresetForm(p => {
-                          const cols = [...((p as any).civilian_columns || [])];
-                          cols[ci] = { ...cols[ci], color: e.target.value };
-                          return { ...p, civilian_columns: cols };
-                        })}
-                        style={{ width: '32px', height: '32px', padding: '2px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}
-                      />
-                      <button type="button" onClick={() => setPresetForm(p => {
-                        const cols = ((p as any).civilian_columns || []).filter((_: any, i: number) => i !== ci);
-                        return { ...p, civilian_columns: cols };
-                      })} style={{ padding: '6px 10px', background: '#7f1d1d', border: 'none', borderRadius: '4px', color: '#fca5a5', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                {presetForm.preset_type === 'civilian' && (() => {
+                  const civCols: CivCol[] = (presetForm as any).civilian_columns || [];
+                  const setCivCols = (cols: CivCol[]) => setPresetForm(p => ({ ...p, civilian_columns: cols }));
+                  const DEFAULT_COLORS = ['#1a5fa8','#0d7a3e','#c8a800','#7b2d8b','#c0392b','#1a6b6b','#e67e22','#2c3e50'];
+                  return (
+                    <div style={{ marginTop: '18px', padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>✈ עמודות לוח אזרחי</div>
+                      <p style={{ margin: '0 0 12px 0', fontSize: '11px', color: '#475569' }}>גרור כרטיסיות לשינוי סדר. לחץ על שם לעריכה. עד 8 עמודות.</p>
+
+                      {/* Visual board preview with draggable columns */}
+                      <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '6px', minHeight: '90px', alignItems: 'stretch', background: '#07090c', borderRadius: '8px', padding: '10px', border: '1px solid #1e293b' }}>
+                        {civCols.map((col, ci) => (
+                          <div
+                            key={col.key}
+                            draggable
+                            onDragStart={e => { e.dataTransfer.setData('text/plain', String(ci)); }}
+                            onDragOver={e => { e.preventDefault(); }}
+                            onDrop={e => {
+                              e.preventDefault();
+                              const from = parseInt(e.dataTransfer.getData('text/plain'));
+                              if (isNaN(from) || from === ci) return;
+                              const next = [...civCols];
+                              const [moved] = next.splice(from, 1);
+                              next.splice(ci, 0, moved);
+                              setCivCols(next);
+                            }}
+                            style={{ minWidth: '110px', flex: '0 0 auto', display: 'flex', flexDirection: 'column', borderRadius: '6px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.08)', cursor: 'grab', userSelect: 'none' }}
+                          >
+                            {/* Header bar — column color */}
+                            <div style={{ background: col.color || '#94a3b8', padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'space-between' }}>
+                              <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', cursor: 'grab' }}>⠿</span>
+                              <input
+                                value={col.label}
+                                onChange={e => {
+                                  const next = [...civCols];
+                                  next[ci] = { ...next[ci], label: e.target.value, key: e.target.value.toLowerCase().replace(/\s+/g, '_') || `col_${ci}` };
+                                  setCivCols(next);
+                                }}
+                                onClick={e => e.stopPropagation()}
+                                onDragStart={e => e.stopPropagation()}
+                                placeholder="שם עמודה"
+                                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'white', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', minWidth: 0, cursor: 'text' }}
+                              />
+                              <button type="button" onClick={() => setCivCols(civCols.filter((_, i) => i !== ci))}
+                                style={{ background: 'rgba(0,0,0,0.35)', border: 'none', borderRadius: '3px', color: '#ffaaaa', cursor: 'pointer', fontSize: '10px', padding: '1px 4px', lineHeight: 1 }}>✕</button>
+                            </div>
+                            {/* Body — strip placeholder lines */}
+                            <div style={{ flex: 1, background: '#0d1b2a', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {[1,2].map(n => (
+                                <div key={n} style={{ height: '18px', background: '#c8d8e4', borderRadius: '3px', opacity: 0.18 }} />
+                              ))}
+                            </div>
+                            {/* Footer — color picker + sub-cols */}
+                            <div style={{ background: '#0a1220', padding: '5px 6px', display: 'flex', alignItems: 'center', gap: '5px', borderTop: '1px solid #1e293b' }}>
+                              <input type="color" value={col.color || '#94a3b8'}
+                                onChange={e => {
+                                  const next = [...civCols];
+                                  next[ci] = { ...next[ci], color: e.target.value };
+                                  setCivCols(next);
+                                }}
+                                onDragStart={e => e.stopPropagation()}
+                                style={{ width: '22px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent' }}
+                              />
+                              <input
+                                value={(col.sub_cols || []).join(',')}
+                                onChange={e => {
+                                  const next = [...civCols];
+                                  next[ci] = { ...next[ci], sub_cols: e.target.value ? e.target.value.split(',').map(s => s.trim()) : [] };
+                                  setCivCols(next);
+                                }}
+                                onClick={e => e.stopPropagation()}
+                                onDragStart={e => e.stopPropagation()}
+                                placeholder="תת-עמ'"
+                                title="תת-עמודות מופרדות בפסיק (לדוג': 01,02,03)"
+                                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#64748b', fontSize: '10px', minWidth: 0, cursor: 'text' }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Add column button — appears as an empty slot */}
+                        {civCols.length < 8 && (
+                          <button type="button"
+                            onClick={() => {
+                              const nextColor = DEFAULT_COLORS[civCols.length % DEFAULT_COLORS.length];
+                              setCivCols([...civCols, { key: `col_${Date.now()}`, label: '', sub_cols: [], color: nextColor }]);
+                            }}
+                            style={{ minWidth: '60px', flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '6px', border: '2px dashed #1e3a5f', background: 'transparent', color: '#334155', cursor: 'pointer', fontSize: '22px', padding: '10px' }}>
+                            <span>+</span>
+                            <span style={{ fontSize: '10px', color: '#334155' }}>עמודה</span>
+                          </button>
+                        )}
+                      </div>
+                      <p style={{ margin: '6px 0 0 0', fontSize: '10px', color: '#334155' }}>
+                        {civCols.length} עמודות • גרור לשינוי סדר • צבע בחלק התחתון • תת-עמ' (ביה"ש) מופרדות בפסיק
+                      </p>
                     </div>
-                  ))}
-                  <button type="button" onClick={() => setPresetForm(p => {
-                    const cols = [...((p as any).civilian_columns || []), { key: `col_${Date.now()}`, label: '', sub_cols: [], color: '#94a3b8' }];
-                    return { ...p, civilian_columns: cols };
-                  })} style={{ padding: '6px 14px', background: '#0c2a40', border: '1px solid #1e3a5f', borderRadius: '4px', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>+ הוסף עמודה</button>
-                </div>}
+                  );
+                })()}
 
                 {presetForm.preset_type === 'normal' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>מצב תצוגה ברירת מחדל:</label>

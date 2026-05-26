@@ -2399,6 +2399,7 @@ app.get('/api/civilian-assignments', async (req, res) => {
 app.post('/api/civilian-assignments', async (req, res) => {
   try {
     const { strip_id, preset_id, col_key, sub_col, sort_order } = req.body;
+    if (!strip_id || !preset_id) return res.status(400).json({ error: 'strip_id and preset_id required' });
     const result = await pool.query(
       `INSERT INTO civilian_strip_assignments (strip_id, preset_id, col_key, sub_col, sort_order)
        VALUES ($1, $2, $3, $4, $5)
