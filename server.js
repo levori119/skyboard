@@ -908,6 +908,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_stand VARCHAR(50) DEFAULT ''`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_dest VARCHAR(20) DEFAULT ''`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_ssr VARCHAR(20) DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_fl VARCHAR(20) DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_route TEXT DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_time VARCHAR(10) DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS civ_runway VARCHAR(10) DEFAULT ''`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS civilian_strip_assignments (
       id SERIAL PRIMARY KEY,
@@ -1310,6 +1314,15 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.landing_base_id !== undefined) { updates.push(`landing_base_id = $${paramIndex++}`); values.push(req.body.landing_base_id ? parseInt(req.body.landing_base_id) : null); }
     if (req.body.takeoff_airfield_id !== undefined) { updates.push(`takeoff_airfield_id = $${paramIndex++}`); values.push(req.body.takeoff_airfield_id ? parseInt(req.body.takeoff_airfield_id) : null); }
     if (req.body.landing_airfield_id !== undefined) { updates.push(`landing_airfield_id = $${paramIndex++}`); values.push(req.body.landing_airfield_id ? parseInt(req.body.landing_airfield_id) : null); }
+    if (req.body.civ_status !== undefined) { updates.push(`civ_status = $${paramIndex++}`); values.push(req.body.civ_status); }
+    if (req.body.civ_stand !== undefined) { updates.push(`civ_stand = $${paramIndex++}`); values.push(req.body.civ_stand); }
+    if (req.body.civ_dest !== undefined) { updates.push(`civ_dest = $${paramIndex++}`); values.push(req.body.civ_dest); }
+    if (req.body.civ_ssr !== undefined) { updates.push(`civ_ssr = $${paramIndex++}`); values.push(req.body.civ_ssr); }
+    if (req.body.civ_fl !== undefined) { updates.push(`civ_fl = $${paramIndex++}`); values.push(req.body.civ_fl); }
+    if (req.body.civ_route !== undefined) { updates.push(`civ_route = $${paramIndex++}`); values.push(req.body.civ_route); }
+    if (req.body.civ_time !== undefined) { updates.push(`civ_time = $${paramIndex++}`); values.push(req.body.civ_time); }
+    if (req.body.civ_runway !== undefined) { updates.push(`civ_runway = $${paramIndex++}`); values.push(req.body.civ_runway); }
+    if (req.body.unit !== undefined) { updates.push(`unit = $${paramIndex++}`); values.push(req.body.unit); }
 
     if (updates.length > 0) {
       values.push(id);
@@ -2401,6 +2414,46 @@ app.delete('/api/civilian-assignments/:stripId/:presetId', async (req, res) => {
     await pool.query('DELETE FROM civilian_strip_assignments WHERE strip_id = $1 AND preset_id = $2', [req.params.stripId, req.params.presetId]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// ─── Civilian Strips API ─────────────────────────────────────────────────────
+app.get('/api/civ-strips', async (req, res) => {
+  const { preset_id } = req.query;
+  if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+  try {
+    const result = await pool.query(`
+      SELECT s.*, csa.col_key, csa.sub_col, csa.sort_order, csa.id as assignment_id
+      FROM strips s
+      JOIN civilian_strip_assignments csa ON s.id = csa.strip_id AND csa.preset_id = $1
+      ORDER BY csa.col_key, csa.sort_order, s.id
+    `, [preset_id]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/civ-strips', async (req, res) => {
+  const { preset_id, col_key = '', sub_col = '', callSign, unit, civ_fl, civ_stand, civ_dest, civ_time, civ_route, civ_ssr, civ_runway, civ_status } = req.body;
+  if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+  try {
+    const stripRes = await pool.query(
+      `INSERT INTO strips (callsign, unit, status, in_table, civ_status, civ_stand, civ_dest, civ_ssr, civ_fl, civ_route, civ_time, civ_runway)
+       VALUES ($1,$2,'active',true,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [callSign||'', unit||'', civ_status||'', civ_stand||'', civ_dest||'', civ_ssr||'', civ_fl||'', civ_route||'', civ_time||'', civ_runway||'']
+    );
+    const strip = stripRes.rows[0];
+    await pool.query(
+      `INSERT INTO civilian_strip_assignments (strip_id, preset_id, col_key, sub_col, sort_order) VALUES ($1,$2,$3,$4,0)`,
+      [strip.id, preset_id, col_key, sub_col]
+    );
+    res.json({ ...strip, col_key, sub_col, sort_order: 0, assignment_id: null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/civ-strips/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strips WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // System Defaults API

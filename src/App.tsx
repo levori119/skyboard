@@ -8495,22 +8495,22 @@ type CivCol = { key: string; label: string; sub_cols?: string[]; color?: string 
 type CivAssignment = { id: number; strip_id: number; preset_id: number; col_key: string; sub_col: string; sort_order: number };
 
 const CIV_STATUSES = [
-  { key: 'LAND',    color: '#60a5fa', bg: '#1e3a5f' },
-  { key: 'TDN',     color: '#94a3b8', bg: '#1e293b' },
-  { key: 'LUP+BAR', color: '#f59e0b', bg: '#422006' },
-  { key: 'LUP',     color: '#fb923c', bg: '#431407' },
-  { key: 'TAXI',    color: '#4ade80', bg: '#14532d' },
-  { key: 'APRON',   color: '#22d3ee', bg: '#083344' },
-  { key: 'CTC',     color: '#c4b5fd', bg: '#2e1065' },
-  { key: 'S→P',     color: '#f9a8d4', bg: '#500724' },
-  { key: 'EOB',     color: '#64748b', bg: '#0f172a' },
-  { key: '',        color: '#475569', bg: '#1e293b' },
+  { key: 'CLR', color: '#ffffff', bg: '#2563eb', label: 'CLEARANCE' },
+  { key: 'TXI', color: '#ffffff', bg: '#1d4ed8', label: 'TAXI' },
+  { key: 'CTL', color: '#ffffff', bg: '#374151', label: 'CONTROL' },
+  { key: 'LUW', color: '#ffffff', bg: '#4b5563', label: 'LUAW' },
+  { key: 'GPB', color: '#000000', bg: '#ca8a04', label: 'PUSHBACK' },
+  { key: 'HOO', color: '#ffffff', bg: '#0d9488', label: 'HANDOVER' },
+  { key: 'ENT', color: '#ffffff', bg: '#16a34a', label: 'ENTRY' },
+  { key: 'SEQ', color: '#ffffff', bg: '#7c3aed', label: 'SEQUENCE' },
+  { key: '',   color: '#94a3b8', bg: '#1e293b', label: '' },
 ];
 
-const CivilianStripCard = ({ strip, onUpdateField, onDragStart }: {
+const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete }: {
   strip: any;
   onUpdateField: (id: string, field: string, val: string) => void;
   onDragStart: (e: React.DragEvent, stripId: string) => void;
+  onDelete?: (id: string) => void;
 }) => {
   const [editingField, setEditingField] = React.useState<string | null>(null);
   const statusInfo = CIV_STATUSES.find(s => s.key === (strip.civ_status || '')) || CIV_STATUSES[CIV_STATUSES.length - 1];
@@ -8522,42 +8522,96 @@ const CivilianStripCard = ({ strip, onUpdateField, onDragStart }: {
     onUpdateField(String(strip.id), 'civ_status', next.key);
   };
 
-  const InlineEdit = ({ field, value, style }: { field: string; value: string; style?: React.CSSProperties }) => (
+  const InlineEdit = ({ field, value, placeholder, style, wide }: { field: string; value: string; placeholder?: string; style?: React.CSSProperties; wide?: boolean }) => (
     editingField === field
       ? <input
           autoFocus
           defaultValue={value}
+          placeholder={placeholder}
           onBlur={e => { onUpdateField(String(strip.id), field, e.target.value); setEditingField(null); }}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
           onClick={e => e.stopPropagation()}
-          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderBottom: '1px solid #60a5fa', color: 'white', fontSize: '11px', fontFamily: 'monospace', width: '52px', outline: 'none', padding: '0 2px', ...style }}
+          style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderBottom: '1px solid #60a5fa', color: '#e2e8f0', fontFamily: 'monospace', outline: 'none', padding: '0 2px', width: wide ? '100%' : '50px', ...style }}
         />
-      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} style={{ cursor: 'text', ...style }}>{value || '·'}</span>
+      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title="לחץ לעריכה" style={{ cursor: 'text', ...style }}>{value || <span style={{ opacity: 0.3 }}>{placeholder || '·'}</span>}</span>
   );
+
+  const runway = strip.civ_runway || '';
 
   return (
     <div
       draggable
       onDragStart={e => onDragStart(e, String(strip.id))}
-      style={{ background: '#111e36', border: '1px solid #1e3a5f', borderRadius: '2px', marginBottom: '2px', cursor: 'grab', userSelect: 'none', fontFamily: 'monospace', fontSize: '12px' }}
+      style={{
+        background: '#0d1929',
+        border: '1px solid #1e3a5f',
+        borderLeft: `4px solid ${statusInfo.bg}`,
+        borderRadius: '2px',
+        marginBottom: '3px',
+        cursor: 'grab',
+        userSelect: 'none',
+        fontFamily: 'monospace',
+        position: 'relative',
+      }}
     >
-      {/* Row 1: callsign + status */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '3px 5px 2px', gap: '5px', borderBottom: '1px solid #1a2e4a' }}>
-        <span style={{ color: 'white', fontSize: '14px', fontWeight: 'bold', flex: 1, letterSpacing: '0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{strip.callSign || '—'}</span>
-        {strip.unit && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.unit}</span>}
+      <div style={{ display: 'flex', minHeight: '70px' }}>
+
+        {/* LEFT — callsign + airline */}
+        <div style={{ width: '88px', minWidth: '88px', borderRight: '1px solid #1a2e4a', padding: '5px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden' }}>
+          <div style={{ fontSize: '14px', fontWeight: 900, color: '#e2e8f0', letterSpacing: '0.5px', lineHeight: 1.1, overflow: 'hidden' }}>
+            <InlineEdit field="callSign" value={strip.callSign || ''} placeholder="CALLSIGN" style={{ fontSize: '14px', fontWeight: 900, color: '#e2e8f0', width: '78px' }} />
+          </div>
+          <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            <InlineEdit field="unit" value={strip.unit || ''} placeholder="Airline" style={{ fontSize: '9px', color: '#64748b', width: '78px' }} />
+          </div>
+        </div>
+
+        {/* MIDDLE — flight info */}
+        <div style={{ flex: 1, padding: '4px 5px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', minWidth: 0 }}>
+
+          {/* Row 1: FL Stand Gate Time + SSR */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+            <div style={{ display: 'flex', gap: '5px', fontSize: '10px', color: '#94a3b8', flexWrap: 'nowrap', overflow: 'hidden' }}>
+              <span style={{ color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '1px' }}>
+                FL<InlineEdit field="civ_fl" value={strip.civ_fl || ''} placeholder="320" style={{ color: '#60a5fa', fontSize: '10px', width: '28px' }} />
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
+                S<InlineEdit field="civ_stand" value={strip.civ_stand || ''} placeholder="432" style={{ color: '#94a3b8', fontSize: '10px', width: '24px' }} />
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
+                A<InlineEdit field="civ_dest" value={strip.civ_dest || ''} placeholder="23" style={{ color: '#94a3b8', fontSize: '10px', width: '18px' }} />
+              </span>
+              <InlineEdit field="civ_time" value={strip.civ_time || ''} placeholder="12:35" style={{ color: '#94a3b8', fontSize: '10px', width: '38px' }} />
+            </div>
+            <div style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>
+              <InlineEdit field="civ_ssr" value={strip.civ_ssr || ''} placeholder="SSR" style={{ color: '#475569', fontSize: '9px', width: '44px', textAlign: 'right' }} />
+            </div>
+          </div>
+
+          {/* Row 2: Route */}
+          <div style={{ fontSize: '9px', color: '#475569', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <InlineEdit field="civ_route" value={strip.civ_route || ''} placeholder="ROUTE..." style={{ color: '#475569', fontSize: '9px', width: '100%' }} wide />
+          </div>
+
+          {/* Row 3: runway + status */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+            <InlineEdit field="civ_runway" value={runway} placeholder="26L" style={{ fontSize: '17px', fontWeight: 900, color: '#e2e8f0', width: '38px', letterSpacing: '-0.5px' }} />
+            <button
+              onClick={cycleStatus}
+              style={{ background: statusInfo.bg, color: statusInfo.color, border: 'none', borderRadius: '2px', padding: '2px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.5px', fontFamily: 'monospace', flexShrink: 0 }}
+            >{statusInfo.key || '—'}</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Delete button (only shown when onDelete provided) */}
+      {onDelete && (
         <button
-          onClick={cycleStatus}
-          style={{ background: statusInfo.bg, color: statusInfo.color, border: `1px solid ${statusInfo.color}66`, borderRadius: '2px', padding: '1px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'monospace' }}
-        >{statusInfo.key || '—'}</button>
-      </div>
-      {/* Row 2: stand | altitude | destination | SSR */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '2px 5px 3px', gap: '6px', color: '#64748b', fontSize: '11px' }}>
-        <span style={{ color: '#94a3b8', fontSize: '10px', minWidth: '32px', flexShrink: 0 }}>{strip.unit || ''}</span>
-        <InlineEdit field="civ_stand" value={strip.civ_stand || ''} style={{ color: '#fbbf24', minWidth: '28px' }} />
-        {strip.altitude && <span style={{ color: '#93c5fd' }}>{strip.altitude}</span>}
-        <InlineEdit field="civ_dest" value={strip.civ_dest || ''} style={{ color: '#6ee7b7', fontWeight: 'bold' }} />
-        {strip.civ_ssr && <span style={{ color: '#a78bfa', fontSize: '10px', marginLeft: 'auto' }}>{strip.civ_ssr}</span>}
-      </div>
+          onClick={e => { e.stopPropagation(); if (confirm(`מחק סטריפ ${strip.callSign}?`)) onDelete(String(strip.id)); }}
+          style={{ position: 'absolute', top: '2px', right: '2px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
+          title="מחק"
+        >✕</button>
+      )}
     </div>
   );
 };
@@ -8603,9 +8657,19 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
         return (
           <div key={col.key} style={{ display: 'flex', flexDirection: 'column', width: colWidth, minWidth: colWidth, flex: hasSubs ? `0 0 ${colWidth}` : '1', borderRight: '1px solid #1a2e4a', overflow: 'hidden' }}>
             {/* Column header */}
-            <div style={{ background: '#0a1628', padding: '5px 8px', textAlign: 'center', color: col.color || '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1.5px', borderBottom: '2px solid #1a2e4a', textTransform: 'uppercase', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {col.label}
-            </div>
+            {(() => {
+              const colCount = col.key === '__queue__'
+                ? (() => { const assignedIds = new Set(assignments.map(a => Number(a.strip_id))); return strips.filter(s => !assignedIds.has(Number(s.id))).length; })()
+                : (col.sub_cols && col.sub_cols.length > 0
+                  ? col.sub_cols.reduce((sum, sub) => sum + assignments.filter(a => a.col_key === col.key && a.sub_col === sub).length, 0)
+                  : assignments.filter(a => a.col_key === col.key && a.sub_col === '').length);
+              return (
+                <div style={{ background: col.key === '__queue__' ? '#1e293b' : (col.color || '#1e3a5f'), padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0a0f1a', flexShrink: 0 }}>
+                  <span style={{ color: '#ffffff', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</span>
+                  <span style={{ background: 'rgba(0,0,0,0.35)', color: '#ffffff', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '2px', padding: '0 5px', minWidth: '18px', textAlign: 'center', flexShrink: 0, marginLeft: '4px' }}>{colCount}</span>
+                </div>
+              );
+            })()}
             {/* Column body: either sub-columns or single drop zone */}
             {hasSubs ? (
               <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -20586,6 +20650,225 @@ const DebriefingTab = ({ presets: presetsProp, crewMembers: crewMembersProp, lig
   );
 };
 
+// ─── Civilian Strips Admin (admin tab component) ─────────────────────────────
+const CivilianStripsAdmin = () => {
+  const [presets, setPresets] = useState<any[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<number | null>(null);
+  const [strips, setStrips] = useState<any[]>([]);
+  const [civCols, setCivCols] = useState<CivCol[]>([]);
+  const [assignments, setAssignments] = useState<CivAssignment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addToCol, setAddToCol] = useState('');
+  const [newStrip, setNewStrip] = useState({ callSign: '', unit: '', civ_fl: '', civ_stand: '', civ_dest: '', civ_time: '', civ_route: '', civ_ssr: '', civ_runway: '', civ_status: 'CLR' });
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch(`${API_URL}/presets`).then(r => r.json()).then((data: any[]) => {
+      const civPresets = data.filter(p => p.preset_type === 'civilian');
+      setPresets(civPresets);
+      if (civPresets.length > 0) setSelectedPresetId(civPresets[0].id);
+    }).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectedPresetId) return;
+    setLoading(true);
+    const preset = presets.find(p => p.id === selectedPresetId);
+    const cols: CivCol[] = Array.isArray(preset?.civilian_columns) ? preset.civilian_columns : [];
+    setCivCols(cols);
+    Promise.all([
+      fetch(`${API_URL}/civ-strips?preset_id=${selectedPresetId}`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/civilian-assignments?preset_id=${selectedPresetId}`).then(r => r.ok ? r.json() : []),
+    ]).then(([stripsData, assignData]) => {
+      setStrips(Array.isArray(stripsData) ? stripsData : []);
+      setAssignments(Array.isArray(assignData) ? assignData : []);
+    }).finally(() => setLoading(false));
+  }, [selectedPresetId, presets]);
+
+  const updateField = (id: string, field: string, val: string) => {
+    setStrips(prev => prev.map(s => String(s.id) === id ? { ...s, [field]: val } : s));
+    fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }).catch(() => {});
+  };
+
+  const deleteStrip = async (id: string) => {
+    await fetch(`${API_URL}/civ-strips/${id}`, { method: 'DELETE' });
+    setStrips(prev => prev.filter(s => String(s.id) !== id));
+    setAssignments(prev => prev.filter(a => String(a.strip_id) !== id));
+  };
+
+  const addStrip = async () => {
+    if (!selectedPresetId || !newStrip.callSign.trim()) return;
+    try {
+      const res = await fetch(`${API_URL}/civ-strips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newStrip, preset_id: selectedPresetId, col_key: addToCol }),
+      });
+      const strip = await res.json();
+      setStrips(prev => [...prev, strip]);
+      if (addToCol) {
+        setAssignments(prev => [...prev, { id: Date.now(), strip_id: strip.id, preset_id: selectedPresetId, col_key: addToCol, sub_col: '', sort_order: 0 }]);
+      }
+      setNewStrip({ callSign: '', unit: '', civ_fl: '', civ_stand: '', civ_dest: '', civ_time: '', civ_route: '', civ_ssr: '', civ_runway: '', civ_status: 'CLR' });
+      setShowAddForm(false);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAssign = (stripId: string, colKey: string, subCol = '') => {
+    setAssignments(prev => {
+      const without = prev.filter(a => String(a.strip_id) !== stripId);
+      return [...without, { id: Date.now(), strip_id: Number(stripId), preset_id: selectedPresetId!, col_key: colKey, sub_col: subCol, sort_order: 0 }];
+    });
+    fetch(`${API_URL}/civilian-assignments`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ strip_id: stripId, preset_id: selectedPresetId, col_key: colKey, sub_col: subCol, sort_order: 0 }),
+    }).catch(() => {});
+  };
+
+  const allCols: CivCol[] = [...civCols, { key: '__queue__', label: 'תור (לא משויך)', color: '#475569' }];
+
+  const getStripsInCol = (colKey: string, subCol = '') => {
+    const assigned = assignments.filter(a => a.col_key === colKey && a.sub_col === subCol);
+    return assigned.sort((a, b) => a.sort_order - b.sort_order).map(a => strips.find(s => Number(s.id) === Number(a.strip_id))).filter(Boolean);
+  };
+
+  const getUnassigned = () => {
+    const assignedIds = new Set(assignments.map(a => Number(a.strip_id)));
+    return strips.filter(s => !assignedIds.has(Number(s.id)));
+  };
+
+  const fieldStyle: React.CSSProperties = { background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', padding: '4px 8px', fontSize: '11px', fontFamily: 'monospace', outline: 'none' };
+
+  if (presets.length === 0) return (
+    <div style={{ textAlign: 'center', color: '#64748b', padding: '40px', fontSize: '14px' }}>
+      אין עמדות מסוג ✈ אזרחי.<br />
+      <span style={{ fontSize: '12px' }}>צור עמדה עם סוג "✈ אזרחי" בטאב עמדות.</span>
+    </div>
+  );
+
+  return (
+    <div style={{ direction: 'ltr' }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <select
+          value={selectedPresetId || ''}
+          onChange={e => setSelectedPresetId(Number(e.target.value))}
+          style={{ ...fieldStyle, padding: '6px 10px', fontSize: '13px' }}
+        >
+          {presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+
+        <button
+          onClick={() => { setShowAddForm(true); setAddToCol(civCols[0]?.key || ''); }}
+          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace' }}
+        >+ NEW STRIP</button>
+
+        {loading && <span style={{ color: '#64748b', fontSize: '11px', fontFamily: 'monospace' }}>LOADING...</span>}
+        <span style={{ color: '#475569', fontSize: '11px', fontFamily: 'monospace', marginLeft: 'auto' }}>{strips.length} STRIPS</span>
+      </div>
+
+      {/* Add strip form */}
+      {showAddForm && (
+        <div style={{ background: '#0a111f', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '12px', marginBottom: '14px' }}>
+          <div style={{ color: '#60a5fa', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace', marginBottom: '10px', letterSpacing: '1px' }}>NEW STRIP</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'flex-end' }}>
+            {[
+              { label: 'CALLSIGN', field: 'callSign', w: '90px' },
+              { label: 'AIRLINE', field: 'unit', w: '90px' },
+              { label: 'FL', field: 'civ_fl', w: '50px' },
+              { label: 'STAND', field: 'civ_stand', w: '50px' },
+              { label: 'GATE', field: 'civ_dest', w: '40px' },
+              { label: 'TIME', field: 'civ_time', w: '55px' },
+              { label: 'SSR', field: 'civ_ssr', w: '55px' },
+              { label: 'RWY', field: 'civ_runway', w: '45px' },
+            ].map(({ label, field, w }) => (
+              <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ color: '#475569', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '1px' }}>{label}</label>
+                <input
+                  value={(newStrip as any)[field]}
+                  onChange={e => setNewStrip(prev => ({ ...prev, [field]: e.target.value }))}
+                  style={{ ...fieldStyle, width: w }}
+                  placeholder={label}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <label style={{ color: '#475569', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '1px' }}>STATUS</label>
+              <select value={newStrip.civ_status} onChange={e => setNewStrip(prev => ({ ...prev, civ_status: e.target.value }))} style={{ ...fieldStyle, width: '65px' }}>
+                {CIV_STATUSES.filter(s => s.key).map(s => <option key={s.key} value={s.key}>{s.key}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <label style={{ color: '#475569', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '1px' }}>COLUMN</label>
+              <select value={addToCol} onChange={e => setAddToCol(e.target.value)} style={{ ...fieldStyle, width: '130px' }}>
+                <option value="">— unassigned —</option>
+                {civCols.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minWidth: '160px' }}>
+              <label style={{ color: '#475569', fontSize: '9px', fontFamily: 'monospace', letterSpacing: '1px' }}>ROUTE</label>
+              <input value={newStrip.civ_route} onChange={e => setNewStrip(prev => ({ ...prev, civ_route: e.target.value }))} style={{ ...fieldStyle, width: '100%' }} placeholder="ROUTE..." />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+            <button onClick={addStrip} style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 16px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', fontFamily: 'monospace' }}>ADD</button>
+            <button onClick={() => setShowAddForm(false)} style={{ background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '5px 14px', cursor: 'pointer', fontSize: '11px', fontFamily: 'monospace' }}>CANCEL</button>
+          </div>
+        </div>
+      )}
+
+      {/* Board — same multi-column layout as CivilianView */}
+      <div style={{ display: 'flex', flexDirection: 'row', gap: '2px', overflow: 'auto', background: '#06090f', borderRadius: '6px', padding: '2px', minHeight: '400px' }}>
+        {allCols.map(col => {
+          const colStrips = col.key === '__queue__' ? getUnassigned() : getStripsInCol(col.key);
+          const dropKey = `${col.key}:`;
+          const colCount = colStrips.length;
+          return (
+            <div key={col.key} style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: '170px', maxWidth: '220px', borderRight: '1px solid #0a0f1a', overflow: 'hidden' }}>
+              {/* Column header */}
+              <div style={{ background: col.key === '__queue__' ? '#1e293b' : (col.color || '#1e3a5f'), padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #0a0f1a', flexShrink: 0 }}>
+                <span style={{ color: '#ffffff', fontSize: '10px', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                  {col.key !== '__queue__' && (
+                    <button
+                      onClick={() => { setShowAddForm(true); setAddToCol(col.key); }}
+                      style={{ background: 'rgba(255,255,255,0.15)', color: '#ffffff', border: 'none', borderRadius: '2px', padding: '0 5px', cursor: 'pointer', fontSize: '12px', lineHeight: '16px', fontWeight: 'bold' }}
+                      title="הוסף סטריפ לעמודה"
+                    >+</button>
+                  )}
+                  <span style={{ background: 'rgba(0,0,0,0.35)', color: '#ffffff', fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace', borderRadius: '2px', padding: '0 5px', minWidth: '18px', textAlign: 'center' }}>{colCount}</span>
+                </div>
+              </div>
+              {/* Drop zone */}
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOverKey(dropKey); }}
+                onDragLeave={() => setDragOverKey(null)}
+                onDrop={e => { e.preventDefault(); if (draggingId) handleAssign(draggingId, col.key, ''); setDraggingId(null); setDragOverKey(null); }}
+                style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2e4a' : 'transparent', transition: 'background 0.1s' }}
+              >
+                {colStrips.map((s: any) => (
+                  <CivilianStripCard
+                    key={s.id}
+                    strip={s}
+                    onUpdateField={updateField}
+                    onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }}
+                    onDelete={deleteStrip}
+                  />
+                ))}
+                {colStrips.length === 0 && (
+                  <div style={{ color: '#1e3a5f', fontSize: '10px', textAlign: 'center', marginTop: '20px', letterSpacing: '1px', fontFamily: 'monospace' }}>EMPTY</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ─── Default Names Manager (admin tab component) ────────────────────────────
 const DefaultNamesManager = () => {
   const [defArmNames, setDefArmNames] = useState<any[]>([]);
@@ -20662,8 +20945,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'civ_strips'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -21269,6 +21552,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
             }).catch(() => {});
         }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
         {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={tabStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
+        {availableTabs.includes('civ_strips') && <button onClick={() => setActiveTab('civ_strips')} style={tabStyle(activeTab === 'civ_strips')}>✈ סטריפים אזרחי</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -25223,6 +25507,8 @@ CHARLIE,1,301,`}
         })()}
 
         {activeTab === 'default_names' && <DefaultNamesManager />}
+
+        {activeTab === 'civ_strips' && <CivilianStripsAdmin />}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
