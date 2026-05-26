@@ -17375,6 +17375,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 (b: StripZoneAssignment) => b.strip_id !== a.strip_id && b.zone_id === a.zone_id && b.altitude_range_id === a.altitude_range_id
               );
               const iconSize = Math.max(18, 24 / mapZoom);
+              const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
+              const heliW = Math.max(36, 52 / mapZoom);
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
@@ -17393,36 +17395,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all' }}
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}`}
                 >
-                  {/* Helicopter SVG icon — coloured by squadron */}
-                  <svg
-                    width={iconSize} height={iconSize * 0.8}
-                    viewBox="0 0 32 26"
-                    xmlns="http://www.w3.org/2000/svg"
+                  {/* Helicopter image icon — ינשוף or יסעור by squadron */}
+                  <img
+                    src={heliSrc}
+                    alt=""
+                    draggable={false}
                     className={hasConflict ? 'fzpin-conflict' : ''}
-                    style={{ flexShrink: 0, overflow: 'visible', filter: hasConflict ? undefined : `drop-shadow(0 0 ${iconSize * 0.25}px ${sqColor}bb)` }}
-                  >
-                    {/* Main rotor blade */}
-                    <rect x="0" y="2.5" width="24" height="2" rx="1" fill={sqColor}/>
-                    {/* Rotor hub */}
-                    <circle cx="12" cy="3.5" r="1.5" fill={sqColor}/>
-                    {/* Mast */}
-                    <rect x="11" y="5" width="2" height="2.5" fill={sqColor}/>
-                    {/* Fuselage */}
-                    <path d="M4 9 C4 7.5 6 7 9 7 L16 7 C20 7 21 8.5 21 10.5 L21 14.5 C21 15.5 20 16 17 16 L6 16 C4 16 3 15 3 13 Z" fill={sqColor}/>
-                    {/* Cockpit glass */}
-                    <path d="M4.5 10.5 Q5 8.5 8 8.5 L10.5 8.5 L10.5 14 L5.5 14 Q3.8 13.5 4.5 10.5 Z" fill="rgba(180,230,255,0.45)"/>
-                    {/* Tail boom */}
-                    <rect x="21" y="12.5" width="8.5" height="2" rx="1" fill={sqColor}/>
-                    {/* Tail fin (vertical) */}
-                    <path d="M28 9 L30 9 L30.5 12.5 L28 12.5 Z" fill={sqColor}/>
-                    {/* Tail rotor */}
-                    <rect x="29" y="8" width="1.5" height="6" rx="0.75" fill={sqColor}/>
-                    {/* Skid struts */}
-                    <rect x="6" y="16" width="1.5" height="2.5" rx="0.5" fill={sqColor}/>
-                    <rect x="13" y="16" width="1.5" height="2.5" rx="0.5" fill={sqColor}/>
-                    {/* Landing skid */}
-                    <rect x="4.5" y="18" width="12" height="1.5" rx="0.75" fill={sqColor}/>
-                  </svg>
+                    style={{ width: heliW, height: 'auto', flexShrink: 0, filter: hasConflict ? `drop-shadow(0 0 4px #ef4444) drop-shadow(0 0 8px #ef4444)` : `drop-shadow(0 0 ${heliW * 0.12}px ${sqColor}cc)` }}
+                  />
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
                     {callLabel}
                   </div>
