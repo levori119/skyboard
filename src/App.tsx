@@ -20664,7 +20664,7 @@ const CivilianStripsAdmin = () => {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   React.useEffect(() => {
-    fetch(`${API_URL}/presets`).then(r => r.json()).then((data: any[]) => {
+    fetch(`${API_URL}/workstation-presets`).then(r => r.ok ? r.json() : []).then((data: any[]) => {
       const civPresets = data.filter(p => p.preset_type === 'civilian');
       setPresets(civPresets);
       if (civPresets.length > 0) setSelectedPresetId(civPresets[0].id);
