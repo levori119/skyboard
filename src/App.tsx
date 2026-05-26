@@ -11384,6 +11384,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
   const [fzShowZones, setFzShowZones] = useState(false);
+  const [useMapZonesActive, setUseMapZonesActive] = useState(false);
+  const useMapZonesRef = useRef(false);
+  const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
+  const zoneAltRangesRef = useRef<Record<number, any[]>>({});
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
@@ -12023,6 +12027,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
+  const isMapZonesMode = useMapZonesActive;
+
+  React.useEffect(() => {
+    const val = myPresetConfig?.use_map_zones === true;
+    setUseMapZonesActive(val);
+    useMapZonesRef.current = val;
+  }, [myPresetConfig?.use_map_zones]);
 
   const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
     try {
@@ -12080,6 +12091,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
     return null;
   };
+  fzGetZoneAtPointRef.current = fzGetZoneAtPoint;
+  zoneAltRangesRef.current = zoneAltRanges;
+  useMapZonesRef.current = useMapZonesActive;
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
     const dragId = fzDragIdRef.current ?? fzDragStripId;
@@ -13021,7 +13035,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
-  const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean) => void>(() => {});
+  const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => void>(() => {});
   const handleTransferRef = useRef<(stripId: string, toSectorId: number) => void>(() => {});
   const tableModeRef = useRef(false);
   const sessionRef = useRef(session);
@@ -13035,11 +13049,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const myTableStripsRef = useRef<any[]>([]);
   const getStripGroupValueRef = useRef<((strip: any) => string) | null>(null);
 
-  const handleMove = async (id: string, x: number, y: number, toMap: boolean) => {
+  const handleMove = async (id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => {
     const presetId = session.presetId ? Number(session.presetId) : null;
+    const hasPinData = pinX != null && pinY != null;
     setStrips(prev => prev.map(item => item.id === id ? {
       ...item, x, y, onMap: toMap,
-      workstation_preset_id: toMap ? presetId : item.workstation_preset_id
+      workstation_preset_id: toMap ? presetId : item.workstation_preset_id,
+      ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
+      ...(!toMap ? { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '' } : {})
     } : item));
     if (toMap) {
       setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
@@ -13048,7 +13065,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       await fetch(`${API_URL}/strips/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ x, y, onMap: toMap, ...(toMap ? { workstation_preset_id: presetId } : {}) })
+        body: JSON.stringify({
+          x, y, onMap: toMap,
+          ...(toMap ? { workstation_preset_id: presetId } : {}),
+          ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
+          ...(!toMap ? { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '' } : {})
+        })
       });
     } catch (err) {
       console.error('Failed to update strip position:', err);
@@ -13503,7 +13525,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const rawY = (e.clientY - cy - pan.y) / zoom + r.height / 2;
             const clampedX = Math.max(100, Math.min(r.width - 100, rawX));
             const clampedY = Math.max(40, Math.min(r.height - 50, rawY));
-            handleMoveRef.current(String(id), clampedX, clampedY, true);
+            if (useMapZonesRef.current && mapZones.length > 0) {
+              const ib = mapImgBoundsRef.current;
+              const pxPct = ib ? ((clampedX - ib.left) / ib.width) * 100 : (clampedX / r.width) * 100;
+              const pyPct = ib ? ((clampedY - ib.top) / ib.height) * 100 : (clampedY / r.height) * 100;
+              const zone = fzGetZoneAtPointRef.current(pxPct, pyPct);
+              const zoneName = zone?.name || '';
+              const altRanges = zone ? (zoneAltRangesRef.current[zone.id] || []) : [];
+              const zoneAlts = altRanges.map((ar: any) => ar.name || [ar.alt_min != null ? `FL${Math.round(ar.alt_min/100)}` : '', ar.alt_max != null ? `FL${Math.round(ar.alt_max/100)}` : ''].filter(Boolean).join('-')).filter(Boolean).join(', ');
+              const cardX = Math.max(120, Math.min(r.width - 120, clampedX + 140));
+              const cardY = Math.max(40, Math.min(r.height - 60, clampedY - 20));
+              handleMoveRef.current(String(id), cardX, cardY, true, clampedX, clampedY, zoneName, zoneAlts);
+            } else {
+              handleMoveRef.current(String(id), clampedX, clampedY, true);
+            }
           }
         }
       }
@@ -17113,7 +17148,70 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
               />
             ))}
-            
+
+            {/* Map Zone Pins & Lines overlay */}
+            {isMapZonesMode && (() => {
+              const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
+              if (pinStrips.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none', zIndex: 190 }}>
+                  {pinStrips.map((s: any) => {
+                    const cardCX = (s.x || 0) + 90 / mapZoom;
+                    const cardCY = (s.y || 0) + 30 / mapZoom;
+                    const pinX = s.map_pin_x as number;
+                    const pinY = s.map_pin_y as number;
+                    const pinR = 9 / mapZoom;
+                    return (
+                      <g key={`zone-pin-${s.id}`}>
+                        <line x1={cardCX} y1={cardCY} x2={pinX} y2={pinY} stroke="#22c55e" strokeWidth={1.8 / mapZoom} strokeDasharray={`${6/mapZoom},${3/mapZoom}`} opacity={0.75} />
+                        <circle cx={pinX} cy={pinY} r={pinR} fill="#15803d" stroke="#86efac" strokeWidth={1.5 / mapZoom} opacity={0.95} style={{ pointerEvents: 'all', cursor: 'grab' }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
+                            (window as any).__pinDragId = String(s.id);
+                          }}
+                          onPointerMove={(e) => {
+                            if ((window as any).__pinDragId !== String(s.id)) return;
+                            e.stopPropagation();
+                            const dx = e.movementX / mapZoom;
+                            const dy = e.movementY / mapZoom;
+                            setStrips((prev: any[]) => prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_pin_x: (strip.map_pin_x || 0) + dx, map_pin_y: (strip.map_pin_y || 0) + dy } : strip));
+                          }}
+                          onPointerUp={(e) => {
+                            if ((window as any).__pinDragId !== String(s.id)) return;
+                            e.stopPropagation();
+                            (window as any).__pinDragId = null;
+                            setStrips((prev: any[]) => {
+                              const updated = prev.find((strip: any) => String(strip.id) === String(s.id));
+                              if (updated && updated.map_pin_x != null) {
+                                const ib = mapImgBoundsRef.current;
+                                if (!ib) { fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y }) }).catch(() => {}); return prev; }
+                                const pxPct = ((updated.map_pin_x - ib.left) / ib.width) * 100;
+                                const pyPct = ((updated.map_pin_y - ib.top) / ib.height) * 100;
+                                const zone = fzGetZoneAtPointRef.current(pxPct, pyPct);
+                                const zoneName = zone?.name || '';
+                                const altRanges = zone ? (zoneAltRangesRef.current[zone.id] || []) : [];
+                                const zoneAlts = altRanges.map((ar: any) => ar.name || [ar.alt_min != null ? `FL${Math.round(ar.alt_min / 100)}` : '', ar.alt_max != null ? `FL${Math.round(ar.alt_max / 100)}` : ''].filter(Boolean).join('-')).filter(Boolean).join(', ');
+                                fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_pin_x: updated.map_pin_x, map_pin_y: updated.map_pin_y, map_zone_name: zoneName, map_zone_alts: zoneAlts }) }).catch(() => {});
+                                return prev.map((strip: any) => String(strip.id) === String(s.id) ? { ...strip, map_zone_name: zoneName, map_zone_alts: zoneAlts } : strip);
+                              }
+                              return prev;
+                            });
+                          }}
+                        />
+                        <circle cx={pinX} cy={pinY} r={pinR * 0.45} fill="#86efac" style={{ pointerEvents: 'none' }} />
+                        {s.map_zone_name && (
+                          <text x={pinX} y={pinY - pinR - 4 / mapZoom} textAnchor="middle" fontSize={11 / mapZoom} fill="#86efac" stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 'bold' }}>
+                            {s.map_zone_name}{s.map_zone_alts ? ` · ${s.map_zone_alts}` : ''}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {mapSplitMergeMode && (() => {
               const onMapStrips = strips.filter(s => s.onMap && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
@@ -17201,6 +17299,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >
                 {fzShowZones ? '🗺 הסתר אזורים' : '🗺 הצג אזורים'}
               </button>
+              {myPresetConfig?.use_map_zones && (
+                <button
+                  onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
+                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                >
+                  {isMapZonesMode ? '🧭 אזורים פעיל' : '🧭 אזורים כבוי'}
+                </button>
+              )}
             </div>
           )}
 
@@ -21052,8 +21158,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     can_update_pressure: false as boolean,
     show_dashboard: false as boolean,
     flight_zones_mode: false as boolean,
+    use_map_zones: false as boolean,
     can_update_mazaa: false as boolean,
     datk_show_minutes: '' as string | number,
+    civilian_columns: [] as CivCol[],
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -21383,6 +21491,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           can_update_pressure: presetForm.can_update_pressure === true,
           show_dashboard: presetForm.show_dashboard === true,
           flight_zones_mode: presetForm.flight_zones_mode === true,
+          use_map_zones: presetForm.use_map_zones === true,
           can_update_mazaa: presetForm.can_update_mazaa === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
         })
@@ -21398,7 +21507,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -21443,6 +21552,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       can_update_pressure: preset.can_update_pressure === true,
       show_dashboard: preset.show_dashboard === true,
       flight_zones_mode: preset.flight_zones_mode === true,
+      use_map_zones: preset.use_map_zones === true,
       can_update_mazaa: preset.can_update_mazaa === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
       civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
@@ -21564,7 +21674,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -21574,7 +21684,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -22118,6 +22228,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
+                {/* use_map_zones toggle */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🧭 התחשב באזורים על מפה:</label>
+                  <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                    {[{ val: true, label: '✅ פעיל' }, { val: false, label: '⬜ כבוי' }].map(opt => (
+                      <button key={String(opt.val)} type="button"
+                        onClick={() => setPresetForm(p => ({ ...p, use_map_zones: opt.val }))}
+                        style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${(presetForm as any).use_map_zones === opt.val ? '#22c55e' : '#334155'}`, background: (presetForm as any).use_map_zones === opt.val ? '#14532d' : '#1e293b', color: (presetForm as any).use_map_zones === opt.val ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: (presetForm as any).use_map_zones === opt.val ? 'bold' : 'normal' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמופעל, כל פ"מ שמונח על המפה מקבל אזור אוטומטי לפי מיקום הנחיתה. פין מקשר בין הסטריפ לנקודת ההנחה.</p>
+                </div>
+
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>תצוגה וורטיקלית — ציר זמן:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
@@ -22352,7 +22477,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
