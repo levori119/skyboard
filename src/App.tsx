@@ -17602,7 +17602,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
               const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
-              const heliW = Math.max(28, 40 / mapZoom);
+              const heliW = Math.max(36, 54 / mapZoom);
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
               const ringColor = `rgb(${ringV},${ringV},${ringV})`;
@@ -17721,7 +17721,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : (si.zoneColor || '#3b82f6');
               const isYasur = sqRaw.includes('124');
               const heliSrc = isYasur ? '/heli-yasur.png' : '/heli-yanshuf.png';
-              const heliW = Math.max(22, 30 / mapZoom);
+              const heliW = Math.max(28, 40 / mapZoom);
               const fontSize = Math.max(8, 10 / mapZoom);
               const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
               const stColor = stColors[si.status || ''] || sqColor;
