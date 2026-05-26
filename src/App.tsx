@@ -17376,7 +17376,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
               const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
-              const heliW = Math.max(36, 52 / mapZoom);
+              const heliW = Math.max(28, 40 / mapZoom);
+              // Ring colour: white when map is dark, black when map is bright
+              const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
+              const ringColor = `rgb(${ringV},${ringV},${ringV})`;
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
@@ -17396,7 +17399,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : '2.5px solid rgba(255,255,255,0.9)', boxShadow: hasConflict ? '0 0 5px 2px #ef444466' : '0 0 5px 2px rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+                  <div draggable={false} style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : `2.5px solid ${ringColor}`, boxShadow: hasConflict ? '0 0 5px 2px #ef444466' : `0 0 5px 2px ${ringColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
                       // then hue-rotate shifts to the squadron colour; transparent bg preserved.
@@ -17427,14 +17430,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           src={heliSrc}
                           alt=""
                           draggable={false}
+                          onDragStart={e => e.preventDefault()}
                           className={hasConflict ? 'fzpin-conflict' : ''}
-                          style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter }}
+                          style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
                         />
                       );
                     })()}
                     {/* Note indicator */}
                     {(a.note || a.coordination_note) && (
-                      <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2 }}>!</div>
+                      <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
                   </div>
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
