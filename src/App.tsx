@@ -5260,7 +5260,7 @@ const imagePctToGeo = (xImg: number, yImg: number, a: MapGeoAnchor): {lat: numbe
   return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
 };
 interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }
-interface StripZoneAssignment { id: number; strip_id: number; zone_id: number; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string; zone_color: string; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; }
+interface StripZoneAssignment { id: number; strip_id: number; zone_id: number | null; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string | null; zone_color: string | null; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; map_id?: number | null; }
 
 // --- Vector map types + helpers ---
 type VectorLine = { id: string; points: {x:number;y:number}[]; color: string; width: number; };
@@ -12260,7 +12260,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDragStripId(null);
     setFzDragLabel(null);
     if (!zone) {
-      // Dropped outside any zone — silently ignore (no zone picker)
+      // Dropped outside any zone — place pin at drop position, no zone, keep existing status
+      const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
+      const keepStatus = existing?.status || 'בדרך לאזור';
+      doFzSave(dragId, null, null, keepStatus, existing?.note || '', existing?.coordination_note || '', existing?.is_coordinated || false, pxInMap, pyInMap, []);
       return;
     }
     if (isPin) {
@@ -12294,11 +12297,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDialog(null);
   };
 
-  const doFzSave = async (stripId: number | string, zoneId: number, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[]) => {
+  const doFzSave = async (stripId: number | string, zoneId: number | null, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number, requestedZoneIds?: number[]) => {
     const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
     if (isNaN(numericStripId)) return;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [] }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null, requested_zone_ids: requestedZoneIds || [], map_id: currentMapId }) });
       if (currentMapId) loadStripZoneAssignments(currentMapId);
     } catch {}
   };
@@ -17569,31 +17572,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              // Fallback to zone polygon centroid when pos not yet set
-              const zoneData = mapZones.find((z: any) => z.id === a.zone_id);
+              // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
+              const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
               const poly = zoneData?.polygon || [];
               const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
               const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
-              const pctX = a.pos_x != null ? a.pos_x : cx50;
-              const pctY = a.pos_y != null ? a.pos_y : cy50;
+              const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
+              const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
+              // Skip pins with no zone and no stored position (nothing to render)
+              if (a.zone_id == null && a.pos_x == null) return null;
               const ib = mapImgBounds;
               const pixX = ib.left + (pctX / 100) * ib.width;
               const pixY = ib.top + (pctY / 100) * ib.height;
-              const zoneHex = a.zone_color || '#3b82f6';
+              const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
               const fontSize = Math.max(9, 11 / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
-              // Squadron / status colour
+              // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
               const _fzStC: Record<string,string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
-              const sqColor = fzPinColorMode === 'status'
-                ? (_fzStC[a.status] || '#94a3b8')
-                : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
-              // Uncoordinated conflict: another pin shares same zone + altitude range
-              const allZonesA = [a.zone_id, ...(a.requested_zone_ids || [])];
-              const hasConflict = !a.is_coordinated && stripZoneAssignments.some(
+              const sqColor = a.zone_id == null ? '#94a3b8'
+                : fzPinColorMode === 'status'
+                  ? (_fzStC[a.status] || '#94a3b8')
+                  : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
+              // Uncoordinated conflict: only check when zone_id is set
+              const allZonesA = a.zone_id != null ? [a.zone_id, ...(a.requested_zone_ids || [])] : [];
+              const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
-                  if (b.strip_id === a.strip_id) return false;
+                  if (b.strip_id === a.strip_id || b.zone_id == null) return false;
                   const allZonesB = [b.zone_id, ...(b.requested_zone_ids || [])];
                   if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                   const altConflicts = a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
@@ -17634,7 +17640,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
                   }}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'opacity 0.15s' }}
-                  title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
+                  title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
                   <div draggable={false}
