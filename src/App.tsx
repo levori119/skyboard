@@ -12166,7 +12166,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleFzSave = async () => {
     if (!fzDialog || !currentMapId) return;
-    const existing = stripZoneAssignments.filter(a => a.zone_id === fzDialog.zoneId && a.strip_id !== fzDialog.stripId);
+    const numericStripId = parseInt(String(fzDialog.stripId).replace(/^s/, ''), 10);
+    const existing = stripZoneAssignments.filter(a => a.zone_id === fzDialog.zoneId && Number(a.strip_id) !== numericStripId);
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY }, conflicts: existing, coordNote: '' });
       return;
@@ -12175,9 +12176,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDialog(null);
   };
 
-  const doFzSave = async (stripId: number, zoneId: number, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number) => {
+  const doFzSave = async (stripId: number | string, zoneId: number, altRangeId: number | null, status: string, note: string, coordNote: string, isCoordinated: boolean, posX?: number, posY?: number) => {
+    const numericStripId = parseInt(String(stripId).replace(/^s/, ''), 10);
+    if (isNaN(numericStripId)) return;
     try {
-      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: stripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null }) });
+      await fetch(`${API_URL}/strip-zone-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: numericStripId, zone_id: zoneId, altitude_range_id: altRangeId, status, note, coordination_note: coordNote, is_coordinated: isCoordinated, pos_x: posX ?? null, pos_y: posY ?? null }) });
       if (currentMapId) loadStripZoneAssignments(currentMapId);
     } catch {}
   };
@@ -17323,17 +17326,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.map((a: StripZoneAssignment) => {
-              if (a.pos_x == null || a.pos_y == null) return null;
-              const strip = myTableStrips.find((s: any) => s.id === a.strip_id);
-              if (!strip) return null;
+              const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              // Fallback to zone polygon centroid when pos not yet set
+              const zoneData = mapZones.find((z: any) => z.id === a.zone_id);
+              const poly = zoneData?.polygon || [];
+              const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+              const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+              const pctX = a.pos_x != null ? a.pos_x : cx50;
+              const pctY = a.pos_y != null ? a.pos_y : cy50;
               const ib = mapImgBounds;
-              const pixX = ib.left + (a.pos_x / 100) * ib.width;
-              const pixY = ib.top + (a.pos_y / 100) * ib.height;
+              const pixX = ib.left + (pctX / 100) * ib.width;
+              const pixY = ib.top + (pctY / 100) * ib.height;
               const zoneHex = a.zone_color || '#3b82f6';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
               const dotR = Math.max(6, 10 / mapZoom);
               const fontSize = Math.max(9, 11 / mapZoom);
-              const callLabel = (strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`;
+              const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
