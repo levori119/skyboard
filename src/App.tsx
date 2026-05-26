@@ -17396,7 +17396,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
-                  <div style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '1.5px solid #ef4444' : '1.5px solid rgba(255,255,255,0.8)', boxShadow: hasConflict ? '0 0 5px 2px #ef444466' : '0 0 5px 2px rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+                  <div style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%', border: hasConflict ? '2.5px solid #ef4444' : '2.5px solid rgba(255,255,255,0.9)', boxShadow: hasConflict ? '0 0 5px 2px #ef444466' : '0 0 5px 2px rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
                     {(() => {
                       // Compute CSS filter: sepia(1) converts image to ~38° warm-brown,
                       // then hue-rotate shifts to the squadron colour; transparent bg preserved.
@@ -17428,7 +17428,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           alt=""
                           draggable={false}
                           className={hasConflict ? 'fzpin-conflict' : ''}
-                          style={{ width: heliW * 0.88, height: 'auto', display: 'block', filter: imgFilter }}
+                          style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter }}
                         />
                       );
                     })()}
