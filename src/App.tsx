@@ -11418,6 +11418,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzDragIsPin = React.useRef(false);
   const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
   const fzPinDownPos = useRef<{x:number;y:number;id:number}|null>(null);
+  const [fzPinGhost, setFzPinGhost] = useState<{ src: string; filter: string; label: string; color: string; status: string } | null>(null);
+  const fzPinGhostRef = useRef<HTMLDivElement>(null);
+  const fzPinGhostPosRef = useRef<{x:number;y:number}>({x:0,y:0});
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
@@ -12147,6 +12150,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDragStripId(null);
     setFzDragLabel(null);
     if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+    setFzPinGhost(null);
     // Click: cycle status בדרך לאזור → באזור → עוזב אזור
     if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) < 8) {
       const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
@@ -17469,6 +17473,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
               const ringColor = `rgb(${ringV},${ringV},${ringV})`;
+              // Ghost filter — computed once per pin for use in drag ghost
+              const ghostFilter = (() => {
+                if (hasConflict) return 'drop-shadow(0 0 6px #ef4444) drop-shadow(0 0 14px #ef4444aa)';
+                if (a.status === 'בדרך לאזור') return `sepia(1) hue-rotate(-18deg) saturate(9) brightness(1.4) drop-shadow(0 0 8px #f59e0b) drop-shadow(0 0 18px #f59e0baa)`;
+                if (a.status === 'עוזב אזור')  return `sepia(1) hue-rotate(8deg) saturate(10) brightness(1.25) drop-shadow(0 0 8px #f97316) drop-shadow(0 0 18px #f97316aa)`;
+                if (a.status === 'כניסה')       return `brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.9))`;
+                const rr=parseInt(sqColor.slice(1,3),16)/255,gg=parseInt(sqColor.slice(3,5),16)/255,bb_=parseInt(sqColor.slice(5,7),16)/255;
+                const mx=Math.max(rr,gg,bb_),mn=Math.min(rr,gg,bb_);
+                let hue=0;if(mx!==mn){if(mx===rr)hue=60*((gg-bb_)/(mx-mn));else if(mx===gg)hue=60*((bb_-rr)/(mx-mn))+120;else hue=60*((rr-gg)/(mx-mn))+240;hue=((hue%360)+360)%360;}
+                return `sepia(1) hue-rotate(${Math.round(hue-38)}deg) saturate(8) brightness(1.25) drop-shadow(0 0 8px ${sqColor}) drop-shadow(0 0 18px ${sqColor}aa)`;
+              })();
+              const isDraggingThisPin = fzDragStripId === a.strip_id && fzPinGhost !== null;
               return (
                 <div
                   key={`fzpin-${a.strip_id}`}
@@ -17481,8 +17497,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     setFzDragStripId(a.strip_id);
                     setFzDragLabel(callLabel);
                     if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; }
+                    fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
+                    setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
                   }}
-                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'opacity 0.15s' }}
                   title={`${callLabel} — ${a.zone_name}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
@@ -17569,6 +17587,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: 'default', background: 'transparent', border: 'none', borderRadius: '4px', pointerEvents: 'none' }}
               onDragOver={e => { e.preventDefault(); }}
               onDrop={handleFzMapDrop}
+              onPointerMove={e => {
+                if (fzPinDragRef.current && fzPinGhostRef.current) {
+                  fzPinGhostRef.current.style.left = e.clientX + 'px';
+                  fzPinGhostRef.current.style.top = e.clientY + 'px';
+                }
+              }}
               onPointerUp={handleFzPinPointerUp}
               onPointerLeave={() => {
                 if (fzPinDragRef.current) {
@@ -17578,6 +17602,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   setFzDragStripId(null);
                   setFzDragLabel(null);
                   if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                  setFzPinGhost(null);
                 }
               }}
             />
@@ -18778,6 +18803,58 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           );
         })()}
+
+        {/* FZ pin drag ghost — follows cursor with motion animation */}
+        {fzPinGhost && (
+          <div
+            ref={fzPinGhostRef}
+            className="fzpin-drag-ghost"
+            style={{
+              position: 'fixed',
+              left: fzPinGhostPosRef.current.x,
+              top: fzPinGhostPosRef.current.y,
+              pointerEvents: 'none',
+              zIndex: 9999,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+              opacity: 0.92,
+            }}
+          >
+            {/* Ring */}
+            <div style={{
+              width: 52, height: 52, borderRadius: '50%',
+              border: `3px solid ${fzPinGhost.color}`,
+              boxShadow: `0 0 14px 5px ${fzPinGhost.color}99, 0 0 30px 10px ${fzPinGhost.color}44, 0 8px 24px rgba(0,0,0,0.6)`,
+              background: 'rgba(15,23,42,0.8)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backdropFilter: 'blur(4px)',
+            }}>
+              <img
+                src={fzPinGhost.src}
+                alt=""
+                draggable={false}
+                style={{ width: 40, height: 'auto', filter: fzPinGhost.filter, display: 'block' }}
+              />
+            </div>
+            {/* Callsign label */}
+            <div style={{
+              background: 'rgba(15,23,42,0.92)',
+              color: fzPinGhost.color,
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              border: `1px solid ${fzPinGhost.color}66`,
+              boxShadow: `0 2px 8px rgba(0,0,0,0.5)`,
+              direction: 'ltr',
+            }}>
+              {fzPinGhost.label}
+            </div>
+          </div>
+        )}
 
         {/* Sidebar pointer-drag ghost */}
         {sidebarPointerGhost && (

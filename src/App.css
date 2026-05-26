@@ -46,6 +46,15 @@
   border: 2.5px solid #f97316 !important;
 }
 
+/* Drag ghost — floats and tilts to show motion */
+@keyframes fzpin-ghost-float {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-13deg) scale(1);    filter: brightness(1); }
+  50%       { transform: translate(-50%, -50%) rotate(-13deg) scale(1.08); filter: brightness(1.15); }
+}
+.fzpin-drag-ghost {
+  animation: fzpin-ghost-float 0.75s ease-in-out infinite;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: scale(1); }
