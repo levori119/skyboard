@@ -8495,25 +8495,27 @@ type CivCol = { key: string; label: string; sub_cols?: string[]; color?: string 
 type CivAssignment = { id: number; strip_id: number; preset_id: number; col_key: string; sub_col: string; sort_order: number };
 
 const CIV_STATUSES = [
-  { key: 'CLR', color: '#ffffff', bg: '#2563eb', label: 'CLEARANCE' },
-  { key: 'TXI', color: '#ffffff', bg: '#1d4ed8', label: 'TAXI' },
-  { key: 'CTL', color: '#ffffff', bg: '#374151', label: 'CONTROL' },
-  { key: 'LUW', color: '#ffffff', bg: '#4b5563', label: 'LUAW' },
-  { key: 'GPB', color: '#000000', bg: '#ca8a04', label: 'PUSHBACK' },
-  { key: 'HOO', color: '#ffffff', bg: '#0d9488', label: 'HANDOVER' },
-  { key: 'ENT', color: '#ffffff', bg: '#16a34a', label: 'ENTRY' },
-  { key: 'SEQ', color: '#ffffff', bg: '#7c3aed', label: 'SEQUENCE' },
-  { key: '',   color: '#94a3b8', bg: '#1e293b', label: '' },
+  { key: 'CLR', color: '#ffffff', bg: '#1565c0', label: 'CLEARANCE' },
+  { key: 'TXI', color: '#ffffff', bg: '#0d47a1', label: 'TAXI' },
+  { key: 'CTL', color: '#ffffff', bg: '#455a64', label: 'CONTROL' },
+  { key: 'LUW', color: '#ffffff', bg: '#607d8b', label: 'LUAW' },
+  { key: 'GPB', color: '#000000', bg: '#c8a800', label: 'PUSHBACK' },
+  { key: 'HOO', color: '#ffffff', bg: '#00695c', label: 'HANDOVER' },
+  { key: 'ENT', color: '#ffffff', bg: '#2e7d32', label: 'ENTRY' },
+  { key: 'SEQ', color: '#ffffff', bg: '#4527a0', label: 'SEQUENCE' },
+  { key: '',   color: '#334155', bg: '#e2e8f0', label: '' },
 ];
 
-const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete }: {
+const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete, colColor }: {
   strip: any;
   onUpdateField: (id: string, field: string, val: string) => void;
   onDragStart: (e: React.DragEvent, stripId: string) => void;
   onDelete?: (id: string) => void;
+  colColor?: string;
 }) => {
   const [editingField, setEditingField] = React.useState<string | null>(null);
   const statusInfo = CIV_STATUSES.find(s => s.key === (strip.civ_status || '')) || CIV_STATUSES[CIV_STATUSES.length - 1];
+  const leftBg = colColor || '#1565c0';
 
   const cycleStatus = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -8522,8 +8524,9 @@ const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete }: {
     onUpdateField(String(strip.id), 'civ_status', next.key);
   };
 
-  const InlineEdit = ({ field, value, placeholder, style, wide }: { field: string; value: string; placeholder?: string; style?: React.CSSProperties; wide?: boolean }) => (
-    editingField === field
+  const InlineEdit = ({ field, value, placeholder, darkBg, style, wide }: { field: string; value: string; placeholder?: string; darkBg?: boolean; style?: React.CSSProperties; wide?: boolean }) => {
+    const textCol = darkBg ? 'rgba(255,255,255,0.9)' : '#0a1828';
+    return editingField === field
       ? <input
           autoFocus
           defaultValue={value}
@@ -8531,84 +8534,80 @@ const CivilianStripCard = ({ strip, onUpdateField, onDragStart, onDelete }: {
           onBlur={e => { onUpdateField(String(strip.id), field, e.target.value); setEditingField(null); }}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
           onClick={e => e.stopPropagation()}
-          style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderBottom: '1px solid #60a5fa', color: '#e2e8f0', fontFamily: 'monospace', outline: 'none', padding: '0 2px', width: wide ? '100%' : '50px', ...style }}
+          style={{ background: darkBg ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.06)', border: 'none', borderBottom: `1px solid ${darkBg ? 'rgba(255,255,255,0.5)' : '#1565c0'}`, color: textCol, fontFamily: 'monospace', outline: 'none', padding: '0 2px', width: wide ? '100%' : '50px', ...style }}
         />
-      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title="לחץ לעריכה" style={{ cursor: 'text', ...style }}>{value || <span style={{ opacity: 0.3 }}>{placeholder || '·'}</span>}</span>
-  );
-
-  const runway = strip.civ_runway || '';
+      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} title="לחץ לעריכה" style={{ cursor: 'text', color: textCol, ...style }}>{value || <span style={{ opacity: 0.25 }}>{placeholder || '·'}</span>}</span>;
+  };
 
   return (
     <div
       draggable
       onDragStart={e => onDragStart(e, String(strip.id))}
       style={{
-        background: '#0d1929',
-        border: '1px solid #1e3a5f',
-        borderLeft: `4px solid ${statusInfo.bg}`,
-        borderRadius: '2px',
-        marginBottom: '3px',
+        background: '#c8d8e4',
+        border: '1px solid #8faabb',
+        borderRadius: '1px',
+        marginBottom: '2px',
         cursor: 'grab',
         userSelect: 'none',
         fontFamily: 'monospace',
         position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', minHeight: '70px' }}>
+      <div style={{ display: 'flex', minHeight: '68px' }}>
 
-        {/* LEFT — callsign + airline */}
-        <div style={{ width: '88px', minWidth: '88px', borderRight: '1px solid #1a2e4a', padding: '5px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden' }}>
-          <div style={{ fontSize: '14px', fontWeight: 900, color: '#e2e8f0', letterSpacing: '0.5px', lineHeight: 1.1, overflow: 'hidden' }}>
-            <InlineEdit field="callSign" value={strip.callSign || ''} placeholder="CALLSIGN" style={{ fontSize: '14px', fontWeight: 900, color: '#e2e8f0', width: '78px' }} />
+        {/* LEFT — callsign + airline — column-colored block */}
+        <div style={{ width: '90px', minWidth: '90px', background: leftBg, padding: '5px 6px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden' }}>
+          <div style={{ fontSize: '14px', fontWeight: 900, letterSpacing: '0.5px', lineHeight: 1.15, overflow: 'hidden' }}>
+            <InlineEdit field="callSign" value={strip.callSign || ''} placeholder="CALLSIGN" darkBg style={{ fontSize: '14px', fontWeight: 900, width: '80px' }} />
           </div>
-          <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-            <InlineEdit field="unit" value={strip.unit || ''} placeholder="Airline" style={{ fontSize: '9px', color: '#64748b', width: '78px' }} />
+          <div style={{ fontSize: '9px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+            <InlineEdit field="unit" value={strip.unit || ''} placeholder="Airline" darkBg style={{ fontSize: '9px', width: '80px', opacity: 0.85 }} />
           </div>
         </div>
 
-        {/* MIDDLE — flight info */}
-        <div style={{ flex: 1, padding: '4px 5px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', minWidth: 0 }}>
+        {/* MIDDLE — flight info on light background */}
+        <div style={{ flex: 1, padding: '4px 5px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', overflow: 'hidden', minWidth: 0, background: '#c8d8e4' }}>
 
           {/* Row 1: FL Stand Gate Time + SSR */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
-            <div style={{ display: 'flex', gap: '5px', fontSize: '10px', color: '#94a3b8', flexWrap: 'nowrap', overflow: 'hidden' }}>
-              <span style={{ color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '1px' }}>
-                FL<InlineEdit field="civ_fl" value={strip.civ_fl || ''} placeholder="320" style={{ color: '#60a5fa', fontSize: '10px', width: '28px' }} />
+            <div style={{ display: 'flex', gap: '4px', fontSize: '10px', flexWrap: 'nowrap', overflow: 'hidden' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '1px', color: '#0a1828' }}>
+                FL<InlineEdit field="civ_fl" value={strip.civ_fl || ''} placeholder="320" style={{ fontSize: '10px', width: '28px' }} />
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
-                S<InlineEdit field="civ_stand" value={strip.civ_stand || ''} placeholder="432" style={{ color: '#94a3b8', fontSize: '10px', width: '24px' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: '1px', color: '#0a1828' }}>
+                S<InlineEdit field="civ_stand" value={strip.civ_stand || ''} placeholder="432" style={{ fontSize: '10px', width: '24px' }} />
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
-                A<InlineEdit field="civ_dest" value={strip.civ_dest || ''} placeholder="23" style={{ color: '#94a3b8', fontSize: '10px', width: '18px' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: '1px', color: '#0a1828' }}>
+                A<InlineEdit field="civ_dest" value={strip.civ_dest || ''} placeholder="23" style={{ fontSize: '10px', width: '18px' }} />
               </span>
-              <InlineEdit field="civ_time" value={strip.civ_time || ''} placeholder="12:35" style={{ color: '#94a3b8', fontSize: '10px', width: '38px' }} />
+              <InlineEdit field="civ_time" value={strip.civ_time || ''} placeholder="12:35" style={{ fontSize: '10px', width: '38px', color: '#0a1828' }} />
             </div>
-            <div style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>
-              <InlineEdit field="civ_ssr" value={strip.civ_ssr || ''} placeholder="SSR" style={{ color: '#475569', fontSize: '9px', width: '44px', textAlign: 'right' }} />
-            </div>
+            <InlineEdit field="civ_ssr" value={strip.civ_ssr || ''} placeholder="SSR" style={{ fontSize: '9px', width: '44px', textAlign: 'right', color: '#4a6070' }} />
           </div>
 
           {/* Row 2: Route */}
-          <div style={{ fontSize: '9px', color: '#475569', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center' }}>
-            <InlineEdit field="civ_route" value={strip.civ_route || ''} placeholder="ROUTE..." style={{ color: '#475569', fontSize: '9px', width: '100%' }} wide />
+          <div style={{ fontSize: '9px', color: '#2a4060', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <InlineEdit field="civ_route" value={strip.civ_route || ''} placeholder="ROUTE..." style={{ fontSize: '9px', width: '100%', color: '#2a4060' }} wide />
           </div>
 
           {/* Row 3: runway + status */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-            <InlineEdit field="civ_runway" value={runway} placeholder="26L" style={{ fontSize: '17px', fontWeight: 900, color: '#e2e8f0', width: '38px', letterSpacing: '-0.5px' }} />
+            <InlineEdit field="civ_runway" value={strip.civ_runway || ''} placeholder="26L" style={{ fontSize: '18px', fontWeight: 900, color: '#0a1828', width: '40px', letterSpacing: '-0.5px' }} />
             <button
               onClick={cycleStatus}
-              style={{ background: statusInfo.bg, color: statusInfo.color, border: 'none', borderRadius: '2px', padding: '2px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.5px', fontFamily: 'monospace', flexShrink: 0 }}
+              style={{ background: statusInfo.bg, color: statusInfo.color, border: 'none', borderRadius: '2px', padding: '2px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.5px', fontFamily: 'monospace', flexShrink: 0, minWidth: '36px' }}
             >{statusInfo.key || '—'}</button>
           </div>
         </div>
       </div>
 
-      {/* Delete button (only shown when onDelete provided) */}
+      {/* Delete button */}
       {onDelete && (
         <button
           onClick={e => { e.stopPropagation(); if (confirm(`מחק סטריפ ${strip.callSign}?`)) onDelete(String(strip.id)); }}
-          style={{ position: 'absolute', top: '2px', right: '2px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
+          style={{ position: 'absolute', top: '1px', right: '2px', background: 'transparent', border: 'none', color: '#7f1d1d', cursor: 'pointer', fontSize: '10px', padding: '0 2px', lineHeight: 1, opacity: 0.5 }}
           title="מחק"
         >✕</button>
       )}
@@ -8650,7 +8649,7 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
   const allCols: CivCol[] = [...civColumns, { key: '__queue__', label: 'תור', color: '#475569' }];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden', background: '#08111e', gap: '1px' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden', background: '#07090c', gap: '1px' }}>
       {allCols.map(col => {
         const hasSubs = col.sub_cols && col.sub_cols.length > 0;
         const colWidth = hasSubs ? `${Math.max(col.sub_cols!.length * 130, 160)}px` : '160px';
@@ -8685,7 +8684,7 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
                       <div style={{ background: '#0d1a2e', padding: '2px 4px', textAlign: 'center', color: '#475569', fontSize: '10px', borderBottom: '1px solid #1a2e4a', fontFamily: 'monospace', flexShrink: 0 }}>{sub}</div>
                       <div style={{ flex: 1, overflowY: 'auto', padding: '3px' }}>
                         {subStrips.map((s: any) => (
-                          <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField}
+                          <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField} colColor={col.color}
                             onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
                         ))}
                       </div>
@@ -8702,14 +8701,14 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
                     onDragOver={e => { e.preventDefault(); setDragOverKey(dropKey); }}
                     onDragLeave={() => setDragOverKey(null)}
                     onDrop={e => handleDrop(e, col.key, '')}
-                    style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2e4a' : '#0a111f', transition: 'background 0.1s' }}
+                    style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2232' : '#07090c', transition: 'background 0.1s' }}
                   >
                     {colStrips.map((s: any) => (
-                      <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField}
+                      <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField} colColor={col.color}
                         onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
                     ))}
                     {colStrips.length === 0 && (
-                      <div style={{ color: '#1e3a5f', fontSize: '10px', textAlign: 'center', marginTop: '16px', letterSpacing: '1px' }}>EMPTY</div>
+                      <div style={{ color: '#1e3040', fontSize: '10px', textAlign: 'center', marginTop: '16px', letterSpacing: '1px', fontFamily: 'monospace' }}>EMPTY</div>
                     )}
                   </div>
                 );
@@ -20820,7 +20819,7 @@ const CivilianStripsAdmin = () => {
       )}
 
       {/* Board — same multi-column layout as CivilianView */}
-      <div style={{ display: 'flex', flexDirection: 'row', gap: '2px', overflow: 'auto', background: '#06090f', borderRadius: '6px', padding: '2px', minHeight: '400px' }}>
+      <div style={{ display: 'flex', flexDirection: 'row', gap: '1px', overflow: 'auto', background: '#07090c', borderRadius: '4px', padding: '2px', minHeight: '400px' }}>
         {allCols.map(col => {
           const colStrips = col.key === '__queue__' ? getUnassigned() : getStripsInCol(col.key);
           const dropKey = `${col.key}:`;
@@ -20846,19 +20845,20 @@ const CivilianStripsAdmin = () => {
                 onDragOver={e => { e.preventDefault(); setDragOverKey(dropKey); }}
                 onDragLeave={() => setDragOverKey(null)}
                 onDrop={e => { e.preventDefault(); if (draggingId) handleAssign(draggingId, col.key, ''); setDraggingId(null); setDragOverKey(null); }}
-                style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2e4a' : 'transparent', transition: 'background 0.1s' }}
+                style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2232' : '#07090c', transition: 'background 0.1s' }}
               >
                 {colStrips.map((s: any) => (
                   <CivilianStripCard
                     key={s.id}
                     strip={s}
                     onUpdateField={updateField}
+                    colColor={col.color}
                     onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }}
                     onDelete={deleteStrip}
                   />
                 ))}
                 {colStrips.length === 0 && (
-                  <div style={{ color: '#1e3a5f', fontSize: '10px', textAlign: 'center', marginTop: '20px', letterSpacing: '1px', fontFamily: 'monospace' }}>EMPTY</div>
+                  <div style={{ color: '#1e3040', fontSize: '10px', textAlign: 'center', marginTop: '20px', letterSpacing: '1px', fontFamily: 'monospace' }}>EMPTY</div>
                 )}
               </div>
             </div>
