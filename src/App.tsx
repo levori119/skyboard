@@ -1002,273 +1002,265 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const activeZone = editingZone;
   const activePoly = activeZone ? activeZone.polygon : draftPoints;
 
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const getSvgRelativePoint = (e: React.MouseEvent): {x:number;y:number}|null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
+  };
+
+  const handleSvgClickFixed = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (anchorMode) {
+      const pt = getSvgRelativePoint(e);
+      if (!pt) return;
+      if (anchorStep === 1) { setPendingAnchor1(pt); setAnchorStep(2); }
+      else { setPendingAnchor2(pt); }
+      return;
+    }
+    if (editingZone) return;
+    const pt = getSvgRelativePoint(e);
+    if (!pt) return;
+    if (draftPoints.length >= 2) {
+      const first = draftPoints[0];
+      const dist = Math.hypot(pt.x - first.x, pt.y - first.y);
+      if (dist < 2) { return; }
+    }
+    setDraftPoints(prev => [...prev, pt]);
+  };
+
   return (
-    <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginTop: '8px', direction: 'rtl' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '14px' }}>עריכת אזורים</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px' }}>×</button>
-      </div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+      <div style={{ width: '96vw', height: '93vh', background: '#0f172a', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
 
-      {/* Map with SVG overlay */}
-      <div ref={containerRef} style={{ position: 'relative', width: '100%', paddingBottom: '56%', background: '#1e293b', borderRadius: '6px', overflow: 'hidden', marginBottom: '12px' }}>
-        <img ref={imgEditorRef} src={mapSrc} onLoad={computeEditorImgBounds} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
-        {/* SVG: when calibrated, bounded to image area; otherwise full container */}
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          style={isCalibrated && imgEditorBounds ? {
-            position: 'absolute',
-            left: imgEditorBounds.left,
-            top: imgEditorBounds.top,
-            width: imgEditorBounds.width,
-            height: imgEditorBounds.height,
-            cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair')
-          } : {
-            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair')
-          }}
-          onClick={handleSvgClick}
-          onDoubleClick={handleSvgDblClick}
-        >
-          {/* Existing zones */}
-          {zones.map(z => (
-            <g key={z.id}>
-              <polygon
-                points={polygonToSvgPoints(z.polygon)}
-                fill={z.color + '33'}
-                stroke={z.color}
-                strokeWidth="0.5"
-                style={{ cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); setEditingZone(z); setDraftPoints([]); }}
-              />
-              {z.polygon.length > 0 && (
-                <text
-                  x={z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length}
-                  y={z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fill={z.color} fontSize="3" fontWeight="bold"
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >{z.name}</text>
-              )}
-            </g>
-          ))}
-          {/* Draft / editing polygon */}
-          {activePoly.length >= 2 && (
-            <polyline points={polygonToSvgPoints(activePoly)} fill="none"
-              stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" strokeDasharray="2,1" />
-          )}
-          {activePoly.length >= 3 && (
-            <polygon points={polygonToSvgPoints(activePoly)}
-              fill={(editingZone ? editingZone.color : draftColor) + '33'}
-              stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" />
-          )}
-          {activePoly.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.5 : 1} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
-          ))}
-          {/* Saved anchor markers */}
-          {currentAnchor && (<>
-            <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="1.8" fill="#f59e0b" stroke="white" strokeWidth="0.4" style={{ pointerEvents: 'none' }} />
-            <text x={currentAnchor.x1 + 2} y={currentAnchor.y1} fill="#f59e0b" fontSize="2.5" style={{ pointerEvents: 'none' }}>A1</text>
-            <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="1.8" fill="#f59e0b" stroke="white" strokeWidth="0.4" style={{ pointerEvents: 'none' }} />
-            <text x={currentAnchor.x2 + 2} y={currentAnchor.y2} fill="#f59e0b" fontSize="2.5" style={{ pointerEvents: 'none' }}>A2</text>
-          </>)}
-          {/* Pending anchor markers in anchor mode */}
-          {anchorMode && pendingAnchor1 && (
-            <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="2" fill="#ef4444" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
-          )}
-          {anchorMode && pendingAnchor2 && (
-            <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="2" fill="#3b82f6" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
-          )}
-        </svg>
-        {/* Anchor mode overlay label */}
-        {anchorMode && (
-          <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: anchorStep === 1 ? '#ef444488' : '#3b82f688', color: 'white', padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', pointerEvents: 'none' }}>
-            {anchorStep === 1 ? '📍 לחץ לסימון עוגן 1 (A1)' : '📍 לחץ לסימון עוגן 2 (A2)'}
-          </div>
-        )}
-      </div>
-
-      {/* Anchor / Calibration panel */}
-      <div style={{ background: '#1e293b', borderRadius: '6px', padding: '10px 12px', marginBottom: '12px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ color: isCalibrated ? '#22c55e' : '#f59e0b', fontSize: '12px', fontWeight: 'bold' }}>
-          {isCalibrated ? '✅ מפה מכוילת (גיאו)' : '⚠️ לא מכוילת'}
-        </span>
-        {!anchorMode ? (
-          <button onClick={() => { setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null); setPendingLat1(localMapData?.anchor1_lat ? String(localMapData.anchor1_lat) : ''); setPendingLon1(localMapData?.anchor1_lon ? String(localMapData.anchor1_lon) : ''); setPendingLat2(localMapData?.anchor2_lat ? String(localMapData.anchor2_lat) : ''); setPendingLon2(localMapData?.anchor2_lon ? String(localMapData.anchor2_lon) : ''); }}
-            style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px' }}>
-            {isCalibrated ? '🔧 עדכן עיגון' : '📐 הגדר עיגון גיאו'}
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ color: '#94a3b8', fontSize: '11px' }}>עוגן {anchorStep === 1 ? '1' : '2'}:</span>
-            <input value={anchorStep === 1 ? pendingLat1 : pendingLat2} onChange={e => anchorStep === 1 ? setPendingLat1(e.target.value) : setPendingLat2(e.target.value)}
-              placeholder="קו רוחב" style={{ width: '90px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-            <input value={anchorStep === 1 ? pendingLon1 : pendingLon2} onChange={e => anchorStep === 1 ? setPendingLon1(e.target.value) : setPendingLon2(e.target.value)}
-              placeholder="קו אורך" style={{ width: '90px', padding: '3px 6px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-            {anchorStep === 1 && pendingAnchor1 && (
-              <button onClick={() => setAnchorStep(2)} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '12px' }}>הבא ▶</button>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid #1e293b', flexShrink: 0, background: '#0f172a' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '16px' }}>🗺 עריכת אזורי מפה</span>
+            <span style={{ color: isCalibrated ? '#22c55e' : '#f59e0b', fontSize: '12px', fontWeight: 'bold', background: isCalibrated ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', padding: '2px 8px', borderRadius: '10px' }}>
+              {isCalibrated ? '✅ מכוילת' : '⚠️ לא מכוילת'}
+            </span>
+            {anchorMode && (
+              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: anchorStep === 1 ? '#ef4444' : '#3b82f6', padding: '3px 10px', borderRadius: '10px', animation: 'elemBlink 1s infinite' }}>
+                📍 {anchorStep === 1 ? 'לחץ על המפה לסימון עוגן 1' : 'לחץ על המפה לסימון עוגן 2'}
+              </span>
             )}
-            {anchorStep === 2 && pendingAnchor1 && pendingAnchor2 && (
-              <button onClick={saveAnchors} disabled={savingAnchors} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 10px', cursor: 'pointer', fontSize: '12px' }}>
-                {savingAnchors ? '...' : '💾 שמור עיגון'}
-              </button>
-            )}
-            <button onClick={() => { setAnchorMode(false); setPendingAnchor1(null); setPendingAnchor2(null); setAnchorStep(1); }}
-              style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
           </div>
-        )}
-      </div>
+          <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, borderRadius: '6px', width: '32px', height: '32px' }}>×</button>
+        </div>
 
-      {/* Editing existing zone */}
-      {editingZone && (
-        <div style={{ background: '#1e293b', borderRadius: '6px', padding: '12px', marginBottom: '12px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>עריכת אזור "{editingZone.name}"</div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              value={editingZone.name}
-              onChange={e => setEditingZone(z => z ? { ...z, name: e.target.value } : z)}
-              placeholder="שם אזור"
-              style={{ flex: 1, minWidth: '120px', padding: '6px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '13px' }}
+        {/* Body: map + side panel */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+          {/* Map area — takes most of the space, SVG positioned directly over image */}
+          <div ref={containerRef} style={{ flex: 1, position: 'relative', background: '#1e293b', overflow: 'hidden' }}>
+            <img
+              ref={imgEditorRef}
+              src={mapSrc}
+              onLoad={computeEditorImgBounds}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
             />
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {ZONE_COLORS.map(c => (
-                <div key={c} onClick={() => setEditingZone(z => z ? { ...z, color: c } : z)}
-                  style={{ width: '18px', height: '18px', borderRadius: '50%', background: c, cursor: 'pointer', border: editingZone.color === c ? '2px solid white' : '2px solid transparent' }} />
-              ))}
-            </div>
-            <button onClick={saveEdit} disabled={saving} style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
-              {saving ? '...' : 'שמור'}
-            </button>
-            <button onClick={() => { deleteZone(editingZone.id); setEditingZone(null); }} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
-              מחק
-            </button>
-            <button onClick={() => setEditingZone(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px' }}>
-              ביטול
-            </button>
+            {/* SVG always covers the exact image-rendered area for accurate coordinate mapping */}
+            {imgEditorBounds ? (
+              <svg
+                ref={svgRef}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                style={{
+                  position: 'absolute',
+                  left: imgEditorBounds.left,
+                  top: imgEditorBounds.top,
+                  width: imgEditorBounds.width,
+                  height: imgEditorBounds.height,
+                  cursor: anchorMode ? 'crosshair' : (editingZone ? 'default' : 'crosshair'),
+                }}
+                onClick={handleSvgClickFixed}
+                onDoubleClick={handleSvgDblClick}
+              >
+                {zones.map(z => (
+                  <g key={z.id}>
+                    <polygon points={polygonToSvgPoints(z.polygon)} fill={z.color + '33'} stroke={z.color} strokeWidth="0.5" style={{ cursor: 'pointer' }}
+                      onClick={(e) => { e.stopPropagation(); setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }} />
+                    {z.polygon.length > 0 && (
+                      <text x={z.polygon.reduce((s, p) => s + p.x, 0) / z.polygon.length} y={z.polygon.reduce((s, p) => s + p.y, 0) / z.polygon.length}
+                        textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize="3" fontWeight="bold"
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}</text>
+                    )}
+                  </g>
+                ))}
+                {activePoly.length >= 2 && (
+                  <polyline points={polygonToSvgPoints(activePoly)} fill="none" stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" strokeDasharray="2,1" />
+                )}
+                {activePoly.length >= 3 && (
+                  <polygon points={polygonToSvgPoints(activePoly)} fill={(editingZone ? editingZone.color : draftColor) + '33'} stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" />
+                )}
+                {activePoly.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.8 : 1.2} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
+                ))}
+                {currentAnchor && (<>
+                  <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="2" fill="#f59e0b" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  <text x={currentAnchor.x1 + 2.5} y={currentAnchor.y1} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A1</text>
+                  <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="2" fill="#f59e0b" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  <text x={currentAnchor.x2 + 2.5} y={currentAnchor.y2} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A2</text>
+                </>)}
+                {anchorMode && pendingAnchor1 && (
+                  <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="2.5" fill="#ef4444" stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                )}
+                {anchorMode && pendingAnchor2 && (
+                  <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="2.5" fill="#3b82f6" stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                )}
+              </svg>
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
+            )}
           </div>
 
-          {/* ── Altitude Ranges for this zone ── */}
-          <div style={{ marginTop: '12px', borderTop: '1px solid #334155', paddingTop: '10px' }}>
-            <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>📐 טווחי גובה לאזור:</div>
-            {altRangesLoading ? (
-              <div style={{ color: '#64748b', fontSize: '11px' }}>טוען...</div>
-            ) : (
-              <>
-                {altRanges.map(ar => (
-                  <div key={ar.id} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px', background: '#0f172a', borderRadius: '4px', padding: '5px 8px' }}>
-                    <input
-                      value={ar.name}
-                      onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, name: e.target.value } : x))}
-                      onBlur={async () => {
-                        await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) });
-                      }}
-                      placeholder="שם טווח"
-                      style={{ flex: 2, padding: '4px 6px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '12px' }}
-                    />
-                    <input
-                      type="number"
-                      value={ar.alt_min ?? ''}
-                      onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, alt_min: e.target.value ? Number(e.target.value) : null } : x))}
-                      onBlur={async () => {
-                        await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) });
-                      }}
-                      placeholder="מינ'"
-                      style={{ width: '60px', padding: '4px 6px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '12px' }}
-                    />
-                    <span style={{ color: '#64748b', fontSize: '10px' }}>—</span>
-                    <input
-                      type="number"
-                      value={ar.alt_max ?? ''}
-                      onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, alt_max: e.target.value ? Number(e.target.value) : null } : x))}
-                      onBlur={async () => {
-                        await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) });
-                      }}
-                      placeholder="מקס'"
-                      style={{ width: '60px', padding: '4px 6px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '12px' }}
-                    />
-                    <button onClick={async () => {
-                      await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'DELETE' });
-                      setAltRanges(prev => prev.filter(x => x.id !== ar.id));
-                    }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>✕</button>
+          {/* Controls panel — right side */}
+          <div style={{ width: '320px', overflowY: 'auto', background: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+            {/* Anchor / Calibration */}
+            <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
+              <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>📐 כיול גיאוגרפי</div>
+              {!anchorMode ? (
+                <button onClick={() => { setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null); setPendingLat1(localMapData?.anchor1_lat ? String(localMapData.anchor1_lat) : ''); setPendingLon1(localMapData?.anchor1_lon ? String(localMapData.anchor1_lon) : ''); setPendingLat2(localMapData?.anchor2_lat ? String(localMapData.anchor2_lat) : ''); setPendingLon2(localMapData?.anchor2_lon ? String(localMapData.anchor2_lon) : ''); }}
+                  style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
+                  {isCalibrated ? '🔧 עדכן עיגון' : '📐 הגדר עיגון גיאו'}
+                </button>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ color: '#94a3b8', fontSize: '11px' }}>עוגן {anchorStep === 1 ? '1 (A1) — לחץ על המפה' : '2 (A2) — לחץ על המפה'}:</div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input value={anchorStep === 1 ? pendingLat1 : pendingLat2} onChange={e => anchorStep === 1 ? setPendingLat1(e.target.value) : setPendingLat2(e.target.value)}
+                      placeholder="קו רוחב" style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px' }} />
+                    <input value={anchorStep === 1 ? pendingLon1 : pendingLon2} onChange={e => anchorStep === 1 ? setPendingLon1(e.target.value) : setPendingLon2(e.target.value)}
+                      placeholder="קו אורך" style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {anchorStep === 1 && pendingAnchor1 && (
+                      <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>הבא ▶</button>
+                    )}
+                    {anchorStep === 2 && pendingAnchor1 && pendingAnchor2 && (
+                      <button onClick={saveAnchors} disabled={savingAnchors} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>
+                        {savingAnchors ? '...' : '💾 שמור עיגון'}
+                      </button>
+                    )}
+                    <button onClick={() => { setAnchorMode(false); setPendingAnchor1(null); setPendingAnchor2(null); setAnchorStep(1); }}
+                      style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '5px 10px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Editing existing zone */}
+            {editingZone && (
+              <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '8px' }}>עריכת אזור:</div>
+                <input value={editingZone.name} onChange={e => setEditingZone(z => z ? { ...z, name: e.target.value } : z)} placeholder="שם אזור"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+                  {ZONE_COLORS.map(c => (
+                    <div key={c} onClick={() => setEditingZone(z => z ? { ...z, color: c } : z)}
+                      style={{ width: '22px', height: '22px', borderRadius: '50%', background: c, cursor: 'pointer', border: editingZone.color === c ? '3px solid white' : '2px solid transparent' }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                  <button onClick={saveEdit} disabled={saving} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '7px', cursor: 'pointer', fontSize: '12px' }}>
+                    {saving ? '...' : '💾 שמור'}
+                  </button>
+                  <button onClick={() => { deleteZone(editingZone.id); setEditingZone(null); }} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>🗑</button>
+                  <button onClick={() => setEditingZone(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                </div>
+                <div style={{ borderTop: '1px solid #1e293b', paddingTop: '10px' }}>
+                  <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px' }}>📐 טווחי גובה:</div>
+                  {altRangesLoading ? (
+                    <div style={{ color: '#64748b', fontSize: '11px' }}>טוען...</div>
+                  ) : (
+                    <>
+                      {altRanges.map(ar => (
+                        <div key={ar.id} style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '5px' }}>
+                          <input value={ar.name} onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, name: e.target.value } : x))}
+                            onBlur={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) }); }}
+                            placeholder="שם" style={{ flex: 2, padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
+                          <input type="number" value={ar.alt_min ?? ''} onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, alt_min: e.target.value ? Number(e.target.value) : null } : x))}
+                            onBlur={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) }); }}
+                            placeholder="מינ'" style={{ width: '50px', padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
+                          <span style={{ color: '#64748b', fontSize: '10px' }}>—</span>
+                          <input type="number" value={ar.alt_max ?? ''} onChange={e => setAltRanges(prev => prev.map(x => x.id === ar.id ? { ...x, alt_max: e.target.value ? Number(e.target.value) : null } : x))}
+                            onBlur={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: ar.name, alt_min: ar.alt_min, alt_max: ar.alt_max, sort_order: ar.sort_order }) }); }}
+                            placeholder="מקס'" style={{ width: '50px', padding: '3px 5px', border: '1px solid #334155', borderRadius: '3px', background: '#1e293b', color: 'white', fontSize: '11px' }} />
+                          <button onClick={async () => { await fetch(`${API_URL}/zone-altitude-ranges/${ar.id}`, { method: 'DELETE' }); setAltRanges(prev => prev.filter(x => x.id !== ar.id)); }}
+                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px', padding: '0 2px' }}>✕</button>
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginTop: '6px' }}>
+                        <input value={newAltRange.name} onChange={e => setNewAltRange(p => ({ ...p, name: e.target.value }))} placeholder="שם חדש"
+                          style={{ flex: 2, padding: '3px 5px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '11px' }} />
+                        <input type="number" value={newAltRange.alt_min} onChange={e => setNewAltRange(p => ({ ...p, alt_min: e.target.value }))} placeholder="מינ'"
+                          style={{ width: '50px', padding: '3px 5px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '11px' }} />
+                        <span style={{ color: '#64748b', fontSize: '10px' }}>—</span>
+                        <input type="number" value={newAltRange.alt_max} onChange={e => setNewAltRange(p => ({ ...p, alt_max: e.target.value }))} placeholder="מקס'"
+                          style={{ width: '50px', padding: '3px 5px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '11px' }} />
+                        <button onClick={async () => {
+                          if (!newAltRange.name.trim()) return;
+                          const res = await fetch(`${API_URL}/zone-altitude-ranges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zone_id: editingZone.id, name: newAltRange.name.trim(), alt_min: newAltRange.alt_min ? Number(newAltRange.alt_min) : null, alt_max: newAltRange.alt_max ? Number(newAltRange.alt_max) : null, sort_order: altRanges.length }) });
+                          if (res.ok) { const row = await res.json(); setAltRanges(prev => [...prev, row]); setNewAltRange({ name: '', alt_min: '', alt_max: '' }); }
+                        }} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>+</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Add new zone */}
+            {!editingZone && (
+              <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
+                <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>➕ אזור חדש</div>
+                <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px', lineHeight: 1.4 }}>
+                  {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות' : `${draftPoints.length} נקודות — לחץ ליד נקודה ראשונה לסגירה`}
+                </div>
+                <input value={draftName} onChange={e => setDraftName(e.target.value)} placeholder="שם האזור"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '13px', boxSizing: 'border-box', marginBottom: '8px' }} />
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+                  {ZONE_COLORS.map(c => (
+                    <div key={c} onClick={() => setDraftColor(c)}
+                      style={{ width: '22px', height: '22px', borderRadius: '50%', background: c, cursor: 'pointer', border: draftColor === c ? '3px solid white' : '2px solid transparent' }} />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {draftPoints.length >= 3 && (
+                    <button onClick={() => { if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; } saveDraft(draftPoints); }}
+                      disabled={saving} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '7px', cursor: 'pointer', fontSize: '12px' }}>
+                      {saving ? '...' : '💾 שמור אזור'}
+                    </button>
+                  )}
+                  {draftPoints.length > 0 && (
+                    <button onClick={() => setDraftPoints([])} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px' }}>נקה</button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Existing zones list */}
+            <div style={{ padding: '14px', flex: 1 }}>
+              <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px' }}>אזורים שמורים ({zones.length})</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {zones.map(z => (
+                  <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '7px 10px', cursor: 'pointer', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}` }}
+                    onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: z.color, flexShrink: 0 }} />
+                    <span style={{ color: '#e2e8f0', fontSize: '12px', flex: 1 }}>{z.name}</span>
+                    <span style={{ color: '#475569', fontSize: '10px' }}>{z.polygon.length} נק'</span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
-                  <input
-                    value={newAltRange.name}
-                    onChange={e => setNewAltRange(p => ({ ...p, name: e.target.value }))}
-                    placeholder="שם טווח חדש"
-                    style={{ flex: 2, padding: '4px 6px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '12px' }}
-                  />
-                  <input type="number" value={newAltRange.alt_min} onChange={e => setNewAltRange(p => ({ ...p, alt_min: e.target.value }))} placeholder="מינ'"
-                    style={{ width: '60px', padding: '4px 6px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                  <span style={{ color: '#64748b', fontSize: '10px' }}>—</span>
-                  <input type="number" value={newAltRange.alt_max} onChange={e => setNewAltRange(p => ({ ...p, alt_max: e.target.value }))} placeholder="מקס'"
-                    style={{ width: '60px', padding: '4px 6px', border: '1px dashed #475569', borderRadius: '3px', background: '#0f172a', color: 'white', fontSize: '12px' }} />
-                  <button onClick={async () => {
-                    if (!newAltRange.name.trim()) return;
-                    const res = await fetch(`${API_URL}/zone-altitude-ranges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zone_id: editingZone.id, name: newAltRange.name.trim(), alt_min: newAltRange.alt_min ? Number(newAltRange.alt_min) : null, alt_max: newAltRange.alt_max ? Number(newAltRange.alt_max) : null, sort_order: altRanges.length }) });
-                    if (res.ok) { const row = await res.json(); setAltRanges(prev => [...prev, row]); setNewAltRange({ name: '', alt_min: '', alt_max: '' }); }
-                  }} style={{ background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>+ הוסף</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Add new zone */}
-      {!editingZone && (
-        <div style={{ background: '#1e293b', borderRadius: '6px', padding: '12px' }}>
-          <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>
-            {draftPoints.length === 0 ? 'לחץ על המפה להוסיף נקודות פוליגון' : `${draftPoints.length} נקודות — לחץ שוב ליד הנקודה הראשונה לסגירה, ואז לחץ "שמור אזור"`}
-          </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              value={draftName}
-              onChange={e => setDraftName(e.target.value)}
-              placeholder="שם האזור"
-              style={{ flex: 1, minWidth: '120px', padding: '6px 10px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: 'white', fontSize: '13px' }}
-            />
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {ZONE_COLORS.map(c => (
-                <div key={c} onClick={() => setDraftColor(c)}
-                  style={{ width: '18px', height: '18px', borderRadius: '50%', background: c, cursor: 'pointer', border: draftColor === c ? '2px solid white' : '2px solid transparent' }} />
-              ))}
-            </div>
-            {draftPoints.length >= 3 && (
-              <button
-                onClick={() => { if (!draftName.trim()) { alert('יש להזין שם לאזור'); return; } saveDraft(draftPoints); }}
-                disabled={saving}
-                style={{ background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 14px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                {saving ? '...' : 'שמור אזור'}
-              </button>
-            )}
-            {draftPoints.length > 0 && (
-              <button onClick={() => setDraftPoints([])} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px' }}>
-                נקה
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Existing zones list */}
-      {zones.length > 0 && (
-        <div style={{ marginTop: '12px' }}>
-          <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '6px' }}>אזורים שמורים ({zones.length})</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {zones.map(z => (
-              <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#1e293b', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', border: `1px solid ${z.color}66` }}
-                onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: z.color }} />
-                <span style={{ color: '#e2e8f0', fontSize: '12px' }}>{z.name}</span>
-                <span style={{ color: '#64748b', fontSize: '11px' }}>({z.polygon.length} נק')</span>
+                {zones.length === 0 && <div style={{ color: '#334155', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין אזורים עדיין</div>}
               </div>
-            ))}
+            </div>
+
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
