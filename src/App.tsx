@@ -11421,9 +11421,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzPinGhost, setFzPinGhost] = useState<{ src: string; filter: string; label: string; color: string; status: string } | null>(null);
   const fzPinGhostRef = useRef<HTMLDivElement>(null);
   const fzPinGhostPosRef = useRef<{x:number;y:number}>({x:0,y:0});
+  const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
+  const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
-  const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
+  const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number; zoneName?: string; zoneColor?: string; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
@@ -12138,6 +12140,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   useMapZonesRef.current = useMapZonesActive;
 
   const handleFzPinPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Handle split pin drag/click
+    if (fzSplitPinDragRef.current) {
+      const { key, downX, downY } = fzSplitPinDragRef.current;
+      fzSplitPinDragRef.current = null;
+      if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) < 8) {
+        // Click: cycle status
+        const cycleStatuses = ['בדרך לאזור', 'באזור', 'עוזב אזור'];
+        setFzSplitItems(prev => prev.map(si => {
+          if (si.key !== key) return si;
+          const curIdx = cycleStatuses.indexOf(si.status || 'בדרך לאזור');
+          return { ...si, status: cycleStatuses[(curIdx + 1) % cycleStatuses.length] };
+        }));
+      } else {
+        // Drag: update position
+        const ib = mapImgBoundsRef.current;
+        if (ib) {
+          const pctX = Math.max(1, Math.min(99, (e.clientX - ib.left) / ib.width * 100));
+          const pctY = Math.max(1, Math.min(99, (e.clientY - ib.top) / ib.height * 100));
+          setFzSplitItems(prev => prev.map(si => si.key === key ? { ...si, posX: pctX, posY: pctY } : si));
+        }
+      }
+      return;
+    }
     const dragId = fzPinDragRef.current;
     if (!dragId || !currentMapId) { fzPinDownPos.current = null; return; }
     // Click vs drag detection
@@ -17577,6 +17603,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               );
             })}
 
+            {/* Split pins — virtual helicopter markers for fzSplitItems that have a zone assigned */}
+            {isFlightZonesMode && mapImgBounds && fzSplitItems.filter(si => si.zoneId && si.posX !== undefined && si.posY !== undefined).map(si => {
+              const ib = mapImgBounds!;
+              const pixX = ib.left + (si.posX! / 100) * ib.width;
+              const pixY = ib.top + (si.posY! / 100) * ib.height;
+              const parentStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/,''),10) === parseInt(String(si.parentStripId).replace(/^s/,''),10));
+              const sqRaw = String((parentStrip as any)?.sq || (parentStrip as any)?.squadron || '');
+              const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : (si.zoneColor || '#3b82f6');
+              const isYasur = sqRaw.includes('124');
+              const heliSrc = isYasur ? '/heli-yasur.png' : '/heli-yanshuf.png';
+              const heliW = Math.max(22, 30 / mapZoom);
+              const fontSize = Math.max(8, 10 / mapZoom);
+              const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
+              const stColor = stColors[si.status || ''] || sqColor;
+              const filterStr = `sepia(1) hue-rotate(${isYasur ? 270 : 180}deg) saturate(8) brightness(1.3) drop-shadow(0 0 4px ${sqColor})`;
+              return (
+                <div
+                  key={`fzsplit-${si.key}`}
+                  ref={el => { if (el) fzSplitPinDomRefs.current.set(si.key, el); else fzSplitPinDomRefs.current.delete(si.key); }}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    fzSplitPinDragRef.current = { key: si.key, downX: e.clientX, downY: e.clientY };
+                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(139,92,246,0.05)'; fzOverlayRef.current.style.border = '2px dashed #a78bfa'; fzOverlayRef.current.style.cursor = 'grabbing'; }
+                  }}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 45, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2/mapZoom}px`, pointerEvents: 'all', touchAction: 'none' }}
+                >
+                  <div style={{ position: 'relative', width: heliW, height: heliW, borderRadius: '50%', border: `${2/mapZoom}px dashed ${stColor}`, boxShadow: `0 0 8px 3px ${stColor}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,23,42,0.75)' }}>
+                    <img src={heliSrc} alt="" draggable={false} style={{ width: heliW * 0.72, height: 'auto', filter: filterStr, pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', top: -5/mapZoom, right: -5/mapZoom, width: 14/mapZoom, height: 14/mapZoom, borderRadius: '50%', background: '#7c3aed', color: 'white', fontSize: 9/mapZoom, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `${1/mapZoom}px solid #0f172a`, zIndex: 2, pointerEvents: 'none', fontWeight: 'bold' }}>✂</div>
+                  </div>
+                  <div style={{ background: 'rgba(15,23,42,0.92)', color: stColor, padding: `${1/mapZoom}px ${4/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${stColor}66`, lineHeight: 1.2 }}>
+                    {si.label}{si.count > 1 ? ` ×${si.count}` : ''}
+                  </div>
+                </div>
+              );
+            })}
+
             
           </div>
 
@@ -17588,13 +17652,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               onDragOver={e => { e.preventDefault(); }}
               onDrop={handleFzMapDrop}
               onPointerMove={e => {
-                if (fzPinDragRef.current && fzPinGhostRef.current) {
+                if (fzSplitPinDragRef.current) {
+                  const el = fzSplitPinDomRefs.current.get(fzSplitPinDragRef.current.key);
+                  if (el && mapImgBoundsRef.current) {
+                    const ib = mapImgBoundsRef.current;
+                    const pctX = Math.max(1, Math.min(99, (e.clientX - ib.left) / ib.width * 100));
+                    const pctY = Math.max(1, Math.min(99, (e.clientY - ib.top) / ib.height * 100));
+                    el.style.left = (ib.left + pctX / 100 * ib.width) + 'px';
+                    el.style.top = (ib.top + pctY / 100 * ib.height) + 'px';
+                  }
+                } else if (fzPinDragRef.current && fzPinGhostRef.current) {
                   fzPinGhostRef.current.style.left = e.clientX + 'px';
                   fzPinGhostRef.current.style.top = e.clientY + 'px';
                 }
               }}
               onPointerUp={handleFzPinPointerUp}
               onPointerLeave={() => {
+                if (fzSplitPinDragRef.current) {
+                  fzSplitPinDragRef.current = null;
+                  if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                }
                 if (fzPinDragRef.current) {
                   fzPinDragRef.current = null;
                   fzDragIsPin.current = false;
@@ -17934,18 +18011,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     })()}
                   </div>
                   {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
-                    <div key={si.key}
-                      draggable
-                      onDragStart={e => { e.stopPropagation(); fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
-                      onDragEnd={() => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); }}
-                      style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
-                    >
-                      <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
-                      <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
-                      <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
-                      <button onClick={e => { e.stopPropagation(); setFzSplitItems(prev => prev.filter(x => x.key !== si.key)); }}
-                        style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
-                    </div>
+                    si.zoneId ? (
+                      // Split is placed on map — show zone badge, not draggable
+                      <div key={si.key} style={{ margin: '2px 4px 0', display: 'flex', alignItems: 'center', gap: '5px', background: '#0d1b2e', border: `1px solid ${si.zoneColor || '#7c3aed'}55`, borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}>
+                        <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
+                        <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
+                        {si.count > 1 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>}
+                        <span style={{ fontSize: '9px', background: si.zoneColor ? `${si.zoneColor}33` : '#1e3a5f', color: si.zoneColor || '#60a5fa', border: `1px solid ${si.zoneColor || '#3b82f6'}55`, borderRadius: '3px', padding: '0 4px', whiteSpace: 'nowrap' }}>📍 {si.zoneName}</span>
+                        <span style={{ fontSize: '8px', color: si.status === 'באזור' ? '#22c55e' : si.status === 'עוזב אזור' ? '#f97316' : '#f59e0b' }}>{si.status || 'בדרך לאזור'}</span>
+                        <button onClick={e => { e.stopPropagation(); setFzSplitItems(prev => prev.filter(x => x.key !== si.key)); }}
+                          style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
+                      </div>
+                    ) : (
+                      // Split not yet assigned — draggable to map
+                      <div key={si.key}
+                        draggable
+                        onDragStart={e => { e.stopPropagation(); fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
+                        onDragEnd={() => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); }}
+                        style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
+                      >
+                        <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
+                        <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
+                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>×{si.count}</span>
+                        <span style={{ fontSize: '9px', color: '#64748b' }}>⊙ גרור למפה</span>
+                        <button onClick={e => { e.stopPropagation(); setFzSplitItems(prev => prev.filter(x => x.key !== si.key)); }}
+                          style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: 0 }}>✕</button>
+                      </div>
+                    )
                   ))}
                 </div>
               );})}
@@ -19350,7 +19442,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           onClick={e => { if (e.target === e.currentTarget) setFzSplitModal(null); }}>
           <div style={{ background: '#1e293b', border: '1px solid #7c3aed', borderRadius: '12px', padding: '24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
             <div style={{ color: '#c4b5fd', fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>✂ פיצול פמ"מ — {fzSplitModal.strip.callSign}</div>
-            <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>הוסף חלקי פמ"מ לגרירה נפרדת על המפה</div>
+            {(() => {
+              const parentId = parseInt(String(fzSplitModal.strip.id).replace(/^s/,''), 10);
+              const pa = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parentId);
+              return pa ? (
+                <div style={{ color: '#a78bfa', fontSize: '12px', marginBottom: '16px', background: 'rgba(124,58,237,0.12)', border: '1px solid #7c3aed55', borderRadius: '6px', padding: '6px 10px' }}>
+                  📍 החלק יוקצה אוטומטית לאזור <strong style={{ color: pa.zone_color || '#c4b5fd' }}>{pa.zone_name}</strong> ויופיע על המפה
+                </div>
+              ) : (
+                <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '16px' }}>הוסף חלקי פמ"מ לגרירה נפרדת על המפה</div>
+              );
+            })()}
             <div style={{ marginBottom: '12px' }}>
               <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>שם חלק (לדוגמה: {fzSplitModal.strip.callSign}-א)</label>
               <input
@@ -19372,8 +19474,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => {
                 if (!fzSplitForm.label.trim()) return;
-                setFzSplitItems(prev => [...prev, { key: Date.now(), parentStripId: fzSplitModal!.strip.id, label: fzSplitForm.label.trim(), count: parseInt(fzSplitForm.count) || 1 }]);
-                setFzSplitForm(p => ({ ...p, label: fzSplitModal!.strip.callSign + '-ב' }));
+                const parentId = parseInt(String(fzSplitModal!.strip.id).replace(/^s/,''), 10);
+                const parentAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parentId);
+                const angle = Math.random() * 2 * Math.PI;
+                const dist = 3 + Math.random() * 3;
+                const existingCount = fzSplitItems.filter(si => si.parentStripId === fzSplitModal!.strip.id && si.zoneId).length;
+                const spreadAngle = angle + existingCount * (Math.PI / 3);
+                const newItem = {
+                  key: Date.now(),
+                  parentStripId: fzSplitModal!.strip.id,
+                  label: fzSplitForm.label.trim(),
+                  count: parseInt(fzSplitForm.count) || 1,
+                  ...(parentAssignment ? {
+                    zoneId: parentAssignment.zone_id,
+                    zoneName: parentAssignment.zone_name,
+                    zoneColor: parentAssignment.zone_color,
+                    altRangeId: parentAssignment.altitude_range_id,
+                    status: parentAssignment.status || 'בדרך לאזור',
+                    posX: Math.max(2, Math.min(98, (parentAssignment.pos_x ?? 50) + Math.cos(spreadAngle) * dist)),
+                    posY: Math.max(2, Math.min(98, (parentAssignment.pos_y ?? 50) + Math.sin(spreadAngle) * dist)),
+                  } : {})
+                };
+                setFzSplitItems(prev => [...prev, newItem]);
+                const nextSuffix = ['א','ב','ג','ד','ה','ו','ז','ח'][Math.min(7, fzSplitItems.filter(si => si.parentStripId === fzSplitModal!.strip.id).length + 1)];
+                setFzSplitForm(p => ({ ...p, label: fzSplitModal!.strip.callSign + '-' + (nextSuffix || 'ג') }));
               }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף חלק</button>
               <button onClick={() => setFzSplitModal(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>סגור</button>
             </div>
