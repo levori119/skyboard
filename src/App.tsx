@@ -11410,6 +11410,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
+  const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
   const fzDragIsPin = React.useRef(false);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number }[]>([]);
@@ -12148,7 +12149,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     fzDragIdRef.current = null;
     setFzDragStripId(null);
     setFzDragLabel(null);
-    if (!zone) return;
+    if (!zone) {
+      // Pin dropped outside any zone polygon → show zone picker
+      if (isPin && mapZones.length > 0) {
+        const existing = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        setFzPinZonePicker({ stripId: dragId, posX: pxInMap, posY: pyInMap, dragLabel, existing });
+      }
+      return;
+    }
     if (isPin) {
       // Dragging an existing pin — check if same zone
       const existing = stripZoneAssignments.find(a => a.strip_id === dragId);
@@ -18979,6 +18987,52 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={handleFzSave} style={{ padding: '8px 20px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✓ שמור הקצאה</button>
               <button onClick={() => setFzDialog(null)} style={{ padding: '8px 16px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Flight Zones Pin Zone Picker — shown when pin is dropped outside any polygon */}
+      {fzPinZonePicker && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9001 }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '22px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+            <div style={{ color: '#f1f5f9', fontSize: '15px', fontWeight: 'bold', marginBottom: '6px' }}>🚁 העבר לאזור</div>
+            <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '14px' }}>
+              {fzPinZonePicker.dragLabel || `פמ ${fzPinZonePicker.stripId}`} — בחר אזור יעד:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '280px', overflowY: 'auto' }}>
+              {mapZones.map((z: MapZone) => {
+                const isCurrent = fzPinZonePicker.existing?.zone_id === z.id;
+                return (
+                  <button
+                    key={z.id}
+                    onClick={() => {
+                      const altRangesForZone = zoneAltRanges[z.id] || [];
+                      const ex = fzPinZonePicker.existing;
+                      setFzDialog({
+                        stripId: fzPinZonePicker.stripId,
+                        zoneName: z.name,
+                        zoneId: z.id,
+                        altRanges: altRangesForZone,
+                        selectedAltId: altRangesForZone[0]?.id ?? null,
+                        selectedStatus: ex?.status || 'planned',
+                        note: ex?.note || '',
+                        displayLabel: fzPinZonePicker.dragLabel ?? undefined,
+                        posX: fzPinZonePicker.posX,
+                        posY: fzPinZonePicker.posY,
+                      });
+                      setFzPinZonePicker(null);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: isCurrent ? '#0f2a1a' : '#0f172a', border: `1px solid ${isCurrent ? z.color : z.color + '66'}`, borderRadius: '7px', cursor: 'pointer', textAlign: 'right', direction: 'rtl' }}
+                  >
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: z.color, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: z.color, flex: 1 }}>{z.name}</span>
+                    {isCurrent && <span style={{ fontSize: '10px', color: '#22c55e' }}>נוכחי</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setFzPinZonePicker(null)} style={{ marginTop: '14px', width: '100%', padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
           </div>
         </div>,
         document.body
