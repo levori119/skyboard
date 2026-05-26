@@ -9,6 +9,47 @@ import { ClockWidget } from './ClockWidget';
 
 const API_URL = '/api';
 
+// --- דיאלוג אישור מותאם (במקום confirm()) ---
+type ConfirmFn = (msg: string) => Promise<boolean>;
+let _showConfirm: ConfirmFn = (msg) => Promise.resolve(window.confirm(msg));
+const customConfirm = (msg: string) => _showConfirm(msg);
+
+const ConfirmModal: React.FC = () => {
+  const [state, setState] = React.useState<{ msg: string; resolve: (v: boolean) => void } | null>(null);
+  React.useEffect(() => {
+    _showConfirm = (msg) => new Promise(resolve => setState({ msg, resolve }));
+    return () => { _showConfirm = (msg) => Promise.resolve(window.confirm(msg)); };
+  }, []);
+  React.useEffect(() => {
+    if (!state) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { state.resolve(false); setState(null); }
+      if (e.key === 'Enter') { state.resolve(true); setState(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [state]);
+  if (!state) return null;
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '14px', padding: '32px 36px', minWidth: '300px', maxWidth: '420px', boxShadow: '0 16px 48px rgba(0,0,0,0.6)', textAlign: 'center' }}>
+        <div style={{ fontSize: '20px', color: '#f1f5f9', fontWeight: 'bold', marginBottom: '28px', lineHeight: 1.5 }}>{state.msg}</div>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            autoFocus
+            onClick={() => { state.resolve(true); setState(null); }}
+            style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 28px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}
+          >אישור</button>
+          <button
+            onClick={() => { state.resolve(false); setState(null); }}
+            style={{ background: '#334155', color: '#cbd5e1', border: 'none', borderRadius: '8px', padding: '10px 28px', fontSize: '15px', cursor: 'pointer' }}
+          >ביטול</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- ניהול סשן עמדה ---
 interface CrewMember {
   id: number;
@@ -1010,7 +1051,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   };
 
   const deleteZone = async (id: number) => {
-    if (!confirm('למחוק אזור זה?')) return;
+    if (!await customConfirm('למחוק אזור זה?')) return;
     try {
       await fetch(`${API_URL}/map-zones/${id}`, { method: 'DELETE' });
       await loadZones();
@@ -1410,7 +1451,7 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('למחוק את המפה?')) return;
+    if (!await customConfirm('למחוק את המפה?')) return;
     try {
       await fetch(`${API_URL}/maps/${id}`, { method: 'DELETE' });
       loadMaps();
@@ -13289,7 +13330,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const handleDeleteSubSector = async (subSectorId: number) => {
-    if (!confirm('האם למחוק את תת-נקודת ההעברה?')) return;
+    if (!await customConfirm('האם למחוק את תת-נקודת ההעברה?')) return;
     try {
       await fetch(`${API_URL}/sub-sectors/${subSectorId}`, { method: 'DELETE' });
       loadData();
@@ -17244,7 +17285,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                                 loadAidsData();
                                               }} style={{ background: '#0f766e', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', padding: '2px 8px', cursor: 'pointer' }}>שמור</button>
                                               <button onClick={async () => {
-                                                if (!confirm('למחוק מדנית זו?')) return;
+                                                if (!await customConfirm('למחוק מדנית זו?')) return;
                                                 await fetch(`${API_URL}/work-group-notes/${note.id}`, { method: 'DELETE' });
                                                 setEditingWgNote(null);
                                                 loadAidsData();
@@ -18770,7 +18811,7 @@ const WorkGroupsManager = ({ presets }: { presets: any[] }) => {
   };
 
   const deleteGroup = async (id: number) => {
-    if (!confirm('למחוק קבוצת עבודה זו?')) return;
+    if (!await customConfirm('למחוק קבוצת עבודה זו?')) return;
     await fetch(`${API_URL}/work-groups/${id}`, { method: 'DELETE' });
     loadGroups();
   };
@@ -18955,7 +18996,7 @@ const TableModesManager = () => {
   };
 
   const deleteMode = async (id: number) => {
-    if (!confirm('למחוק מוד טבלה זה?')) return;
+    if (!await customConfirm('למחוק מוד טבלה זה?')) return;
     await fetch(`${API_URL}/table-modes/${id}`, { method: 'DELETE' });
     loadModes();
   };
@@ -20494,7 +20535,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   };
 
   const deleteCrewMember = async (id: number) => {
-    if (!confirm('למחוק איש צוות זה? הפעולה תמחק גם את נתוני כתב היד שלו.')) return;
+    if (!await customConfirm('למחוק איש צוות זה? הפעולה תמחק גם את נתוני כתב היד שלו.')) return;
     try {
       await fetch(`${API_URL}/crew-members/${id}`, { method: 'DELETE' });
       loadData();
@@ -20557,7 +20598,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   };
 
   const deleteSector = async (id: number) => {
-    if (!confirm('למחוק נקודת העברה זו?')) return;
+    if (!await customConfirm('למחוק נקודת העברה זו?')) return;
     try {
       await fetch(`${API_URL}/sectors/${id}`, { method: 'DELETE' });
       loadData();
@@ -20705,7 +20746,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   };
 
   const deletePreset = async (id: number) => {
-    if (!confirm('למחוק עמדה זו?')) return;
+    if (!await customConfirm('למחוק עמדה זו?')) return;
     try {
       const res = await fetch(`${API_URL}/workstation-presets/${id}`, { method: 'DELETE' });
       if (!res.ok) {
@@ -21438,7 +21479,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                                 loadPresetLinks(editingPreset.id);
                               }} style={{ background: '#5b21b6', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>שמור</button>
                               <button type="button" onClick={async () => {
-                                if (!confirm('למחוק קישור זה?')) return;
+                                if (!await customConfirm('למחוק קישור זה?')) return;
                                 await fetch(`${API_URL}/preset-links/${link.id}`, { method: 'DELETE' });
                                 loadPresetLinks(editingPreset.id);
                               }} style={{ background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 12px', fontSize: '11px', cursor: 'pointer' }}>מחק</button>
@@ -21686,7 +21727,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <button onClick={loadGlobalStrips} style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⟳ רענן</button>
                   <button
                     onClick={async () => {
-                      if (!confirm('לעדכן את תאריך כל זמני ההמראה להיום (ולשמור את השעה)?')) return;
+                      if (!await customConfirm('לעדכן את תאריך כל זמני ההמראה להיום (ולשמור את השעה)?')) return;
                       const res = await fetch(`${API_URL}/strips/update-takeoff-to-today`, { method: 'PUT' });
                       if (res.ok) {
                         const { updated } = await res.json();
@@ -21700,7 +21741,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   >📅 עדכן להיום</button>
                   <button
                     onClick={async () => {
-                      if (!confirm('לצור מטוסים לכל הפ"ממ לפי כמות המטוסים שלהם (כיפות ודת"קים אקראיים)?')) return;
+                      if (!await customConfirm('לצור מטוסים לכל הפ"ממ לפי כמות המטוסים שלהם (כיפות ודת"קים אקראיים)?')) return;
                       const res = await fetch(`${API_URL}/strip-aircraft/ensure-all`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -22384,7 +22425,7 @@ CHARLIE,1,301,`}
                             <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
                               <button onClick={async () => { const n = parseInt(s.numberOfFormation); if (!n || n < 1) return alert('לפמ"מ זה אין כמות מטוסים מוגדרת'); const res = await fetch(`${API_URL}/strip-aircraft/ensure/${s.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ count: n, randomize: true }) }); if (res.ok) { const rows = await res.json(); alert(`✅ נוצרו ${rows.length} מטוסים לפ"מ ${s.callSign}`); } else { alert('שגיאה ביצירת מטוסים'); } }} title={`צור ${s.numberOfFormation || '?'} מטוסים אוטומטית`} style={{ padding: '3px 10px', background: '#065f46', color: '#6ee7b7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}>✈ מטוסים</button>
                               <button onClick={() => { setEditingStripId(s.id); setEditingStripForm({ callSign: s.callSign || '', numberOfFormation: s.numberOfFormation || '', sq: s.sq || '', alt: s.alt || '', task: s.task || '', koteret: s.koteret || '', takeoff_time: formatTakeoffForInput(s.takeoff_time), airborne: !!s.airborne }); setShowNewStripForm(false); }} style={{ padding: '3px 10px', background: '#1e40af', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', marginLeft: '4px' }}>עריכה</button>
-                              <button onClick={async () => { if (!confirm(`למחוק פמם "${s.callSign}"?`)) return; await fetch(`${API_URL}/strips/${s.id}`, { method: 'DELETE' }); await loadGlobalStrips(); }} style={{ padding: '3px 10px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>מחק</button>
+                              <button onClick={async () => { if (!await customConfirm(`למחוק פמם "${s.callSign}"?`)) return; await fetch(`${API_URL}/strips/${s.id}`, { method: 'DELETE' }); await loadGlobalStrips(); }} style={{ padding: '3px 10px', background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>מחק</button>
                             </td>
                           </tr>
                         );
@@ -22624,7 +22665,7 @@ CHARLIE,1,301,`}
                       <span style={{ color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>{bs.name}</span>
                       <div style={{ display: 'flex', gap: '4px' }}>
                         <button onClick={() => { setEditingBlockSpace(bs); setBlockSpaceForm({ name: bs.name }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>✏️</button>
-                        <button onClick={async () => { if (!confirm('למחוק מרחב בלוקים זה?')) return; await fetch(`${API_URL}/block-spaces/${bs.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>🗑️</button>
+                        <button onClick={async () => { if (!await customConfirm('למחוק מרחב בלוקים זה?')) return; await fetch(`${API_URL}/block-spaces/${bs.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '3px 7px', cursor: 'pointer', fontSize: '11px' }}>🗑️</button>
                       </div>
                     </div>
                   ))}
@@ -22737,7 +22778,7 @@ CHARLIE,1,301,`}
                                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                       <button onClick={() => { setEditingBlockTable(bt); setBlockTableForm({ name: bt.name, block_space_id: bt.block_space_id || '', note: bt.note || '', category: bt.category || '' }); }} style={{ background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>✏️ ערוך</button>
                                       <button title="שכפל טבלה עם כל הבלוקים שלה" onClick={async () => { const res = await fetch(`${API_URL}/block-tables/${bt.id}/duplicate`, { method: 'POST' }); const newBt = await res.json(); await loadData(); setTimeout(() => { const el = document.getElementById(`block-table-${newBt.id}`); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '2px solid #4ade80'; el.style.outlineOffset = '2px'; setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 2000); } }, 300); }} style={{ background: '#1a3a1a', color: '#4ade80', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>⧉ שכפל</button>
-                                      <button onClick={async () => { if (!confirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
+                                      <button onClick={async () => { if (!await customConfirm('למחוק טבלה זו?')) return; await fetch(`${API_URL}/block-tables/${bt.id}`, { method: 'DELETE' }); loadData(); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑️ מחק</button>
                                     </div>
                                   </div>
                                   {/* Blocks side by side with visual painter */}
@@ -23027,7 +23068,7 @@ CHARLIE,1,301,`}
 
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button onClick={saveBdh} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '7px', padding: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>{editingBdh._new ? '✅ צור בד"ח' : '💾 שמור שינויים'}</button>
-                      {!editingBdh._new && <button onClick={async () => { if (!confirm('למחוק בד"ח זה?')) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
+                      {!editingBdh._new && <button onClick={async () => { if (!await customConfirm('למחוק בד"ח זה?')) return; await fetch(`${API_URL}/bdh/${editingBdh.id}`, { method: 'DELETE' }); await loadData(); setEditingBdh(null); }} style={{ background: '#450a0a', color: '#fca5a5', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>🗑️</button>}
                       <button onClick={() => setEditingBdh(null)} style={{ background: '#334155', color: 'white', border: 'none', borderRadius: '7px', padding: '10px 14px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                     </div>
                     {!editingBdh._new && editingBdh.updated_at && (
@@ -23088,7 +23129,7 @@ CHARLIE,1,301,`}
               } catch (e) { console.error(e); }
             };
             const deleteTable = async (id: number) => {
-              if (!window.confirm('למחוק תבנית זו?')) return;
+              if (!await customConfirm('למחוק תבנית זו?')) return;
               await fetch(`${API_URL}/classic-strip-tables/${id}`, { method: 'DELETE' });
               fetch(`${API_URL}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then(setClassicTables);
               startNew();
@@ -23456,7 +23497,7 @@ CHARLIE,1,301,`}
             }
           };
           const deleteAirfield = async (id: number) => {
-            if (!confirm('למחוק שדה זה?')) return;
+            if (!await customConfirm('למחוק שדה זה?')) return;
             await fetch(`${API_URL}/airfields/${id}`, { method: 'DELETE' });
             const updated = await fetch(`${API_URL}/airfields`);
             if (updated.ok) setAdminAirfields(await updated.json());
@@ -23678,7 +23719,7 @@ CHARLIE,1,301,`}
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
                                     {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
                                     <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
-                                    <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                                    <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
                                 </div>
                               );
@@ -23952,11 +23993,11 @@ CHARLIE,1,301,`}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
-                                {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!confirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [] }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [] }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#451a03', color: '#fb923c', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>}
                                 <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '' }); setShowAirfieldRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
-                                <button onClick={async () => { if (!confirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
                               </div>
                             );
@@ -24219,7 +24260,7 @@ CHARLIE,1,301,`}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                       <button onClick={() => { setEditingBaseStatus(bs); setBaseStatusForm({ name: bs.name, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #2563eb', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✎ עריכה</button>
-                      <button onClick={async () => { if (!confirm(`למחוק את "${bs.name}"?`)) return; await fetch(`${API_URL}/base-statuses/${bs.id}`, { method: 'DELETE' }); loadAdminBaseStatuses(); }} style={{ padding: '5px 12px', background: '#450a0a', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 מחק</button>
+                      <button onClick={async () => { if (!await customConfirm(`למחוק את "${bs.name}"?`)) return; await fetch(`${API_URL}/base-statuses/${bs.id}`, { method: 'DELETE' }); loadAdminBaseStatuses(); }} style={{ padding: '5px 12px', background: '#450a0a', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 מחק</button>
                     </div>
                   </div>
                 ))}
@@ -24343,7 +24384,7 @@ CHARLIE,1,301,`}
                       <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
                         <button onClick={() => { setEditingAviationBase(b); setAviationBaseForm({ name: b.name, code: b.code || '', coord_n: b.coord_n != null ? String(b.coord_n) : '', coord_e: b.coord_e != null ? String(b.coord_e) : '', sids: Array.isArray(b.sids) ? b.sids : [], stars: Array.isArray(b.stars) ? b.stars : [], newSid: '', newStar: '' }); setShowAviationBaseForm(true); }}
                           style={{ padding: '3px 8px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>עריכה</button>
-                        <button onClick={async () => { if (!confirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
+                        <button onClick={async () => { if (!await customConfirm(`למחוק את הבסיס "${b.name}"?`)) return; await fetch(`${API_URL}/aviation-bases/${b.id}`, { method: 'DELETE' }); fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAdminAviationBases).catch(() => {}); }}
                           style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>מחק</button>
                       </div>
                     </div>
@@ -24449,7 +24490,7 @@ CHARLIE,1,301,`}
                           </span>
                         )}
                         <button onClick={() => { setElementTypeForm({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
-                        <button onClick={async () => { if (!confirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
+                        <button onClick={async () => { if (!await customConfirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
                       </div>
                     );
                   })}
@@ -24768,12 +24809,12 @@ export default function App() {
   };
 
   if (page === 'management') {
-    return <ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} />;
+    return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} />;
+    return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
-  return <VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider>;
+  return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }
