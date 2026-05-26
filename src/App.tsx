@@ -883,6 +883,30 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const [dragOffset, setDragOffset] = useState<{zoneId: number; dx: number; dy: number} | null>(null);
   const dragRef = useRef<{zoneId: number; startX: number; startY: number; origPoly: {x:number;y:number}[]; moved: boolean} | null>(null);
 
+  const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
+
+  const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
+    try {
+      const data = await fetch(`${API_URL}/civilian-assignments?preset_id=${presetId}`).then(r => r.json());
+      if (Array.isArray(data)) setCivAssignments(data);
+    } catch(e) { console.error('loadCivAssignments', e); }
+  }, []);
+
+  const handleCivAssign = React.useCallback(async (stripId: string, colKey: string, subCol = '') => {
+    if (!session?.presetId) return;
+    setCivAssignments(prev => {
+      const filtered = prev.filter(a => Number(a.strip_id) !== Number(stripId));
+      const maxOrder = filtered.filter(a => a.col_key === colKey).reduce((m, a) => Math.max(m, a.sort_order), -1);
+      return [...filtered, { id: 0, strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol, sort_order: maxOrder + 1 }];
+    });
+    try {
+      await fetch(`${API_URL}/civilian-assignments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol })
+      });
+    } catch(e) { console.error('handleCivAssign', e); }
+  }, [session?.presetId]);
+
   const [autoMode, setAutoMode] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoTolerance, setAutoTolerance] = useState(30);
@@ -8490,6 +8514,175 @@ const FreehandCanvas = ({ lightMode }: { lightMode: boolean }) => {
   );
 };
 
+// ─── Civilian Strip Mode ───────────────────────────────────────────────────────
+type CivCol = { key: string; label: string; sub_cols?: string[]; color?: string };
+type CivAssignment = { id: number; strip_id: number; preset_id: number; col_key: string; sub_col: string; sort_order: number };
+
+const CIV_STATUSES = [
+  { key: 'LAND',    color: '#60a5fa', bg: '#1e3a5f' },
+  { key: 'TDN',     color: '#94a3b8', bg: '#1e293b' },
+  { key: 'LUP+BAR', color: '#f59e0b', bg: '#422006' },
+  { key: 'LUP',     color: '#fb923c', bg: '#431407' },
+  { key: 'TAXI',    color: '#4ade80', bg: '#14532d' },
+  { key: 'APRON',   color: '#22d3ee', bg: '#083344' },
+  { key: 'CTC',     color: '#c4b5fd', bg: '#2e1065' },
+  { key: 'S→P',     color: '#f9a8d4', bg: '#500724' },
+  { key: 'EOB',     color: '#64748b', bg: '#0f172a' },
+  { key: '',        color: '#475569', bg: '#1e293b' },
+];
+
+const CivilianStripCard = ({ strip, onUpdateField, onDragStart }: {
+  strip: any;
+  onUpdateField: (id: string, field: string, val: string) => void;
+  onDragStart: (e: React.DragEvent, stripId: string) => void;
+}) => {
+  const [editingField, setEditingField] = React.useState<string | null>(null);
+  const statusInfo = CIV_STATUSES.find(s => s.key === (strip.civ_status || '')) || CIV_STATUSES[CIV_STATUSES.length - 1];
+
+  const cycleStatus = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const idx = CIV_STATUSES.findIndex(s => s.key === (strip.civ_status || ''));
+    const next = CIV_STATUSES[(idx + 1) % CIV_STATUSES.length];
+    onUpdateField(String(strip.id), 'civ_status', next.key);
+  };
+
+  const InlineEdit = ({ field, value, style }: { field: string; value: string; style?: React.CSSProperties }) => (
+    editingField === field
+      ? <input
+          autoFocus
+          defaultValue={value}
+          onBlur={e => { onUpdateField(String(strip.id), field, e.target.value); setEditingField(null); }}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+          onClick={e => e.stopPropagation()}
+          style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderBottom: '1px solid #60a5fa', color: 'white', fontSize: '11px', fontFamily: 'monospace', width: '52px', outline: 'none', padding: '0 2px', ...style }}
+        />
+      : <span onClick={e => { e.stopPropagation(); setEditingField(field); }} style={{ cursor: 'text', ...style }}>{value || '·'}</span>
+  );
+
+  return (
+    <div
+      draggable
+      onDragStart={e => onDragStart(e, String(strip.id))}
+      style={{ background: '#111e36', border: '1px solid #1e3a5f', borderRadius: '2px', marginBottom: '2px', cursor: 'grab', userSelect: 'none', fontFamily: 'monospace', fontSize: '12px' }}
+    >
+      {/* Row 1: callsign + status */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '3px 5px 2px', gap: '5px', borderBottom: '1px solid #1a2e4a' }}>
+        <span style={{ color: 'white', fontSize: '14px', fontWeight: 'bold', flex: 1, letterSpacing: '0.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{strip.callSign || '—'}</span>
+        {strip.unit && <span style={{ color: '#94a3b8', fontSize: '10px' }}>{strip.unit}</span>}
+        <button
+          onClick={cycleStatus}
+          style={{ background: statusInfo.bg, color: statusInfo.color, border: `1px solid ${statusInfo.color}66`, borderRadius: '2px', padding: '1px 7px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', letterSpacing: '0.5px', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'monospace' }}
+        >{statusInfo.key || '—'}</button>
+      </div>
+      {/* Row 2: stand | altitude | destination | SSR */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '2px 5px 3px', gap: '6px', color: '#64748b', fontSize: '11px' }}>
+        <span style={{ color: '#94a3b8', fontSize: '10px', minWidth: '32px', flexShrink: 0 }}>{strip.unit || ''}</span>
+        <InlineEdit field="civ_stand" value={strip.civ_stand || ''} style={{ color: '#fbbf24', minWidth: '28px' }} />
+        {strip.altitude && <span style={{ color: '#93c5fd' }}>{strip.altitude}</span>}
+        <InlineEdit field="civ_dest" value={strip.civ_dest || ''} style={{ color: '#6ee7b7', fontWeight: 'bold' }} />
+        {strip.civ_ssr && <span style={{ color: '#a78bfa', fontSize: '10px', marginLeft: 'auto' }}>{strip.civ_ssr}</span>}
+      </div>
+    </div>
+  );
+};
+
+const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onUpdateField }: {
+  strips: any[];
+  presetId: string | number;
+  civColumns: CivCol[];
+  assignments: CivAssignment[];
+  onAssign: (stripId: string, colKey: string, subCol?: string) => void;
+  onUpdateField: (id: string, field: string, val: string) => void;
+}) => {
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = React.useState<string | null>(null);
+
+  const getStripsInCol = (colKey: string, subCol = '') => {
+    const assigned = assignments.filter(a => a.col_key === colKey && a.sub_col === subCol);
+    return assigned
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map(a => strips.find(s => Number(s.id) === Number(a.strip_id)))
+      .filter(Boolean);
+  };
+
+  const getUnassigned = () => {
+    const assignedIds = new Set(assignments.map(a => Number(a.strip_id)));
+    return strips.filter(s => !assignedIds.has(Number(s.id)));
+  };
+
+  const handleDrop = (e: React.DragEvent, colKey: string, subCol = '') => {
+    e.preventDefault();
+    if (draggingId) onAssign(draggingId, colKey, subCol);
+    setDraggingId(null);
+    setDragOverKey(null);
+  };
+
+  const allCols: CivCol[] = [...civColumns, { key: '__queue__', label: 'תור', color: '#475569' }];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', overflow: 'hidden', background: '#08111e', gap: '1px' }}>
+      {allCols.map(col => {
+        const hasSubs = col.sub_cols && col.sub_cols.length > 0;
+        const colWidth = hasSubs ? `${Math.max(col.sub_cols!.length * 130, 160)}px` : '160px';
+        return (
+          <div key={col.key} style={{ display: 'flex', flexDirection: 'column', width: colWidth, minWidth: colWidth, flex: hasSubs ? `0 0 ${colWidth}` : '1', borderRight: '1px solid #1a2e4a', overflow: 'hidden' }}>
+            {/* Column header */}
+            <div style={{ background: '#0a1628', padding: '5px 8px', textAlign: 'center', color: col.color || '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1.5px', borderBottom: '2px solid #1a2e4a', textTransform: 'uppercase', fontFamily: 'monospace', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {col.label}
+            </div>
+            {/* Column body: either sub-columns or single drop zone */}
+            {hasSubs ? (
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {col.sub_cols!.map((sub, si) => {
+                  const subStrips = getStripsInCol(col.key, sub);
+                  const dropKey = `${col.key}:${sub}`;
+                  return (
+                    <div key={sub}
+                      onDragOver={e => { e.preventDefault(); setDragOverKey(dropKey); }}
+                      onDragLeave={() => setDragOverKey(null)}
+                      onDrop={e => handleDrop(e, col.key, sub)}
+                      style={{ flex: 1, display: 'flex', flexDirection: 'column', borderRight: si < col.sub_cols!.length - 1 ? '1px solid #1a2e4a' : 'none', background: dragOverKey === dropKey ? '#1a2e4a' : '#0a111f', overflow: 'hidden', transition: 'background 0.1s' }}>
+                      <div style={{ background: '#0d1a2e', padding: '2px 4px', textAlign: 'center', color: '#475569', fontSize: '10px', borderBottom: '1px solid #1a2e4a', fontFamily: 'monospace', flexShrink: 0 }}>{sub}</div>
+                      <div style={{ flex: 1, overflowY: 'auto', padding: '3px' }}>
+                        {subStrips.map((s: any) => (
+                          <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField}
+                            onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              (() => {
+                const colStrips = col.key === '__queue__' ? getUnassigned() : getStripsInCol(col.key);
+                const dropKey = `${col.key}:`;
+                return (
+                  <div
+                    onDragOver={e => { e.preventDefault(); setDragOverKey(dropKey); }}
+                    onDragLeave={() => setDragOverKey(null)}
+                    onDrop={e => handleDrop(e, col.key, '')}
+                    style={{ flex: 1, overflowY: 'auto', padding: '3px', background: dragOverKey === dropKey ? '#1a2e4a' : '#0a111f', transition: 'background 0.1s' }}
+                  >
+                    {colStrips.map((s: any) => (
+                      <CivilianStripCard key={s.id} strip={s} onUpdateField={onUpdateField}
+                        onDragStart={(e, id) => { e.dataTransfer.setData('text/plain', id); setDraggingId(id); }} />
+                    ))}
+                    {colStrips.length === 0 && (
+                      <div style={{ color: '#1e3a5f', fontSize: '10px', textAlign: 'center', marginTop: '16px', letterSpacing: '1px' }}>EMPTY</div>
+                    )}
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
@@ -11787,8 +11980,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground';
+  const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
+
+  // Load civilian assignments when entering civilian mode
+  React.useEffect(() => {
+    if (isCivilianMode && session?.presetId) {
+      loadCivAssignments(session.presetId);
+    }
+  }, [isCivilianMode, session?.presetId]);
 
   // Disable drawing when entering classic strips mode
   React.useEffect(() => {
@@ -15248,7 +15449,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : '#cbd5e1', overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -15416,8 +15617,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             );
           })()}
 
+          {/* Civilian Strip View */}
+          {!isGroundMode && !isClassicMode && isCivilianMode && (() => {
+            const civCols: CivCol[] = Array.isArray(myPresetConfig?.civilian_columns) ? myPresetConfig.civilian_columns : [];
+            return (
+              <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                <CivilianView
+                  strips={myTableStrips}
+                  presetId={session.presetId!}
+                  civColumns={civCols}
+                  assignments={civAssignments}
+                  onAssign={handleCivAssign}
+                  onUpdateField={async (id, field, val) => {
+                    setStrips(prev => prev.map((s: any) => String(s.id) === id ? { ...s, [field]: val } : s));
+                    try { await fetch(`${API_URL}/strips/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) }); } catch(e) { console.error(e); }
+                  }}
+                />
+              </div>
+            );
+          })()}
+
           {/* Table Mode */}
-          {!isGroundMode && !isClassicMode && tableMode && (() => {
+          {!isGroundMode && !isClassicMode && !isCivilianMode && tableMode && (() => {
             const activeMode = availableTableModes.find(tm => tm.id === selectedTableModeId);
             const columns: any[] = activeMode?.columns && activeMode.columns.length > 0
               ? activeMode.columns
@@ -16720,7 +16941,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
 
 
-          {!isGroundMode && !isClassicMode && !tableMode && <>
+          {!isGroundMode && !isClassicMode && !isCivilianMode && !tableMode && <>
           {/* Map Zoom Toolbar */}
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(30,41,59,0.9)', padding: '6px', borderRadius: '8px' }}>
             <button
@@ -20965,7 +21186,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -21012,6 +21233,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       flight_zones_mode: preset.flight_zones_mode === true,
       can_update_mazaa: preset.can_update_mazaa === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
+      civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
     };
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
@@ -21139,7 +21361,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -21162,7 +21384,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>סוג עמדה:</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה תעופה' }].map(opt => (
+                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה' }, { val: 'civilian', label: '✈ אזרחי' }].map(opt => (
                         <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
                           style={{ flex: 1, padding: '10px 8px', borderRadius: '6px', border: `2px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
                           {opt.label}
@@ -21255,6 +21477,51 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: מציג SID בפ"מ | יב"א: מציג STAR בפ"מ</p>
                 </div>
+
+                {presetForm.preset_type === 'civilian' && <div style={{ marginTop: '18px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                  <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>✈ עמודות לוח אזרחי</div>
+                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', color: '#64748b' }}>הגדר עמודות לצג ATC. כל עמודה יכולה לכלול תת-עמודות (מספרי ביה"ש).</p>
+                  {((presetForm as any).civilian_columns || []).map((col: CivCol, ci: number) => (
+                    <div key={ci} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'flex-start' }}>
+                      <input
+                        value={col.label}
+                        onChange={e => setPresetForm(p => {
+                          const cols = [...((p as any).civilian_columns || [])];
+                          cols[ci] = { ...cols[ci], label: e.target.value, key: e.target.value.toLowerCase().replace(/\s+/g, '_') };
+                          return { ...p, civilian_columns: cols };
+                        })}
+                        placeholder="שם עמודה"
+                        style={{ flex: 1, padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}
+                      />
+                      <input
+                        value={(col.sub_cols || []).join(',')}
+                        onChange={e => setPresetForm(p => {
+                          const cols = [...((p as any).civilian_columns || [])];
+                          cols[ci] = { ...cols[ci], sub_cols: e.target.value ? e.target.value.split(',').map(s => s.trim()) : [] };
+                          return { ...p, civilian_columns: cols };
+                        })}
+                        placeholder="תת-עמ' (מופרדות בפסיק)"
+                        style={{ flex: 1, padding: '6px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}
+                      />
+                      <input type="color" value={col.color || '#94a3b8'}
+                        onChange={e => setPresetForm(p => {
+                          const cols = [...((p as any).civilian_columns || [])];
+                          cols[ci] = { ...cols[ci], color: e.target.value };
+                          return { ...p, civilian_columns: cols };
+                        })}
+                        style={{ width: '32px', height: '32px', padding: '2px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}
+                      />
+                      <button type="button" onClick={() => setPresetForm(p => {
+                        const cols = ((p as any).civilian_columns || []).filter((_: any, i: number) => i !== ci);
+                        return { ...p, civilian_columns: cols };
+                      })} style={{ padding: '6px 10px', background: '#7f1d1d', border: 'none', borderRadius: '4px', color: '#fca5a5', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setPresetForm(p => {
+                    const cols = [...((p as any).civilian_columns || []), { key: `col_${Date.now()}`, label: '', sub_cols: [], color: '#94a3b8' }];
+                    return { ...p, civilian_columns: cols };
+                  })} style={{ padding: '6px 14px', background: '#0c2a40', border: '1px solid #1e3a5f', borderRadius: '4px', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>+ הוסף עמודה</button>
+                </div>}
 
                 {presetForm.preset_type === 'normal' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>מצב תצוגה ברירת מחדל:</label>
@@ -21817,7 +22084,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, civilian_columns: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
