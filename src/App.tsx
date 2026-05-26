@@ -883,30 +883,6 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const [dragOffset, setDragOffset] = useState<{zoneId: number; dx: number; dy: number} | null>(null);
   const dragRef = useRef<{zoneId: number; startX: number; startY: number; origPoly: {x:number;y:number}[]; moved: boolean} | null>(null);
 
-  const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
-
-  const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
-    try {
-      const data = await fetch(`${API_URL}/civilian-assignments?preset_id=${presetId}`).then(r => r.json());
-      if (Array.isArray(data)) setCivAssignments(data);
-    } catch(e) { console.error('loadCivAssignments', e); }
-  }, []);
-
-  const handleCivAssign = React.useCallback(async (stripId: string, colKey: string, subCol = '') => {
-    if (!session?.presetId) return;
-    setCivAssignments(prev => {
-      const filtered = prev.filter(a => Number(a.strip_id) !== Number(stripId));
-      const maxOrder = filtered.filter(a => a.col_key === colKey).reduce((m, a) => Math.max(m, a.sort_order), -1);
-      return [...filtered, { id: 0, strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol, sort_order: maxOrder + 1 }];
-    });
-    try {
-      await fetch(`${API_URL}/civilian-assignments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol })
-      });
-    } catch(e) { console.error('handleCivAssign', e); }
-  }, [session?.presetId]);
-
   const [autoMode, setAutoMode] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoTolerance, setAutoTolerance] = useState(30);
@@ -11319,6 +11295,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
+  const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
@@ -11983,6 +11960,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
+
+  const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
+    try {
+      const data = await fetch(`${API_URL}/civilian-assignments?preset_id=${presetId}`).then(r => r.json());
+      if (Array.isArray(data)) setCivAssignments(data);
+    } catch(e) { console.error('loadCivAssignments', e); }
+  }, []);
+
+  const handleCivAssign = React.useCallback(async (stripId: string, colKey: string, subCol = '') => {
+    if (!session?.presetId) return;
+    setCivAssignments(prev => {
+      const filtered = prev.filter(a => Number(a.strip_id) !== Number(stripId));
+      const maxOrder = filtered.filter(a => a.col_key === colKey).reduce((m, a) => Math.max(m, a.sort_order), -1);
+      return [...filtered, { id: 0, strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol, sort_order: maxOrder + 1 }];
+    });
+    try {
+      await fetch(`${API_URL}/civilian-assignments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strip_id: Number(stripId), preset_id: Number(session.presetId), col_key: colKey, sub_col: subCol })
+      });
+    } catch(e) { console.error('handleCivAssign', e); }
+  }, [session?.presetId]);
 
   // Load civilian assignments when entering civilian mode
   React.useEffect(() => {
