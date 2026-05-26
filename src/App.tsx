@@ -17309,8 +17309,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {isFlightZonesMode && (
               <div
                 ref={fzOverlayRef}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: fzDragStripId ? 'copy' : 'default', background: fzDragStripId ? 'rgba(14,165,233,0.06)' : 'transparent', border: fzDragStripId ? '2px dashed #0ea5e9' : 'none', borderRadius: '4px', pointerEvents: 'none' }}
-                onDragOver={e => { if (fzDragIdRef.current) e.preventDefault(); }}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, cursor: fzDragStripId ? 'copy' : 'default', background: fzDragStripId ? 'rgba(14,165,233,0.06)' : 'transparent', border: fzDragStripId ? '2px dashed #0ea5e9' : 'none', borderRadius: '4px', pointerEvents: fzDragStripId ? 'all' : 'none' }}
+                onDragOver={e => { e.preventDefault(); }}
                 onDrop={handleFzMapDrop}
               />
             )}
