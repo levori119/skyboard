@@ -11440,6 +11440,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
+  const [fzZoneOpacityOverrides, setFzZoneOpacityOverrides] = useState<Record<number, number>>({});
   const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
   const [fzAssignedZonesPanel, setFzAssignedZonesPanel] = useState<{ stripId: number; strip: any; assignment: StripZoneAssignment | null; x: number; y: number } | null>(null);
   const [map2DrawingMode, setMap2DrawingMode] = useState(false);
@@ -14277,9 +14278,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     lastPosRef.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
     };
   };
 
@@ -14290,8 +14293,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     if (!canvas || !ctx || !lastPosRef.current) return;
     
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     
     ctx.beginPath();
     ctx.globalCompositeOperation = eraserMode ? 'destination-out' : 'source-over';
@@ -14352,6 +14357,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       shapeMoveRef.current = null;
       shapeResizeRef.current = null;
     }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && drawingMode) { setDrawingMode(false); setMap2DrawingMode(false); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [drawingMode]);
 
   return (
@@ -17326,7 +17334,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           {/* Drawing toolbar — visible when drawingMode is on */}
           {drawingMode && (
-            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
+            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 210, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl', cursor: 'default' }}>
               <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ כלי ציור</div>
               {/* Tool buttons */}
               <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -17412,8 +17420,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     {legacyZones.map(zone => {
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
+                      const zOpacity = fzZoneOpacityOverrides[zone.id] !== undefined ? fzZoneOpacityOverrides[zone.id] / 100 : 1;
                       return (
-                        <g key={zone.id}>
+                        <g key={zone.id} opacity={zOpacity}>
                           {zone.polygon.length >= 3 && (<>
                             <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zc + (isReqOnly ? '12' : '2a')} stroke={zc + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
                             {isReqOnly && <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
@@ -17431,8 +17440,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
+                      const zOpacity = fzZoneOpacityOverrides[zone.id] !== undefined ? fzZoneOpacityOverrides[zone.id] / 100 : 1;
                       return (
-                        <g key={zone.id}>
+                        <g key={zone.id} opacity={zOpacity}>
                           <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zc+(isReqOnly?'12':'2a')} stroke={zc+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
                           {isReqOnly && <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
                           <text x={imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length} y={imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length}
@@ -17949,28 +17959,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           {/* Zone color overrides panel */}
           {isFlightZonesMode && fzZoneColorPanel && mapZones.length > 0 && (
-            <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}>
-              <div style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>🎨 צבעי אזורים (שינוי לסשן בלבד)</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+            <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', minWidth: 280 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>
+                <span style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold' }}>🎨 צבעי אזורים (שינוי לסשן בלבד)</span>
+                <button onClick={() => setFzZoneColorPanel(false)}
+                  style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
                 {mapZones.map(z => {
                   const curColor = fzZoneColorOverrides[z.id] ?? z.color;
+                  const curOpacity = fzZoneOpacityOverrides[z.id] !== undefined ? fzZoneOpacityOverrides[z.id] : 100;
                   return (
-                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <input type="color" value={curColor} onChange={e => setFzZoneColorOverrides(prev => ({ ...prev, [z.id]: e.target.value }))}
-                        style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent', padding: 0 }} />
-                      <span style={{ fontSize: '12px', color: curColor, fontWeight: 'bold', minWidth: 70 }}>{z.name}</span>
-                      {fzZoneColorOverrides[z.id] && (
-                        <button onClick={() => setFzZoneColorOverrides(prev => { const n = { ...prev }; delete n[z.id]; return n; })}
-                          style={{ fontSize: '9px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px' }}>↺</button>
-                      )}
+                    <div key={z.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px solid #1e293b', paddingBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="color" value={curColor} onChange={e => setFzZoneColorOverrides(prev => ({ ...prev, [z.id]: e.target.value }))}
+                          style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent', padding: 0 }} />
+                        <span style={{ fontSize: '12px', color: curColor, fontWeight: 'bold', flex: 1 }}>{z.name}</span>
+                        {fzZoneColorOverrides[z.id] && (
+                          <button onClick={() => setFzZoneColorOverrides(prev => { const n = { ...prev }; delete n[z.id]; return n; })}
+                            style={{ fontSize: '9px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px' }}>↺</button>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '9px', color: '#64748b', marginLeft: '4px' }}>שקיפות:</span>
+                        {[100, 75, 50, 25, 0].map(pct => (
+                          <button key={pct} onClick={() => setFzZoneOpacityOverrides(prev => ({ ...prev, [z.id]: pct }))}
+                            style={{ padding: '1px 5px', fontSize: '10px', borderRadius: '3px', border: `1px solid ${curOpacity === pct ? '#06b6d4' : '#334155'}`, background: curOpacity === pct ? '#0c4a6e' : '#1e293b', color: curOpacity === pct ? '#67e8f9' : '#64748b', cursor: 'pointer', fontWeight: curOpacity === pct ? 'bold' : 'normal' }}>
+                            {pct}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
               </div>
-              {Object.keys(fzZoneColorOverrides).length > 0 && (
-                <button onClick={() => setFzZoneColorOverrides({})}
+              {(Object.keys(fzZoneColorOverrides).length > 0 || Object.keys(fzZoneOpacityOverrides).length > 0) && (
+                <button onClick={() => { setFzZoneColorOverrides({}); setFzZoneOpacityOverrides({}); }}
                   style={{ marginTop: '8px', padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', width: '100%' }}>
-                  ↺ איפוס כל הצבעים
+                  ↺ איפוס כל הצבעים והשקיפויות
                 </button>
               )}
             </div>
