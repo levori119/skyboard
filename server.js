@@ -1271,12 +1271,15 @@ app.post('/api/strips', async (req, res) => {
     const expiresAt = isManual ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
     const presetId = workstation_preset_id ? parseInt(workstation_preset_id) : null;
 
+    // Manual entries with a preset go straight into that workstation's table
+    const inTable = isManual && presetId ? true : false;
+
     const result = await pool.query(
       `INSERT INTO strips
         (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
          erka, koteret, mivtza, block_space_id, workstation_preset_id, creator_preset_id,
-         manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,$15,$16,$17,$18)
+         in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,$15,$16,$17,$18,$19)
        RETURNING id`,
       [
         callSign, sq, alt, task, squadron, sectorId || null,
@@ -1284,6 +1287,7 @@ app.post('/api/strips', async (req, res) => {
         erka || null, koteret || null, mivtza || null,
         block_space_id ? parseInt(block_space_id) : null,
         presetId,
+        inTable,
         isManual,
         creator_crew_id ? parseInt(creator_crew_id) : null,
         creator_crew_name || null,

@@ -12296,7 +12296,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           sq: fzCreateAcType,
           number_of_formation: fzCreateCount > 1 ? String(fzCreateCount) : null,
           status: 'active',
-          in_table: false,
+          in_table: true,
           onMap: false,
           sector_id: session.sectorId || null,
           workstation_preset_id: session.presetId ? Number(session.presetId) : null,
