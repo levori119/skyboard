@@ -11426,6 +11426,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzDragIsPin = React.useRef(false);
   const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
   const fzPinDownPos = useRef<{x:number;y:number;id:number}|null>(null);
+  const fzPinLongPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzPinGhost, setFzPinGhost] = useState<{ src: string; filter: string; label: string; color: string; status: string } | null>(null);
   const fzPinGhostRef = useRef<HTMLDivElement>(null);
   const fzPinGhostPosRef = useRef<{x:number;y:number}>({x:0,y:0});
@@ -12177,6 +12178,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
       return;
     }
+    if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
     const dragId = fzPinDragRef.current;
     if (!dragId || !currentMapId) { fzPinDownPos.current = null; return; }
     // Click vs drag detection
@@ -17631,6 +17633,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   key={`fzpin-${a.strip_id}`}
                   onPointerDown={e => {
                     e.stopPropagation();
+                    if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
+                    const downX = e.clientX, downY = e.clientY;
+                    const capturedAssignment = a;
+                    const capturedStrip = strip;
+                    fzPinLongPressRef.current = setTimeout(() => {
+                      fzPinLongPressRef.current = null;
+                      fzPinDragRef.current = null; fzDragIsPin.current = false; fzDragIdRef.current = null;
+                      setFzDragStripId(null); setFzDragLabel(null); setFzPinGhost(null);
+                      fzPinDownPos.current = null;
+                      if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
+                      setFzPinMenu({ stripId: capturedAssignment.strip_id, x: downX, y: downY, strip: capturedStrip, assignment: capturedAssignment });
+                    }, 600);
                     fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
                     fzPinDragRef.current = a.strip_id;
                     fzDragIsPin.current = true;
@@ -17641,10 +17655,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
                     setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
                   }}
-                  onContextMenu={e => {
-                    e.preventDefault(); e.stopPropagation();
-                    setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip: strip, assignment: a });
+                  onPointerMove={e => {
+                    if (fzPinLongPressRef.current && fzPinDownPos.current) {
+                      if (Math.hypot(e.clientX - fzPinDownPos.current.x, e.clientY - fzPinDownPos.current.y) > 8) {
+                        clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null;
+                      }
+                    }
                   }}
+                  onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
