@@ -24347,7 +24347,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       const res = await fetch(`${API_URL}/strips/import`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ strips })
+                        body: JSON.stringify({ strips, creator_preset_id: session.presetId || null })
                       });
                       const result = await res.json();
                       setCsvImportResult({ ...result, detectedColumns, airfieldDebug });

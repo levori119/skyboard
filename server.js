@@ -1371,7 +1371,7 @@ app.delete('/api/strips/:id', async (req, res) => {
 
 app.post('/api/strips/import', async (req, res) => {
   try {
-    const { strips } = req.body;
+    const { strips, creator_preset_id } = req.body;
     if (!Array.isArray(strips)) {
       return res.status(400).json({ error: 'Invalid strips data' });
     }
@@ -1445,7 +1445,7 @@ app.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign, takeoff_airfield_id, landing_airfield_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)',
             [
               strip.callSign,
               strip.sq || '',
@@ -1463,7 +1463,8 @@ app.post('/api/strips/import', async (req, res) => {
               strip.mivtza || null,
               strip.parent_callsign || null,
               (() => { if (strip.takeoff_airfield_id) return strip.takeoff_airfield_id; return null; })(),
-              (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })()
+              (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })(),
+              creator_preset_id || null
             ]
           );
           // Resolve airfield names for newly inserted strips
