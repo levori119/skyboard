@@ -11418,7 +11418,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzCreateModal, setFzCreateModal] = useState(false);
   const [fzCreateCallSign, setFzCreateCallSign] = useState('');
   const [fzCreateAcType, setFzCreateAcType] = useState('אז"מ');
+  const [fzCreateCount, setFzCreateCount] = useState(1);
   const [fzCreateBusy, setFzCreateBusy] = useState(false);
+  const [fzCreateDupWarning, setFzCreateDupWarning] = useState<string | null>(null);
+  const [fzCreateDupForce, setFzCreateDupForce] = useState(false);
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
@@ -12259,9 +12262,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
   };
 
-  const handleFzCreate = async () => {
+  const handleFzCreate = async (forceDup = false) => {
     if (!fzCreateCallSign.trim() || fzCreateBusy) return;
     setFzCreateBusy(true);
+    setFzCreateDupWarning(null);
     try {
       const res = await fetch(`${API_URL}/strips`, {
         method: 'POST',
@@ -12269,24 +12273,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({
           callSign: fzCreateCallSign.trim(),
           sq: fzCreateAcType,
+          numberOfFormation: fzCreateCount > 1 ? String(fzCreateCount) : null,
           sectorId: session.sectorId || null,
           workstation_preset_id: session.presetId || null,
+          manual_entry: true,
+          creator_crew_id: session.crewMember?.id || null,
+          creator_crew_name: session.crewMember?.name || null,
+          creator_preset_name: session.workstationName || null,
+          force_duplicate: forceDup || fzCreateDupForce,
         }),
       });
       const data = await res.json();
+      if (data?.duplicate) {
+        setFzCreateDupWarning(data.message || 'כפילות של או"ק');
+        setFzCreateDupForce(true);
+        return;
+      }
       if (data?.id) {
         const newStrip = {
           id: data.id,
           callsign: fzCreateCallSign.trim(),
           sq: fzCreateAcType,
+          number_of_formation: fzCreateCount > 1 ? String(fzCreateCount) : null,
           status: 'active',
           in_table: false,
           onMap: false,
           sector_id: session.sectorId || null,
           workstation_preset_id: session.presetId ? Number(session.presetId) : null,
+          manual_entry: true,
         };
         setStrips((prev: any[]) => [...prev, newStrip]);
         setFzCreateModal(false);
+        setFzCreateCallSign('');
+        setFzCreateCount(1);
+        setFzCreateDupWarning(null);
+        setFzCreateDupForce(false);
         logActivity('strip_created', { stripId: String(data.id), stripCallsign: fzCreateCallSign.trim(), details: { sq: fzCreateAcType } });
       }
     } catch (err) {
@@ -18328,7 +18349,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
             {sidebarPinned && (
               <button
-                onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateModal(true); }}
+                onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateCount(1); setFzCreateDupWarning(null); setFzCreateDupForce(false); setFzCreateModal(true); }}
                 title='הוסף פ"מ חדש'
                 style={{ background: '#0ea5e9', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', cursor: 'pointer' }}
               >+ פ"מ</button>
@@ -19749,41 +19770,104 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       )}
 
       {fzCreateModal && createPortal(
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
-          onClick={e => { if (e.target === e.currentTarget) setFzCreateModal(false); }}>
-          <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
+          onClick={e => { if (e.target === e.currentTarget) { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); } }}>
+          <div style={{ background: '#0f1b2d', border: '1px solid #1e3a5f', borderRadius: '16px', padding: '24px 22px', width: '360px', direction: 'rtl', boxShadow: '0 24px 70px rgba(0,0,0,0.9)' }}
             onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: '0 0 18px', fontSize: '16px', color: '#7dd3fc', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>✈ פ"מ חדש</h3>
+
+            {/* Title */}
+            <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#7dd3fc', textAlign: 'center', marginBottom: '20px' }}>
+              + יצירת פמ"מ מיוחד
+            </div>
+
+            {/* Type buttons grid */}
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>סוג *</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                {([
+                  { id: 'אז"מ',         icon: '🛸', selColor: '#dc2626', selBg: '#450a0a', defBg: '#1a0a0a', defColor: '#ef4444' },
+                  { id: 'GA',           icon: '✈',  selColor: '#22c55e', selBg: '#052e16', defBg: '#071a0e', defColor: '#16a34a' },
+                  { id: 'מסוק אזרחי',  icon: '🚁', selColor: '#38bdf8', selBg: '#0c2a3e', defBg: '#07161f', defColor: '#0284c7' },
+                  { id: 'מרסס',        icon: '💧', selColor: '#a3e635', selBg: '#1a2e05', defBg: '#0d1703', defColor: '#65a30d' },
+                  { id: 'רחפן',        icon: '🔲', selColor: '#818cf8', selBg: '#1e1b4b', defBg: '#0f0d27', defColor: '#4f46e5' },
+                  { id: 'טיסן',        icon: '🪁', selColor: '#fb923c', selBg: '#431407', defBg: '#220a03', defColor: '#ea580c' },
+                  { id: 'דאון',        icon: '↗️', selColor: '#c084fc', selBg: '#2e1065', defBg: '#17072f', defColor: '#9333ea' },
+                ] as { id: string; icon: string; selColor: string; selBg: string; defBg: string; defColor: string }[]).map(t => {
+                  const sel = fzCreateAcType === t.id;
+                  return (
+                    <button key={t.id} onClick={() => setFzCreateAcType(t.id)}
+                      style={{
+                        padding: '10px 6px', borderRadius: '10px', cursor: 'pointer', userSelect: 'none',
+                        border: sel ? `2px solid ${t.selColor}` : '2px solid transparent',
+                        background: sel ? t.selBg : t.defBg,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                        transition: 'all 0.15s',
+                      }}>
+                      <span style={{ fontSize: '22px', lineHeight: 1 }}>{t.icon}</span>
+                      <span style={{ fontSize: '11px', fontWeight: sel ? 'bold' : 'normal', color: sel ? t.selColor : t.defColor, lineHeight: 1.2, textAlign: 'center' }}>{t.id}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Callsign */}
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>או"ק</label>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>או"ק *</div>
               <input
                 autoFocus
                 value={fzCreateCallSign}
-                onChange={e => setFzCreateCallSign(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && fzCreateCallSign.trim()) handleFzCreate(); if (e.key === 'Escape') setFzCreateModal(false); }}
-                placeholder="לדוגמה: ALFA01"
-                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+                onChange={e => { setFzCreateCallSign(e.target.value); setFzCreateDupWarning(null); setFzCreateDupForce(false); }}
+                onKeyDown={e => { if (e.key === 'Enter' && fzCreateCallSign.trim()) handleFzCreate(); if (e.key === 'Escape') { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); } }}
+                placeholder="קריאה"
+                style={{ width: '100%', padding: '10px 12px', background: '#060f1e', color: '#f1f5f9', border: `1px solid ${fzCreateDupWarning ? '#f59e0b' : '#1e3a5f'}`, borderRadius: '8px', fontSize: '15px', direction: 'rtl', boxSizing: 'border-box', textAlign: 'right' }}
               />
+              {fzCreateDupWarning && (
+                <div style={{ marginTop: '6px', padding: '6px 10px', background: '#3b1f00', border: '1px solid #f59e0b', borderRadius: '6px', color: '#fbbf24', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>⚠</span>
+                  <span>{fzCreateDupWarning} — לחץ שוב ליצירה בכל זאת</span>
+                </div>
+              )}
             </div>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>סוג מטוס</label>
-              <select
-                value={fzCreateAcType}
-                onChange={e => setFzCreateAcType(e.target.value)}
-                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', cursor: 'pointer' }}
-              >
-                {['אז"מ','GA','מסוק אזרחי','מרסס','בקאיי','רחפן','דאון','טיסן'].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+
+            {/* Count +/- */}
+            <div style={{ marginBottom: '22px' }}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>כמות *</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0', border: '1px solid #1e3a5f', borderRadius: '8px', overflow: 'hidden' }}>
+                <button
+                  onClick={() => setFzCreateCount(c => Math.max(1, c - 1))}
+                  style={{ width: '44px', height: '42px', background: '#0a1e35', color: '#94a3b8', border: 'none', fontSize: '20px', cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>−</button>
+                <div style={{ flex: 1, textAlign: 'center', fontSize: '18px', fontWeight: 'bold', color: '#f1f5f9', background: '#060f1e', height: '42px', lineHeight: '42px' }}>{fzCreateCount}</div>
+                <button
+                  onClick={() => setFzCreateCount(c => Math.min(16, c + 1))}
+                  style={{ width: '44px', height: '42px', background: '#0a1e35', color: '#94a3b8', border: 'none', fontSize: '20px', cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>+</button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setFzCreateModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}>ביטול</button>
+
+            {/* Creator info */}
+            {session.crewMember && (
+              <div style={{ marginBottom: '14px', fontSize: '11px', color: '#475569', textAlign: 'center' }}>
+                יוצר: {session.crewMember.name} · {session.workstationName || ''}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '10px' }}>
               <button
-                onClick={handleFzCreate}
+                onClick={() => { setFzCreateModal(false); setFzCreateDupWarning(null); setFzCreateDupForce(false); }}
+                style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#94a3b8', fontSize: '14px', cursor: 'pointer' }}>
+                ביטול
+              </button>
+              <button
+                onClick={() => handleFzCreate()}
                 disabled={!fzCreateCallSign.trim() || fzCreateBusy}
-                style={{ padding: '8px 16px', background: fzCreateCallSign.trim() ? '#0ea5e9' : '#1e3a5f', border: 'none', borderRadius: '6px', color: fzCreateCallSign.trim() ? '#fff' : '#475569', fontSize: '13px', fontWeight: 'bold', cursor: fzCreateCallSign.trim() ? 'pointer' : 'default' }}
-              >{fzCreateBusy ? '...' : 'צור פ"מ'}</button>
+                style={{
+                  flex: 2, padding: '11px', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: fzCreateCallSign.trim() ? 'pointer' : 'default',
+                  background: fzCreateDupWarning ? '#d97706' : (fzCreateCallSign.trim() ? '#16a34a' : '#1e3a5f'),
+                  color: fzCreateCallSign.trim() ? '#fff' : '#475569',
+                }}>
+                {fzCreateBusy ? '...' : fzCreateDupWarning ? 'צור בכל זאת' : 'צור פמ"מ'}
+              </button>
             </div>
           </div>
         </div>,

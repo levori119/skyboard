@@ -923,6 +923,11 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS strip_type VARCHAR(50) DEFAULT ''`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS manual_entry BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_id INTEGER REFERENCES crew_members(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_crew_name VARCHAR(100)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_name VARCHAR(100)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_mode BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
@@ -945,7 +950,22 @@ async function initDb() {
   console.log('Database initialized');
 }
 
-initDb().catch(console.error);
+// Cleanup expired manual-entry strips every hour
+async function cleanupExpiredStrips() {
+  try {
+    const result = await pool.query(
+      `DELETE FROM strips WHERE manual_entry = TRUE AND expires_at IS NOT NULL AND expires_at < NOW()`
+    );
+    if (result.rowCount > 0) console.log(`[cleanup] Deleted ${result.rowCount} expired manual strips`);
+  } catch (err) {
+    console.error('[cleanup] Error deleting expired strips:', err.message);
+  }
+}
+
+initDb().then(() => {
+  cleanupExpiredStrips();
+  setInterval(cleanupExpiredStrips, 60 * 60 * 1000);
+}).catch(console.error);
 
 // --- Crew Members API ---
 app.get('/api/crew-members', async (req, res) => {
@@ -1229,10 +1249,47 @@ app.post('/api/strips/:id/assign-workstation', async (req, res) => {
 
 app.post('/api/strips', async (req, res) => {
   try {
-    const { callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation, erka, koteret, mivtza, block_space_id, workstation_preset_id } = req.body;
+    const {
+      callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation,
+      erka, koteret, mivtza, block_space_id, workstation_preset_id,
+      manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, force_duplicate
+    } = req.body;
+
+    const isManual = manual_entry === true || manual_entry === 'true';
+
+    // Duplicate check for manual entries (same callsign today, unless forced)
+    if (isManual && callSign && !force_duplicate) {
+      const dup = await pool.query(
+        `SELECT id FROM strips WHERE LOWER(callsign) = LOWER($1) AND DATE(created_at AT TIME ZONE 'UTC') = CURRENT_DATE AND manual_entry = TRUE LIMIT 1`,
+        [callSign.trim()]
+      );
+      if (dup.rowCount > 0) {
+        return res.json({ duplicate: true, message: `פ"מ עם או"ק "${callSign.trim()}" כבר קיים היום` });
+      }
+    }
+
+    const expiresAt = isManual ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
+    const presetId = workstation_preset_id ? parseInt(workstation_preset_id) : null;
+
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation, erka, koteret, mivtza, block_space_id, workstation_preset_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13) RETURNING id',
-      [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null, numberOfFormation || null, erka || null, koteret || null, mivtza || null, block_space_id ? parseInt(block_space_id) : null, workstation_preset_id ? parseInt(workstation_preset_id) : null]
+      `INSERT INTO strips
+        (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
+         erka, koteret, mivtza, block_space_id, workstation_preset_id, creator_preset_id,
+         manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,$15,$16,$17,$18)
+       RETURNING id`,
+      [
+        callSign, sq, alt, task, squadron, sectorId || null,
+        takeoff_time || null, numberOfFormation || null,
+        erka || null, koteret || null, mivtza || null,
+        block_space_id ? parseInt(block_space_id) : null,
+        presetId,
+        isManual,
+        creator_crew_id ? parseInt(creator_crew_id) : null,
+        creator_crew_name || null,
+        creator_preset_name || null,
+        expiresAt
+      ]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
   } catch (err) {
