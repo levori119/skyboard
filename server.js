@@ -922,6 +922,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_x FLOAT`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_pin_y FLOAT`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS strip_type VARCHAR(50) DEFAULT ''`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS creator_preset_id INTEGER REFERENCES workstation_presets(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS use_map_zones BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS dual_map_mode BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS map2_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
@@ -1230,7 +1231,7 @@ app.post('/api/strips', async (req, res) => {
   try {
     const { callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation, erka, koteret, mivtza, block_space_id, workstation_preset_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation, erka, koteret, mivtza, block_space_id, workstation_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id',
+      'INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation, erka, koteret, mivtza, block_space_id, workstation_preset_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13) RETURNING id',
       [callSign, sq, alt, task, squadron, sectorId || null, takeoff_time || null, numberOfFormation || null, erka || null, koteret || null, mivtza || null, block_space_id ? parseInt(block_space_id) : null, workstation_preset_id ? parseInt(workstation_preset_id) : null]
     );
     res.json({ success: true, id: 's' + result.rows[0].id });
@@ -3464,8 +3465,8 @@ app.post('/api/strips/ground-create', async (req, res) => {
     const count = Math.max(1, Math.min(parseInt(number_of_formation) || 1, 16));
     const defaultPositions = Array.from({ length: count }, (_, i) => ({ idx: i + 1, point_id: null, status: 'none' }));
     const result = await pool.query(
-      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, sector_id, status, in_table, strip_type)
-       VALUES ($1, $2, $3, $4, $5, $6, 'active', true, $7) RETURNING *`,
+      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, creator_preset_id, sector_id, status, in_table, strip_type)
+       VALUES ($1, $2, $3, $4, $5, $5, $6, 'active', true, $7) RETURNING *`,
       [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null, strip_type || '']
     );
     const strip = result.rows[0];

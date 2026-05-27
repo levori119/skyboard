@@ -123,6 +123,7 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'status', label: 'מצב', ftype: 'text' },
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
   { key: 'in_table', label: 'הועבר אלי', ftype: 'bool' },
+  { key: 'created_by_me', label: 'פ"מ שיצרתי', ftype: 'bool' },
   // ── טקסט חופשי ──
   { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
   { key: 'notes', label: 'הערות', ftype: 'text' },
@@ -179,6 +180,10 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
   }
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
+  if (field === 'created_by_me') {
+    if (ctx?.presetId == null) return false;
+    return Number(strip.creator_preset_id) === Number(ctx.presetId);
+  }
   return strip[field] ?? '';
 };
 
@@ -7258,14 +7263,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
                     📤 מוסר ({secOutgoing.length + secSingles.length})
                   </div>
+                  <div style={{ padding: '2px 0' }}>
                   {secOutgoing.map(t => (
-                    <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#fde68a' : '#292009'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                    <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
                       <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
                       <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
                     </div>
                   ))}
                   {secSingles.map((t, i) => (
-                    <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#fde68a' : '#292009'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                    <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
                       <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>({t.aircraftIdx}/{t.totalCount})</span></span>
                       <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
                     </div>
@@ -7273,6 +7279,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {secOutgoing.length === 0 && secSingles.length === 0 && (
                     <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                   )}
+                  </div>
                 </div>
 
                 {/* מקבל — incoming from this sector */}
@@ -7280,9 +7287,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
                     📥 מקבל ({secIncoming.length})
                   </div>
+                  <div style={{ padding: '2px 0' }}>
                   {secIncoming.map(t => (
                     <div key={t.id}
-                      style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: `1px solid ${lightMode ? '#bbf7d0' : '#0a2010'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'grab' }}
+                      style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#16a34a' : '#22c55e'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
                       onClick={() => onAcceptTransfer(String(t.id))}
                       title="לחץ לקבלה"
                     >
@@ -7293,6 +7301,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {secIncoming.length === 0 && (
                     <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                   )}
+                  </div>
                 </div>
               </div>
             );
@@ -7346,14 +7355,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
                         📤 מוסר ({secOutgoing.length + secSingles.length})
                       </div>
+                      <div style={{ padding: '2px 0' }}>
                       {secOutgoing.map(t => (
-                        <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #292009', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                        <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
                           <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</span>
                           <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
                         </div>
                       ))}
                       {secSingles.map((t, i) => (
-                        <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #292009', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
+                        <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
                           <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx}</span>
                           <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
                         </div>
@@ -7361,14 +7371,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {secOutgoing.length === 0 && secSingles.length === 0 && (
                         <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                       )}
+                      </div>
                     </div>
                     <div style={{ borderTop: '1px solid #1e3a5f' }}>
                       <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
                         📥 מקבל ({secIncoming.length})
                       </div>
+                      <div style={{ padding: '2px 0' }}>
                       {secIncoming.map(t => (
                         <div key={t.id}
-                          style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', borderTop: '1px solid #0a2010', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'grab' }}
+                          style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#16a34a' : '#22c55e'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
                           onClick={() => onAcceptTransfer(String(t.id))}
                           title="לחץ לקבלה"
                         >
@@ -7379,6 +7391,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {secIncoming.length === 0 && (
                         <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
                       )}
+                      </div>
                     </div>
                   </div>
                 );
