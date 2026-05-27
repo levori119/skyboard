@@ -7258,49 +7258,51 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </>);
                 })()}
 
-                {/* מוסר — outgoing to this sector */}
-                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                  <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
-                    📤 מוסר ({secOutgoing.length + secSingles.length})
-                  </div>
-                  <div style={{ padding: '2px 0' }}>
-                  {secOutgoing.map(t => (
-                    <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
-                      <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
+                {/* מוסר | מקבל — two columns side by side */}
+                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, display: 'flex', direction: 'rtl' }}>
+                  {/* Left: מוסר */}
+                  <div style={{ flex: 1, borderInlineEnd: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}` }}>
+                    <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', textAlign: 'center', letterSpacing: '0.02em' }}>
+                      📤 מוסר <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({secOutgoing.length + secSingles.length})</span>
                     </div>
-                  ))}
-                  {secSingles.map((t, i) => (
-                    <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>({t.aircraftIdx}/{t.totalCount})</span></span>
-                      <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
+                    <div style={{ padding: '3px 3px 4px' }}>
+                      {secOutgoing.map(t => (
+                        <div key={t.id} style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#d97706' : '#f59e0b'}`, background: lightMode ? '#fef9ec' : '#110d00' }}>
+                          <div style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</div>
+                          <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#fbbf24', opacity: 0.85 }}>ממתין</div>
+                        </div>
+                      ))}
+                      {secSingles.map((t, i) => (
+                        <div key={`s-${i}`} style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#d97706' : '#f59e0b'}`, background: lightMode ? '#fef9ec' : '#110d00' }}>
+                          <div style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx}</div>
+                          <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#fbbf24', opacity: 0.85 }}>✈ {t.aircraftIdx}/{t.totalCount}</div>
+                        </div>
+                      ))}
+                      {secOutgoing.length === 0 && secSingles.length === 0 && (
+                        <div style={{ padding: '8px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>—</div>
+                      )}
                     </div>
-                  ))}
-                  {secOutgoing.length === 0 && secSingles.length === 0 && (
-                    <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
-                  )}
                   </div>
-                </div>
-
-                {/* מקבל — incoming from this sector */}
-                <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                  <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
-                    📥 מקבל ({secIncoming.length})
-                  </div>
-                  <div style={{ padding: '2px 0' }}>
-                  {secIncoming.map(t => (
-                    <div key={t.id}
-                      style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#16a34a' : '#22c55e'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
-                      onClick={() => onAcceptTransfer(String(t.id))}
-                      title="לחץ לקבלה"
-                    >
-                      <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'} <span style={{ fontWeight: 'normal', fontSize: '10px', opacity: 0.7 }}>(כל הפמ"מ)</span></span>
-                      <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
+                  {/* Right: מקבל */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', textAlign: 'center', letterSpacing: '0.02em' }}>
+                      📥 מקבל <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({secIncoming.length})</span>
                     </div>
-                  ))}
-                  {secIncoming.length === 0 && (
-                    <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
-                  )}
+                    <div style={{ padding: '3px 3px 4px' }}>
+                      {secIncoming.map(t => (
+                        <div key={t.id}
+                          style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#16a34a' : '#22c55e'}`, background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
+                          onClick={() => onAcceptTransfer(String(t.id))}
+                          title="לחץ לקבלה"
+                        >
+                          <div style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</div>
+                          <div style={{ fontSize: '9px', color: lightMode ? '#15803d' : '#4ade80', opacity: 0.85 }}>▶ קבל</div>
+                        </div>
+                      ))}
+                      {secIncoming.length === 0 && (
+                        <div style={{ padding: '8px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>—</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -7351,46 +7353,50 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {renderSectorContactsPanel(sectorId, sidHdrBg)}
                       </>);
                     })()}
-                    <div style={{ borderTop: '1px solid #1e3a5f' }}>
-                      <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', direction: 'rtl' }}>
-                        📤 מוסר ({secOutgoing.length + secSingles.length})
-                      </div>
-                      <div style={{ padding: '2px 0' }}>
-                      {secOutgoing.map(t => (
-                        <div key={t.id} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</span>
-                          <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>ממתין</span>
+                    <div style={{ borderTop: '1px solid #1e3a5f', display: 'flex', direction: 'rtl' }}>
+                      {/* Left: מוסר */}
+                      <div style={{ flex: 1, borderInlineEnd: '1px solid #1e3a5f' }}>
+                        <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: lightMode ? '#fffbeb' : '#1c1008', textAlign: 'center' }}>
+                          📤 מוסר <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({secOutgoing.length + secSingles.length})</span>
                         </div>
-                      ))}
-                      {secSingles.map((t, i) => (
-                        <div key={`s-${i}`} style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#d97706' : '#f59e0b'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#fef9ec' : '#110d00' }}>
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx}</span>
-                          <span style={{ fontSize: '9px', background: '#f59e0b', color: '#1c1008', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>✈</span>
+                        <div style={{ padding: '3px 3px 4px' }}>
+                          {secOutgoing.map(t => (
+                            <div key={t.id} style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#d97706' : '#f59e0b'}`, background: lightMode ? '#fef9ec' : '#110d00' }}>
+                              <div style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</div>
+                              <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#fbbf24', opacity: 0.85 }}>ממתין</div>
+                            </div>
+                          ))}
+                          {secSingles.map((t, i) => (
+                            <div key={`s-${i}`} style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#d97706' : '#f59e0b'}`, background: lightMode ? '#fef9ec' : '#110d00' }}>
+                              <div style={{ fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.callSign}#{t.aircraftIdx}</div>
+                              <div style={{ fontSize: '9px', color: lightMode ? '#b45309' : '#fbbf24', opacity: 0.85 }}>✈ {t.aircraftIdx}/{t.totalCount}</div>
+                            </div>
+                          ))}
+                          {secOutgoing.length === 0 && secSingles.length === 0 && (
+                            <div style={{ padding: '8px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>—</div>
+                          )}
                         </div>
-                      ))}
-                      {secOutgoing.length === 0 && secSingles.length === 0 && (
-                        <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
-                      )}
                       </div>
-                    </div>
-                    <div style={{ borderTop: '1px solid #1e3a5f' }}>
-                      <div style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', direction: 'rtl' }}>
-                        📥 מקבל ({secIncoming.length})
-                      </div>
-                      <div style={{ padding: '2px 0' }}>
-                      {secIncoming.map(t => (
-                        <div key={t.id}
-                          style={{ padding: '4px 8px', fontSize: '11px', direction: 'rtl', margin: '3px 5px', borderRadius: '5px', border: `2px solid ${lightMode ? '#16a34a' : '#22c55e'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
-                          onClick={() => onAcceptTransfer(String(t.id))}
-                          title="לחץ לקבלה"
-                        >
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</span>
-                          <span style={{ fontSize: '9px', background: '#22c55e', color: '#011205', borderRadius: '4px', padding: '1px 5px', marginRight: '4px', flexShrink: 0, fontWeight: 'bold' }}>קבל</span>
+                      {/* Right: מקבל */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: lightMode ? '#f0fdf4' : '#05140a', textAlign: 'center' }}>
+                          📥 מקבל <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({secIncoming.length})</span>
                         </div>
-                      ))}
-                      {secIncoming.length === 0 && (
-                        <div style={{ padding: '3px 8px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', direction: 'rtl', fontStyle: 'italic' }}>—</div>
-                      )}
+                        <div style={{ padding: '3px 3px 4px' }}>
+                          {secIncoming.map(t => (
+                            <div key={t.id}
+                              style={{ padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px', border: `1px solid ${lightMode ? '#16a34a' : '#22c55e'}`, background: lightMode ? '#f0fdf4' : '#011205', cursor: 'pointer' }}
+                              onClick={() => onAcceptTransfer(String(t.id))}
+                              title="לחץ לקבלה"
+                            >
+                              <div style={{ fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getFormationDisplayName(t) || '?'}</div>
+                              <div style={{ fontSize: '9px', color: lightMode ? '#15803d' : '#4ade80', opacity: 0.85 }}>▶ קבל</div>
+                            </div>
+                          ))}
+                          {secIncoming.length === 0 && (
+                            <div style={{ padding: '8px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>—</div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
