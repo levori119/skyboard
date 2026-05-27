@@ -13262,6 +13262,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, []);
 
+  // Poll preset config (partial_load / full_load thresholds) every 10s so
+  // changes made in the AdminDashboard propagate to this session automatically.
+  useEffect(() => {
+    if (!session.presetId) return;
+    const pid = session.presetId;
+    const pollConfig = () => {
+      fetch(`${API_URL}/workstation-presets/${pid}/config`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setLivePresetConfig(data); })
+        .catch(() => {});
+    };
+    const iv = setInterval(pollConfig, 10000);
+    return () => clearInterval(iv);
+  }, [session.presetId]);
+
   useEffect(() => {
     const fetchTableModes = async () => {
       try {
