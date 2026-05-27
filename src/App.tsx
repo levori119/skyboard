@@ -16110,7 +16110,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   setStrips(prev => prev.map(st => st.id === s.id ? { ...st, custom_fields: newCF } : st));
                 };
                 if (col.editable === 'none') {
-                  return <td key={colKey} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>{customVal || '—'}</td>;
+                  return <td key={colKey} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>{customVal || '—'}</td>;
                 }
                 const isImg = customVal.startsWith('data:image');
                 const cellKey = s.id + '__' + colKey;
@@ -16153,7 +16153,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     ) : (
                       <div
                         onClick={() => canEdit && (col.editable === 'keyboard' || col.editable === 'both') && setTableEditingCell(cellKey)}
-                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
+                        style={{ cursor: canEdit && (col.editable === 'keyboard' || col.editable === 'both') ? 'text' : 'default', minHeight: '28px', padding: '4px 6px', borderRadius: '4px', direction: 'rtl', color: customVal ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), border: '1px solid transparent', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
                       >
                         {isImg
                           ? <img src={customVal} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px', borderRadius: '4px', border: lightMode ? '1px solid #cbd5e1' : '1px solid #334155' }} />
@@ -16221,7 +16221,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
-                      {s.airborne ? <span style={{ color: '#22c55e', fontSize: '12px' }}>מאוויר</span> : <span style={{ color: T.muted, fontSize: '12px' }}>—</span>}
+                      {s.airborne ? <span style={{ color: '#22c55e' }}>מאוויר</span> : <span style={{ color: T.muted }}>—</span>}
                     </td>
                   );
                 case 'sq':
@@ -16248,7 +16248,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(sqCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: currentSq ? (T.text) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{currentSq || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>טייסת</span>}</span>
                             {canEdit && <VKTrigger value={currentSq || ''} onChange={async v => { await saveField(v); }} mode="full" label="טייסת" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -16260,7 +16260,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>
                       <div>{s.sq || s.squadron || '—'}</div>
-                      {s.alt && <div style={{ fontSize: '11px', color: T.muted, marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
+                      {s.alt && <div style={{ fontSize: '0.85em', color: T.muted, marginTop: '2px' }}>גובה: {normalizeAlt(s.alt)}</div>}
                     </td>
                   );
                 }
@@ -16322,7 +16322,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(altCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: s.alt ? (T.muted) : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.alt || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>גובה</span>}</span>
                             {canEdit && <VKTrigger value={s.alt || ''} onChange={async v => { await saveField(v); }} mode="numeric" label="גובה" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -16332,7 +16332,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>{s.alt || '—'}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top' }}>{s.alt || '—'}</td>
                   );
                 }
                 case 'weapons': {
@@ -16361,8 +16361,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(wpCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
                             {weapons.length === 0
-                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא חימושים</span>
-                              : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא חימושים</span>
+                              : weapons.map((w: any, i: number) => <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>)
                             }
                           </div>
                         )}
@@ -16372,10 +16372,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {weapons.length === 0
-                        ? <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: T.muted }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {weapons.map((w: any, i: number) => (
-                              <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24', fontSize: '12px' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
+                              <div key={i} style={{ color: lightMode ? '#92400e' : '#fbbf24' }}>{w.type}{w.quantity ? ` ×${w.quantity}` : ''}</div>
                             ))}
                           </div>
                       }
@@ -16408,8 +16408,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(tgCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', userSelect: 'none' }}>
                             {targets.length === 0
-                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', fontSize: '12px', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא מטרות</span>
-                              : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
+                              ? <span style={{ opacity: 0.5, fontStyle: 'italic', color: lightMode ? '#94a3b8' : '#64748b' }}>ללא מטרות</span>
+                              : targets.map((t: any, i: number) => <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>)
                             }
                           </div>
                         )}
@@ -16419,10 +16419,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', verticalAlign: 'top' }}>
                       {targets.length === 0
-                        ? <span style={{ color: T.muted, fontSize: '12px' }}>—</span>
+                        ? <span style={{ color: T.muted }}>—</span>
                         : <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {targets.map((t: any, i: number) => (
-                              <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171', fontSize: '12px' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
+                              <div key={i} style={{ color: lightMode ? '#b91c1c' : '#f87171' }}>{t.name}{t.aim_point ? ` / ${t.aim_point}` : ''}</div>
                             ))}
                           </div>
                       }
@@ -16451,7 +16451,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             </div>
                           </div>
                         ) : (
-                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '12px', color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
+                          <div onClick={() => canEdit && setTableEditingCell(shkCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', color: s.shkadia ? '#a78bfa' : (lightMode ? '#94a3b8' : '#64748b'), display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
                             <span style={{ flex: 1 }}>{s.shkadia || <span style={{ opacity: 0.5, fontStyle: 'italic' }}>שקדיה</span>}</span>
                             
                           </div>
@@ -16459,7 +16459,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       </td>
                     );
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top', fontSize: '12px' }}>{s.shkadia || '—'}</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: '#a78bfa', verticalAlign: 'top' }}>{s.shkadia || '—'}</td>;
                 }
                 case 'sector':
                   if (col.editable === 'dropdown') {
@@ -16483,14 +16483,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   }
                   return (
-                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : (T.muted), verticalAlign: 'top', fontSize: '12px' }}>{sectorName}</td>
+                    <td key={col.key} style={{ padding: '10px 12px', color: tableSortBySector ? '#38bdf8' : (T.muted), verticalAlign: 'top' }}>{sectorName}</td>
                   );
                 case 'notes': {
                   const noteParsed = parseNoteValue(currentNote);
                   const hasAnyNote = noteParsed.text.trim().length > 0 || noteParsed.hw.startsWith('data:');
                   if (col.editable === 'none') {
                     return (
-                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>
+                      <td key={colKey} style={{ padding: '6px 8px', color: T.text, verticalAlign: 'top' }}>
                         {noteParsed.text && <div style={{ direction: 'rtl', marginBottom: noteParsed.hw ? '4px' : 0 }}>{noteParsed.text}</div>}
                         {noteParsed.hw && <img src={noteParsed.hw} alt="כתב יד" style={{ maxWidth: '100%', maxHeight: '32px' }} />}
                         {!hasAnyNote && '—'}
@@ -16851,9 +16851,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </td>
                       );
                     }
-                    return <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top', fontSize: '12px' }}>{current || '—'}</td>;
+                    return <td key={col.key} style={{ padding: '10px 12px', color: T.text, verticalAlign: 'top' }}>{current || '—'}</td>;
                   }
-                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top', fontSize: '12px' }}>—</td>;
+                  return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top' }}>—</td>;
                 }
               }
             };
@@ -16864,20 +16864,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             return (
               <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, direction: 'rtl', flexShrink: 0 }}>
-                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap' }}>גודל טקסט:</span>
-                <button
-                  onClick={() => setTableFontSize(s => Math.max(9, s - 1))}
-                  title="הקטן טקסט"
-                  style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '4px', cursor: 'pointer', padding: '1px 7px', fontSize: '13px', fontWeight: 'bold', lineHeight: 1.3, minWidth: '26px' }}
-                >A</button>
-                <button
-                  onClick={() => setTableFontSize(s => Math.min(22, s + 1))}
-                  title="הגדל טקסט"
-                  style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '4px', cursor: 'pointer', padding: '1px 7px', fontSize: '17px', fontWeight: 'bold', lineHeight: 1.3, minWidth: '30px' }}
-                >A</button>
-                <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#64748b', minWidth: '24px', textAlign: 'center' }}>{tableFontSize}px</span>
-              </div>
               <table
                 ref={tableElRef}
                 style={{ width: hasFrozen ? 'max-content' : '100%', minWidth: '100%', borderCollapse: 'collapse', fontSize: `${tableFontSize}px`, direction: 'rtl' }}
@@ -16886,7 +16872,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               >
                 <thead>
                   <tr style={{ background: lightMode ? '#e2e8f0' : '#1e293b' }}>
-                    <th style={{ padding: 0, width: 0, minWidth: 0, position: 'sticky', top: 0, right: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, overflow: 'hidden', fontSize: '11px' }} />
+                    <th style={{ padding: '4px 6px', position: 'sticky', top: 0, right: tableStickyOffsets[0] ?? 0, zIndex: hasFrozen ? 15 : 10, background: lightMode ? '#e2e8f0' : '#1e293b', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <button onClick={() => setTableFontSize(s => Math.min(22, s + 1))} title="הגדל טקסט" style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '15px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '22px' }}>A</button>
+                        <button onClick={() => setTableFontSize(s => Math.max(9, s - 1))} title="הקטן טקסט" style={{ background: lightMode ? '#f1f5f9' : '#334155', border: `1px solid ${lightMode ? '#cbd5e1' : '#475569'}`, color: lightMode ? '#1e293b' : '#e2e8f0', borderRadius: '3px', cursor: 'pointer', padding: '0px 5px', fontSize: '11px', fontWeight: 'bold', lineHeight: 1.4, minWidth: '20px' }}>A</button>
+                        <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b' }}>{tableFontSize}</span>
+                      </div>
+                    </th>
                     <th
                       className={hasFrozen ? 'frozen-col' : undefined}
                       style={{
