@@ -11439,6 +11439,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzAnimPaused, setFzAnimPaused] = useState(false);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
+  const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
+  const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
+  const [fzAssignedZonesPanel, setFzAssignedZonesPanel] = useState<{ stripId: number; strip: any; assignment: StripZoneAssignment | null; x: number; y: number } | null>(null);
+  const [map2DrawingMode, setMap2DrawingMode] = useState(false);
+  const map2CanvasRef = useRef<HTMLCanvasElement>(null);
+  const map2DrawRef = useRef<{ drawing: boolean; lastX: number; lastY: number } | null>(null);
+  const [map2PenColor, setMap2PenColor] = useState('#ff4444');
+  const [map2PenSize, setMap2PenSize] = useState(3);
+  const [map2ShowBrightnessPanel, setMap2ShowBrightnessPanel] = useState(false);
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -13479,7 +13488,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId, aircraftIndices: indices })
       });
       if (!res.ok) throw new Error(await res.text());
+      const { newStripId } = await res.json();
       await loadData();
+      // Copy zone assignment from source strip to new strip (if exists)
+      const srcNumId = parseInt(String(sourceStripId).replace(/^s/, ''));
+      const srcAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === srcNumId);
+      if (srcAssignment && newStripId) {
+        await fetch(`${API_URL}/strip-zone-assignments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strip_id: newStripId, zone_id: srcAssignment.zone_id, altitude_range_id: srcAssignment.altitude_range_id, status: srcAssignment.status, note: srcAssignment.note, pos_x: srcAssignment.pos_x, pos_y: srcAssignment.pos_y, map_id: srcAssignment.map_id })
+        });
+        await loadData();
+      }
     } catch (err) {
       console.error('Split partial failed:', err);
     }
@@ -14305,6 +14326,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (canvas && container) {
         canvas.width = container.clientWidth;
         canvas.height = container.clientHeight;
+      }
+      const canvas2 = map2CanvasRef.current;
+      const container2 = canvas2?.parentElement;
+      if (canvas2 && container2) {
+        canvas2.width = container2.clientWidth;
+        canvas2.height = container2.clientHeight;
       }
     };
     resizeCanvas();
@@ -17383,14 +17410,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {legacyZones.length > 0 && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {legacyZones.map(zone => {
+                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       return (
                         <g key={zone.id}>
                           {zone.polygon.length >= 3 && (<>
-                            <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zone.color + (isReqOnly ? '12' : '2a')} stroke={zone.color + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
-                            {isReqOnly && <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={zone.color} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                            <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zc + (isReqOnly ? '12' : '2a')} stroke={zc + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
+                            {isReqOnly && <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
                             <text x={zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length} y={zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length}
-                              textAnchor="middle" dominantBaseline="middle" fill={zone.color + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}</text>
+                              textAnchor="middle" dominantBaseline="middle" fill={zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}</text>
                           </>)}
                         </g>
                       );
@@ -17400,14 +17428,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {geoZones.length > 0 && mapAnchor && mapImgBounds && (
                   <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 1 }}>
                     {geoZones.map(zone => {
+                      const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       return (
                         <g key={zone.id}>
-                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zone.color+(isReqOnly?'12':'2a')} stroke={zone.color+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
-                          {isReqOnly && <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke={zone.color} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zc+(isReqOnly?'12':'2a')} stroke={zc+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
+                          {isReqOnly && <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
                           <text x={imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length} y={imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length}
-                            textAnchor="middle" dominantBaseline="middle" fill={zone.color+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}</text>
+                            textAnchor="middle" dominantBaseline="middle" fill={zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}</text>
                         </g>
                       );
                     })}
@@ -17823,44 +17852,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             />
           )}
 
-          {/* Flight Zones status bar */}
-          {isFlightZonesMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 60, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
-              <span>✈️ מוד הקצאת אזורים — {stripZoneAssignments.length} מוקצים מתוך {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
-              <button
-                onClick={() => setFzShowZones(v => !v)}
-                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-              >
-                {fzShowZones ? '🗺 הסתר אזורים' : '🗺 הצג אזורים'}
-              </button>
-              {(['all','occupied','free'] as const).map(f => (
-                <button key={f} onClick={() => setFzZoneFilter(f)}
-                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
-                  {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
-                </button>
-              ))}
-              <button
-                onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
-                title={fzPinColorMode === 'squadron' ? 'צבע לפי טייסת — לחץ לעבור לסטטוס' : 'צבע לפי סטטוס — לחץ לעבור לטייסת'}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
-              </button>
-              <button
-                onClick={() => setFzAnimPaused(p => !p)}
-                title={fzAnimPaused ? 'הפעל אנימציות' : 'עצור הבהובים (קונפליקט ממשיך)'}
-                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
-                {fzAnimPaused ? '▶ הבהוב' : '⏸ הבהוב'}
-              </button>
-              {myPresetConfig?.use_map_zones && (
-                <button
-                  onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
-                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
-                >
-                  {isMapZonesMode ? '🧭 אזורים פעיל' : '🧭 אזורים כבוי'}
-                </button>
-              )}
-            </div>
-          )}
+          {/* (bottom bar moved outside overflow:hidden — see below) */}
 
           {/* 🖊️ Drawing canvas — map mode only */}
           <canvas
@@ -17916,6 +17908,74 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           </div>{/* /Map 1 panel wrapper */}
 
+          {/* Flight Zones status bar — outside overflow:hidden so always visible over both maps */}
+          {isFlightZonesMode && (
+            <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
+              <span>✈️ {stripZoneAssignments.length} / {myTableStrips.filter((s: any) => s.status !== 'pending_transfer').length}</span>
+              <button onClick={() => setFzShowZones(v => !v)}
+                style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${fzShowZones ? '#22c55e' : '#334155'}`, background: fzShowZones ? '#14532d' : '#1e293b', color: fzShowZones ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowZones ? '🗺 הסתר' : '🗺 הצג'}
+              </button>
+              {(['all','occupied','free'] as const).map(f => (
+                <button key={f} onClick={() => setFzZoneFilter(f)}
+                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
+                  {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
+                </button>
+              ))}
+              <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
+              </button>
+              <button onClick={() => setFzAnimPaused(p => !p)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzAnimPaused ? '▶ הבהוב' : '⏸ הבהוב'}
+              </button>
+              {/* Zone color overrides panel toggle */}
+              {fzShowZones && mapZones.length > 0 && (
+                <button onClick={() => setFzZoneColorPanel(v => !v)}
+                  title="שנה צבעי אזורים"
+                  style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzZoneColorPanel ? '#06b6d4' : '#334155'}`, background: fzZoneColorPanel ? '#0c4a6e' : '#1e293b', color: fzZoneColorPanel ? '#67e8f9' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  🎨 צבעי אזורים
+                </button>
+              )}
+              {myPresetConfig?.use_map_zones && (
+                <button onClick={() => { setUseMapZonesActive(v => !v); useMapZonesRef.current = !useMapZonesRef.current; }}
+                  style={{ padding: '2px 10px', borderRadius: '5px', border: `1px solid ${isMapZonesMode ? '#22c55e' : '#334155'}`, background: isMapZonesMode ? '#14532d' : '#1e293b', color: isMapZonesMode ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                  {isMapZonesMode ? '🧭 פעיל' : '🧭 כבוי'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Zone color overrides panel */}
+          {isFlightZonesMode && fzZoneColorPanel && mapZones.length > 0 && (
+            <div style={{ position: 'absolute', bottom: 52, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.97)', border: '1px solid #0284c7', borderRadius: '10px', padding: '10px 14px', zIndex: 511, backdropFilter: 'blur(8px)', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}>
+              <div style={{ fontSize: '11px', color: '#67e8f9', fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>🎨 צבעי אזורים (שינוי לסשן בלבד)</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                {mapZones.map(z => {
+                  const curColor = fzZoneColorOverrides[z.id] ?? z.color;
+                  return (
+                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="color" value={curColor} onChange={e => setFzZoneColorOverrides(prev => ({ ...prev, [z.id]: e.target.value }))}
+                        style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent', padding: 0 }} />
+                      <span style={{ fontSize: '12px', color: curColor, fontWeight: 'bold', minWidth: 70 }}>{z.name}</span>
+                      {fzZoneColorOverrides[z.id] && (
+                        <button onClick={() => setFzZoneColorOverrides(prev => { const n = { ...prev }; delete n[z.id]; return n; })}
+                          style={{ fontSize: '9px', color: '#64748b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '1px 4px' }}>↺</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {Object.keys(fzZoneColorOverrides).length > 0 && (
+                <button onClick={() => setFzZoneColorOverrides({})}
+                  style={{ marginTop: '8px', padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', width: '100%' }}>
+                  ↺ איפוס כל הצבעים
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Dual Map: Splitter + Map 2 panel */}
           {isDualMapMode && <>
             {/* Splitter bar */}
@@ -17955,24 +18015,79 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 ? { top: `calc(${dualMapSplit}% + 5px)`, left: 0, width: '100%', height: `calc(${100 - dualMapSplit}% - 5px)` }
                 : { top: 0, left: `calc(${dualMapSplit}% + 5px)`, width: `calc(${100 - dualMapSplit}% - 5px)`, height: '100%' }),
             }}>
-              {/* Map 2 mini toolbar */}
+              {/* Map 2 full toolbar — same as map 1 */}
               <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 100, display: 'flex', flexDirection: 'column', gap: '2px', background: 'rgba(30,41,59,0.9)', padding: '4px', borderRadius: '6px', width: 28 }}>
-                <button onClick={() => setMap2Zoom(z => Math.min(z + 0.25, 3))} title="הגדל" style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
-                <button onClick={() => setMap2Zoom(z => Math.max(z - 0.25, 0.5))} title="הקטן" style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
-                <button onClick={() => { setMap2Zoom(1); setMap2Pan({ x: 0, y: 0 }); }} title="איפוס" style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
-                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-                <button title={`בהירות: ${Math.round(map2Brightness * 100)}%`}
-                  onClick={() => setMap2Brightness(b => b >= 1.5 ? 0.8 : b + 0.1)}
-                  style={{ width: 20, height: 20, background: map2Brightness !== 1.3 ? '#92400e' : '#475569', color: map2Brightness !== 1.3 ? '#fcd34d' : 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>☀</button>
+                <button onClick={() => setMap2Zoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
+                <button onClick={() => setMap2Zoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
+                <button onClick={() => { setMap2Zoom(1); setMap2Pan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', marginTop: '2px' }}>
+                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y + 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▲</button>
+                  <div style={{ display: 'flex', gap: '1px' }}>
+                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x + 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>◀</button>
+                    <button onClick={() => setMap2Pan(p => ({ ...p, x: p.x - 50 }))} style={{ width: 9, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>▶</button>
+                  </div>
+                  <button onClick={() => setMap2Pan(p => ({ ...p, y: p.y - 50 }))} style={{ width: 20, height: 16, background: '#334155', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', fontSize: '9px', lineHeight: 1, padding: 0 }}>▼</button>
+                </div>
                 <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(map2Zoom * 100)}%</div>
+                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+                <button onClick={() => setMap2ShowBrightnessPanel(v => !v)} title={`בהירות: ${Math.round(map2Brightness * 100)}%`}
+                  style={{ width: 20, height: 20, background: map2ShowBrightnessPanel ? '#1d4ed8' : (map2Brightness !== 1 ? '#92400e' : '#475569'), color: map2Brightness !== 1 ? '#fcd34d' : 'white', border: map2ShowBrightnessPanel ? '1px solid #60a5fa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>☀</button>
+                <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+                <button onClick={() => setMap2DrawingMode(v => !v)} title={map2DrawingMode ? 'כבה ציור' : 'ציור על מפה 2'}
+                  style={{ width: 20, height: 20, background: map2DrawingMode ? '#7c3aed' : '#475569', color: 'white', border: map2DrawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
               </div>
+              {/* Map 2 brightness panel */}
+              {map2ShowBrightnessPanel && (
+                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #1d4ed8', borderRadius: '8px', padding: '8px 10px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
+                  <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>☀ בהירות מפה 2</div>
+                  <span style={{ fontSize: '13px', color: '#fcd34d', fontWeight: 'bold' }}>{Math.round(map2Brightness * 100)}%</span>
+                  <input type="range" min={0.2} max={1.8} step={0.05} value={map2Brightness} onChange={e => setMap2Brightness(Number(e.target.value))}
+                    style={{ width: '100%', marginTop: '6px', accentColor: '#1d4ed8' }} />
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                    {[20,35,50,80,100,130].map(pct => (
+                      <button key={pct} onClick={() => setMap2Brightness(pct / 100)}
+                        style={{ padding: '2px 5px', fontSize: '9px', borderRadius: '3px', border: 'none', background: Math.round(map2Brightness * 100) === pct ? '#1d4ed8' : '#1e293b', color: Math.round(map2Brightness * 100) === pct ? '#fff' : '#94a3b8', cursor: 'pointer' }}>
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                  {map2Brightness !== 1 && (
+                    <button onClick={() => setMap2Brightness(1)} style={{ marginTop: '4px', width: '100%', padding: '2px 0', fontSize: '9px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer' }}>↺ איפוס</button>
+                  )}
+                </div>
+              )}
+              {/* Map 2 drawing toolbar */}
+              {map2DrawingMode && (
+                <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 150, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)', direction: 'rtl' }}>
+                  <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: 'bold', marginBottom: '2px' }}>✏ ציור — מפה 2</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>צבע:</span>
+                    <input type="color" value={map2PenColor} onChange={e => setMap2PenColor(e.target.value)} style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0 }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>עובי:</span>
+                    <input type="range" min={1} max={20} value={map2PenSize} onChange={e => setMap2PenSize(Number(e.target.value))} style={{ flex: 1, accentColor: '#7c3aed' }} />
+                    <span style={{ fontSize: '10px', color: '#e9d5ff', minWidth: 16 }}>{map2PenSize}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                    <button onClick={() => { const ctx = map2CanvasRef.current?.getContext('2d'); if (ctx && map2CanvasRef.current) { ctx.clearRect(0, 0, map2CanvasRef.current.width, map2CanvasRef.current.height); } }}
+                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer' }}>🗑 נקה</button>
+                    <button onClick={() => setMap2DrawingMode(false)}
+                      style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>✕ סגור</button>
+                  </div>
+                </div>
+              )}
               {/* Map 2 image with pan/zoom */}
               <div
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${map2Pan.x}px, ${map2Pan.y}px) scale(${map2Zoom})`, transformOrigin: 'center center', cursor: 'grab', touchAction: 'none' }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${map2Pan.x}px, ${map2Pan.y}px) scale(${map2Zoom})`, transformOrigin: 'center center', cursor: map2DrawingMode ? 'crosshair' : 'grab', touchAction: 'none' }}
                 onWheel={e => { e.preventDefault(); const d = e.deltaY < 0 ? 0.1 : -0.1; setMap2Zoom(z => Math.max(0.5, Math.min(3, z + d))); }}
-                onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.style.cursor = 'grabbing'; map2DragRef.current = { startX: e.clientX, startY: e.clientY, panX: map2Pan.x, panY: map2Pan.y }; }}
+                onPointerDown={e => {
+                  if (map2DrawingMode) return;
+                  e.currentTarget.setPointerCapture(e.pointerId); e.currentTarget.style.cursor = 'grabbing';
+                  map2DragRef.current = { startX: e.clientX, startY: e.clientY, panX: map2Pan.x, panY: map2Pan.y };
+                }}
                 onPointerMove={e => { if (!map2DragRef.current) return; setMap2Pan({ x: map2DragRef.current.panX + (e.clientX - map2DragRef.current.startX), y: map2DragRef.current.panY + (e.clientY - map2DragRef.current.startY) }); }}
-                onPointerUp={e => { map2DragRef.current = null; e.currentTarget.style.cursor = 'grab'; }}
+                onPointerUp={e => { map2DragRef.current = null; e.currentTarget.style.cursor = map2DrawingMode ? 'crosshair' : 'grab'; }}
                 onPointerCancel={() => { map2DragRef.current = null; }}
               >
                 {map2Img ? (
@@ -17981,6 +18096,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '14px' }}>טוען מפה שנייה...</div>
                 )}
               </div>
+              {/* Map 2 drawing canvas */}
+              <canvas ref={map2CanvasRef}
+                onPointerDown={e => {
+                  if (!map2DrawingMode) return;
+                  e.preventDefault(); e.stopPropagation();
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                  const ctx = map2CanvasRef.current?.getContext('2d');
+                  if (ctx) { ctx.beginPath(); ctx.moveTo(x, y); }
+                  map2DrawRef.current = { drawing: true, lastX: x, lastY: y };
+                }}
+                onPointerMove={e => {
+                  if (!map2DrawRef.current?.drawing) return;
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+                  const ctx = map2CanvasRef.current?.getContext('2d');
+                  if (ctx) {
+                    ctx.strokeStyle = map2PenColor; ctx.lineWidth = map2PenSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                    ctx.lineTo(x, y); ctx.stroke();
+                  }
+                  map2DrawRef.current = { ...map2DrawRef.current, lastX: x, lastY: y };
+                }}
+                onPointerUp={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
+                onPointerCancel={() => { if (map2DrawRef.current) { map2DrawRef.current.drawing = false; } }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: map2DrawingMode ? 'auto' : 'none', cursor: 'crosshair', touchAction: 'none', zIndex: 200 }}
+              />
               {/* Map 2 label badge */}
               <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(15,23,42,0.85)', border: '1px solid #334155', borderRadius: '4px', padding: '3px 10px', fontSize: '11px', color: '#7dd3fc', pointerEvents: 'none', zIndex: 10 }}>🗺 מפה 2</div>
             </div>
@@ -19658,6 +19801,66 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         document.body
       )}
 
+      {/* FZ Assigned Zones Panel */}
+      {fzAssignedZonesPanel && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9150 }} onClick={() => setFzAssignedZonesPanel(null)}>
+          <div style={{ position: 'absolute', left: Math.min(fzAssignedZonesPanel.x, window.innerWidth - 280), top: Math.min(fzAssignedZonesPanel.y, window.innerHeight - 300), background: '#1e293b', border: '1px solid #0284c7', borderRadius: '10px', padding: '0', minWidth: '260px', maxWidth: '300px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9151, overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: '10px 14px', background: 'rgba(14,165,233,0.15)', borderBottom: '1px solid #334155' }}>
+              <div style={{ fontWeight: 'bold', color: '#7dd3fc', fontSize: '13px' }}>🗺 אזורים מוקצים</div>
+              <div style={{ color: '#f1f5f9', fontSize: '12px', marginTop: '2px' }}>
+                {(fzAssignedZonesPanel.strip as any)?.callSign || `#${fzAssignedZonesPanel.stripId}`}
+              </div>
+            </div>
+            {/* Main assignment */}
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #334155' }}>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>הקצאה ראשית</div>
+              {fzAssignedZonesPanel.assignment ? (
+                <div style={{ background: '#0f172a', borderRadius: '6px', padding: '8px 10px', border: `1px solid ${fzAssignedZonesPanel.assignment.zone_color || '#334155'}44` }}>
+                  <div style={{ color: fzAssignedZonesPanel.assignment.zone_color || '#60a5fa', fontWeight: 'bold', fontSize: '12px' }}>
+                    📍 {fzAssignedZonesPanel.assignment.zone_name || 'ללא אזור'}
+                  </div>
+                  {fzAssignedZonesPanel.assignment.alt_range_name && (
+                    <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>↕ {fzAssignedZonesPanel.assignment.alt_range_name}</div>
+                  )}
+                  <div style={{ marginTop: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {(() => { const stC: Record<string,string> = {'בדרך לאזור':'#f59e0b','באזור':'#22c55e','עוזב אזור':'#f97316'}; const st = fzAssignedZonesPanel.assignment!.status; return <span style={{ fontSize: '10px', color: stC[st] || '#94a3b8', background: (stC[st] || '#64748b')+'22', padding: '1px 6px', borderRadius: '8px', border: `1px solid ${stC[st] || '#64748b'}44` }}>{st}</span>; })()}
+                    {fzAssignedZonesPanel.assignment.note && <span style={{ fontSize: '10px', color: '#64748b' }}>📝 {fzAssignedZonesPanel.assignment.note}</span>}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#475569', fontSize: '12px', fontStyle: 'italic' }}>ללא הקצאה</div>
+              )}
+            </div>
+            {/* Split assignments */}
+            {fzSplitItems.filter(si => si.parentStripId === fzAssignedZonesPanel.stripId && si.zoneId != null).length > 0 && (
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid #334155' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>חלקי פיצול</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {fzSplitItems.filter(si => si.parentStripId === fzAssignedZonesPanel.stripId).map(si => (
+                    <div key={si.key} style={{ background: '#0f172a', borderRadius: '5px', padding: '5px 8px', border: `1px solid ${si.zoneColor || '#334155'}44`, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#c4b5fd' }}>✂</span>
+                      <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
+                      {si.zoneId != null ? (
+                        <span style={{ fontSize: '10px', color: si.zoneColor || '#60a5fa' }}>📍 {si.zoneName}</span>
+                      ) : (
+                        <span style={{ fontSize: '10px', color: '#475569' }}>ממתין לגרירה</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ padding: '8px 14px' }}>
+              <button onClick={() => setFzAssignedZonesPanel(null)}
+                style={{ width: '100%', padding: '6px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>סגור</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* FZ Pin Context Menu */}
       {fzPinMenu && createPortal(
         <div
@@ -19700,6 +19903,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 })}
               </div>
             </div>
+            {/* Show assigned zones */}
+            <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              🗺 הצג אזורים מוקצים
+            </button>
             {/* Split */}
             <button onClick={() => { setFzSplitForm({ label: (fzPinMenu.strip as any)?.callSign + '-א' || '-א', count: '1' }); setFzSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
