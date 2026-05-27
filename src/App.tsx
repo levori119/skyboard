@@ -11441,6 +11441,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
   const [fzZoneOpacityOverrides, setFzZoneOpacityOverrides] = useState<Record<number, number>>({});
+  const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
   const [fzZoneColorPanel, setFzZoneColorPanel] = useState(false);
   const [fzAssignedZonesPanel, setFzAssignedZonesPanel] = useState<{ stripId: number; strip: any; assignment: StripZoneAssignment | null; x: number; y: number } | null>(null);
   const [map2DrawingMode, setMap2DrawingMode] = useState(false);
@@ -17420,14 +17421,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     {legacyZones.map(zone => {
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const zOpacity = fzZoneOpacityOverrides[zone.id] !== undefined ? fzZoneOpacityOverrides[zone.id] / 100 : 1;
+                      const opPct = fzZoneOpacityOverrides[zone.id];
+                      const fillHex = opPct !== undefined ? Math.round(0x66 * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0x33 * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
+                      const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
+                      const cy = zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length;
+                      const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
                       return (
-                        <g key={zone.id} opacity={zOpacity}>
+                        <g key={zone.id}>
                           {zone.polygon.length >= 3 && (<>
-                            <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill={zc + (isReqOnly ? '12' : '2a')} stroke={zc + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
-                            {isReqOnly && <polygon points={zone.polygon.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
-                            <text x={zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length} y={zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length}
-                              textAnchor="middle" dominantBaseline="middle" fill={zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}</text>
+                            <polygon points={pts} fill={zc + (isReqOnly ? reqFillHex : fillHex)} stroke={zc + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
+                            {isReqOnly && <polygon points={pts} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                            {isHighlighted && (<>
+                              <polygon points={pts} fill={zc + '22'} stroke={zc} strokeWidth="1.2">
+                                <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
+                                <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
+                              </polygon>
+                              <polygon points={pts} fill={zc + '11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                                <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
+                              </polygon>
+                            </>)}
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}{hasNote ? ' ✎' : ''}</text>
+                            {hasNote && <text x={cx} y={cy + 3.5} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                           </>)}
                         </g>
                       );
@@ -17440,13 +17457,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
-                      const zOpacity = fzZoneOpacityOverrides[zone.id] !== undefined ? fzZoneOpacityOverrides[zone.id] / 100 : 1;
+                      const opPct = fzZoneOpacityOverrides[zone.id];
+                      const fillHex = opPct !== undefined ? Math.round(0x66 * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0x33 * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const hasNote = !!(fzZoneNotes[zone.id]?.trim());
+                      const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
+                      const cx = imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length;
+                      const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
                       return (
-                        <g key={zone.id} opacity={zOpacity}>
-                          <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill={zc+(isReqOnly?'12':'2a')} stroke={zc+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
-                          {isReqOnly && <polygon points={imgPts.map(p=>`${p.x},${p.y}`).join(' ')} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
-                          <text x={imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length} y={imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length}
-                            textAnchor="middle" dominantBaseline="middle" fill={zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}</text>
+                        <g key={zone.id}>
+                          <polygon points={pts} fill={zc+(isReqOnly?reqFillHex:fillHex)} stroke={zc+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
+                          {isReqOnly && <polygon points={pts} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                          {isHighlighted && (<>
+                            <polygon points={pts} fill={zc+'22'} stroke={zc} strokeWidth="1.2">
+                              <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
+                              <animate attributeName="stroke-width" values="0.6;2;0.6" dur="1.2s" repeatCount="indefinite" />
+                            </polygon>
+                            <polygon points={pts} fill={zc+'11'} stroke={zc} strokeWidth="2.5" strokeDasharray="none" opacity="0.4">
+                              <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
+                            </polygon>
+                          </>)}
+                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}{hasNote?' ✎':''}</text>
+                          {hasNote && <text x={cx} y={cy+3.5} textAnchor="middle" dominantBaseline="middle" fill={zc+'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                         </g>
                       );
                     })}
@@ -17965,12 +17998,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <button onClick={() => setFzZoneColorPanel(false)}
                   style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto' }}>
                 {mapZones.map(z => {
                   const curColor = fzZoneColorOverrides[z.id] ?? z.color;
                   const curOpacity = fzZoneOpacityOverrides[z.id] !== undefined ? fzZoneOpacityOverrides[z.id] : 100;
+                  const curNote = fzZoneNotes[z.id] ?? '';
                   return (
-                    <div key={z.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px solid #1e293b', paddingBottom: '6px' }}>
+                    <div key={z.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px solid #1e293b', paddingBottom: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input type="color" value={curColor} onChange={e => setFzZoneColorOverrides(prev => ({ ...prev, [z.id]: e.target.value }))}
                           style={{ width: 28, height: 20, border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'transparent', padding: 0 }} />
@@ -17981,7 +18015,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         )}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ fontSize: '9px', color: '#64748b', marginLeft: '4px' }}>שקיפות:</span>
+                        <span style={{ fontSize: '9px', color: '#64748b', marginLeft: '4px', whiteSpace: 'nowrap' }}>שקיפות מילוי:</span>
                         {[100, 75, 50, 25, 0].map(pct => (
                           <button key={pct} onClick={() => setFzZoneOpacityOverrides(prev => ({ ...prev, [z.id]: pct }))}
                             style={{ padding: '1px 5px', fontSize: '10px', borderRadius: '3px', border: `1px solid ${curOpacity === pct ? '#06b6d4' : '#334155'}`, background: curOpacity === pct ? '#0c4a6e' : '#1e293b', color: curOpacity === pct ? '#67e8f9' : '#64748b', cursor: 'pointer', fontWeight: curOpacity === pct ? 'bold' : 'normal' }}>
@@ -17989,14 +18023,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </button>
                         ))}
                       </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '9px', color: '#64748b' }}>✎ הערה לאזור (מוצגת על המפה):</span>
+                        <textarea
+                          value={curNote}
+                          onChange={e => setFzZoneNotes(prev => ({ ...prev, [z.id]: e.target.value }))}
+                          placeholder="כתוב הערה..."
+                          rows={2}
+                          style={{ width: '100%', fontSize: '11px', background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: '4px', padding: '3px 6px', resize: 'vertical', direction: 'rtl', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
               </div>
-              {(Object.keys(fzZoneColorOverrides).length > 0 || Object.keys(fzZoneOpacityOverrides).length > 0) && (
-                <button onClick={() => { setFzZoneColorOverrides({}); setFzZoneOpacityOverrides({}); }}
+              {(Object.keys(fzZoneColorOverrides).length > 0 || Object.keys(fzZoneOpacityOverrides).length > 0 || Object.keys(fzZoneNotes).some(k => fzZoneNotes[Number(k)]?.trim())) && (
+                <button onClick={() => { setFzZoneColorOverrides({}); setFzZoneOpacityOverrides({}); setFzZoneNotes({}); }}
                   style={{ marginTop: '8px', padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', width: '100%' }}>
-                  ↺ איפוס כל הצבעים והשקיפויות
+                  ↺ איפוס הכול
                 </button>
               )}
             </div>
