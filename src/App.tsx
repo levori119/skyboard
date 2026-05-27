@@ -10952,7 +10952,8 @@ const AdminDashboard: React.FC<{
                     if (col.isCustom || key.startsWith('custom_')) {
                       return <span style={{ color: lightMode ? '#334155' : '#e2e8f0' }}>{customFields[key] || '—'}</span>;
                     }
-                    const formationName = `${s.callSign || ''}${s.numberOfFormation && Number(s.numberOfFormation) > 1 ? ` ${s.numberOfFormation}` : ''}`;
+                    const _dashIsSplit = Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0;
+                    const formationName = `${s.callSign || ''}${!_dashIsSplit && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}`;
                     const muted = lightMode ? '#64748b' : '#94a3b8';
                     const body = lightMode ? '#1e293b' : 'white';
                     switch (key) {
@@ -16189,7 +16190,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </div>
                         ) : (
                           <div onClick={() => canEdit && setTableEditingCell(csCellKey)} style={{ cursor: canEdit ? 'text' : 'default', minHeight: '24px', padding: '3px 5px', borderRadius: '4px', direction: 'rtl', fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none' }}>
-                            <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}</span>
+                            <span style={{ flex: 1, ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 6px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                             {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px', flexShrink: 0 }}>🌰</span>}
                             {canEdit && <VKTrigger value={s.callSign || ''} onChange={async v => { await saveField(v); }} mode="full" label="קריאה" size={13} style={{ flexShrink: 0 }} />}
                             
@@ -16201,7 +16202,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <td key={col.key} style={{ padding: '10px 12px', fontWeight: 'bold', fontSize: '14px', verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}</span>
+                        <span style={{ color: lightMode ? '#1e293b' : 'white', ...(s.airborne ? { background: '#1d4ed8', color: 'white', border: '2px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', display: 'inline-block' } : {}) }}>{getFormationDisplayName(s)}{!(Array.isArray(s.aircraft_indices) && s.aircraft_indices.length > 0) && s.numberOfFormation ? `/${s.numberOfFormation}` : ''}</span>
                         {sectorFormationSummaries[String(s.id)]?.hasShakadia && <span title="שקדיה שמישה" style={{ fontSize: '11px' }}>🌰</span>}
                       </div>
                     </td>
