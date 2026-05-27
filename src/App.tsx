@@ -2688,71 +2688,60 @@ const DraggableNeighborPanel = ({
               </div>
             ))}
             
-            {/* 2 Columns: Transfer / Receive */}
+            {/* מוסר | מקבל — two columns */}
             {hasTransfers && (
-              <div style={{ display: 'flex', borderTop: '1px solid #334155' }}>
-                {/* העברה - Outgoing */}
-                <div style={{ flex: 1, borderLeft: '1px solid #334155', padding: '6px' }}>
-                  <div style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
-                    העברה ({sectorOutgoing.length})
+              <div style={{ display: 'flex', borderTop: '1px solid #334155', direction: 'rtl' }}>
+                {/* Left: מוסר (outgoing) */}
+                <div style={{ flex: 1, borderInlineEnd: '1px solid #334155' }}>
+                  <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: '#1c1008', textAlign: 'center' }}>
+                    📤 מוסר <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({sectorOutgoing.length})</span>
                   </div>
-                  {sectorOutgoing.map(t => (
-                    <div key={t.id} style={{ 
-                      background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#fef3c7', 
-                      border: conflictingTransferIds.has(String(t.id)) ? '2px solid #ef4444' : '1px solid #f59e0b',
-                      borderRadius: '4px',
-                      padding: '4px',
-                      marginBottom: '4px',
-                      fontSize: '9px'
-                    }}>
-                      <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#92400e' }}>
-                        {conflictingTransferIds.has(String(t.id)) && '⚠️ '}{getFormationDisplayName(t)}
+                  <div style={{ padding: '3px 3px 4px' }}>
+                    {sectorOutgoing.map(t => (
+                      <div key={t.id} style={{
+                        padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px',
+                        border: conflictingTransferIds.has(String(t.id)) ? '1px solid #ef4444' : '1px solid #f59e0b',
+                        background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#110d00'
+                      }}>
+                        <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {conflictingTransferIds.has(String(t.id)) && '⚠ '}{getFormationDisplayName(t)}
+                        </div>
+                        {t.alt && <div style={{ fontSize: '9px', color: '#b45309' }}>FL{normalizeAlt(t.alt)}</div>}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                          style={{ marginTop: '2px', width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+                        >✕ בטל</button>
                       </div>
-                      <div style={{ color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#b45309' }}>גובה: {normalizeAlt(t.alt || '')}</div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
-                        style={{
-                          marginTop: '3px',
-                          width: '100%',
-                          padding: '2px',
-                          background: '#dc2626',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '3px',
-                          fontSize: '9px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        בטל
-                      </button>
-                    </div>
-                  ))}
-                  {sectorOutgoing.length === 0 && (
-                    <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'center' }}>אין</div>
-                  )}
-                </div>
-                
-                {/* קבלה - Incoming */}
-                <div style={{ flex: 1, padding: '6px' }}>
-                  <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
-                    קבלה ({sectorIncoming.length})
+                    ))}
+                    {sectorOutgoing.length === 0 && (
+                      <div style={{ padding: '8px 4px', fontSize: '10px', color: '#475569', textAlign: 'center' }}>—</div>
+                    )}
                   </div>
-                  {sectorIncoming.map(t => (
-                    <DraggableIncomingTransferMini
-                      key={t.id}
-                      transfer={t}
-                      onAccept={onAcceptTransfer}
-                      onReject={onRejectTransfer}
-                      onAcceptToMap={onAcceptToMap}
-                      isConflict={conflictingTransferIds.has(String(t.id))}
-                      onUpdateStripField={onUpdateStripField}
-                      zoom={mapZoom}
-                      pan={mapPan}
-                    />
-                  ))}
-                  {sectorIncoming.length === 0 && (
-                    <div style={{ fontSize: '9px', color: '#64748b', textAlign: 'center' }}>אין</div>
-                  )}
+                </div>
+
+                {/* Right: מקבל (incoming) */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: '#05140a', textAlign: 'center' }}>
+                    📥 מקבל <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({sectorIncoming.length})</span>
+                  </div>
+                  <div style={{ padding: '3px 3px 4px' }}>
+                    {sectorIncoming.map(t => (
+                      <DraggableIncomingTransferMini
+                        key={t.id}
+                        transfer={t}
+                        onAccept={onAcceptTransfer}
+                        onReject={onRejectTransfer}
+                        onAcceptToMap={onAcceptToMap}
+                        isConflict={conflictingTransferIds.has(String(t.id))}
+                        onUpdateStripField={onUpdateStripField}
+                        zoom={mapZoom}
+                        pan={mapPan}
+                      />
+                    ))}
+                    {sectorIncoming.length === 0 && (
+                      <div style={{ padding: '8px 4px', fontSize: '10px', color: '#475569', textAlign: 'center' }}>—</div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -18342,7 +18331,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 }}
               >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
             )}
-            {sidebarPinned && isFlightZonesMode && (
+            {sidebarPinned && (
               <button
                 onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateModal(true); }}
                 title='הוסף פ"מ חדש'
