@@ -12248,7 +12248,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return;
     }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: existing?.requested_zone_ids || [] });
+    const preservedZones0 = existing ? [...(existing.requested_zone_ids || []), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+    setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
   };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -12288,10 +12289,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: existing?.requested_zone_ids || [] });
+      const preservedZones1 = existing ? [...(existing.requested_zone_ids || []), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones1 });
     } else {
+      const existingNonPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: [] });
+      const preservedZones2 = existingNonPin ? [...(existingNonPin.requested_zone_ids || []), ...(existingNonPin.zone_id && existingNonPin.zone_id !== zone.id ? [existingNonPin.zone_id] : [])].filter(id => id !== zone.id) : [];
+      setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingNonPin?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones2 });
     }
   };
 
@@ -12302,7 +12306,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
       allDialogZones.some(z => z === a.zone_id || (a.requested_zone_ids || []).includes(z)) &&
       Number(a.strip_id) !== numericStripId &&
-      (fzDialog.selectedAltId === null || a.altitude_range_id === null || a.altitude_range_id === fzDialog.selectedAltId)
+      !a.is_coordinated
     );
     if (existing.length > 0) {
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY }, conflicts: existing, coordNote: '' });
@@ -17422,8 +17426,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const zc = fzZoneColorOverrides[zone.id] ?? zone.color;
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0x66 * opPct / 100).toString(16).padStart(2,'0') : '2a';
-                      const reqFillHex = opPct !== undefined ? Math.round(0x33 * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
                       const hasNote = !!(fzZoneNotes[zone.id]?.trim());
                       const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
@@ -17458,8 +17462,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const imgPts = zone.polygon_geo!.map(g => geoToImagePct(g.lat, g.lon, mapAnchor));
                       const isReqOnly = requestedOnlyZoneIds.has(zone.id);
                       const opPct = fzZoneOpacityOverrides[zone.id];
-                      const fillHex = opPct !== undefined ? Math.round(0x66 * opPct / 100).toString(16).padStart(2,'0') : '2a';
-                      const reqFillHex = opPct !== undefined ? Math.round(0x33 * opPct / 100).toString(16).padStart(2,'0') : '12';
+                      const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
+                      const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
                       const hasNote = !!(fzZoneNotes[zone.id]?.trim());
                       const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
