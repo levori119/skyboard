@@ -2596,7 +2596,18 @@ const DraggableNeighborPanel = ({
 
   return (
     <>
-      <div style={{ borderBottom: '1px solid #334155' }}>
+      {/* Card container */}
+      <div style={{
+        margin: '6px 6px',
+        borderRadius: '10px',
+        border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '1px solid #2d4060'),
+        background: isStripDragOver ? '#0a2218' : (dragStripId ? '#0e1e2e' : '#0f1923'),
+        overflow: 'hidden',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+        transition: 'border-color 0.15s, background 0.15s',
+      }}>
+
+        {/* Header — drag zone */}
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
@@ -2607,150 +2618,134 @@ const DraggableNeighborPanel = ({
           onDragLeave={(() => setIsStripDragOver(false))}
           onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer'); if (sid && onStripDrop) onStripDrop(sid, neighbor.id); })}
           style={{
-            padding: '8px 12px',
-            background: isStripDragOver ? '#166534' : (dragStripId ? '#1a3a2a' : (hasConflict ? '#3b0000' : (isExpanded ? '#334155' : 'transparent'))),
+            padding: '7px 10px',
+            background: 'rgba(255,255,255,0.05)',
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '6px',
             cursor: dragStripId ? 'copy' : 'grab',
             userSelect: 'none',
-            transition: 'background 0.15s',
-            border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '2px solid transparent'),
+            direction: 'rtl',
+            borderBottom: '1px solid #1e2d3d',
           }}
         >
-          <div 
-            style={{ 
-              flex: 1, 
-              textAlign: 'right', 
-              userSelect: 'none'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ fontSize: '12px', fontWeight: '500', color: '#94a3b8', letterSpacing: '0.01em' }}>{neighbor.label_he || neighbor.name}</div>
-              {hasConflict && (
-                <span style={{ fontSize: '11px', background: '#ef4444', color: '#fff', borderRadius: '6px', padding: '1px 6px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  ⚠️ קונפליקט גובה
-                </span>
-              )}
-              <button
-                onClick={toggleNeighborContacts}
-                onPointerDown={e => e.stopPropagation()}
-                title="הצג קשרי עמדות לנקודה זו"
-                style={{ padding: '1px 5px', fontSize: '10px', background: neighborContactsOpen ? '#0369a1' : 'rgba(255,255,255,0.12)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-                📡
-              </button>
+          {/* Sector name — center */}
+          <div style={{ flex: 1, textAlign: 'center', direction: 'rtl', userSelect: 'none' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', letterSpacing: '0.01em', lineHeight: 1.4 }}>
+              {neighbor.label_he || neighbor.name}
             </div>
             {neighbor.notes && (
-              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '2px' }}>
-                {neighbor.notes}
-              </div>
+              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
+            )}
+            {hasConflict && (
+              <span style={{ fontSize: '10px', background: '#450a0a', color: '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>⚠ קונפליקט גובה</span>
             )}
           </div>
-          {(hasSubSectors || hasTransfers) && (
-            <span 
+
+          {/* קשר button */}
+          <button
+            onClick={toggleNeighborContacts}
+            onPointerDown={e => e.stopPropagation()}
+            title="הצג קשרי עמדות לנקודה זו"
+            style={{
+              padding: '3px 9px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              background: neighborContactsOpen ? '#0c3547' : '#0a1e2e',
+              color: neighborContactsOpen ? '#67e8f9' : '#38bdf8',
+              border: `1px solid ${neighborContactsOpen ? '#0e7490' : '#1e4a6a'}`,
+              borderRadius: '6px',
+              cursor: 'pointer',
+              flexShrink: 0,
+              lineHeight: 1.5,
+              transition: 'all 0.15s',
+            }}>
+            קשר
+          </button>
+
+          {/* Sub-sector toggle (only if sub-sectors exist) */}
+          {hasSubSectors && (
+            <span
               onClick={(e) => { e.stopPropagation(); onToggle(); }}
-              style={{ fontSize: '12px', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-            >
-              {isExpanded ? '▼' : '◀'}
-              {hasTransfers && !isExpanded && (
-                <span style={{ 
-                  marginRight: '4px', 
-                  background: '#f59e0b', 
-                  color: '#1e293b', 
-                  padding: '1px 5px', 
-                  borderRadius: '8px', 
-                  fontSize: '10px',
-                  fontWeight: 'bold'
-                }}>
-                  {sectorOutgoing.length + sectorIncoming.length}
-                </span>
-              )}
-            </span>
+              style={{ fontSize: '11px', color: '#64748b', cursor: 'pointer', flexShrink: 0, padding: '2px 4px' }}
+            >{isExpanded ? '▲' : '▼'}</span>
           )}
         </div>
-        
-        {isExpanded && (
-          <div style={{ background: '#0f172a' }}>
-            {hasSubSectors && neighborSubSectors.map(ss => (
-              <div
-                key={ss.id}
-                onPointerDown={(e) => handlePointerDown(e, ss.label)}
-                style={{
-                  padding: '6px 12px 6px 24px',
-                  fontSize: '11px',
-                  color: '#94a3b8',
-                  borderTop: '1px solid #1e293b',
-                  cursor: 'grab',
-                  userSelect: 'none'
-                }}
-              >
-                ↳ {ss.label}
-              </div>
-            ))}
-            
-            {/* מוסר | מקבל — two columns */}
-            {hasTransfers && (
-              <div style={{ display: 'flex', borderTop: '1px solid #334155', direction: 'rtl' }}>
-                {/* Left: מוסר (outgoing) */}
-                <div style={{ flex: 1, borderInlineEnd: '1px solid #334155' }}>
-                  <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: '#1c1008', textAlign: 'center' }}>
-                    📤 מוסר <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({sectorOutgoing.length})</span>
-                  </div>
-                  <div style={{ padding: '3px 3px 4px' }}>
-                    {sectorOutgoing.map(t => (
-                      <div key={t.id} style={{
-                        padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '5px',
-                        border: conflictingTransferIds.has(String(t.id)) ? '1px solid #ef4444' : '1px solid #f59e0b',
-                        background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#110d00'
-                      }}>
-                        <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {conflictingTransferIds.has(String(t.id)) && '⚠ '}{getFormationDisplayName(t)}
-                        </div>
-                        {t.alt && <div style={{ fontSize: '9px', color: '#b45309' }}>FL{normalizeAlt(t.alt)}</div>}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
-                          style={{ marginTop: '2px', width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
-                        >✕ בטל</button>
-                      </div>
-                    ))}
-                    {sectorOutgoing.length === 0 && (
-                      <div style={{ padding: '8px 4px', fontSize: '10px', color: '#475569', textAlign: 'center' }}>—</div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Right: מקבל (incoming) */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ padding: '3px 4px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: '#05140a', textAlign: 'center' }}>
-                    📥 מקבל <span style={{ fontWeight: 'normal', opacity: 0.8 }}>({sectorIncoming.length})</span>
-                  </div>
-                  <div style={{ padding: '3px 3px 4px' }}>
-                    {sectorIncoming.map(t => (
-                      <DraggableIncomingTransferMini
-                        key={t.id}
-                        transfer={t}
-                        onAccept={onAcceptTransfer}
-                        onReject={onRejectTransfer}
-                        onAcceptToMap={onAcceptToMap}
-                        isConflict={conflictingTransferIds.has(String(t.id))}
-                        onUpdateStripField={onUpdateStripField}
-                        zoom={mapZoom}
-                        pan={mapPan}
-                      />
-                    ))}
-                    {sectorIncoming.length === 0 && (
-                      <div style={{ padding: '8px 4px', fontSize: '10px', color: '#475569', textAlign: 'center' }}>—</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+        {/* Sub-sectors (collapsible) */}
+        {isExpanded && hasSubSectors && neighborSubSectors.map(ss => (
+          <div
+            key={ss.id}
+            onPointerDown={(e) => handlePointerDown(e, ss.label)}
+            style={{ padding: '5px 12px', fontSize: '11px', color: '#94a3b8', borderBottom: '1px solid #1e2d3d', cursor: 'grab', userSelect: 'none', direction: 'rtl', background: '#080f18' }}
+          >
+            ↳ {ss.label}
           </div>
-        )}
+        ))}
+
+        {/* Two-column transfers — always visible */}
+        <div style={{ display: 'flex', direction: 'rtl' }}>
+
+          {/* מוסר — outgoing (right in RTL = left visually) */}
+          <div style={{ flex: 1, borderInlineEnd: '1px solid #1e2d3d' }}>
+            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+              <span>🔥</span><span>מוסר</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorOutgoing.length})</span>
+            </div>
+            <div style={{ padding: '3px', minHeight: '24px' }}>
+              {sectorOutgoing.map(t => (
+                <div key={t.id} style={{
+                  padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
+                  border: conflictingTransferIds.has(String(t.id)) ? '1px solid #ef4444' : '1px solid #78350f',
+                  background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#0d0800',
+                }}>
+                  <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {conflictingTransferIds.has(String(t.id)) && '⚠ '}{getFormationDisplayName(t)}
+                  </div>
+                  {t.alt && <div style={{ fontSize: '9px', color: '#b45309' }}>FL{normalizeAlt(t.alt)}</div>}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
+                    style={{ marginTop: '2px', width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+                  >✕ בטל</button>
+                </div>
+              ))}
+              {sectorOutgoing.length === 0 && (
+                <div style={{ padding: '6px 4px', fontSize: '10px', color: '#334155', textAlign: 'center' }}>—</div>
+              )}
+            </div>
+          </div>
+
+          {/* מקבל — incoming */}
+          <div style={{ flex: 1 }}>
+            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+              <span>📥</span><span>מקבל</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorIncoming.length})</span>
+            </div>
+            <div style={{ padding: '3px', minHeight: '24px' }}>
+              {sectorIncoming.map(t => (
+                <DraggableIncomingTransferMini
+                  key={t.id}
+                  transfer={t}
+                  onAccept={onAcceptTransfer}
+                  onReject={onRejectTransfer}
+                  onAcceptToMap={onAcceptToMap}
+                  isConflict={conflictingTransferIds.has(String(t.id))}
+                  onUpdateStripField={onUpdateStripField}
+                  zoom={mapZoom}
+                  pan={mapPan}
+                />
+              ))}
+              {sectorIncoming.length === 0 && (
+                <div style={{ padding: '6px 4px', fontSize: '10px', color: '#334155', textAlign: 'center' }}>—</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Contacts panel */}
         {neighborContactsOpen && neighborContactsCache !== null && (() => {
           const groups = getNeighborContacts();
           return (
-            <div style={{ borderTop: '1px solid #1e3a5f', background: '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl' }}>
+            <div style={{ borderTop: '1px solid #1e3a5f', background: '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl', borderRadius: '0 0 10px 10px' }}>
               {groups.length === 0 ? (
                 <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>אין קשרים מוגדרים לסקטור זה</div>
               ) : groups.map(g => (
