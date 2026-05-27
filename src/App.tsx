@@ -11412,6 +11412,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [stripZoneAssignments, setStripZoneAssignments] = useState<StripZoneAssignment[]>([]);
   const [fzDragStripId, setFzDragStripId] = useState<number | null>(null);
   const [fzPanelCollapsed, setFzPanelCollapsed] = useState<Set<number>>(new Set());
+  const [fzCreateModal, setFzCreateModal] = useState(false);
+  const [fzCreateCallSign, setFzCreateCallSign] = useState('');
+  const [fzCreateAcType, setFzCreateAcType] = useState('אז"מ');
+  const [fzCreateBusy, setFzCreateBusy] = useState(false);
   const [fzDragLabel, setFzDragLabel] = useState<string | null>(null);
   const fzDragIdRef = useRef<number | null>(null);
   const fzOverlayRef = useRef<HTMLDivElement>(null);
@@ -12250,6 +12254,43 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
     const preservedZones0 = existing ? [...(existing.requested_zone_ids || []), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
     setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
+  };
+
+  const handleFzCreate = async () => {
+    if (!fzCreateCallSign.trim() || fzCreateBusy) return;
+    setFzCreateBusy(true);
+    try {
+      const res = await fetch(`${API_URL}/strips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          callSign: fzCreateCallSign.trim(),
+          sq: fzCreateAcType,
+          sectorId: session.sectorId || null,
+          workstation_preset_id: session.presetId || null,
+        }),
+      });
+      const data = await res.json();
+      if (data?.id) {
+        const newStrip = {
+          id: data.id,
+          callsign: fzCreateCallSign.trim(),
+          sq: fzCreateAcType,
+          status: 'active',
+          in_table: false,
+          onMap: false,
+          sector_id: session.sectorId || null,
+          workstation_preset_id: session.presetId ? Number(session.presetId) : null,
+        };
+        setStrips((prev: any[]) => [...prev, newStrip]);
+        setFzCreateModal(false);
+        logActivity('strip_created', { stripId: String(data.id), stripCallsign: fzCreateCallSign.trim(), details: { sq: fzCreateAcType } });
+      }
+    } catch (err) {
+      console.error('[fzCreate]', err);
+    } finally {
+      setFzCreateBusy(false);
+    }
   };
 
   const handleFzMapDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -18507,7 +18548,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   for(const s of _sorted)renderItems.push({kind:'strip',s,..._gst(s)});
                 }
                 return (<>
-              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length}):</h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', marginRight: '30px' }}>
+                <h4 style={{ margin: 0, fontSize: '13px', color: T.text, flex: 1 }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
+                {isFlightZonesMode && (
+                  <button
+                    onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateModal(true); }}
+                    title="הוסף פ&quot;מ חדש"
+                    style={{ background: '#0ea5e9', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', cursor: 'pointer', flexShrink: 0 }}
+                  >+ פ"מ</button>
+                )}
+              </div>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
@@ -19693,6 +19743,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             </div>
           ))}
+        </div>,
+        document.body
+      )}
+
+      {fzCreateModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
+          onClick={e => { if (e.target === e.currentTarget) setFzCreateModal(false); }}>
+          <div style={{ background: '#1e293b', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 18px', fontSize: '16px', color: '#7dd3fc', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>✈ פ"מ חדש</h3>
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>או"ק</label>
+              <input
+                autoFocus
+                value={fzCreateCallSign}
+                onChange={e => setFzCreateCallSign(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && fzCreateCallSign.trim()) handleFzCreate(); if (e.key === 'Escape') setFzCreateModal(false); }}
+                placeholder="לדוגמה: ALFA01"
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>סוג מטוס</label>
+              <select
+                value={fzCreateAcType}
+                onChange={e => setFzCreateAcType(e.target.value)}
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid #334155', borderRadius: '6px', fontSize: '14px', direction: 'rtl', cursor: 'pointer' }}
+              >
+                {['אז"מ','GA','מסוק אזרחי','מרסס','בקאיי','רחפן','דאון','טיסן'].map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setFzCreateModal(false)} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#94a3b8', fontSize: '13px', cursor: 'pointer' }}>ביטול</button>
+              <button
+                onClick={handleFzCreate}
+                disabled={!fzCreateCallSign.trim() || fzCreateBusy}
+                style={{ padding: '8px 16px', background: fzCreateCallSign.trim() ? '#0ea5e9' : '#1e3a5f', border: 'none', borderRadius: '6px', color: fzCreateCallSign.trim() ? '#fff' : '#475569', fontSize: '13px', fontWeight: 'bold', cursor: fzCreateCallSign.trim() ? 'pointer' : 'default' }}
+              >{fzCreateBusy ? '...' : 'צור פ"מ'}</button>
+            </div>
+          </div>
         </div>,
         document.body
       )}
