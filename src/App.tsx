@@ -17785,11 +17785,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
                   <div draggable={false}
-                    className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
+                    className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : a.status === 'באזור' ? 'fzring-active' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
-                      background: hasConflict ? 'rgba(239,68,68,0.35)' : a.status === 'בדרך לאזור' ? 'rgba(245,158,11,0.28)' : a.status === 'עוזב אזור' ? 'rgba(249,115,22,0.28)' : sqColor + '33',
-                      border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? '2.5px dashed #f59e0b' : a.status === 'עוזב אזור' ? '2.5px solid #f97316' : `2.5px solid ${sqColor}`,
-                      boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : a.status === 'בדרך לאזור' ? '0 0 10px 4px #f59e0b99, 0 0 22px 8px #f59e0b44' : a.status === 'עוזב אזור' ? '0 0 10px 4px #f9731699, 0 0 24px 10px #f9731633' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`,
+                      background: hasConflict ? 'rgba(239,68,68,0.35)' : sqColor + '33',
+                      border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? `2.5px dashed ${sqColor}` : `2.5px solid ${sqColor}`,
+                      boxShadow: hasConflict ? '0 0 8px 4px #ef444488' : `0 0 10px 4px ${sqColor}99, 0 0 20px 6px ${sqColor}44, inset 0 0 6px 2px ${sqColor}22`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible', pointerEvents: 'none' }}>
                     {(() => {
                       let imgFilter: string;
@@ -17825,7 +17825,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           alt=""
                           draggable={false}
                           onDragStart={e => e.preventDefault()}
-                          className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : ''}
+                          className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : a.status === 'באזור' ? 'fzpin-active' : ''}
                           style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
                         />
                       );
@@ -18300,7 +18300,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             }
           } : undefined}
         >
-          {/* Pin toggle button + filter button */}
+          {/* Pin toggle button + filter button + add strip */}
           <div style={{ position: sidebarPinned ? 'absolute' : 'relative', top: sidebarPinned ? 6 : 0, left: sidebarPinned ? 4 : 0, zIndex: 10, display: 'flex', gap: '4px', alignItems: 'center' }}>
             <button
               onClick={() => setSidebarPinned(v => !v)}
@@ -18322,6 +18322,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal'
                 }}
               >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
+            )}
+            {sidebarPinned && isFlightZonesMode && (
+              <button
+                onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateModal(true); }}
+                title='הוסף פ"מ חדש'
+                style={{ background: '#0ea5e9', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', cursor: 'pointer' }}
+              >+ פ"מ</button>
             )}
           </div>
           {!sidebarPinned && !isGroundMode && (() => {
@@ -18548,16 +18555,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   for(const s of _sorted)renderItems.push({kind:'strip',s,..._gst(s)});
                 }
                 return (<>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', marginRight: '30px' }}>
-                <h4 style={{ margin: 0, fontSize: '13px', color: T.text, flex: 1 }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
-                {isFlightZonesMode && (
-                  <button
-                    onClick={() => { setFzCreateCallSign(''); setFzCreateAcType('אז"מ'); setFzCreateModal(true); }}
-                    title="הוסף פ&quot;מ חדש"
-                    style={{ background: '#0ea5e9', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px', fontWeight: 'bold', padding: '2px 8px', cursor: 'pointer', flexShrink: 0 }}
-                  >+ פ"מ</button>
-                )}
-              </div>
+              <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
               <div style={{ fontSize: '10px', color: T.muted, marginBottom: '8px' }}>{isClassicMode ? 'גרור פמם לפממים שלי' : 'גרור פמם למפה להוספה'}</div>
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (

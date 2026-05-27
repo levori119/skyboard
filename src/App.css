@@ -56,6 +56,22 @@
   border: 2.5px solid #f97316 !important;
 }
 
+@keyframes fzpin-active-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%       { filter: brightness(1.4) drop-shadow(0 0 8px currentColor); }
+}
+.fzpin-active {
+  animation: fzpin-active-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fzring-active {
+  0%, 100% { box-shadow: 0 0 6px 2px #22c55e66, 0 0 14px 5px #22c55e22; }
+  55%       { box-shadow: 0 0 16px 8px #22c55ecc, 0 0 30px 14px #22c55e44; }
+}
+.fzring-active {
+  animation: fzring-active 1.8s ease-in-out infinite;
+}
+
 /* Drag ghost — floats and tilts to show motion */
 @keyframes fzpin-ghost-float {
   0%, 100% { transform: translate(-50%, -50%) rotate(-13deg) scale(1);    filter: brightness(1); }
