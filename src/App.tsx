@@ -11691,6 +11691,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableCollapsedGroups, setTableCollapsedGroups] = useState<Set<string>>(new Set());
   // Strips manually placed onto the table board (empty by default)
   const [tableOnBoard, setTableOnBoard] = useState<Set<string>>(new Set());
+  // Confirm dialog when dragging a strip with a pending transfer back to sidebar
+  const [tableRemoveConfirm, setTableRemoveConfirm] = useState<{ stripId: string; transferId: string; toName: string } | null>(null);
   // Right-click context menu for a table row
   const [tableRowCtxMenu, setTableRowCtxMenu] = useState<{ stripId: string; x: number; y: number } | null>(null);
   // Right-click context menu for a strip in the vertical view
@@ -11759,6 +11761,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Pointer-events drag from table row to neighbor transfer panel or back to sidebar
   const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
   const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
+  // Ref so pointer-event handlers can always see latest outgoingTransfers + allSectors
+  const outgoingTransfersRef = useRef<any[]>([]);
+  const allSectorsRef = useRef<any[]>([]);
 
   // Sticky Notes (collaborative floating notes)
   const [stickyNotes, setStickyNotes] = useState<any[]>([]);
@@ -13342,6 +13347,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   handleMoveRef.current = handleMove;
   tableModeRef.current = tableMode;
   sessionRef.current = session;
+  outgoingTransfersRef.current = outgoingTransfers;
+  allSectorsRef.current = allSectors;
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
   mapImgBoundsRef.current = mapImgBounds;
@@ -13884,10 +13891,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setTableDragRow(null);
       setTableDragOverRow(null);
       clearHighlights();
-      // Dropped on sidebar → remove from table (add to removed-set)
+      // Dropped on sidebar → remove from table
       if (isOverSidebar(e.clientX, e.clientY)) {
-        setTableOnBoard(prev => new Set([...prev, String(id)]));
-        handleMoveRef.current(String(id), 0, 0, false);
+        const numId = String(id).replace(/^s/, '');
+        const pendingTransfer = outgoingTransfersRef.current.find(
+          t => String(t.strip_id) === numId || String('s' + t.strip_id) === String(id)
+        );
+        if (pendingTransfer) {
+          const toSec = allSectorsRef.current.find((s: any) => s.id === pendingTransfer.to_sector_id);
+          const toName = toSec?.name || `סקטור ${pendingTransfer.to_sector_id}`;
+          setTableRemoveConfirm({ stripId: String(id), transferId: String(pendingTransfer.id), toName });
+        } else {
+          doRemoveStripFromTable(String(id));
+        }
         return;
       }
       const els = document.elementsFromPoint(e.clientX, e.clientY);
@@ -14225,6 +14241,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       loadData();
     } catch (err) {
       console.error('Failed to initiate classic transfer:', err);
+    }
+  };
+
+  // Remove strip from table view: updates local state + deletes DB assignment
+  const doRemoveStripFromTable = (id: string) => {
+    setTableOnBoard(prev => { const n = new Set(prev); n.delete(id); return n; });
+    const numId = id.replace(/^s/, '');
+    const pid = session.presetId;
+    if (pid) {
+      fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
     }
   };
 
@@ -19765,6 +19791,47 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             </div>
           ))}
+        </div>,
+        document.body
+      )}
+
+      {tableRemoveConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9200 }}
+          onClick={e => { if (e.target === e.currentTarget) setTableRemoveConfirm(null); }}>
+          <div style={{ background: '#0f1b2d', border: '1px solid #f59e0b', borderRadius: '14px', padding: '22px 24px', width: '340px', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.9)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f59e0b', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚠️ הסרה מהטבלה
+            </div>
+            <div style={{ fontSize: '13px', color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.6 }}>
+              לפמ"מ זה יש <strong style={{ color: '#f97316' }}>העברה פעילה</strong> לכיוון <strong style={{ color: '#7dd3fc' }}>{tableRemoveConfirm.toName}</strong>.<br />
+              האם לבטל את ההעברה?
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+              <button
+                onClick={async () => {
+                  await handleCancelTransfer(tableRemoveConfirm.transferId);
+                  doRemoveStripFromTable(tableRemoveConfirm.stripId);
+                  setTableRemoveConfirm(null);
+                }}
+                style={{ padding: '10px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '8px', color: '#fca5a5', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: 'rtl' }}
+              >
+                ✖ הסר מהטבלה + בטל העברה
+              </button>
+              <button
+                onClick={() => { doRemoveStripFromTable(tableRemoveConfirm.stripId); setTableRemoveConfirm(null); }}
+                style={{ padding: '10px', background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '8px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer', direction: 'rtl' }}
+              >
+                ← הסר מהטבלה בלבד (השאר העברה)
+              </button>
+              <button
+                onClick={() => setTableRemoveConfirm(null)}
+                style={{ padding: '8px', background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', fontSize: '12px', cursor: 'pointer', direction: 'rtl' }}
+              >
+                ביטול
+              </button>
+            </div>
+          </div>
         </div>,
         document.body
       )}
