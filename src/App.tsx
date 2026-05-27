@@ -10735,9 +10735,14 @@ const AdminDashboard: React.FC<{
 
   const filterStripsForPreset = (strips: any[], preset: any): any[] => {
     const pid = Number(preset.id);
+    const filterQ: QNode | null = preset.filter_query || null;
     return strips.filter(s => {
       if (s.status === 'cancelled' || s.status === 'rejected') return false;
-      return Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid);
+      if (Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)) return true;
+      if (filterQ) {
+        try { if (evaluateQuery(s, filterQ, { presetId: pid })) return true; } catch { /* ignore */ }
+      }
+      return false;
     });
   };
 
@@ -10843,12 +10848,13 @@ const AdminDashboard: React.FC<{
           const count = getCount(preset);
           const partial = getPartial(preset);
           const full = getFull(preset);
-          const level = count >= full ? 'full' : count >= partial ? 'partial' : 'none';
           const hasEdit = thresholds[preset.id] !== undefined;
           const { deviationIds, conflictIds } = getPresetAlerts(preset);
           const hasDeviation = deviationIds.size > 0;
           const hasConflict = conflictIds.size > 0;
-          const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : '#334155';
+          const nearThreshold = Math.max(1, partial - 1);
+          const level: 'none'|'near'|'partial'|'full' = count >= full ? 'full' : count >= partial ? 'partial' : count >= nearThreshold ? 'near' : 'none';
+          const borderColor = hasConflict ? '#ef4444' : hasDeviation ? '#f59e0b' : level === 'full' ? '#ef4444' : level === 'partial' ? '#f97316' : level === 'near' ? '#ca8a04' : '#334155';
           const partialVal = thresholds[preset.id]?.partial ?? (preset.partial_load ?? 3);
           const fullVal = thresholds[preset.id]?.full ?? (preset.full_load ?? 5);
           const cardView = getCardView(preset.id);
@@ -10864,7 +10870,7 @@ const AdminDashboard: React.FC<{
           const sessionAchori = sessionRoles?.achori || '';
           return (
             <div key={preset.id}
-              className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : ''}
+              className={level === 'full' ? 'admin-dash-card-full' : level === 'partial' ? 'admin-dash-card-partial' : level === 'near' ? 'admin-dash-card-near' : ''}
               style={{ background: lightMode ? '#ffffff' : '#1e293b', border: `2px solid ${borderColor}`, borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '260px', boxShadow: lightMode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', overflow: 'hidden' }}
             >
               {/* Card header — always visible */}
@@ -10894,9 +10900,9 @@ const AdminDashboard: React.FC<{
                     </span>
                   )}
                   {level !== 'none' && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: level === 'full' ? '#dc2626' : '#d97706', color: 'white', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', border: `1px solid ${level === 'full' ? '#fca5a5' : '#fde68a'}` }}>
-                      {level === 'full' ? '🔴' : '🟠'}
-                      {level === 'full' ? 'עומס מלא' : 'עומס חלקי'}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: level === 'full' ? '#dc2626' : level === 'partial' ? '#d97706' : '#ca8a04', color: 'white', borderRadius: '6px', padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', border: `1px solid ${level === 'full' ? '#fca5a5' : '#fde68a'}` }}>
+                      {level === 'full' ? '🔴' : level === 'partial' ? '🟠' : '🟡'}
+                      {level === 'full' ? 'עומס מלא' : level === 'partial' ? 'עומס חלקי' : 'מתקרב לעומס'}
                       <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '3px', padding: '0 4px' }}>{count}</span>
                     </span>
                   )}
@@ -12836,9 +12842,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     t.status === 'pending' && (t.airborne || isWithin10Min(t.takeoff_time))
   ).length;
   const loadCount = airborneMine + groundSoonMine + relevantIncoming;
-  const loadLevel: 'none' | 'partial' | 'full' =
+  const nearLoadThreshold = Math.max(1, partialLoadThreshold - 1);
+  const loadLevel: 'none' | 'near' | 'partial' | 'full' =
     loadCount >= fullLoadThreshold ? 'full' :
-    loadCount >= partialLoadThreshold ? 'partial' : 'none';
+    loadCount >= partialLoadThreshold ? 'partial' :
+    loadCount >= nearLoadThreshold ? 'near' : 'none';
 
   const prevConflictIdsRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
@@ -14638,19 +14646,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && (
             <div
-              className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
+              className={loadLevel === 'full' ? 'load-badge-full' : loadLevel === 'partial' ? 'load-badge-partial' : 'load-badge-near'}
               style={{
                 padding: '3px 10px', borderRadius: '6px',
-                background: loadLevel === 'full' ? '#dc2626' : '#d97706',
+                background: loadLevel === 'full' ? '#dc2626' : loadLevel === 'partial' ? '#d97706' : '#ca8a04',
                 color: 'white', fontWeight: 'bold', fontSize: '12px',
                 display: 'flex', alignItems: 'center', gap: '5px',
                 border: `2px solid ${loadLevel === 'full' ? '#fca5a5' : '#fde68a'}`,
                 cursor: 'default', userSelect: 'none',
               }}
-              title={`עומס ${loadLevel === 'full' ? 'מלא' : 'חלקי'}: ${loadCount} פ"ממים | באוויר: ${airborneMine} | ממריאים תוך 10 ד': ${groundSoonMine} | נכנסות: ${relevantIncoming} | (סף חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
+              title={`עומס ${loadLevel === 'full' ? 'מלא' : loadLevel === 'partial' ? 'חלקי' : 'מתקרב'}: ${loadCount} פ"ממים | באוויר: ${airborneMine} | ממריאים תוך 10 ד': ${groundSoonMine} | נכנסות: ${relevantIncoming} | (סף מתקרב: ${nearLoadThreshold}, חלקי: ${partialLoadThreshold}, מלא: ${fullLoadThreshold})`}
             >
-              {loadLevel === 'full' ? '🔴' : '🟠'}
-              {loadLevel === 'full' ? 'עומס מלא' : 'עומס חלקי'}
+              {loadLevel === 'full' ? '🔴' : loadLevel === 'partial' ? '🟠' : '🟡'}
+              {loadLevel === 'full' ? 'עומס מלא' : loadLevel === 'partial' ? 'עומס חלקי' : 'מתקרב לעומס'}
               <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: '4px', padding: '0 5px', fontSize: '11px' }}>{loadCount}</span>
             </div>
           )}
@@ -14694,7 +14702,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Load alert row */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
-                      {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
+                      {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : loadLevel === 'partial' ? '🟠 עומס חלקי' : '🟡 מתקרב לעומס') : '⚪ אין עומס'}
                     </span>
                     <button
                       onClick={() => setMuteLoadAlerts(v => !v)}
