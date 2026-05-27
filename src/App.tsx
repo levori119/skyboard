@@ -11434,7 +11434,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('squadron');
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
-  const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number; zoneName?: string; zoneColor?: string; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
+  const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
+  const [fzAnimPaused, setFzAnimPaused] = useState(false);
+  const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [mapZoom, setMapZoom] = useState(1);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
@@ -17639,12 +17641,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
                     setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
                   }}
+                  onContextMenu={e => {
+                    e.preventDefault(); e.stopPropagation();
+                    setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip: strip, assignment: a });
+                  }}
                   style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
                   <div draggable={false}
-                    className={hasConflict ? 'fzring-conflict' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
+                    className={hasConflict ? 'fzring-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzring-heading' : a.status === 'עוזב אזור' ? 'fzring-leaving' : ''}
                     style={{ position: 'relative', flexShrink: 0, width: heliW, height: heliW, borderRadius: '50%',
                       background: hasConflict ? 'rgba(239,68,68,0.35)' : a.status === 'בדרך לאזור' ? 'rgba(245,158,11,0.28)' : a.status === 'עוזב אזור' ? 'rgba(249,115,22,0.28)' : sqColor + '33',
                       border: hasConflict ? '2.5px solid #ef4444' : a.status === 'בדרך לאזור' ? '2.5px dashed #f59e0b' : a.status === 'עוזב אזור' ? '2.5px solid #f97316' : `2.5px solid ${sqColor}`,
@@ -17684,7 +17690,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           alt=""
                           draggable={false}
                           onDragStart={e => e.preventDefault()}
-                          className={hasConflict ? 'fzpin-conflict' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : ''}
+                          className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : ''}
                           style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
                         />
                       );
@@ -17718,7 +17724,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             })}
 
             {/* Split pins — virtual helicopter markers for fzSplitItems that have a zone assigned */}
-            {isFlightZonesMode && mapImgBounds && fzSplitItems.filter(si => si.zoneId && si.posX !== undefined && si.posY !== undefined).map(si => {
+            {isFlightZonesMode && mapImgBounds && fzSplitItems.filter(si => si.zoneId != null && si.posX !== undefined && si.posY !== undefined).map(si => {
               const ib = mapImgBounds!;
               const pixX = ib.left + (si.posX! / 100) * ib.width;
               const pixY = ib.top + (si.posY! / 100) * ib.height;
@@ -17820,6 +17826,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 title={fzPinColorMode === 'squadron' ? 'צבע לפי טייסת — לחץ לעבור לסטטוס' : 'צבע לפי סטטוס — לחץ לעבור לטייסת'}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
+              </button>
+              <button
+                onClick={() => setFzAnimPaused(p => !p)}
+                title={fzAnimPaused ? 'הפעל אנימציות' : 'עצור הבהובים (קונפליקט ממשיך)'}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzAnimPaused ? '▶ הבהוב' : '⏸ הבהוב'}
               </button>
               {myPresetConfig?.use_map_zones && (
                 <button
@@ -18203,7 +18215,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     })()}
                   </div>
                   {isFlightZonesMode && fzSplitItems.filter(si => si.parentStripId === s.id).map(si => (
-                    si.zoneId ? (
+                    si.zoneId != null ? (
                       // Split is placed on map — show zone badge, not draggable
                       <div key={si.key} style={{ margin: '2px 4px 0', display: 'flex', alignItems: 'center', gap: '5px', background: '#0d1b2e', border: `1px solid ${si.zoneColor || '#7c3aed'}55`, borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}>
                         <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
@@ -19628,6 +19640,70 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         document.body
       )}
 
+      {/* FZ Pin Context Menu */}
+      {fzPinMenu && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9200 }}
+          onClick={() => setFzPinMenu(null)}
+          onContextMenu={e => { e.preventDefault(); setFzPinMenu(null); }}
+        >
+          <div
+            style={{ position: 'absolute', left: fzPinMenu.x, top: fzPinMenu.y, background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '210px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9201 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: '6px 14px 8px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+              <div style={{ fontWeight: 'bold', color: '#f1f5f9', fontSize: '13px' }}>
+                {fzPinMenu.strip ? ((fzPinMenu.strip as any).callSign || `#${fzPinMenu.stripId}`) : `#${fzPinMenu.stripId}`}
+              </div>
+              {fzPinMenu.assignment?.zone_name && (
+                <div style={{ fontSize: '11px', color: fzPinMenu.assignment.zone_color || '#60a5fa', marginTop: '2px' }}>
+                  📍 {fzPinMenu.assignment.zone_name}{fzPinMenu.assignment.alt_range_name ? ` · ${fzPinMenu.assignment.alt_range_name}` : ''}
+                </div>
+              )}
+              {!fzPinMenu.assignment?.zone_name && (
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>ללא אזור מוקצה</div>
+              )}
+            </div>
+            {/* Status cycle */}
+            <div style={{ padding: '2px 8px 6px', borderBottom: '1px solid #334155', marginBottom: '4px' }}>
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', padding: '0 6px' }}>סטטוס</div>
+              <div style={{ display: 'flex', gap: '4px', padding: '0 6px' }}>
+                {(['בדרך לאזור', 'באזור', 'עוזב אזור'] as const).map(st => {
+                  const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
+                  const isCur = fzPinMenu.assignment?.status === st;
+                  return (
+                    <button key={st} onClick={() => {
+                      const a = fzPinMenu.assignment;
+                      if (a) doFzSave(a.strip_id, a.zone_id, a.altitude_range_id, st, a.note, a.coordination_note, a.is_coordinated, a.pos_x ?? undefined, a.pos_y ?? undefined, a.requested_zone_ids);
+                      setFzPinMenu(null);
+                    }} style={{ flex: 1, padding: '3px 2px', fontSize: '9px', borderRadius: '4px', border: `1px solid ${isCur ? stColors[st] : '#334155'}`, background: isCur ? `${stColors[st]}22` : '#0f172a', color: isCur ? stColors[st] : '#94a3b8', cursor: 'pointer', fontWeight: isCur ? 'bold' : 'normal' }}>{st}</button>
+                  );
+                })}
+              </div>
+            </div>
+            {/* Split */}
+            <button onClick={() => { setFzSplitForm({ label: (fzPinMenu.strip as any)?.callSign + '-א' || '-א', count: '1' }); setFzSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              ✂ פיצול פמ"מ
+            </button>
+            {/* Merge — show if split siblings exist */}
+            {fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length > 0 && (
+              <button onClick={() => { setFzSplitItems(prev => prev.filter(si => si.parentStripId !== fzPinMenu!.stripId)); setFzPinMenu(null); }}
+                style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+                🔀 בטל פיצול ({fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length} חלקים)
+              </button>
+            )}
+            {/* Unassign */}
+            <button onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'right' }}>
+              🗑 הסר הקצאה
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* FZ Split Modal */}
       {fzSplitModal && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9100 }}
@@ -19670,7 +19746,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 const parentAssignment = stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parentId);
                 const angle = Math.random() * 2 * Math.PI;
                 const dist = 3 + Math.random() * 3;
-                const existingCount = fzSplitItems.filter(si => si.parentStripId === fzSplitModal!.strip.id && si.zoneId).length;
+                const existingCount = fzSplitItems.filter(si => si.parentStripId === fzSplitModal!.strip.id && si.zoneId != null).length;
                 const spreadAngle = angle + existingCount * (Math.PI / 3);
                 const newItem = {
                   key: Date.now(),
@@ -19678,9 +19754,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   label: fzSplitForm.label.trim(),
                   count: parseInt(fzSplitForm.count) || 1,
                   ...(parentAssignment ? {
-                    zoneId: parentAssignment.zone_id,
-                    zoneName: parentAssignment.zone_name,
-                    zoneColor: parentAssignment.zone_color,
+                    zoneId: parentAssignment.zone_id ?? null,
+                    zoneName: parentAssignment.zone_name ?? null,
+                    zoneColor: parentAssignment.zone_color ?? null,
                     altRangeId: parentAssignment.altitude_range_id,
                     status: parentAssignment.status || 'בדרך לאזור',
                     posX: Math.max(2, Math.min(98, (parentAssignment.pos_x ?? 50) + Math.cos(spreadAngle) * dist)),
