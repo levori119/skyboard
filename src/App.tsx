@@ -11915,6 +11915,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(true);
+  const [bsGroupByStatus, setBsGroupByStatus] = useState(false);
   const prevBaseAdRef = useRef<Record<number, string>>({});
   const [adAlerts, setAdAlerts] = useState<{ key: number; baseName: string; prev: string; next: string; color: string }[]>([]);
   const [contactsPanelOpen, setContactsPanelOpen] = useState(false);
@@ -19182,40 +19183,63 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Base Status Panel */}
                   {baseStatuses.length > 0 && (() => {
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
+                    const _bsRow = (bs: any) => {
+                      const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.textMuted;
+                      return (
+                        <div key={bs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, gap: '4px', direction: 'rtl', fontSize: '11px' }}>
+                          <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.textMuted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
+                          {bs.relevant_to && bs.relevant_to !== 'כולם' && (
+                            <span style={{ fontSize: '9px', color: T.textMuted, flexShrink: 0 }}>{bs.relevant_to}</span>
+                          )}
+                          <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
+                            {bs.air_defense_status || '—'}
+                          </span>
+                        </div>
+                      );
+                    };
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setBasePanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#fef3c7' : '#1c1a07', marginBottom: basePanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '3px 4px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, marginBottom: basePanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fcd34d' }}>🏛 סטטוס בסיסים</span>
-                          <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{basePanelOpen ? '▲' : '▼'}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text }}>🏛 סטטוס בסיסים</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {basePanelOpen && (
+                              <button
+                                onClick={e => { e.stopPropagation(); setBsGroupByStatus(v => !v); }}
+                                style={{ padding: '1px 7px', borderRadius: '4px', border: `1px solid ${bsGroupByStatus ? '#38bdf8' : T.border}`, background: bsGroupByStatus ? (lightMode ? '#e0f2fe' : '#0c3050') : 'transparent', color: bsGroupByStatus ? (lightMode ? '#0369a1' : '#7dd3fc') : T.textMuted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                              >קבץ</button>
+                            )}
+                            <span style={{ fontSize: '10px', color: T.textMuted }}>{basePanelOpen ? '▲' : '▼'}</span>
+                          </div>
                         </div>
                         {basePanelOpen && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            {baseStatuses.map((bs: any) => (
-                              <div key={bs.id} style={{ background: lightMode ? '#fffbeb' : '#1a1600', border: `1px solid ${lightMode ? '#fde68a' : '#3a3000'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '11px', direction: 'rtl' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                                  <span style={{ fontWeight: 'bold', color: lightMode ? '#78350f' : '#fde68a' }}>{bs.name}</span>
-                                  {bs.code && <span style={{ fontSize: '9px', background: lightMode ? '#fde68a' : '#292300', color: lightMode ? '#78350f' : '#fbbf24', borderRadius: '3px', padding: '1px 5px', fontFamily: 'monospace' }}>{bs.code}</span>}
-                                </div>
-                                {bs.relevant_to && bs.relevant_to !== 'כולם' && (
-                                  <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#64748b', marginBottom: '2px' }}>✈ {bs.relevant_to}</div>
-                                )}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px' }}>
-                                  {bs.air_defense_status && (() => {
-                                    const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || (T.text);
-                                    return <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>מז"א: </span><span style={{ color: adColor, fontWeight: 'bold', fontSize: '10px' }}>{bs.air_defense_status}</span></div>;
-                                  })()}
-                                  {bs.absorption_status && (
-                                    <div><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ספיגה: </span><span style={{ color: T.text, fontWeight: 'bold', fontSize: '10px' }}>{bs.absorption_status}</span></div>
-                                  )}
-                                  {bs.bird_status && (
-                                    <div style={{ gridColumn: '1 / -1' }}><span style={{ color: lightMode ? '#64748b' : '#475569', fontSize: '9px' }}>ציפורי: </span><span style={{ color: T.text, fontWeight: 'bold', fontSize: '10px' }}>{bs.bird_status}</span></div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {bsGroupByStatus ? (() => {
+                              const groups = new Map<string, any[]>();
+                              baseStatuses.forEach((bs: any) => {
+                                const key = bs.air_defense_status || '—';
+                                if (!groups.has(key)) groups.set(key, []);
+                                groups.get(key)!.push(bs);
+                              });
+                              const order = AIR_DEFENSE_STATUSES.map(s => s.label);
+                              const sorted = [...groups.entries()].sort((a, b) => {
+                                const ia = order.indexOf(a[0]); const ib = order.indexOf(b[0]);
+                                return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                              });
+                              return sorted.map(([status, items]) => {
+                                const grpColor = AIR_DEFENSE_STATUSES.find(s => s.label === status)?.color || T.textMuted;
+                                return (
+                                  <div key={status} style={{ marginBottom: '2px' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: grpColor, padding: '2px 6px', background: grpColor + '18', borderRadius: '3px', marginBottom: '2px', direction: 'rtl' }}>{status}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      {items.map(_bsRow)}
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })() : baseStatuses.map(_bsRow)}
                           </div>
                         )}
                       </div>
