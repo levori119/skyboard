@@ -19188,7 +19188,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                   {/* Base Status Panel */}
                   {baseStatuses.length > 0 && (() => {
-                    const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
+                    const hasPrev = true; // contacts section always renders above
                     const _bsRow = (bs: any) => {
                       const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.textMuted;
                       return (
@@ -19254,7 +19254,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
                   {/* BDH Section */}
                   {workstationBdhDocs.length > 0 && (
-                    <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${T.border}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
+                    <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
                       <div
                         onClick={() => setBdhPanelOpen(v => !v)}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: bdhPanelOpen ? '4px' : 0 }}
