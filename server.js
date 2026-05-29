@@ -729,6 +729,17 @@ async function initDb() {
   try { await pool.query(`ALTER TABLE strip_zone_assignments ALTER COLUMN zone_id DROP NOT NULL`); } catch(_){}
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS flight_zones_mode BOOLEAN DEFAULT false`);
 
+  // strip_zone_extra_zones — additional zones per strip (replaces requested_zone_ids JSONB)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_zone_extra_zones (
+      id SERIAL PRIMARY KEY,
+      strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
+      zone_id INTEGER NOT NULL REFERENCES map_zones(id) ON DELETE CASCADE,
+      map_id INTEGER,
+      UNIQUE(strip_id, zone_id)
+    )
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id SERIAL PRIMARY KEY,
@@ -2444,14 +2455,61 @@ app.get('/api/strip-zone-assignments', async (req, res) => {
     if (!map_id) return res.status(400).json({ error: 'map_id required' });
     const r = await pool.query(`
       SELECT sza.*, mz.name AS zone_name, mz.color AS zone_color,
-             zar.name AS alt_range_name, zar.alt_min, zar.alt_max
+             zar.name AS alt_range_name, zar.alt_min, zar.alt_max,
+             COALESCE(
+               (SELECT json_agg(json_build_object('id', sze.id, 'zone_id', sze.zone_id, 'zone_name', emz.name, 'zone_color', emz.color))
+                FROM strip_zone_extra_zones sze
+                LEFT JOIN map_zones emz ON emz.id = sze.zone_id
+                WHERE sze.strip_id = sza.strip_id),
+               '[]'::json
+             ) AS extra_zones
       FROM strip_zone_assignments sza
       LEFT JOIN map_zones mz ON mz.id = sza.zone_id
       LEFT JOIN zone_altitude_ranges zar ON zar.id = sza.altitude_range_id
       WHERE (mz.map_id = $1 OR (sza.zone_id IS NULL AND sza.map_id = $1::integer))
       ORDER BY sza.id`, [map_id]);
-    r.rows = r.rows.map(row => ({ ...row, requested_zone_ids: row.requested_zone_ids || [] }));
+    r.rows = r.rows.map(row => ({ ...row, requested_zone_ids: row.requested_zone_ids || [], extra_zones: row.extra_zones || [] }));
     res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.get('/api/strip-zone-extra-zones', async (req, res) => {
+  try {
+    const { strip_id, map_id } = req.query;
+    let q = `SELECT sze.*, mz.name AS zone_name, mz.color AS zone_color FROM strip_zone_extra_zones sze LEFT JOIN map_zones mz ON mz.id = sze.zone_id WHERE 1=1`;
+    const params = [];
+    if (strip_id) { params.push(strip_id); q += ` AND sze.strip_id = $${params.length}`; }
+    if (map_id) { params.push(map_id); q += ` AND sze.map_id = $${params.length}`; }
+    q += ' ORDER BY sze.id';
+    const r = await pool.query(q, params);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/strip-zone-extra-zones', async (req, res) => {
+  try {
+    const { strip_id, zone_id, map_id } = req.body;
+    if (!strip_id || !zone_id) return res.status(400).json({ error: 'strip_id and zone_id required' });
+    const r = await pool.query(
+      `INSERT INTO strip_zone_extra_zones (strip_id, zone_id, map_id) VALUES ($1,$2,$3)
+       ON CONFLICT (strip_id, zone_id) DO UPDATE SET map_id=$3 RETURNING *`,
+      [strip_id, zone_id, map_id || null]
+    );
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-zone-extra-zones/by-strip/:strip_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_zone_extra_zones WHERE strip_id=$1', [req.params.strip_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-zone-extra-zones/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_zone_extra_zones WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 app.post('/api/strip-zone-assignments', async (req, res) => {

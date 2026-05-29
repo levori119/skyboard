@@ -5249,7 +5249,7 @@ const imagePctToGeo = (xImg: number, yImg: number, a: MapGeoAnchor): {lat: numbe
   return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
 };
 interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }
-interface StripZoneAssignment { id: number; strip_id: number; zone_id: number | null; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string | null; zone_color: string | null; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; map_id?: number | null; }
+interface StripZoneAssignment { id: number; strip_id: number; zone_id: number | null; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string | null; zone_color: string | null; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; map_id?: number | null; extra_zones?: {id: number; zone_id: number; zone_name: string | null; zone_color: string | null}[]; }
 
 // --- Vector map types + helpers ---
 type VectorLine = { id: string; points: {x:number;y:number}[]; color: string; width: number; };
@@ -12269,7 +12269,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return;
     }
     const altRangesForZone = zoneAltRanges[zone.id] || [];
-    const preservedZones0 = existing ? [...(existing.requested_zone_ids || []), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+    const preservedZones0 = existing ? [...((existing.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
     setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones0 });
   };
 
@@ -12365,12 +12365,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      const preservedZones1 = existing ? [...(existing.requested_zone_ids || []), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
+      const preservedZones1 = existing ? [...((existing.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existing.zone_id && existing.zone_id !== zone.id ? [existing.zone_id] : [])].filter(id => id !== zone.id) : [];
       setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existing?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones1 });
     } else {
       const existingNonPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
       const altRangesForZone = zoneAltRanges[zone.id] || [];
-      const preservedZones2 = existingNonPin ? [...(existingNonPin.requested_zone_ids || []), ...(existingNonPin.zone_id && existingNonPin.zone_id !== zone.id ? [existingNonPin.zone_id] : [])].filter(id => id !== zone.id) : [];
+      const preservedZones2 = existingNonPin ? [...((existingNonPin.extra_zones||[]) as any[]).map((e:any)=>e.zone_id), ...(existingNonPin.zone_id && existingNonPin.zone_id !== zone.id ? [existingNonPin.zone_id] : [])].filter(id => id !== zone.id) : [];
       setFzDialog({ stripId: dragId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZone, selectedAltId: altRangesForZone[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingNonPin?.note || '', displayLabel: dragLabel ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZones2 });
     }
   };
@@ -12380,7 +12380,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const numericStripId = parseInt(String(fzDialog.stripId).replace(/^s/, ''), 10);
     const allDialogZones = [fzDialog.zoneId, ...(fzDialog.requestedZoneIds || [])];
     const existing = stripZoneAssignments.filter((a: StripZoneAssignment) =>
-      allDialogZones.some(z => z === a.zone_id || (a.requested_zone_ids || []).includes(z)) &&
+      allDialogZones.some(z => z === a.zone_id || ((a.extra_zones||[]) as any[]).some((e:any) => e.zone_id === z)) &&
       Number(a.strip_id) !== numericStripId &&
       !a.is_coordinated
     );
@@ -12388,7 +12388,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY }, conflicts: existing, coordNote: '' });
       return;
     }
-    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY, fzDialog.requestedZoneIds);
+    await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY);
+    // Sync extra zones to proper DB rows
+    const _numSid = parseInt(String(fzDialog.stripId).replace(/^s/,''), 10);
+    const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
+    const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));
+    const _newExtraIds = new Set(fzDialog.requestedZoneIds || []);
+    await Promise.all([
+      ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
+      ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
+    ]);
+    if (currentMapId) loadStripZoneAssignments(currentMapId);
     setFzDialog(null);
   };
 
@@ -12404,8 +12414,37 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleFzUnassign = async (stripId: number) => {
     try {
       await fetch(`${API_URL}/strip-zone-assignments/${stripId}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/strip-zone-extra-zones/by-strip/${stripId}`, { method: 'DELETE' }).catch(()=>{});
       if (currentMapId) loadStripZoneAssignments(currentMapId);
     } catch {}
+  };
+
+  const handleRemoveExtraZone = async (extraZoneId: number) => {
+    try {
+      await fetch(`${API_URL}/strip-zone-extra-zones/${extraZoneId}`, { method: 'DELETE' });
+      if (currentMapId) loadStripZoneAssignments(currentMapId);
+    } catch {}
+  };
+
+  const handleRemovePrimaryZone = async (stripId: number) => {
+    const assignment = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === stripId);
+    if (!assignment) return;
+    const extras = (assignment.extra_zones || []) as {id:number;zone_id:number;zone_name:string|null;zone_color:string|null}[];
+    if (extras.length > 0) {
+      const firstExtra = extras[0];
+      const newZone = mapZones.find((z: any) => z.id === firstExtra.zone_id);
+      let newPosX: number | undefined = assignment.pos_x ?? undefined;
+      let newPosY: number | undefined = assignment.pos_y ?? undefined;
+      if (newZone && Array.isArray(newZone.polygon) && newZone.polygon.length > 0) {
+        newPosX = newZone.polygon.reduce((s: number, p: any) => s + p.x, 0) / newZone.polygon.length;
+        newPosY = newZone.polygon.reduce((s: number, p: any) => s + p.y, 0) / newZone.polygon.length;
+      }
+      await doFzSave(stripId, firstExtra.zone_id, assignment.altitude_range_id, assignment.status, assignment.note, assignment.coordination_note, assignment.is_coordinated, newPosX, newPosY);
+      await fetch(`${API_URL}/strip-zone-extra-zones/${firstExtra.id}`, { method: 'DELETE' }).catch(()=>{});
+      if (currentMapId) loadStripZoneAssignments(currentMapId);
+    } else {
+      await handleFzUnassign(stripId);
+    }
   };
 
   // Derived from preset: parent base and pressure update rights
@@ -17518,7 +17557,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const mapAnchor = mapGeoAnchor;
               const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
               const requestedOnlyZoneIds = new Set<number>();
-              stripZoneAssignments.forEach((a: StripZoneAssignment) => { (a.requested_zone_ids || []).forEach(id => { if (!occupiedZoneIds.has(id)) requestedOnlyZoneIds.add(id); }); });
+              stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
               const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
               const visibleZones = fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => allOccupiedIds.has(z.id)) : mapZones.filter(z => !allOccupiedIds.has(z.id));
               const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
@@ -17780,11 +17819,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   ? (_fzStC[a.status] || '#94a3b8')
                   : (sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : zoneHex);
               // Uncoordinated conflict: only check when zone_id is set
-              const allZonesA = a.zone_id != null ? [a.zone_id, ...(a.requested_zone_ids || [])] : [];
+              const allZonesA = a.zone_id != null ? [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)] : [];
               const hasConflict = a.zone_id != null && !a.is_coordinated && stripZoneAssignments.some(
                 (b: StripZoneAssignment) => {
                   if (b.strip_id === a.strip_id || b.zone_id == null) return false;
-                  const allZonesB = [b.zone_id, ...(b.requested_zone_ids || [])];
+                  const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
                   if (!allZonesA.some(z => allZonesB.includes(z))) return false;
                   const altConflicts = a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
                   return altConflicts && !b.is_coordinated;
@@ -18464,7 +18503,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign });
                   })}
-                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isDraggingThis) return '#1d4ed8'; if (isFlightZonesMode) { const _asgnC = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC) { const _zA2 = [_asgnC.zone_id, ...(_asgnC.requested_zone_ids || [])]; const _cfC = !_asgnC.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC.strip_id) return false; const bz2 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zA2.some(z => bz2.includes(z)) && (_asgnC.altitude_range_id === null || b.altitude_range_id === null || _asgnC.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB) { const _zB = [_asgnB.zone_id, ...(_asgnB.requested_zone_ids || [])]; const _cfB = !_asgnB.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB.strip_id) return false; const bz = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zB.some(z => bz.includes(z)) && (_asgnB.altitude_range_id === null || b.altitude_range_id === null || _asgnB.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: isFlightZonesMode ? '2px' : '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isDraggingThis) return '#1d4ed8'; if (isFlightZonesMode) { const _asgnC = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC) { const _zA2 = [_asgnC.zone_id, ...(((_asgnC.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC = !_asgnC.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC.strip_id) return false; const bz2 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA2.some(z => bz2.includes(z)) && (_asgnC.altitude_range_id === null || b.altitude_range_id === null || _asgnC.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB) { const _zB = [_asgnB.zone_id, ...(((_asgnB.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB = !_asgnB.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB.strip_id) return false; const bz = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB.some(z => bz.includes(z)) && (_asgnB.altitude_range_id === null || b.altitude_range_id === null || _asgnB.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
@@ -18653,7 +18692,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
                     setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
                   })}
-                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(_asgnC2.requested_zone_ids || [])]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(_asgnB2.requested_zone_ids || [])]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...(b.requested_zone_ids || [])]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
+                  style={{ marginBottom: '6px', cursor: 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
                   <div style={{ width: 22, background: lightMode ? '#e2e8f0' : '#0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '14px', color: lightMode ? '#64748b' : '#475569', flexShrink: 0 }}>⋮</div>
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
@@ -20144,23 +20183,46 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {(fzAssignedZonesPanel.strip as any)?.callSign || `#${fzAssignedZonesPanel.stripId}`}
               </div>
             </div>
-            {/* Main assignment */}
+            {/* All zone assignments — primary + extras, each with remove button */}
             <div style={{ padding: '10px 14px', borderBottom: '1px solid #334155' }}>
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>הקצאה ראשית</div>
-              {fzAssignedZonesPanel.assignment ? (
-                <div style={{ background: '#0f172a', borderRadius: '6px', padding: '8px 10px', border: `1px solid ${fzAssignedZonesPanel.assignment.zone_color || '#334155'}44` }}>
-                  <div style={{ color: fzAssignedZonesPanel.assignment.zone_color || '#60a5fa', fontWeight: 'bold', fontSize: '12px' }}>
-                    📍 {fzAssignedZonesPanel.assignment.zone_name || 'ללא אזור'}
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '6px' }}>אזורים מוקצים</div>
+              {fzAssignedZonesPanel.assignment ? (() => {
+                const asgn = fzAssignedZonesPanel.assignment!;
+                const extras = (asgn.extra_zones || []) as {id:number;zone_id:number;zone_name:string|null;zone_color:string|null}[];
+                const stC: Record<string,string> = {'בדרך לאזור':'#f59e0b','באזור':'#22c55e','עוזב אזור':'#f97316'};
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {/* Primary zone */}
+                    <div style={{ background: '#0f172a', borderRadius: '6px', padding: '7px 10px', border: `1px solid ${asgn.zone_color || '#334155'}44`, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: asgn.zone_color || '#60a5fa', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '9px', background: '#0ea5e922', color: '#7dd3fc', border: '1px solid #0ea5e944', borderRadius: '3px', padding: '1px 4px' }}>ראשי</span>
+                          📍 {asgn.zone_name || 'ללא אזור'}
+                        </div>
+                        {asgn.alt_range_name && <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>↕ {asgn.alt_range_name}</div>}
+                        <div style={{ marginTop: '3px', display: 'flex', gap: '5px', alignItems: 'center' }}>
+                          <span style={{ fontSize: '10px', color: stC[asgn.status] || '#94a3b8', background: (stC[asgn.status] || '#64748b')+'22', padding: '1px 5px', borderRadius: '8px', border: `1px solid ${stC[asgn.status] || '#64748b'}44` }}>{asgn.status}</span>
+                          {asgn.note && <span style={{ fontSize: '10px', color: '#64748b' }}>📝 {asgn.note}</span>}
+                        </div>
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); handleRemovePrimaryZone(fzAssignedZonesPanel.stripId); setFzAssignedZonesPanel(null); }}
+                        title="הסר אזור ראשי (יועבר לאזור הבא אם קיים)"
+                        style={{ flexShrink: 0, padding: '3px 7px', background: '#7f1d1d44', color: '#fca5a5', border: '1px solid #7f1d1d88', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                    </div>
+                    {/* Extra zones */}
+                    {extras.map(ez => (
+                      <div key={ez.id} style={{ background: '#0f172a', borderRadius: '6px', padding: '6px 10px', border: `1px solid ${ez.zone_color || '#334155'}33`, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: ez.zone_color || '#64748b', display: 'inline-block', flexShrink: 0 }} />
+                        <span style={{ flex: 1, color: ez.zone_color || '#94a3b8', fontSize: '12px' }}>{ez.zone_name || `אזור ${ez.zone_id}`}</span>
+                        <button onClick={e => { e.stopPropagation(); handleRemoveExtraZone(ez.id); setFzAssignedZonesPanel(prev => prev ? { ...prev, assignment: prev.assignment ? { ...prev.assignment, extra_zones: (prev.assignment.extra_zones||[]).filter((x:any) => x.id !== ez.id) } : prev.assignment } : null); }}
+                          title="הסר אזור נוסף"
+                          style={{ flexShrink: 0, padding: '2px 6px', background: '#7f1d1d33', color: '#fca5a5', border: '1px solid #7f1d1d66', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                      </div>
+                    ))}
+                    {extras.length === 0 && <div style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic', paddingRight: '2px' }}>אין אזורים נוספים</div>}
                   </div>
-                  {fzAssignedZonesPanel.assignment.alt_range_name && (
-                    <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '2px' }}>↕ {fzAssignedZonesPanel.assignment.alt_range_name}</div>
-                  )}
-                  <div style={{ marginTop: '4px', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {(() => { const stC: Record<string,string> = {'בדרך לאזור':'#f59e0b','באזור':'#22c55e','עוזב אזור':'#f97316'}; const st = fzAssignedZonesPanel.assignment!.status; return <span style={{ fontSize: '10px', color: stC[st] || '#94a3b8', background: (stC[st] || '#64748b')+'22', padding: '1px 6px', borderRadius: '8px', border: `1px solid ${stC[st] || '#64748b'}44` }}>{st}</span>; })()}
-                    {fzAssignedZonesPanel.assignment.note && <span style={{ fontSize: '10px', color: '#64748b' }}>📝 {fzAssignedZonesPanel.assignment.note}</span>}
-                  </div>
-                </div>
-              ) : (
+                );
+              })() : (
                 <div style={{ color: '#475569', fontSize: '12px', fontStyle: 'italic' }}>ללא הקצאה</div>
               )}
             </div>
