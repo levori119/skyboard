@@ -17569,13 +17569,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             )}
 
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
-            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones) && (() => {
+            {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
               const mapAnchor = mapGeoAnchor;
               const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
               const requestedOnlyZoneIds = new Set<number>();
               stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
               const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
-              const visibleZones = fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => allOccupiedIds.has(z.id)) : mapZones.filter(z => !allOccupiedIds.has(z.id));
+              const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
+              const visibleZones = _flashOnly ? mapZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => allOccupiedIds.has(z.id)) : mapZones.filter(z => !allOccupiedIds.has(z.id));
               const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               return (<>
