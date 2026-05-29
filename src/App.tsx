@@ -101,7 +101,7 @@ const hasConditions = (node: QNode | null): boolean => {
   return node.children.some(c => hasConditions(c));
 };
 
-const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
+const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' }[] = [
   // ── שדות פמם ──
   { key: 'callSign', label: 'או"ק', ftype: 'text' },
   { key: 'sq', label: 'טייסת', ftype: 'text' },
@@ -124,6 +124,7 @@ const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' }[] = [
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
   { key: 'in_table', label: 'הועבר אלי', ftype: 'bool' },
   { key: 'created_by_me', label: 'פ"מ שיצרתי', ftype: 'bool' },
+  { key: 'created_by_preset', label: 'נוצר ע"י עמדה', ftype: 'preset_select' },
   // ── טקסט חופשי ──
   { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
   { key: 'notes', label: 'הערות', ftype: 'text' },
@@ -181,14 +182,20 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
   if (field === 'created_by_me') {
-    const byId = ctx?.presetId != null && strip.creator_preset_id != null && Number(strip.creator_preset_id) === Number(ctx.presetId);
-    const byName = ctx?.presetName != null && strip.creator_preset_name != null && String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
-    return byId || byName;
+    return ctx?.presetName != null && strip.creator_preset_name != null &&
+      String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
   }
+  if (field === 'created_by_preset') return strip.creator_preset_name || '';
   return strip[field] ?? '';
 };
 
 const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null; presetName?: string | null; aviationBases?: any[] }): boolean => {
+  if (leaf.field === 'created_by_preset') {
+    const creatorName = String(getQFieldValue(strip, 'created_by_preset', ctx) || '').trim().toLowerCase();
+    const selected = (leaf.value || '').split(',').map((v: string) => v.trim().toLowerCase()).filter(Boolean);
+    if (selected.length === 0) return true;
+    return selected.includes(creatorName);
+  }
   const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
@@ -15723,6 +15730,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               value={personalFilterDraft}
               onChange={q => setPersonalFilterDraft(q)}
               label='עריכת תנאי סינון'
+              presetNames={(workstationPresets || []).map((p: any) => p.name || p.preset_name).filter(Boolean)}
             />
           </div>
         </div>
@@ -21387,23 +21395,64 @@ const TableModesManager = () => {
   );
 };
 
+// --- Query Builder Context (preset names for created_by_preset selector) ---
+const QBuilderCtx = React.createContext<{ presetNames: string[] }>({ presetNames: [] });
+
 // --- Query Builder Components ---
 const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: QLeaf) => void; onDelete: () => void }) => {
+  const { presetNames } = React.useContext(QBuilderCtx);
   const fieldDef = Q_FIELDS.find(f => f.key === leaf.field) || Q_FIELDS[0];
   const ops = fieldDef.ftype === 'bool' ? Q_BOOL_OPS : Q_TEXT_OPS;
   const needsValue = leaf.compare !== 'empty' && leaf.compare !== 'not_empty';
+  const isPresetSelect = fieldDef.ftype === 'preset_select';
+
+  const selectedNames = (leaf.value || '').split(',').map((v: string) => v.trim()).filter(Boolean);
+  const togglePreset = (name: string) => {
+    const next = selectedNames.includes(name)
+      ? selectedNames.filter((n: string) => n !== name)
+      : [...selectedNames, name];
+    onUpdate({ ...leaf, value: next.join(',') });
+  };
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
-      <select value={leaf.field} onChange={e => { const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0]; const boolDefault = (e.target.value === 'in_table' || e.target.value === 'created_by_me') ? 'כן' : 'באוויר'; onUpdate({ ...leaf, field: e.target.value, compare: fd.ftype === 'bool' ? 'eq' : 'contains', value: fd.ftype === 'bool' ? boolDefault : '' }); }}
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
+      <select value={leaf.field} onChange={e => {
+        const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0];
+        const boolDefault = (e.target.value === 'in_table' || e.target.value === 'created_by_me') ? 'כן' : 'באוויר';
+        const defaultVal = fd.ftype === 'bool' ? boolDefault : '';
+        const defaultCmp: QCompare = fd.ftype === 'bool' ? 'eq' : fd.ftype === 'preset_select' ? 'in' : 'contains';
+        onUpdate({ ...leaf, field: e.target.value, compare: defaultCmp, value: defaultVal });
+      }}
         style={{ padding: '4px 6px', background: '#1e293b', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
         {Q_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
       </select>
-      <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}
-        style={{ padding: '4px 6px', background: '#1e293b', color: '#a78bfa', border: '1px solid #6d28d9', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-        {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-      </select>
+
+      {!isPresetSelect && (
+        <select value={leaf.compare} onChange={e => onUpdate({ ...leaf, compare: e.target.value as QCompare })}
+          style={{ padding: '4px 6px', background: '#1e293b', color: '#a78bfa', border: '1px solid #6d28d9', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+          {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+      )}
+
       {needsValue && (
-        fieldDef.ftype === 'bool' ? (
+        isPresetSelect ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '120px', overflowY: 'auto', padding: '4px 6px', background: '#1e293b', border: '1px solid #475569', borderRadius: '4px', minWidth: '150px' }}>
+            {presetNames.length === 0 && (
+              <span style={{ color: '#64748b', fontSize: '12px' }}>אין עמדות זמינות</span>
+            )}
+            {presetNames.map(name => (
+              <label key={name} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', direction: 'rtl', fontSize: '13px', color: selectedNames.includes(name) ? '#60a5fa' : '#cbd5e1', whiteSpace: 'nowrap' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedNames.includes(name)}
+                  onChange={() => togglePreset(name)}
+                  style={{ accentColor: '#3b82f6', cursor: 'pointer' }}
+                />
+                {name}
+              </label>
+            ))}
+          </div>
+        ) : fieldDef.ftype === 'bool' ? (
           (leaf.field === 'in_table' || leaf.field === 'created_by_me') ? (
             <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
               style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
@@ -21423,7 +21472,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
             style={{ padding: '4px 8px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', width: '110px', direction: 'rtl' }} />
         )
       )}
-      <button onClick={onDelete} title="מחק תנאי" style={{ padding: '2px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginRight: 'auto' }}>✕</button>
+      <button onClick={onDelete} title="מחק תנאי" style={{ padding: '2px 8px', background: '#450a0a', color: '#fca5a5', border: '1px solid #b91c1c', borderRadius: '4px', fontSize: '12px', cursor: 'pointer', marginRight: 'auto', alignSelf: 'center' }}>✕</button>
     </div>
   );
 };
@@ -21479,7 +21528,7 @@ const QGroupEditor = ({ group, onUpdate, onDelete, isRoot = false, depth = 0 }: 
   );
 };
 
-const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממים' }: { value: QGroup | null; onChange: (q: QGroup | null) => void; label?: string }) => {
+const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממים', presetNames = [] }: { value: QGroup | null; onChange: (q: QGroup | null) => void; label?: string; presetNames?: string[] }) => {
   const [group, setGroup] = useState<QGroup>(value || emptyQGroup());
 
   useEffect(() => {
@@ -21498,18 +21547,20 @@ const QueryBuilder = ({ value, onChange, label = 'שאילתת סינון פממ
   const isActive = hasConditions(group);
 
   return (
-    <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${isActive ? '#2563eb' : '#334155'}` }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', direction: 'rtl' }}>
-        <span style={{ color: isActive ? '#60a5fa' : '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>
-          🔍 {label} {isActive && <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'normal' }}>(פעיל — {group.children.length} תנאים)</span>}
-        </span>
-        <button onClick={addCondition}
-          style={{ padding: '5px 14px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
-          + הוסף תנאי
-        </button>
+    <QBuilderCtx.Provider value={{ presetNames }}>
+      <div style={{ marginTop: '15px', padding: '14px', background: '#1e293b', borderRadius: '8px', border: `1px solid ${isActive ? '#2563eb' : '#334155'}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', direction: 'rtl' }}>
+          <span style={{ color: isActive ? '#60a5fa' : '#94a3b8', fontSize: '14px', fontWeight: 'bold' }}>
+            🔍 {label} {isActive && <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'normal' }}>(פעיל — {group.children.length} תנאים)</span>}
+          </span>
+          <button onClick={addCondition}
+            style={{ padding: '5px 14px', background: '#052e16', color: '#86efac', border: '1px solid #16a34a', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+            + הוסף תנאי
+          </button>
+        </div>
+        <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />
       </div>
-      <QGroupEditor group={group} isRoot onUpdate={handleUpdate} />
-    </div>
+    </QBuilderCtx.Provider>
   );
 };
 
@@ -24069,6 +24120,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   value={presetForm.filter_query}
                   onChange={q => setPresetForm(p => ({ ...p, filter_query: q }))}
                   label='שאילתת סינון פממים לעמדה'
+                  presetNames={(presets || []).map((p: any) => p.name || p.preset_name).filter(Boolean)}
                 />
 
                 {/* Links Section — only when editing existing preset */}
