@@ -11468,6 +11468,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzAnimPaused, setFzAnimPaused] = useState(false);
   const [fzPinMenu, setFzPinMenu] = useState<{ stripId: number; x: number; y: number; strip: any; assignment: StripZoneAssignment | null } | null>(null);
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
+  const [fzFlashZoneIds, setFzFlashZoneIds] = useState<Set<number>>(new Set());
+  const fzFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
   const [fzZoneOpacityOverrides, setFzZoneOpacityOverrides] = useState<Record<number, number>>({});
   const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
@@ -17586,6 +17588,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
                       const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const isFlashing = fzFlashZoneIds.has(zone.id);
                       const hasNote = !!(fzZoneNotes[zone.id]?.trim());
                       const cx = zone.polygon.reduce((s,p)=>s+p.x,0)/zone.polygon.length;
                       const cy = zone.polygon.reduce((s,p)=>s+p.y,0)/zone.polygon.length;
@@ -17604,7 +17607,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
                               </polygon>
                             </>)}
-                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}{hasNote ? ' ✎' : ''}</text>
+                            {isFlashing && (<>
+                              <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                                <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
+                              </polygon>
+                              <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
+                                <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
+                              </polygon>
+                            </>)}
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}{hasNote ? ' ✎' : ''}</text>
                             {hasNote && <text x={cx} y={cy + 3.5} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                           </>)}
                         </g>
@@ -17622,6 +17634,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const fillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '2a';
                       const reqFillHex = opPct !== undefined ? Math.round(0xff * opPct / 100).toString(16).padStart(2,'0') : '12';
                       const isHighlighted = fzAssignedZonesPanel?.assignment?.zone_id === zone.id;
+                      const isFlashing = fzFlashZoneIds.has(zone.id);
                       const hasNote = !!(fzZoneNotes[zone.id]?.trim());
                       const pts = imgPts.map(p=>`${p.x},${p.y}`).join(' ');
                       const cx = imgPts.reduce((s,p)=>s+p.x,0)/imgPts.length;
@@ -17639,7 +17652,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               <animate attributeName="opacity" values="0.1;0.5;0.1" dur="1.2s" repeatCount="indefinite" />
                             </polygon>
                           </>)}
-                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}{hasNote?' ✎':''}</text>
+                          {isFlashing && (<>
+                            <polygon points={pts} fill="#fde04755" stroke="#fde047" strokeWidth="1.5" strokeDasharray="none">
+                              <animate attributeName="opacity" values="0.4;1;0.4" dur="0.7s" repeatCount="indefinite" />
+                            </polygon>
+                            <polygon points={pts} fill="none" stroke="#fde047" strokeWidth="3" opacity="0.6">
+                              <animate attributeName="stroke-width" values="1.5;4;1.5" dur="0.7s" repeatCount="indefinite" />
+                              <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
+                            </polygon>
+                          </>)}
+                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}{hasNote?' ✎':''}</text>
                           {hasNote && <text x={cx} y={cy+3.5} textAnchor="middle" dominantBaseline="middle" fill={zc+'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                         </g>
                       );
@@ -20385,8 +20407,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
             {/* Show assigned zones */}
             <button onClick={() => { setFzAssignedZonesPanel({ stripId: fzPinMenu.stripId, strip: fzPinMenu.strip, assignment: fzPinMenu.assignment, x: fzPinMenu.x, y: fzPinMenu.y }); setFzPinMenu(null); }}
-              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#7dd3fc', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #1e3a5f' }}>
               🗺 הצג אזורים מוקצים
+            </button>
+            {/* Flash zones on map */}
+            <button onClick={() => {
+              const a = fzPinMenu.assignment;
+              if (!a) return;
+              const ids = new Set<number>([
+                ...(a.zone_id != null ? [a.zone_id] : []),
+                ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id as number)
+              ]);
+              if (ids.size === 0) return;
+              if (fzFlashTimerRef.current) clearTimeout(fzFlashTimerRef.current);
+              setFzFlashZoneIds(ids);
+              fzFlashTimerRef.current = setTimeout(() => setFzFlashZoneIds(new Set()), 5000);
+              setFzPinMenu(null);
+            }}
+              style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
+              🟡 הדגש אזורים על מפה (5 שנ׳)
             </button>
             {/* Split */}
             <button onClick={() => { setFzSplitForm({ label: (fzPinMenu.strip as any)?.callSign + '-א' || '-א', count: '1' }); setFzSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
