@@ -2802,7 +2802,9 @@ app.get('/api/strips/global', async (req, res) => {
       landing_airfield_id: r.landing_airfield_id || null,
       map_lat: r.map_lat ?? null,
       map_lon: r.map_lon ?? null,
-      table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : []
+      table_preset_ids: Array.isArray(r.table_preset_ids) ? r.table_preset_ids.map(Number) : [],
+      creator_preset_id: r.creator_preset_id ?? null,
+      creator_preset_name: r.creator_preset_name ?? null,
     })));
   } catch (err) {
     console.error('Error fetching global strips:', err);
