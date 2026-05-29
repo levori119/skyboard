@@ -17604,8 +17604,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       return (
                         <g key={zone.id}>
                           {zone.polygon.length >= 3 && (<>
-                            <polygon points={pts} fill={zc + (isReqOnly ? reqFillHex : fillHex)} stroke={zc + (isReqOnly ? '77' : '')} strokeWidth={isReqOnly ? '0.3' : '0.4'} strokeDasharray={isReqOnly ? '1,2' : '2,1'} />
-                            {isReqOnly && <polygon points={pts} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                            <polygon points={pts} fill={zc + fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
                             {isHighlighted && (<>
                               <polygon points={pts} fill={zc + '22'} stroke={zc} strokeWidth="1.2">
                                 <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
@@ -17624,7 +17623,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                               </polygon>
                             </>)}
-                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc + (isReqOnly ? 'aa' : '')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly ? ' ⟳' : ''}{hasNote ? ' ✎' : ''}</text>
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{hasNote ? ' ✎' : ''}</text>
                             {hasNote && <text x={cx} y={cy + 3.5} textAnchor="middle" dominantBaseline="middle" fill={zc + 'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                           </>)}
                         </g>
@@ -17649,8 +17648,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const cy = imgPts.reduce((s,p)=>s+p.y,0)/imgPts.length;
                       return (
                         <g key={zone.id}>
-                          <polygon points={pts} fill={zc+(isReqOnly?reqFillHex:fillHex)} stroke={zc+(isReqOnly?'77':'')} strokeWidth={isReqOnly?'0.3':'0.4'} strokeDasharray={isReqOnly?'1,2':'2,1'} />
-                          {isReqOnly && <polygon points={pts} fill="none" stroke={zc} strokeWidth="0.2" strokeDasharray="0.5,3" opacity="0.6" />}
+                          <polygon points={pts} fill={zc+fillHex} stroke={zc} strokeWidth="0.4" strokeDasharray="2,1" />
                           {isHighlighted && (<>
                             <polygon points={pts} fill={zc+'22'} stroke={zc} strokeWidth="1.2">
                               <animate attributeName="stroke-opacity" values="0;1;0" dur="1.2s" repeatCount="indefinite" />
@@ -17669,7 +17667,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.7s" repeatCount="indefinite" />
                             </polygon>
                           </>)}
-                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc+(isReqOnly?'aa':'')} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{isReqOnly?' ⟳':''}{hasNote?' ✎':''}</text>
+                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={isFlashing ? '#fde047' : zc} fontSize="2.5" fontWeight="bold" style={{ userSelect:'none' }}>{zone.name}{hasNote?' ✎':''}</text>
                           {hasNote && <text x={cx} y={cy+3.5} textAnchor="middle" dominantBaseline="middle" fill={zc+'cc'} fontSize="1.8" style={{ userSelect:'none' }}>{fzZoneNotes[zone.id]}</text>}
                         </g>
                       );
