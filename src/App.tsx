@@ -11462,7 +11462,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzSplitPinDragRef = useRef<{ key: number; downX: number; downY: number } | null>(null);
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
-  const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('squadron');
+  const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
+  const [fzShowLines, setFzShowLines] = useState(false);
+  const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
   const [fzSplitItems, setFzSplitItems] = useState<{ key: number; parentStripId: number; label: string; count: number; zoneId?: number | null; zoneName?: string | null; zoneColor?: string | null; altRangeId?: number | null; status?: string; posX?: number; posY?: number }[]>([]);
   const [fzAnimPaused, setFzAnimPaused] = useState(false);
@@ -17830,7 +17832,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             ))}
 
             {/* Flight Zones — Extra-Zone connector lines (icon → centroid of each extra zone) */}
-            {isFlightZonesMode && mapImgBounds && (() => {
+            {isFlightZonesMode && fzShowLines && mapImgBounds && (() => {
               const ib = mapImgBounds;
               const lines: React.ReactNode[] = [];
               stripZoneAssignments.forEach((a: StripZoneAssignment) => {
@@ -17961,7 +17963,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     }
                   }}
                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); }}
-                  style={{ position: 'absolute', left: pixX, top: pixY, transform: 'translate(-50%, -50%)', zIndex: 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'opacity 0.15s' }}
+                  onMouseEnter={() => setFzHoveredStripId(Number(a.strip_id))}
+                  onMouseLeave={() => setFzHoveredStripId(prev => prev === Number(a.strip_id) ? null : prev)}
+                  style={{ position: 'absolute', left: pixX, top: pixY, transform: `translate(-50%, -50%) scale(${fzHoveredStripId === Number(a.strip_id) ? 1.35 : 1})`, zIndex: fzHoveredStripId === Number(a.strip_id) ? 50 : 44, cursor: 'grab', userSelect: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${2 / mapZoom}px`, pointerEvents: 'all', touchAction: 'none', opacity: isDraggingThisPin ? 0.25 : 1, transition: 'transform 0.15s, opacity 0.15s' }}
                   title={`${callLabel}${a.zone_name ? ` — ${a.zone_name}` : ' — ללא אזור'}${a.alt_range_name ? ` · ${a.alt_range_name}` : ''}${hasConflict ? ' ⚠️ קונפליקט!' : ''}${a.note ? `\n📝 ${a.note}` : ''}${a.coordination_note ? `\n🤝 ${a.coordination_note}` : ''}`}
                 >
                   {/* Helicopter image icon — CSS filter tint keeps background transparent */}
@@ -18205,6 +18209,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={() => setFzPinColorMode(m => m === 'squadron' ? 'status' : 'squadron')}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzPinColorMode === 'status' ? '#a78bfa' : '#334155'}`, background: fzPinColorMode === 'status' ? '#2e1065' : '#1e293b', color: fzPinColorMode === 'status' ? '#c4b5fd' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzPinColorMode === 'status' ? '🎨 סטטוס' : '🎨 טייסת'}
+              </button>
+              <button onClick={() => setFzShowLines(v => !v)}
+                style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzShowLines ? '#38bdf8' : '#334155'}`, background: fzShowLines ? '#0c3050' : '#1e293b', color: fzShowLines ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
+                {fzShowLines ? '〰 הסתר קווים' : '〰 הצג קווים'}
               </button>
               <button onClick={() => setFzAnimPaused(p => !p)}
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
