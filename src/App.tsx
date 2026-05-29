@@ -18743,17 +18743,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   (!isClassicMode || Number(s.workstation_preset_id) !== Number(session?.presetId))
                 );
                 const _gst = (s: any) => { const now=new Date(); const tkDt=s.takeoff_time?new Date(s.takeoff_time):null; const tkPast=!!(tkDt&&!isNaN(tkDt.getTime())&&tkDt<now&&!s.airborne); let tkLabel=''; if(tkDt&&!isNaN(tkDt.getTime())){const hh=tkDt.getHours().toString().padStart(2,'0');const mm=tkDt.getMinutes().toString().padStart(2,'0');const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());const tkDay=new Date(tkDt.getFullYear(),tkDt.getMonth(),tkDt.getDate());tkLabel=tkDay.getTime()!==today.getTime()?`${tkDt.getDate().toString().padStart(2,'0')}/${(tkDt.getMonth()+1).toString().padStart(2,'0')} ${hh}:${mm}`:`${hh}:${mm}`;} return{now,tkDt,tkPast,tkLabel}; };
-                type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
+                type _RI = {kind:'zone',zoneId:number,za:StripZoneAssignment,count:number}|{kind:'unassigned',count:number}|{kind:'strip',_rk:string,s:any,now:Date,tkDt:Date|null,tkPast:boolean,tkLabel:string};
                 const renderItems: _RI[] = [];
                 if (isFlightZonesMode) {
                   const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
                   const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
                   for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
-                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id))for(const s of strips)renderItems.push({kind:'strip',s,..._gst(s)});}
-                  if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',s,..._gst(s)});}
+                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id}-${s.id}`,s,..._gst(s)});}
+                  if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
                 } else {
                   const _sorted=[...sidebarStripList].sort((a,b)=>{if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
-                  for(const s of _sorted)renderItems.push({kind:'strip',s,..._gst(s)});
+                  for(const s of _sorted)renderItems.push({kind:'strip',_rk:`s-${s.id}`,s,..._gst(s)});
                 }
                 return (<>
               <h4 style={{ margin: '0 0 6px 30px', fontSize: '13px', color: T.text }}>{isClassicMode ? 'כל הפממים' : 'פ"מ עמדה'} ({sidebarStripList.length})</h4>
@@ -18777,10 +18777,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(-1) ? '▶' : '▼'}</span>
                   </div>
                 );
-                const { s, now, tkDt, tkPast, tkLabel } = item;
+                const { s, now, tkDt, tkPast, tkLabel, _rk } = item;
                 return (
                 <div
-                  key={s.id}
+                  key={_rk}
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? () => { fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
