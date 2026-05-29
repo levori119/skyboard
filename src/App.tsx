@@ -11450,7 +11450,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzGetZoneAtPointRef = useRef<(px: number, py: number) => any>((_px: number, _py: number) => null);
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[] } | null>(null);
-  const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
+  const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
   const fzDragIsPin = React.useRef(false);
   const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
@@ -12398,7 +12398,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       !a.is_coordinated
     );
     if (existing.length > 0) {
-      setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY }, conflicts: existing, coordNote: '' });
+      setFzConflictDialog({ pending: { stripId: fzDialog.stripId, zoneId: fzDialog.zoneId, altRangeId: fzDialog.selectedAltId, posX: fzDialog.posX, posY: fzDialog.posY, requestedZoneIds: fzDialog.requestedZoneIds || [] }, conflicts: existing, coordNote: '' });
       return;
     }
     await doFzSave(fzDialog.stripId, fzDialog.zoneId, fzDialog.selectedAltId, fzDialog.selectedStatus, fzDialog.note, '', false, fzDialog.posX, fzDialog.posY);
@@ -20219,14 +20219,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={async () => {
                 if (!fzConflictDialog.pending || !fzDialog) return;
-                await doFzSave(fzConflictDialog.pending.stripId, fzConflictDialog.pending.zoneId, fzConflictDialog.pending.altRangeId, fzDialog.selectedStatus, fzDialog.note, fzConflictDialog.coordNote, false, fzConflictDialog.pending.posX, fzConflictDialog.pending.posY);
+                const _p = fzConflictDialog.pending;
+                await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, fzDialog.selectedStatus, fzDialog.note, fzConflictDialog.coordNote, false, _p.posX, _p.posY);
+                const _numSid = parseInt(String(_p.stripId).replace(/^s/,''), 10);
+                const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
+                const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));
+                const _newExtraIds = new Set(_p.requestedZoneIds || []);
+                await Promise.all([
+                  ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
+                  ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
+                ]);
+                if (currentMapId) loadStripZoneAssignments(currentMapId);
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 ⚠️ המשך בכל זאת
               </button>
               <button onClick={async () => {
                 if (!fzConflictDialog.pending || !fzDialog) return;
-                await doFzSave(fzConflictDialog.pending.stripId, fzConflictDialog.pending.zoneId, fzConflictDialog.pending.altRangeId, 'coordinated', fzDialog.note, fzConflictDialog.coordNote, true, fzConflictDialog.pending.posX, fzConflictDialog.pending.posY);
+                const _p = fzConflictDialog.pending;
+                await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, 'coordinated', fzDialog.note, fzConflictDialog.coordNote, true, _p.posX, _p.posY);
+                const _numSid = parseInt(String(_p.stripId).replace(/^s/,''), 10);
+                const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
+                const _oldExtraIds = new Set(_oldExtra.map((e) => e.zone_id));
+                const _newExtraIds = new Set(_p.requestedZoneIds || []);
+                await Promise.all([
+                  ...[..._newExtraIds].filter(id => !_oldExtraIds.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSid, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
+                  ..._oldExtra.filter((e) => !_newExtraIds.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
+                ]);
+                if (currentMapId) loadStripZoneAssignments(currentMapId);
                 setFzConflictDialog(null); setFzDialog(null);
               }} style={{ padding: '8px 16px', background: '#22c55e', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
                 ✓ סמן כמתואם
