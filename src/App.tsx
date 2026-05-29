@@ -11516,7 +11516,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [penSize, setPenSize] = useState(3);
   const [drawTool, setDrawTool] = useState<'pen'|'eraser'|'circle'|'rect'>('pen');
   const eraserMode = drawTool === 'eraser';
-  const [mapBrightness, setMapBrightness] = useState(1.3);
+  const [mapBrightness, setMapBrightness] = useState(0.35);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
   type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
