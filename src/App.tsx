@@ -12330,6 +12330,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           sector_id: session.sectorId || null,
           workstation_preset_id: session.presetId ? Number(session.presetId) : null,
           manual_entry: true,
+          creator_preset_name: session.workstationName || null,
         };
         setStrips((prev: any[]) => [...prev, newStrip]);
         setFzCreateModal(false);
@@ -14156,12 +14157,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         number_of_formation: count,
         workstation_preset_id: session?.presetId || null,
         sector_id: sectorId ?? myPresetConfig?.relevant_sectors?.[0] ?? null,
-        strip_type: stripType || ''
+        strip_type: stripType || '',
+        creator_preset_name: session?.workstationName || null,
       };
       const res = await fetch(`${API_URL}/strips/ground-create`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const newStrip = await res.json();
       if (newStrip?.id) {
-        setStrips(prev => [...prev, newStrip]);
+        setStrips(prev => [...prev, { ...newStrip, creator_preset_name: session?.workstationName || null }]);
         const rows: GroundAircraftRow[] = Array.from({ length: count }, (_, i) => ({ idx: i + 1, datk: null, kipa: null }));
         setGroundStripAircraft(prev => ({ ...prev, [String(newStrip.id)]: rows }));
         logActivity('strip_created', { stripId: String(newStrip.id), stripCallsign: callSign, details: { sq, count, stripType } });

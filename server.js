@@ -3581,13 +3581,13 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
 // POST create a new strip directly from ground workstation
 app.post('/api/strips/ground-create', async (req, res) => {
   try {
-    const { callSign, sq, number_of_formation, workstation_preset_id, sector_id, strip_type } = req.body;
+    const { callSign, sq, number_of_formation, workstation_preset_id, sector_id, strip_type, creator_preset_name } = req.body;
     const count = Math.max(1, Math.min(parseInt(number_of_formation) || 1, 16));
     const defaultPositions = Array.from({ length: count }, (_, i) => ({ idx: i + 1, point_id: null, status: 'none' }));
     const result = await pool.query(
-      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, creator_preset_id, sector_id, status, in_table, strip_type)
-       VALUES ($1, $2, $3, $4, $5, $5, $6, 'active', true, $7) RETURNING *`,
-      [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null, strip_type || '']
+      `INSERT INTO strips (callsign, sq, number_of_formation, aircraft_positions, workstation_preset_id, creator_preset_id, sector_id, status, in_table, strip_type, creator_preset_name)
+       VALUES ($1, $2, $3, $4, $5, $5, $6, 'active', true, $7, $8) RETURNING *`,
+      [callSign || '?', sq || '', count, JSON.stringify(defaultPositions), workstation_preset_id || null, sector_id || null, strip_type || '', creator_preset_name || null]
     );
     const strip = result.rows[0];
     // Auto-create strip_aircraft rows
