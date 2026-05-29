@@ -2332,23 +2332,23 @@ const TransferStripEditor = ({ transfer, onAltUpdate, onCancel }: {
       background: '#fef3c7', 
       border: '2px dashed #f59e0b', 
       borderRadius: '6px', 
-      marginBottom: '6px' 
+      marginBottom: '6px',
+      direction: 'rtl'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{getFormationDisplayName(transfer)}</span>
-        <span style={{ fontSize: '10px', background: '#3b82f6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>{transfer.sq}</span>
-      </div>
-      {(!transfer.sq && transfer.squadron) && <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', marginTop: '2px' }}>טייסת: {transfer.squadron}</div>}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-        <span 
-          ref={altRef}
-          onClick={handleEditClick} 
-          style={{ fontSize: '10px', background: '#fde68a', padding: '2px 6px', borderRadius: '4px', color: '#92400e', cursor: 'pointer', border: '1px solid #f59e0b' }}
-        >
-          גובה: {transfer.alt}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '12px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {getTransferLabel(transfer)}
         </span>
-        <span style={{ fontSize: '10px', color: '#92400e' }}>ממתין לאישור...</span>
+        <span
+          ref={altRef}
+          onClick={handleEditClick}
+          title="לחץ לעדכון גובה"
+          style={{ fontSize: '16px', fontWeight: 'bold', color: '#92400e', background: '#fde68a', padding: '2px 7px', borderRadius: '5px', border: '1px solid #f59e0b', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px' }}
+        >
+          {transfer.alt ? `FL${normalizeAlt(transfer.alt)}` : '—'}
+        </span>
       </div>
+      <div style={{ fontSize: '10px', color: '#92400e', marginTop: '3px', opacity: 0.75 }}>ממתין לאישור...</div>
       <button 
         onClick={() => onCancel(transfer.id)} 
         style={{ 
@@ -2394,6 +2394,52 @@ const serializeNoteValue = (text: string, hw: string): string => {
   if (hasText && hasHw) return JSON.stringify({ text, hw });
   if (hasHw) return hw;
   return text;
+};
+
+// --- כרטיס מוסר בסקטור ---
+const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField }: {
+  t: any;
+  isConflict: boolean;
+  onCancel: (id: string) => void;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+}) => {
+  const [editingAlt, setEditingAlt] = useState(false);
+  const [altVal, setAltVal] = useState(t.alt || '');
+  return (
+    <div style={{
+      padding: '4px 5px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
+      border: isConflict ? '1px solid #ef4444' : '1px solid #78350f',
+      background: isConflict ? '#450a0a' : '#0d0800',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+        <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>
+          {isConflict && '⚠ '}{getTransferLabel(t)}
+        </span>
+        {editingAlt ? (
+          <input
+            autoFocus
+            value={altVal}
+            onChange={e => setAltVal(e.target.value)}
+            onBlur={() => { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }}
+            onKeyDown={e => { if (e.key === 'Enter') { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); } if (e.key === 'Escape') { setAltVal(t.alt || ''); setEditingAlt(false); } }}
+            style={{ width: '52px', background: '#0f172a', border: '1px solid #fbbf24', borderRadius: '3px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold', padding: '1px 3px', outline: 'none', textAlign: 'center' }}
+          />
+        ) : (
+          <span
+            title="לחץ לעדכון גובה"
+            onClick={() => { setAltVal(t.alt || ''); setEditingAlt(true); }}
+            style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', background: isConflict ? '#7f1d1d' : '#1c0f00', padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#78350f'}` }}
+          >
+            {t.alt ? `FL${normalizeAlt(t.alt)}` : '—'}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onCancel(t.id); }}
+        style={{ width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+      >✕ בטל</button>
+    </div>
+  );
 };
 
 // --- פאנל נקודת העברה עם עמודות העברה/קבלה ---
@@ -2695,20 +2741,13 @@ const DraggableNeighborPanel = ({
             </div>
             <div style={{ padding: '3px', minHeight: '24px' }}>
               {sectorOutgoing.map(t => (
-                <div key={t.id} style={{
-                  padding: '3px 5px', fontSize: '10px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
-                  border: conflictingTransferIds.has(String(t.id)) ? '1px solid #ef4444' : '1px solid #78350f',
-                  background: conflictingTransferIds.has(String(t.id)) ? '#450a0a' : '#0d0800',
-                }}>
-                  <div style={{ fontWeight: 'bold', color: conflictingTransferIds.has(String(t.id)) ? '#fca5a5' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {conflictingTransferIds.has(String(t.id)) && '⚠ '}{getFormationDisplayName(t)}
-                  </div>
-                  {t.alt && <div style={{ fontSize: '9px', color: '#b45309' }}>FL{normalizeAlt(t.alt)}</div>}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
-                    style={{ marginTop: '2px', width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
-                  >✕ בטל</button>
-                </div>
+                <OutgoingTransferCard
+                  key={t.id}
+                  t={t}
+                  isConflict={conflictingTransferIds.has(String(t.id))}
+                  onCancel={onCancelTransfer}
+                  onUpdateStripField={onUpdateStripField}
+                />
               ))}
               {sectorOutgoing.length === 0 && (
                 <div style={{ padding: '6px 4px', fontSize: '10px', color: '#334155', textAlign: 'center' }}>—</div>
@@ -2892,17 +2931,17 @@ const DraggableIncomingTransferMini = ({
           background: isConflict ? '#450a0a' : '#dcfce7', 
           border: isConflict ? '2px solid #ef4444' : '1px solid #22c55e',
           borderRadius: '4px',
-          padding: '4px',
+          padding: '5px',
           marginBottom: '4px',
           fontSize: '9px',
-          cursor: 'grab'
+          cursor: 'grab',
+          direction: 'rtl'
         }}
       >
-        <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>
-          {isConflict && '⚠️ '}{getFormationDisplayName(transfer)}
-        </div>
-        <div style={{ color: isConflict ? '#fca5a5' : '#15803d', display: 'flex', alignItems: 'center', gap: '2px' }}>
-          גובה:&nbsp;
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+          <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>
+            {isConflict && '⚠️ '}{getTransferLabel(transfer)}
+          </span>
           {editingAlt ? (
             <input
               autoFocus
@@ -2911,22 +2950,19 @@ const DraggableIncomingTransferMini = ({
               onPointerDown={e => e.stopPropagation()}
               onBlur={() => { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', n); }}
               onKeyDown={e => { if (e.key === 'Enter') { const n = normalizeAlt(altVal); setAltVal(n); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(transfer.strip_id), 'alt', n); } if (e.key === 'Escape') { setAltVal(transfer.alt || ''); setEditingAlt(false); } }}
-              style={{ width: '44px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '9px', padding: '1px 3px', outline: 'none' }}
+              style={{ width: '52px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold', padding: '1px 3px', outline: 'none', textAlign: 'center' }}
             />
           ) : (
-            <>
-              <span
-                title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-                onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setAltVal(transfer.alt || ''); setEditingAlt(true); } }}
-                style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
-              >{transfer.alt || '—'}</span>
-              {onUpdateStripField && (
-                <VKTrigger value={transfer.alt || ''} onChange={v => { const n = normalizeAlt(v); setAltVal(n); onUpdateStripField(String(transfer.strip_id), 'alt', n); }} mode="numeric" label="גובה" size={10} style={{ marginRight: '2px' }} />
-              )}
-            </>
+            <span
+              title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+              onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setAltVal(transfer.alt || ''); setEditingAlt(true); } }}
+              style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'text' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+            >
+              {transfer.alt ? `FL${normalizeAlt(transfer.alt)}` : '—'}
+            </span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
+        <div style={{ display: 'flex', gap: '2px' }}>
           <button
             onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }}
             style={{
@@ -3397,40 +3433,15 @@ const DraggableMapMarker = ({
           <div style={{ fontSize: '10px', color: lightMode ? '#b45309' : '#f59e0b', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             העברה: ({markerOutgoing.length})
           </div>
-          {markerOutgoing.map((t: any) => {
-            const isConflict = markerConflictIds.has(String(t.id));
-            return (
-            <div key={t.id} className={isConflict ? 'alt-conflict-flash' : ''} style={{ 
-              background: isConflict ? '#7f1d1d' : '#fef3c7', 
-              border: `1px solid ${isConflict ? '#ef4444' : '#f59e0b'}`,
-              borderRadius: '3px',
-              padding: '4px',
-              marginBottom: '4px',
-              fontSize: '9px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#92400e' }}>{getFormationDisplayName(t)}</span>
-                <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
-              </div>
-              <div style={{ color: isConflict ? '#fca5a5' : '#b45309', fontSize: '8px' }}>גובה: {normalizeAlt(t.alt || '')}</div>
-              <button
-                onClick={(e) => { e.stopPropagation(); onCancelTransfer(t.id); }}
-                style={{
-                  marginTop: '3px',
-                  width: '100%',
-                  padding: '2px',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '2px',
-                  fontSize: '8px',
-                  cursor: 'pointer'
-                }}
-              >
-                בטל העברה
-              </button>
-            </div>
-          ); })}
+          {markerOutgoing.map((t: any) => (
+            <OutgoingTransferCard
+              key={t.id}
+              t={t}
+              isConflict={markerConflictIds.has(String(t.id))}
+              onCancel={onCancelTransfer}
+              onUpdateStripField={onUpdateStripField}
+            />
+          ))}
         </div>
         
         {/* קבלה - Incoming */}
@@ -3444,71 +3455,44 @@ const DraggableMapMarker = ({
             <div key={t.id} className={isConflict ? 'alt-conflict-flash' : ''} style={{ 
               background: isConflict ? '#7f1d1d' : '#dcfce7', 
               border: `1px solid ${isConflict ? '#ef4444' : '#22c55e'}`,
-              borderRadius: '3px',
-              padding: '4px',
+              borderRadius: '4px',
+              padding: '5px',
               marginBottom: '4px',
-              fontSize: '9px'
+              direction: 'rtl'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534' }}>{getFormationDisplayName(t)}</span>
-                <span style={{ background: '#3b82f6', color: 'white', padding: '1px 3px', borderRadius: '2px', fontSize: '8px' }}>{t.sq}</span>
-              </div>
-              <div style={{ color: isConflict ? '#fca5a5' : '#15803d', fontSize: '8px', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                גובה:&nbsp;
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
+                <span style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>
+                  {isConflict && '⚠ '}{getTransferLabel(t)}
+                </span>
                 {editingAltId === String(t.id) ? (
                   <input
                     autoFocus
                     value={editingAltVal}
                     onChange={e => setEditingAltVal(e.target.value)}
                     onPointerDown={e => e.stopPropagation()}
-                    onBlur={() => { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); }}
-                    onKeyDown={e => { if (e.key === 'Enter') { setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', editingAltVal); } if (e.key === 'Escape') setEditingAltId(null); }}
-                    style={{ width: '40px', background: lightMode ? 'white' : '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: lightMode ? '#1e3a8a' : '#93c5fd', fontSize: '8px', padding: '1px 3px', outline: 'none' }}
+                    onBlur={() => { const n = normalizeAlt(editingAltVal); setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { const n = normalizeAlt(editingAltVal); setEditingAltId(null); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); } if (e.key === 'Escape') setEditingAltId(null); }}
+                    style={{ width: '52px', background: lightMode ? 'white' : '#0f172a', border: '1px solid #3b82f6', borderRadius: '3px', color: lightMode ? '#1e3a8a' : '#93c5fd', fontSize: '13px', fontWeight: 'bold', padding: '1px 3px', outline: 'none', textAlign: 'center' }}
                   />
                 ) : (
-                  <>
-                    <span
-                      title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-                      onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); } }}
-                      style={{ cursor: onUpdateStripField ? 'text' : 'default', borderBottom: onUpdateStripField ? '1px dashed currentColor' : 'none', paddingBottom: '1px' }}
-                    >{t.alt || '—'}</span>
-                    {onUpdateStripField && (
-                      <VKTrigger value={t.alt || ''} onChange={v => { const n = normalizeAlt(v); setEditingAltVal(n); setEditingAltId(null); onUpdateStripField(String(t.strip_id), 'alt', n); }} mode="numeric" label="גובה" size={9} style={{ marginRight: '2px' }} />
-                    )}
-                  </>
+                  <span
+                    title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+                    onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); } }}
+                    style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#450a0a' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'text' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+                  >
+                    {t.alt ? `FL${normalizeAlt(t.alt)}` : '—'}
+                  </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '2px', marginTop: '3px' }}>
+              <div style={{ display: 'flex', gap: '2px' }}>
                 <button
                   onClick={(e) => { e.stopPropagation(); onAcceptTransfer(t.id); }}
-                  style={{
-                    flex: 1,
-                    padding: '2px',
-                    background: '#22c55e',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '2px',
-                    fontSize: '8px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  קבל
-                </button>
+                  style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
+                >קבל</button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onRejectTransfer(t.id); }}
-                  style={{
-                    flex: 1,
-                    padding: '2px',
-                    background: '#dc2626',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '2px',
-                    fontSize: '8px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  דחה
-                </button>
+                  style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
+                >דחה</button>
               </div>
             </div>
           ); })}
@@ -10190,6 +10174,22 @@ const getFormationDisplayName = (strip: any): string => {
   const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
   if (!indices) return base;
   return `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
+};
+
+const getTransferLabel = (t: any): string => {
+  const base = t.callSign || t.callsign || '';
+  let raw = t.aircraft_indices;
+  if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+  const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
+  const sq = t.sq || t.squadron || '';
+  let name: string;
+  if (indices) {
+    name = `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
+  } else {
+    const count = t.numberOfFormation || t.number_of_formation || '';
+    name = count ? `${base}/${count}` : base;
+  }
+  return sq ? `${name} (${sq})` : name;
 };
 
 const normalizeAlt = (raw: string): string => {
