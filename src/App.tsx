@@ -19118,7 +19118,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setContactsPanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0a1929', marginBottom: contactsPanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: contactsPanelOpen ? '4px' : 0 }}
                         >
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📡 קשרים</span>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -19203,9 +19203,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setBasePanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '3px 4px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, marginBottom: basePanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: basePanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text }}>🏛 סטטוס בסיסים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>🏛 סטטוס בסיסים</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {basePanelOpen && (
                               <button
@@ -19253,7 +19253,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ borderTop: (aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0) ? `1px solid ${T.border}` : 'none', paddingTop: '6px', marginTop: '4px' }}>
                       <div
                         onClick={() => setBdhPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: '4px' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: bdhPanelOpen ? '4px' : 0 }}
                       >
                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📋 בד"ח</span>
                         <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{bdhPanelOpen ? '▲' : '▼'}</span>
