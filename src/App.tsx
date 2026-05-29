@@ -182,6 +182,8 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
   if (field === 'created_by_me') {
+    if (ctx?.presetId != null && strip.creator_preset_id != null)
+      return String(strip.creator_preset_id) === String(ctx.presetId);
     return ctx?.presetName != null && strip.creator_preset_name != null &&
       String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
   }
