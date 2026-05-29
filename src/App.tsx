@@ -151,7 +151,7 @@ const Q_OPERATOR_LABELS: Record<QOperator, string> = {
   none: 'אף אחד לא מתקיים',
 };
 
-const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): any => {
+const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | string | null; presetName?: string | null; aviationBases?: any[] }): any => {
   if (field === 'callSign') return strip.callSign || strip.callsign || '';
   if (field === 'airborne') return !!strip.airborne;
   if (field === 'in_table') {
@@ -181,13 +181,14 @@ const getQFieldValue = (strip: any, field: string, ctx?: { presetId?: number | s
   if (field === 'parent_callsign') return strip.parent_callsign || '';
   if (field === 'formation_notes') return strip.formation_notes || '';
   if (field === 'created_by_me') {
-    if (ctx?.presetId == null) return false;
-    return Number(strip.creator_preset_id) === Number(ctx.presetId);
+    const byId = ctx?.presetId != null && strip.creator_preset_id != null && Number(strip.creator_preset_id) === Number(ctx.presetId);
+    const byName = ctx?.presetName != null && strip.creator_preset_name != null && String(strip.creator_preset_name).trim() === String(ctx.presetName).trim();
+    return byId || byName;
   }
   return strip[field] ?? '';
 };
 
-const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): boolean => {
+const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string | null; presetName?: string | null; aviationBases?: any[] }): boolean => {
   const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
@@ -208,7 +209,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string |
   }
 };
 
-const evaluateQuery = (strip: any, node: QNode, ctx?: { presetId?: number | string | null; aviationBases?: any[] }): boolean => {
+const evaluateQuery = (strip: any, node: QNode, ctx?: { presetId?: number | string | null; presetName?: string | null; aviationBases?: any[] }): boolean => {
   if (node.type === 'leaf') return evalQLeaf(strip, node, ctx);
   if (node.children.length === 0) return true;
   const results = node.children.map(c => evaluateQuery(strip, c, ctx));
@@ -10740,7 +10741,7 @@ const AdminDashboard: React.FC<{
       if (s.status === 'cancelled' || s.status === 'rejected') return false;
       if (Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)) return true;
       if (filterQ) {
-        try { if (evaluateQuery(s, filterQ, { presetId: pid })) return true; } catch { /* ignore */ }
+        try { if (evaluateQuery(s, filterQ, { presetId: pid, presetName: preset.name || preset.preset_name || null })) return true; } catch { /* ignore */ }
       }
       return false;
     });
@@ -12716,7 +12717,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Query-driven strip list: empty query = all strips, with query = only matching.
   // No workstation_preset_id restriction — strips are no longer "assigned" to workstations.
-  const _qCtx = session.presetId != null ? { presetId: session.presetId, aviationBases } : { aviationBases };
+  const _qCtx = session.presetId != null ? { presetId: session.presetId, presetName: session.workstationName || null, aviationBases } : { presetName: session.workstationName || null, aviationBases };
   const myStrips = strips.filter(s => {
     // Include pending_transfer strips that are incoming to THIS workstation
     if (s.status === 'pending_transfer') {
