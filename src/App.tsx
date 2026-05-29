@@ -17798,6 +17798,59 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               />
             ))}
 
+            {/* Flight Zones — Extra-Zone connector lines (icon → centroid of each extra zone) */}
+            {isFlightZonesMode && mapImgBounds && (() => {
+              const ib = mapImgBounds;
+              const lines: React.ReactNode[] = [];
+              stripZoneAssignments.forEach((a: StripZoneAssignment) => {
+                const extras = (a.extra_zones || []) as {id: number; zone_id: number; zone_name: string | null; zone_color: string | null}[];
+                if (extras.length === 0) return;
+                // Icon position (pct)
+                const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
+                const poly = zoneData?.polygon || [];
+                const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+                const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+                const pctX = a.pos_x != null ? a.pos_x : (a.zone_id != null ? cx50 : 50);
+                const pctY = a.pos_y != null ? a.pos_y : (a.zone_id != null ? cy50 : 50);
+                if (a.zone_id == null && a.pos_x == null) return;
+                extras.forEach(ez => {
+                  const ezZone = mapZones.find((z: any) => z.id === ez.zone_id);
+                  if (!ezZone || !ezZone.polygon || ezZone.polygon.length === 0) return;
+                  const ezPoly = ezZone.polygon;
+                  const ezCx = ezPoly.reduce((s: number, p: any) => s + p.x, 0) / ezPoly.length;
+                  const ezCy = ezPoly.reduce((s: number, p: any) => s + p.y, 0) / ezPoly.length;
+                  const color = ez.zone_color || '#94a3b8';
+                  // Convert pct → pixel (absolute page coords, same as pins)
+                  const x1 = ib.left + (pctX / 100) * ib.width;
+                  const y1 = ib.top  + (pctY / 100) * ib.height;
+                  const x2 = ib.left + (ezCx / 100) * ib.width;
+                  const y2 = ib.top  + (ezCy / 100) * ib.height;
+                  const dotR = Math.max(5, 8 / mapZoom);
+                  const sw   = Math.max(1, 2 / mapZoom);
+                  lines.push(
+                    <g key={`fzline-${a.strip_id}-${ez.id}`} pointerEvents="none">
+                      <line
+                        x1={x1} y1={y1} x2={x2} y2={y2}
+                        stroke={color} strokeWidth={sw}
+                        strokeDasharray={`${6/mapZoom},${3/mapZoom}`}
+                        opacity={0.75}
+                      />
+                      <circle cx={x2} cy={y2} r={dotR} fill={color} opacity={0.85} />
+                      <circle cx={x2} cy={y2} r={dotR * 1.8} fill={color} opacity={0.18} />
+                    </g>
+                  );
+                });
+              });
+              if (lines.length === 0) return null;
+              return (
+                <svg
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 43, overflow: 'visible' }}
+                >
+                  {lines}
+                </svg>
+              );
+            })()}
+
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
