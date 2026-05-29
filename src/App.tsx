@@ -17920,17 +17920,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onPointerDown={e => {
                     e.stopPropagation();
                     if (fzPinLongPressRef.current) { clearTimeout(fzPinLongPressRef.current); fzPinLongPressRef.current = null; }
-                    const downX = e.clientX, downY = e.clientY;
-                    const capturedAssignment = a;
-                    const capturedStrip = strip;
-                    fzPinLongPressRef.current = setTimeout(() => {
-                      fzPinLongPressRef.current = null;
-                      fzPinDragRef.current = null; fzDragIsPin.current = false; fzDragIdRef.current = null;
-                      setFzDragStripId(null); setFzDragLabel(null); setFzPinGhost(null);
-                      fzPinDownPos.current = null;
-                      if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; }
-                      setFzPinMenu({ stripId: capturedAssignment.strip_id, x: downX, y: downY, strip: capturedStrip, assignment: capturedAssignment });
-                    }, 600);
                     fzPinDownPos.current = { x: e.clientX, y: e.clientY, id: a.strip_id };
                     fzPinDragRef.current = a.strip_id;
                     fzDragIsPin.current = true;
@@ -17999,10 +17988,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         />
                       );
                     })()}
-                    {/* Note indicator */}
+                    {/* Note indicator — moved to top-left */}
                     {(a.note || a.coordination_note) && (
-                      <div style={{ position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
+                      <div style={{ position: 'absolute', top: -4, left: -4, width: 14, height: 14, borderRadius: '50%', background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, border: '1.5px solid #0f172a', zIndex: 2, pointerEvents: 'none' }}>!</div>
                     )}
+                    {/* Menu button — top-right of circle, click to open strip menu */}
+                    <div
+                      style={{ position: 'absolute', top: -5, right: -5, width: Math.max(13, 16/mapZoom), height: Math.max(13, 16/mapZoom), borderRadius: '50%', background: '#0f172a', border: `${Math.max(1, 1.5/mapZoom)}px solid #475569`, color: '#94a3b8', fontSize: Math.max(9, 11/mapZoom), display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, zIndex: 3, pointerEvents: 'all', cursor: 'pointer', userSelect: 'none' }}
+                      onPointerDown={e => { e.stopPropagation(); e.preventDefault(); }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setFzPinMenu({ stripId: a.strip_id, x: e.clientX, y: e.clientY, strip, assignment: a });
+                      }}
+                      title="תפריט"
+                    >⋮</div>
                   </div>
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
                     {callLabel}
