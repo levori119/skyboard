@@ -2435,7 +2435,7 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField }: {
             ref={altRef}
             title="לחץ לעדכון גובה"
             onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-            style={{ fontSize: '15px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', background: isConflict ? '#7f1d1d' : '#1c0f00', padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#78350f'}` }}
+            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', background: isConflict ? '#7f1d1d' : '#1c0f00', padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#78350f'}` }}
           >
             {t.alt ? normalizeAlt(t.alt) : '—'}
           </span>
@@ -2964,7 +2964,7 @@ const DraggableIncomingTransferMini = ({
             ref={altRef}
             title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
             onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
-            style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
           >
             {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
           </span>
