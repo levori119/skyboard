@@ -3809,6 +3809,9 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
   );
 };
 
+// Singleton — only one strip details popup open at a time
+let _activeStripDetailsCloser: (() => void) | null = null;
+
 // --- רכיב פ"מ (Strip) ---
 const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
   const controls = useDragControls();
@@ -3829,6 +3832,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [editingNotes, setEditingNotes] = useState(false);
   const [tempNotes, setTempNotes] = useState(s.notes || '');
   const [showDetails, setShowDetails] = useState(false);
+  const [detailsPos, setDetailsPos] = useState<{left: number; top: number}>({ left: 0, top: 0 });
   const [detailsData, setDetailsData] = useState({
     weapons: (s.weapons || []) as {type: string; quantity: string}[],
     targets: (s.targets || []) as {name: string; aim_point: string}[],
@@ -4139,12 +4143,12 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           style={{ cursor: 'grab', color: 'white', fontSize: '13px', lineHeight: 1, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '2px', width: '100%' }}
         >⋮</div>
         <button
-          onClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }}
+          onClick={(e) => { e.stopPropagation(); if (showDetails) { _activeStripDetailsCloser = null; setShowDetails(false); } else { if (_activeStripDetailsCloser) _activeStripDetailsCloser(); const rect = containerRef.current?.getBoundingClientRect(); if (rect) { const pw=230,ph=420; let left=rect.right+8; if(left+pw>window.innerWidth-8) left=rect.left-pw-8; if(left<8) left=8; let top=rect.top; if(top+ph>window.innerHeight-8) top=window.innerHeight-ph-8; if(top<8) top=8; setDetailsPos({left,top}); } _activeStripDetailsCloser=()=>setShowDetails(false); setShowDetails(true); } }}
           title={showDetails ? 'סגור פרטים' : 'פתח פרטים'}
           style={{ background: 'transparent', border: 'none', color: hasDetails ? '#60a5fa' : '#94a3b8', fontSize: '9px', cursor: 'pointer', padding: '1px 0', lineHeight: 1 }}
         >{showDetails ? '▴' : '▾'}</button>
       </div>
-      <div onDoubleClick={(e) => { e.stopPropagation(); setShowDetails(v => !v); }} style={{ padding: '2px 4px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
+      <div onDoubleClick={(e) => { e.stopPropagation(); if (showDetails) { _activeStripDetailsCloser = null; setShowDetails(false); } else { if (_activeStripDetailsCloser) _activeStripDetailsCloser(); const rect = containerRef.current?.getBoundingClientRect(); if (rect) { const pw=230,ph=420; let left=rect.right+8; if(left+pw>window.innerWidth-8) left=rect.left-pw-8; if(left<8) left=8; let top=rect.top; if(top+ph>window.innerHeight-8) top=window.innerHeight-ph-8; if(top<8) top=8; setDetailsPos({left,top}); } _activeStripDetailsCloser=()=>setShowDetails(false); setShowDetails(true); } }} style={{ padding: '2px 4px', flex: 1, direction: 'rtl', textAlign: 'right', minWidth: 0, overflowX: 'hidden' }}>
         {/* שורה 1: או"ק + טייסת + משימה */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'nowrap', overflow: 'hidden' }}>
           <div style={{
@@ -4215,10 +4219,17 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           </div>
         )}
 
-        {/* Expandable Details Panel */}
-        {showDetails && (
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '4px', background: '#f8fafc', borderRadius: '4px', padding: '6px', fontSize: '9px', direction: 'rtl', width: '100%', boxSizing: 'border-box' }}>
-            
+        {/* Expandable Details Panel — floating portal */}
+        {showDetails && createPortal(
+          <>
+            <div onClick={() => { _activeStripDetailsCloser = null; setShowDetails(false); }} style={{ position: 'fixed', inset: 0, zIndex: 9990 }} />
+            <div onClick={(e) => e.stopPropagation()} style={{ position: 'fixed', left: detailsPos.left, top: detailsPos.top, zIndex: 9991, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', boxShadow: '0 8px 28px rgba(0,0,0,0.28)', width: '230px', maxHeight: '80vh', overflowY: 'auto', direction: 'rtl' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#dde5f0', borderRadius: '6px 6px 0 0', position: 'sticky', top: 0, zIndex: 1 }}>
+                <span style={{ fontWeight: 'bold', fontSize: '10px', color: '#1e293b' }}>📋 {s.callSign || s.callsign || 'פרטים'}</span>
+                <button onClick={() => { _activeStripDetailsCloser = null; setShowDetails(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: '13px', lineHeight: 1, padding: '0 2px' }}>✕</button>
+              </div>
+              <div style={{ padding: '6px', fontSize: '9px' }}>
+
             {/* זמן המראה */}
             <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ color: '#475569', fontWeight: 'bold', whiteSpace: 'nowrap' }}>זמן המראה:</span>
@@ -4393,7 +4404,10 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                 </select>
               </div>
             )}
-          </div>
+              </div>
+            </div>
+          </>,
+          document.body
         )}
       </div>
       {edit && (
