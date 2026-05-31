@@ -12145,8 +12145,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [myPresetConfig?.use_map_zones]);
 
   React.useEffect(() => {
-    if (lightMode && myPresetConfig?.flight_zones_mode === true) {
-      setMapBrightness(1.55);
+    if (lightMode) {
+      if (myPresetConfig?.flight_zones_mode === true) {
+        setMapBrightness(1.55);
+      } else {
+        setMapBrightness(1.0);
+      }
     }
   }, [lightMode, myPresetConfig?.flight_zones_mode]);
 
