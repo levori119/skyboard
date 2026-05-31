@@ -3061,7 +3061,8 @@ const ContextMenu = ({ x, y, neighbors, onSelect, onClose, extraActions = [] }: 
       style={{
         position: 'fixed',
         left: x,
-        top: y,
+        top: y > window.innerHeight - 300 ? 'auto' : y,
+        bottom: y > window.innerHeight - 300 ? (window.innerHeight - y) : 'auto',
         background: 'white',
         border: '1px solid #cbd5e1',
         borderRadius: '8px',
@@ -20450,7 +20451,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           onContextMenu={e => { e.preventDefault(); setFzPinMenu(null); }}
         >
           <div
-            style={{ position: 'absolute', left: fzPinMenu.x, top: fzPinMenu.y, background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '210px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9201 }}
+            style={{ position: 'absolute', left: fzPinMenu.x, top: fzPinMenu.y > window.innerHeight - 320 ? 'auto' : fzPinMenu.y, bottom: fzPinMenu.y > window.innerHeight - 320 ? (window.innerHeight - fzPinMenu.y) : 'auto', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '8px 0', minWidth: '210px', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', direction: 'rtl', zIndex: 9201 }}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -20507,7 +20508,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               🟡 הדגש אזורים על מפה (5 שנ׳)
             </button>
             {/* Split */}
-            <button onClick={() => { setFzSplitForm({ label: (fzPinMenu.strip as any)?.callSign + '-א' || '-א', count: '1' }); setFzSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
+            <button onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
               ✂ פיצול פמ"מ
             </button>
