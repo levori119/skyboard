@@ -2479,6 +2479,7 @@ const DraggableNeighborPanel = ({
   onUpdateStripField,
   mapZoom,
   mapPan,
+  lightMode = false,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -2498,6 +2499,7 @@ const DraggableNeighborPanel = ({
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   mapZoom?: number;
   mapPan?: { x: number; y: number };
+  lightMode?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -2664,10 +2666,10 @@ const DraggableNeighborPanel = ({
       <div style={{
         margin: '6px 6px',
         borderRadius: '10px',
-        border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : '1px solid #2d4060'),
-        background: isStripDragOver ? '#0a2218' : (dragStripId ? '#0e1e2e' : '#0f1923'),
+        border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : (lightMode ? '1px solid #cbd5e1' : '1px solid #2d4060')),
+        background: isStripDragOver ? (lightMode ? '#f0fdf4' : '#0a2218') : (dragStripId ? (lightMode ? '#eff6ff' : '#0e1e2e') : (lightMode ? '#f8fafc' : '#0f1923')),
         overflow: 'hidden',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+        boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 10px rgba(0,0,0,0.5)',
         transition: 'border-color 0.15s, background 0.15s',
       }}>
 
@@ -2680,10 +2682,10 @@ const DraggableNeighborPanel = ({
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
           onDragOver={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); })}
           onDragLeave={(() => setIsStripDragOver(false))}
-          onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer'); if (sid && onStripDrop) onStripDrop(sid, neighbor.id); })}
+          onDrop={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); })}
           style={{
             padding: '7px 10px',
-            background: 'rgba(255,255,255,0.05)',
+            background: lightMode ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -2691,19 +2693,19 @@ const DraggableNeighborPanel = ({
             cursor: dragStripId ? 'copy' : 'grab',
             userSelect: 'none',
             direction: 'rtl',
-            borderBottom: '1px solid #1e2d3d',
+            borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`,
           }}
         >
           {/* Sector name — center */}
           <div style={{ flex: 1, textAlign: 'center', direction: 'rtl', userSelect: 'none' }}>
-            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', letterSpacing: '0.01em', lineHeight: 1.4 }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', letterSpacing: '0.01em', lineHeight: 1.4 }}>
               {neighbor.label_he || neighbor.name}
             </div>
             {neighbor.notes && (
-              <div style={{ fontSize: '9px', color: '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
+              <div style={{ fontSize: '9px', color: lightMode ? '#92400e' : '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
             )}
             {hasConflict && (
-              <span style={{ fontSize: '10px', background: '#450a0a', color: '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>⚠ קונפליקט גובה</span>
+              <span style={{ fontSize: '10px', background: lightMode ? '#fee2e2' : '#450a0a', color: lightMode ? '#b91c1c' : '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>⚠ קונפליקט גובה</span>
             )}
           </div>
 
@@ -2742,7 +2744,7 @@ const DraggableNeighborPanel = ({
           <div
             key={ss.id}
             onPointerDown={(e) => handlePointerDown(e, ss.label)}
-            style={{ padding: '5px 12px', fontSize: '11px', color: '#94a3b8', borderBottom: '1px solid #1e2d3d', cursor: 'grab', userSelect: 'none', direction: 'rtl', background: '#080f18' }}
+            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: 'grab', userSelect: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
           >
             ↳ {ss.label}
           </div>
@@ -2752,8 +2754,8 @@ const DraggableNeighborPanel = ({
         <div style={{ display: 'flex', direction: 'rtl' }}>
 
           {/* מוסר — outgoing (right in RTL = left visually) */}
-          <div style={{ flex: 1, borderInlineEnd: '1px solid #1e2d3d' }}>
-            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', background: '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+          <div style={{ flex: 1, borderInlineEnd: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}` }}>
+            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#f59e0b', background: lightMode ? '#fffbeb' : '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
               <span>🔥</span><span>מוסר</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorOutgoing.length})</span>
             </div>
             <div style={{ padding: '3px', minHeight: '24px' }}>
@@ -2764,17 +2766,18 @@ const DraggableNeighborPanel = ({
                   isConflict={conflictingTransferIds.has(String(t.id))}
                   onCancel={onCancelTransfer}
                   onUpdateStripField={onUpdateStripField}
+                  lightMode={lightMode}
                 />
               ))}
               {sectorOutgoing.length === 0 && (
-                <div style={{ padding: '6px 4px', fontSize: '10px', color: '#334155', textAlign: 'center' }}>—</div>
+                <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
               )}
             </div>
           </div>
 
           {/* מקבל — incoming */}
           <div style={{ flex: 1 }}>
-            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: '#22c55e', background: '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#22c55e', background: lightMode ? '#f0fdf4' : '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
               <span>📥</span><span>מקבל</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorIncoming.length})</span>
             </div>
             <div style={{ padding: '3px', minHeight: '24px' }}>
@@ -2792,7 +2795,7 @@ const DraggableNeighborPanel = ({
                 />
               ))}
               {sectorIncoming.length === 0 && (
-                <div style={{ padding: '6px 4px', fontSize: '10px', color: '#334155', textAlign: 'center' }}>—</div>
+                <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
               )}
             </div>
           </div>
@@ -2802,18 +2805,18 @@ const DraggableNeighborPanel = ({
         {neighborContactsOpen && neighborContactsCache !== null && (() => {
           const groups = getNeighborContacts();
           return (
-            <div style={{ borderTop: '1px solid #1e3a5f', background: '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl', borderRadius: '0 0 10px 10px' }}>
+            <div style={{ borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f8fafc' : '#060f1e', padding: '6px 8px', fontSize: '11px', direction: 'rtl', borderRadius: '0 0 10px 10px' }}>
               {groups.length === 0 ? (
                 <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '4px 0' }}>אין קשרים מוגדרים לסקטור זה</div>
               ) : groups.map(g => (
                 <div key={g.presetId} style={{ marginBottom: '6px' }}>
-                  <div style={{ fontWeight: 'bold', color: '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: '1px solid #1e3a5f' }}>📍 {g.presetName}</div>
+                  <div style={{ fontWeight: 'bold', color: lightMode ? '#0369a1' : '#7dd3fc', fontSize: '10px', marginBottom: '3px', paddingBottom: '2px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}` }}>📍 {g.presetName}</div>
                   {g.contacts.map((c: any) => (
-                    <div key={c.id} style={{ display: 'flex', gap: '5px', padding: '2px 4px', borderRadius: '3px', background: '#0a1e35', marginBottom: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {c.device_type && <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '9px', minWidth: '24px', flexShrink: 0 }}>{c.device_type}</span>}
-                      {c.mahut && <span style={{ color: '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>{c.mahut}</span>}
-                      {c.oketz && <span style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '10px', flexShrink: 0 }}>{c.oketz}</span>}
-                      {c.frequency && <span style={{ color: '#22c55e', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>{c.frequency}</span>}
+                    <div key={c.id} style={{ display: 'flex', gap: '5px', padding: '2px 4px', borderRadius: '3px', background: lightMode ? '#f1f5f9' : '#0a1e35', marginBottom: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {c.device_type && <span style={{ color: lightMode ? '#b45309' : '#f59e0b', fontWeight: 'bold', fontSize: '9px', minWidth: '24px', flexShrink: 0 }}>{c.device_type}</span>}
+                      {c.mahut && <span style={{ color: lightMode ? '#475569' : '#94a3b8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '10px' }}>{c.mahut}</span>}
+                      {c.oketz && <span style={{ color: lightMode ? '#2563eb' : '#60a5fa', fontWeight: 'bold', fontSize: '10px', flexShrink: 0 }}>{c.oketz}</span>}
+                      {c.frequency && <span style={{ color: lightMode ? '#16a34a' : '#22c55e', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>{c.frequency}</span>}
                     </div>
                   ))}
                 </div>
@@ -15905,16 +15908,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 200, background: '#1e293b', color: 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
-              <div style={{ padding: '8px 10px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div id="neighbor-panel" style={{ width: 200, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+              <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
+                  <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
                 </div>
                 <button
                   onClick={() => setNeighborPanelOpen(false)}
                   title="סגור חלונית"
-                  style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
+                  style={{ background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 7px', borderRadius: '4px', fontSize: '13px', lineHeight: 1, flexShrink: 0 }}
                 >◀</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -15933,12 +15936,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={tableMode ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); setTableDragRow(null); } : undefined}
+                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                     onUpdateStripField={handleUpdateStripField}
                     mapZoom={mapZoom}
                     mapPan={mapPan}
+                    lightMode={lightMode}
                   />
                 ))}
               </div>
@@ -18630,7 +18634,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div
                   key={s.id}
                   draggable={isFlightZonesMode}
-                  onDragStart={isFlightZonesMode ? () => { fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
+                  onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
                   onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
@@ -18749,7 +18753,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       // Split not yet assigned — draggable to map
                       <div key={si.key}
                         draggable
-                        onDragStart={e => { e.stopPropagation(); fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
+                        onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: si.parentStripId, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
                         onDragEnd={() => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); }}
                         style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
                       >
@@ -18817,7 +18821,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div
                   key={_rk}
                   draggable={isFlightZonesMode}
-                  onDragStart={isFlightZonesMode ? () => { fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
+                  onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
                   onPointerDown={isFlightZonesMode ? undefined : (e => {
                     e.preventDefault();
