@@ -432,6 +432,12 @@ body.light-mode .bt-strip [style*="background: #f1f5f9"] {
   border-color: #94a3b8 !important;
 }
 
+/* Block deviation — no orange flash in day mode, just white */
+body.light-mode .bt-strip.block-deviation-flash {
+  animation: none !important;
+  background-color: white !important;
+}
+
 /* Login screen background */
 body.light-mode .bt-login-bg {
   background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
