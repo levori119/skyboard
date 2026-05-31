@@ -136,6 +136,112 @@ body.ocean-mode ::-webkit-scrollbar-track { background: #02242c; }
 body.ocean-mode ::-webkit-scrollbar-thumb { background: #0e7490; border-radius: 4px; }
 body.ocean-mode ::-webkit-scrollbar-thumb:hover { background: #0891b2; }
 
+/* ── Ocean mode structural overrides ── */
+
+/* Header */
+body.ocean-mode header {
+  background: #033240 !important;
+  color: #cffafe !important;
+  border-bottom: 1px solid #0e7490 !important;
+}
+body.ocean-mode header b,
+body.ocean-mode header span:not([style*="background:"]) {
+  color: #cffafe !important;
+}
+
+/* Left neighbor panel */
+body.ocean-mode #neighbor-panel {
+  background: #033240 !important;
+  color: #cffafe !important;
+  border-right: 1px solid #0e7490 !important;
+}
+body.ocean-mode #neighbor-panel > * { color: #cffafe !important; }
+
+/* Map / table area */
+body.ocean-mode #map-area {
+  background: #02242c !important;
+}
+body.ocean-mode #map-area table { background: transparent !important; }
+body.ocean-mode #map-area table thead tr { background: #033240 !important; }
+body.ocean-mode #map-area table thead th {
+  color: #cffafe !important;
+  border-bottom-color: #0e7490 !important;
+}
+body.ocean-mode #map-area table thead th button { color: #22d3ee !important; }
+body.ocean-mode #map-area table tbody tr {
+  background: #05404e !important;
+  border-bottom-color: #0e7490 !important;
+}
+body.ocean-mode #map-area table tbody tr:nth-child(even) { background: #064e5e !important; }
+body.ocean-mode #map-area table tbody td { color: #cffafe !important; }
+body.ocean-mode #map-area table tbody tr[style*="background: rgb(19, 31, 53)"],
+body.ocean-mode #map-area table tbody tr[style*="background: rgb(29, 78, 216)"] {
+  background: #033240 !important;
+}
+
+/* Right sidebar panel */
+body.ocean-mode #sidebar-area {
+  background: #033240 !important;
+  border-left-color: #0e7490 !important;
+  color: #cffafe !important;
+}
+body.ocean-mode #sidebar-area > * { color: #cffafe !important; }
+
+/* Strip cards (bt-strip) */
+body.ocean-mode .bt-strip {
+  background: #05404e !important;
+  border-color: #0e7490 !important;
+  color: #cffafe !important;
+}
+body.ocean-mode .bt-strip > div:first-child {
+  background: #064e5e !important;
+  color: #cffafe !important;
+}
+body.ocean-mode .bt-strip * { color: #cffafe !important; }
+body.ocean-mode .bt-strip [style*="color: #7c3aed"],
+body.ocean-mode .bt-strip [style*="color: rgb(124, 58, 237)"] { color: #7c3aed !important; }
+body.ocean-mode .bt-strip [style*="color: #22c55e"],
+body.ocean-mode .bt-strip [style*="color: rgb(34, 197, 94)"] { color: #22c55e !important; }
+body.ocean-mode .bt-strip [style*="background: #f1f5f9"] {
+  background: #064e5e !important;
+  border-color: #0e7490 !important;
+}
+
+/* Login screen */
+body.ocean-mode .bt-login-bg {
+  background: linear-gradient(135deg, #02242c 0%, #033240 100%) !important;
+}
+
+/* Frozen columns */
+body.ocean-mode .frozen-col {
+  background: #05404e !important;
+  color: #cffafe !important;
+  border-left: 2px solid #7c3aed !important;
+}
+body.ocean-mode .frozen-col-last {
+  background: #05404e !important;
+  color: #cffafe !important;
+  border-left: 2px solid #7c3aed !important;
+}
+body.ocean-mode tr:nth-child(even) .frozen-col,
+body.ocean-mode tr:nth-child(even) .frozen-col-last { background: #064e5e !important; }
+body.ocean-mode thead .frozen-col,
+body.ocean-mode thead .frozen-col-last {
+  background: #033240 !important;
+  color: #cffafe !important;
+}
+
+/* Table header menu */
+body.ocean-mode .table-header-menu {
+  background: #033240 !important;
+  border-color: #0e7490 !important;
+}
+body.ocean-mode .table-header-menu button {
+  color: #cffafe !important;
+  background: transparent !important;
+}
+body.ocean-mode .table-header-menu button:hover { background: #05404e !important; }
+
 html {
   overscroll-behavior: none;
   touch-action: none;
