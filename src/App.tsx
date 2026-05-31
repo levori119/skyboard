@@ -2409,11 +2409,12 @@ const serializeNoteValue = (text: string, hw: string): string => {
 };
 
 // --- כרטיס מוסר בסקטור ---
-const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField }: {
+const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lightMode = false }: {
   t: any;
   isConflict: boolean;
   onCancel: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  lightMode?: boolean;
 }) => {
   const altRef = useRef<HTMLSpanElement>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -2423,28 +2424,28 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField }: {
     <>
       <div style={{
         padding: '4px 5px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
-        border: isConflict ? '1px solid #ef4444' : '1px solid #78350f',
-        background: isConflict ? '#450a0a' : '#0d0800',
+        border: isConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
+        background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+            <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
               {isConflict && '⚠ '}{getTransferLabel(t)}
             </div>
-            {sq && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#b45309', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
+            {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
           </div>
           <span
             ref={altRef}
             title="לחץ לעדכון גובה"
             onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#fcd34d', background: isConflict ? '#7f1d1d' : '#1c0f00', padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#78350f'}` }}
+            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
           >
             {t.alt ? normalizeAlt(t.alt) : '—'}
           </span>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onCancel(t.id); }}
-          style={{ width: '100%', padding: '1px', background: '#7f1d1d', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
+          style={{ width: '100%', padding: '1px', background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fde68a' : '#7f1d1d'), color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#78350f' : '#fca5a5'), border: `1px solid ${isConflict ? '#dc2626' : (lightMode ? '#d97706' : '#dc2626')}`, borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
         >✕ בטל</button>
       </div>
       {showHw && (
@@ -3457,6 +3458,7 @@ const DraggableMapMarker = ({
               isConflict={markerConflictIds.has(String(t.id))}
               onCancel={onCancelTransfer}
               onUpdateStripField={onUpdateStripField}
+              lightMode={lightMode}
             />
           ))}
         </div>
@@ -7207,6 +7209,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const secSingles = (singleTransfers || []).filter(t => t.sectorId === sec.id);
             return (
               <div key={sec.id}
+                data-transfer-sector={sec.id}
                 style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${isDrop ? '#22c55e' : (lightMode ? '#cbd5e1' : '#334155')}`, background: isDrop ? (lightMode ? '#f0fdf4' : '#0a2010') : (lightMode ? '#f8fafc' : '#0f172a'), transition: 'all 0.15s' }}
                 onDragOver={e => { e.preventDefault(); setLeftDragOver(sec.id); }}
                 onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setLeftDragOver(null); }}
@@ -12138,6 +12141,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     useMapZonesRef.current = val;
   }, [myPresetConfig?.use_map_zones]);
 
+  React.useEffect(() => {
+    if (lightMode && myPresetConfig?.flight_zones_mode === true) {
+      setMapBrightness(1.55);
+    }
+  }, [lightMode, myPresetConfig?.flight_zones_mode]);
+
   const loadCivAssignments = React.useCallback(async (presetId: string | number) => {
     try {
       const data = await fetch(`${API_URL}/civilian-assignments?preset_id=${presetId}`).then(r => r.json());
@@ -12266,6 +12275,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
         if (existingAsgn && existingAsgn.status !== 'עוזב אזור') {
           doFzSave(dragId, existingAsgn.zone_id, existingAsgn.altitude_range_id, 'עוזב אזור', existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, existingAsgn.pos_x ?? undefined, existingAsgn.pos_y ?? undefined, existingAsgn.requested_zone_ids);
+        }
+        handleTransferWithPartialCheck(String(dragId), sectorId);
+        return;
+      }
+    }
+    // Drag to left-panel transfer sector
+    const panelSectorEl = elUnder?.closest('[data-transfer-sector]') as HTMLElement | null;
+    if (panelSectorEl) {
+      const sectorId = parseInt(panelSectorEl.getAttribute('data-transfer-sector') || '0', 10);
+      if (sectorId) {
+        const existingAsgn2 = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        if (existingAsgn2 && existingAsgn2.status !== 'עוזב אזור') {
+          doFzSave(dragId, existingAsgn2.zone_id, existingAsgn2.altitude_range_id, 'עוזב אזור', existingAsgn2.note, existingAsgn2.coordination_note, existingAsgn2.is_coordinated, existingAsgn2.pos_x ?? undefined, existingAsgn2.pos_y ?? undefined, existingAsgn2.requested_zone_ids);
         }
         handleTransferWithPartialCheck(String(dragId), sectorId);
         return;
