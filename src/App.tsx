@@ -2483,7 +2483,7 @@ const DraggableNeighborPanel = ({
 }: { 
   neighbor: any; 
   subSectors: any[];
-  onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string) => void;
+  onDropOnMap: (sectorId: number, x: number, y: number, subSectorLabel?: string, clientX?: number, clientY?: number) => void;
   isExpanded: boolean;
   onToggle: () => void;
   outgoingTransfers: any[];
@@ -2637,7 +2637,7 @@ const DraggableNeighborPanel = ({
           const rawY = (clientY - cy - py) / z + rect.height / 2;
           const x = Math.max(100, Math.min(rect.width - 100, rawX));
           const y = Math.max(40, Math.min(rect.height - 50, rawY));
-          onDropOnMap(neighbor.id, x, y, dragLabel || undefined);
+          onDropOnMap(neighbor.id, x, y, dragLabel || undefined, clientX, clientY);
         }
       }
       setDragLabel(null);
@@ -11534,6 +11534,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
+  const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
+  const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number} | null>(null);
   const [showSubSectorManager, setShowSubSectorManager] = useState(false);
   const [editingSubSector, setEditingSubSector] = useState<any>(null);
   const [newSubSectorNeighbor, setNewSubSectorNeighbor] = useState<number | null>(null);
@@ -13828,12 +13830,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
-  const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string) => {
+  const handleNeighborDropOnMap = (sectorId: number, x: number, y: number, subLabel?: string, clientX?: number, clientY?: number) => {
     const sector = allSectors.find(n => n.id === sectorId);
     const label = subLabel || sector?.label_he || sector?.name || 'נקודת העברה';
-    setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), 
-      { sectorId, x, y, subLabel, label }
-    ]);
+    setNeighborDropDialog({ sectorId, x, y, subLabel, label, clientX: clientX ?? window.innerWidth / 2, clientY: clientY ?? window.innerHeight / 2 });
   };
 
   const handleSelectStripForTransfer = (stripId: string) => {
@@ -13935,6 +13935,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (markerEl) {
         const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0');
         if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+      }
+
+      // 2.5 pin-only neighbor markers on map
+      for (const el of Array.from(document.querySelectorAll('.neighbor-pin-drop-zone[data-pin-sector]'))) {
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          const sectorId = parseInt((el as HTMLElement).getAttribute('data-pin-sector') || '0');
+          if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+        }
       }
 
       // Check if dropped on ClassicView "שלי" center panel
@@ -17956,6 +17965,69 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               />
             ))}
 
+            {/* ─── Neighbor Pin Markers (pin-only mode) ─── */}
+            {neighborPins.map((pin, idx) => {
+              const pinOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
+              return (
+                <div
+                  key={`npin-${pin.sectorId}-${idx}`}
+                  className="neighbor-pin-drop-zone"
+                  data-pin-sector={pin.sectorId}
+                  style={{ position: 'absolute', left: pin.x, top: pin.y, transform: 'translate(-50%, -100%)', zIndex: 80, userSelect: 'none', cursor: 'default' }}
+                >
+                  {/* green arrow SVG */}
+                  <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <svg width="28" height="36" viewBox="0 0 28 36" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))' }}>
+                      <polygon points="14,2 26,16 19,16 19,34 9,34 9,16 2,16" fill="#22c55e" stroke="white" strokeWidth="1.5"/>
+                    </svg>
+                    <div style={{ background: 'rgba(0,0,0,0.75)', color: '#86efac', fontSize: '10px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap', marginTop: '2px', direction: 'rtl', border: '1px solid #22c55e' }}>
+                      {pin.label}
+                      {pinOutgoing.length > 0 && <span style={{ marginRight: '4px', color: '#fbbf24' }}> ({pinOutgoing.length})</span>}
+                    </div>
+                    <button
+                      onClick={() => setNeighborPins(prev => prev.filter((_, i) => i !== idx))}
+                      style={{ position: 'absolute', top: -8, left: -8, background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', cursor: 'pointer', lineHeight: '16px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2 }}
+                      title="הסר"
+                    >✕</button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* ─── Dashed green arrows: strip map-pin → neighbor pin ─── */}
+            {neighborPins.length > 0 && (() => {
+              const arrowLines: React.ReactNode[] = [];
+              neighborPins.forEach((pin, pIdx) => {
+                const pinTransfers = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
+                pinTransfers.forEach(t => {
+                  const strip = strips.find((s: any) => String(s.id) === String(t.strip_id));
+                  if (!strip || strip.map_pin_x == null || strip.map_pin_y == null) return;
+                  const x1 = strip.map_pin_x as number;
+                  const y1 = strip.map_pin_y as number;
+                  const x2 = pin.x;
+                  const y2 = pin.y - 18;
+                  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 30 };
+                  const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
+                  arrowLines.push(
+                    <g key={`parrow-${pIdx}-${t.id}`} pointerEvents="none">
+                      <defs>
+                        <marker id={`ga-${pIdx}-${t.id}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                          <path d="M0,0 L0,6 L8,3 z" fill="#22c55e"/>
+                        </marker>
+                      </defs>
+                      <path d={path} fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="7,4" markerEnd={`url(#ga-${pIdx}-${t.id})`} opacity="0.85"/>
+                    </g>
+                  );
+                });
+              });
+              if (arrowLines.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 75, overflow: 'visible' }}>
+                  {arrowLines}
+                </svg>
+              );
+            })()}
+
             {/* Flight Zones — Extra-Zone connector lines (icon → centroid of each extra zone) */}
             {isFlightZonesMode && fzShowLines && mapImgBounds && (() => {
               const ib = mapImgBounds;
@@ -20842,6 +20914,56 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         );
       })()}
+
+      {/* ─── Neighbor Drop Dialog: pin-only vs full panel ─── */}
+      {neighborDropDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 11000 }} onClick={() => setNeighborDropDialog(null)}>
+          <div
+            style={{
+              position: 'absolute',
+              left: Math.min(neighborDropDialog.clientX, window.innerWidth - 280),
+              top: Math.min(neighborDropDialog.clientY + 8, window.innerHeight - 140),
+              background: '#0f172a',
+              border: '1px solid #22c55e',
+              borderRadius: '10px',
+              padding: '16px',
+              width: '260px',
+              direction: 'rtl',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.8)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#86efac', marginBottom: '12px' }}>
+              📍 {neighborDropDialog.label} — הצגה על המפה
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
+                  setNeighborPins(prev => [...prev.filter(p => p.sectorId !== sectorId || p.subLabel !== subLabel), { sectorId, x, y, label, subLabel }]);
+                  setNeighborDropDialog(null);
+                }}
+                style={{ padding: '10px 12px', background: '#15803d', color: 'white', border: '1px solid #22c55e', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
+              >
+                📍 רק נקודה ושם
+                <div style={{ fontSize: '10px', color: '#86efac', fontWeight: 'normal', marginTop: '2px' }}>חץ ירוק + תיוג על המפה</div>
+              </button>
+              <button
+                onClick={() => {
+                  const { sectorId, x, y, subLabel, label } = neighborDropDialog;
+                  setNeighborMarkers(prev => [...prev.filter(m => m.sectorId !== sectorId || m.subLabel !== subLabel), { sectorId, x, y, subLabel, label }]);
+                  setNeighborDropDialog(null);
+                }}
+                style={{ padding: '10px 12px', background: '#1e3a5f', color: 'white', border: '1px solid #3b82f6', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', textAlign: 'right' }}
+              >
+                🏝 כל נקודת העברה
+                <div style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal', marginTop: '2px' }}>חלון מלא עם רשימת פמ"מ</div>
+              </button>
+            </div>
+            <button onClick={() => setNeighborDropDialog(null)} style={{ marginTop: '10px', width: '100%', padding: '6px', background: '#1e293b', color: '#64748b', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+          </div>
+        </div>
+      )}
 
       {/* ─── Sector Merge Confirm ─── */}
       {sectorMergeConfirm && (
