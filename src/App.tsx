@@ -18022,20 +18022,42 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               );
             })}
 
-            {/* ─── Dashed green arrows: strip map-pin → neighbor pin ─── */}
-            {neighborPins.length > 0 && (() => {
+            {/* ─── Dashed green arrows: strip position → neighbor pin ─── */}
+            {neighborPins.length > 0 && mapImgBounds && (() => {
+              const ib = mapImgBounds;
               const arrowLines: React.ReactNode[] = [];
               neighborPins.forEach((pin, pIdx) => {
                 const pinTransfers = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
                 pinTransfers.forEach(t => {
-                  const strip = strips.find((s: any) => String(s.id) === String(t.strip_id));
-                  if (!strip || strip.map_pin_x == null || strip.map_pin_y == null) return;
-                  const x1 = strip.map_pin_x as number;
-                  const y1 = strip.map_pin_y as number;
+                  let x1: number | null = null;
+                  let y1: number | null = null;
+                  // 1. Try fz mode: zone assignment pos_x/pos_y (same coordinate space as mapImgBounds)
+                  const asgn = (stripZoneAssignments as StripZoneAssignment[]).find(a => Number(a.strip_id) === Number(t.strip_id));
+                  if (asgn) {
+                    const zoneData = asgn.zone_id != null ? mapZones.find((z: any) => z.id === asgn.zone_id) : null;
+                    const poly = zoneData?.polygon || [];
+                    const cx50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.x, 0) / poly.length : 50;
+                    const cy50 = poly.length > 0 ? poly.reduce((s: number, p: any) => s + p.y, 0) / poly.length : 50;
+                    const pctX = asgn.pos_x != null ? asgn.pos_x : (asgn.zone_id != null ? cx50 : null);
+                    const pctY = asgn.pos_y != null ? asgn.pos_y : (asgn.zone_id != null ? cy50 : null);
+                    if (pctX != null && pctY != null) {
+                      x1 = ib.left + (pctX / 100) * ib.width;
+                      y1 = ib.top + (pctY / 100) * ib.height;
+                    }
+                  }
+                  // 2. Fall back to map_pin_x/y (non-fz strips on map)
+                  if (x1 == null) {
+                    const strip = strips.find((s: any) => String(s.id) === String(t.strip_id) || String(s.id) === 's' + String(t.strip_id));
+                    if (!strip || strip.map_pin_x == null || strip.map_pin_y == null) return;
+                    x1 = strip.map_pin_x as number;
+                    y1 = strip.map_pin_y as number;
+                  }
                   const x2 = pin.x;
-                  const y2 = pin.y - 18;
-                  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 30 };
+                  const y2 = pin.y - 20;
+                  const mid = { x: (x1 + x2) / 2, y: Math.min(y1!, y2) - 40 };
                   const path = `M${x1},${y1} Q${mid.x},${mid.y} ${x2},${y2}`;
+                  const sw = Math.max(1, 2.5 / mapZoom);
+                  const dash = `${8 / mapZoom},${4 / mapZoom}`;
                   arrowLines.push(
                     <g key={`parrow-${pIdx}-${t.id}`} pointerEvents="none">
                       <defs>
@@ -18043,14 +18065,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <path d="M0,0 L0,6 L8,3 z" fill="#22c55e"/>
                         </marker>
                       </defs>
-                      <path d={path} fill="none" stroke="#22c55e" strokeWidth="2" strokeDasharray="7,4" markerEnd={`url(#ga-${pIdx}-${t.id})`} opacity="0.85"/>
+                      <path d={path} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={sw + 1.5} strokeDasharray={dash} opacity="0.5"/>
+                      <path d={path} fill="none" stroke="#22c55e" strokeWidth={sw} strokeDasharray={dash} markerEnd={`url(#ga-${pIdx}-${t.id})`} opacity="0.9"/>
                     </g>
                   );
                 });
               });
               if (arrowLines.length === 0) return null;
               return (
-                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 75, overflow: 'visible' }}>
+                <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 76, overflow: 'visible' }}>
                   {arrowLines}
                 </svg>
               );
