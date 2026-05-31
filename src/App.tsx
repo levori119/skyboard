@@ -17981,7 +17981,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     fzDragIdRef.current = a.strip_id;
                     setFzDragStripId(a.strip_id);
                     setFzDragLabel(callLabel);
-                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; }
+                    if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'grabbing'; fzOverlayRef.current.setPointerCapture(e.pointerId); }
                     fzPinGhostPosRef.current = { x: e.clientX, y: e.clientY };
                     setFzPinGhost({ src: heliSrc, filter: ghostFilter, label: callLabel, color: sqColor, status: a.status });
                   }}
