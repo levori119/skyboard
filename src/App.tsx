@@ -18737,7 +18737,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           ) : (
                             <span style={{ fontSize: '9px', color: '#475569' }}>⊙ לא מוקצה</span>
                           )}
-                          <button onClick={e => { e.stopPropagation(); setFzSplitForm({ label: (s.callSign || '') + '-א', count: '1' }); setFzSplitModal({ strip: s }); }}
+                          <button onClick={e => { e.stopPropagation(); setSectorSplitSelected([]); setSectorSplitModal({ strip: s }); }}
                             style={{ fontSize: '9px', padding: '1px 6px', background: '#4c1d95', color: '#c4b5fd', border: '1px solid #7c3aed', borderRadius: '3px', cursor: 'pointer', flexShrink: 0 }}>✂ פצל</button>
                         </div>
                       );
