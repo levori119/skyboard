@@ -4131,7 +4131,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
 
   // רכיב הפ"מ הבסיסי
   const stripContent = (style: React.CSSProperties) => (
-    <div ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={{ ...style, outline: bodyDragReady ? '3px solid #22c55e' : undefined, transition: 'outline 0.15s' }} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
+    <div data-strip-id={s.id} ref={!isDragging ? containerRef : undefined} className={`bt-strip${isBlockDeviation && !blockDeviation ? ' block-deviation-flash' : ''}${isAltConflict ? ' alt-conflict-flash' : ''}`} style={{ ...style, outline: bodyDragReady ? '3px solid #22c55e' : undefined, transition: 'outline 0.15s' }} onContextMenu={handleContextMenu} onPointerDown={s.onMap ? handleBodyPointerDown : undefined}>
       <div style={{ width: 22, background: '#1e293b', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0', userSelect: 'none', touchAction: 'none', WebkitUserSelect: 'none', flexShrink: 0 }}>
         <div
           onPointerDown={e => {
@@ -11694,6 +11694,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [pressureEditMode, setPressureEditMode] = useState<'inhg' | 'mb' | null>(null);
   const [pressureMbInput, setPressureMbInput] = useState('');
   const [pressureAlert, setPressureAlert] = useState<string | null>(null);
+  const [headerSearchQ, setHeaderSearchQ] = useState('');
+  const [headerSearchHitId, setHeaderSearchHitId] = useState<string | null>(null);
   const lastPolledPressureRef = React.useRef<string | null>(null);
   const [liveBaseStatuses, setLiveBaseStatuses] = useState<any[]>([]);
   const [regionalMazaa, setRegionalMazaa] = useState<string>('');
@@ -12629,6 +12631,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const t = setTimeout(() => setPressureAlert(null), 5000);
     return () => clearTimeout(t);
   }, [pressureAlert]);
+
+  // Header search — scroll to hit strip + highlight, clear on any click
+  useEffect(() => {
+    if (!headerSearchHitId) return;
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-strip-id="${headerSearchHitId}"]`) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('strip-search-hit');
+      }
+    }, 60);
+    const clearHit = () => {
+      document.querySelectorAll('.strip-search-hit').forEach(e => e.classList.remove('strip-search-hit'));
+      setHeaderSearchHitId(null);
+    };
+    window.addEventListener('mousedown', clearHit, { once: true });
+    return () => { clearTimeout(timer); window.removeEventListener('mousedown', clearHit); };
+  }, [headerSearchHitId]);
 
   // Cross-sector altitude conflict detection: compare ALL transfers (outgoing + incoming)
   // against each other across all sectors. Any pair within conflict_alt_delta → both flagged.
@@ -14788,6 +14808,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           )}
         </div>
+        {/* ===== חיפוש או"ק ===== */}
+        {(() => {
+          const handleSearch = (q: string) => {
+            setHeaderSearchQ(q);
+            if (!q.trim()) { setHeaderSearchHitId(null); return; }
+            const lq = q.trim().toLowerCase();
+            const hit = myTableStrips.find((s: any) => (s.callSign || s.callsign || '').toLowerCase().includes(lq))
+              ?? strips.find((s: any) => s.onMap && (s.callSign || s.callsign || '').toLowerCase().includes(lq));
+            setHeaderSearchHitId(hit ? String(hit.id) : null);
+          };
+          const found = headerSearchHitId != null;
+          const noHit = headerSearchQ.trim().length > 0 && !found;
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1.5px solid ${noHit ? '#ef4444' : found ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '160px', maxWidth: '220px', flex: '0 1 200px' }}>
+              <span style={{ fontSize: '13px', flexShrink: 0, opacity: 0.6 }}>🔍</span>
+              <input
+                type="text"
+                value={headerSearchQ}
+                onChange={e => handleSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setHeaderSearchQ(''); setHeaderSearchHitId(null); }
+                  if (e.key === 'Enter' && headerSearchHitId) {
+                    const el = document.querySelector(`[data-strip-id="${headerSearchHitId}"]`) as HTMLElement | null;
+                    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('strip-search-hit'); }
+                  }
+                }}
+                placeholder='חיפוש או"ק...'
+                dir="rtl"
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', direction: 'rtl' }}
+              />
+              {headerSearchQ && (
+                <button onClick={() => { setHeaderSearchQ(''); setHeaderSearchHitId(null); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>✕</button>
+              )}
+              {found && <span style={{ fontSize: '10px', color: '#22c55e', flexShrink: 0 }}>✓</span>}
+              {noHit && <span style={{ fontSize: '10px', color: '#ef4444', flexShrink: 0 }}>✗</span>}
+            </div>
+          );
+        })()}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* כפתור חוזי עומס */}
           <button

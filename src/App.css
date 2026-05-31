@@ -534,6 +534,18 @@ body.light-mode .table-header-menu button:hover {
   animation: alt-conflict-flash 0.8s ease-in-out infinite;
 }
 
+/* Strip search hit highlight */
+@keyframes strip-search-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #facc15, 0 0 12px 4px rgba(250,204,21,0.55); }
+  50%       { box-shadow: 0 0 0 3px #fde047, 0 0 22px 8px rgba(253,224,71,0.75); }
+}
+.strip-search-hit {
+  animation: strip-search-pulse 0.7s ease-in-out infinite !important;
+  outline: 2px solid #facc15 !important;
+  z-index: 50 !important;
+  position: relative !important;
+}
+
 @keyframes block-deviation-flash {
   0%, 100% { background-color: rgba(234, 88, 12, 0.7); }
   50% { background-color: rgba(234, 88, 12, 0.95); }
