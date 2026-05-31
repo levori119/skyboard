@@ -11465,6 +11465,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const fzSplitPinDomRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [fzZoneFilter, setFzZoneFilter] = useState<'all'|'occupied'|'free'>('all');
   const [fzPinColorMode, setFzPinColorMode] = useState<'squadron' | 'status'>('status');
+  const [fzPinFontSize, setFzPinFontSize] = useState(11);
   const [fzShowLines, setFzShowLines] = useState(false);
   const [fzHoveredStripId, setFzHoveredStripId] = useState<number | null>(null);
   const [fzSplitModal, setFzSplitModal] = useState<{ strip: any } | null>(null);
@@ -17904,7 +17905,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const pixY = ib.top + (pctY / 100) * ib.height;
               const zoneHex = a.zone_color || '#94a3b8';
               const statusColor = a.is_coordinated ? '#22c55e' : a.status === 'active' ? '#60a5fa' : '#f59e0b';
-              const fontSize = Math.max(9, 11 / mapZoom);
+              const fontSize = Math.max(9, fzPinFontSize / mapZoom);
               const callLabel = strip ? ((strip as any).callSign || (strip as any).call_sign || `#${a.strip_id}`) : `פמ ${a.strip_id}`;
               // Squadron / status colour — grey when no zone
               const sqRaw = String((strip as any)?.sq || (strip as any)?.squadron || '');
@@ -18035,7 +18036,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     >⋮</div>
                   </div>
                   <div style={{ background: 'rgba(15,23,42,0.9)', color: sqColor, padding: `${1 / mapZoom}px ${4 / mapZoom}px`, borderRadius: `${3 / mapZoom}px`, fontSize, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1 / mapZoom}px solid ${sqColor}55`, lineHeight: 1.2, direction: 'ltr' }}>
-                    {callLabel}
+                    {callLabel}{sqRaw ? ` / ${sqRaw}` : ''}
                   </div>
                   {/* Status label below callsign */}
                   {(() => {
@@ -18048,7 +18049,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const m = stMeta[a.status];
                     if (!m) return null;
                     return (
-                      <div style={{ background: m.bg, color: m.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, 10/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${m.color}88`, lineHeight: 1.2, marginTop: `${1/mapZoom}px` }}>
+                      <div style={{ background: m.bg, color: m.color, padding: `${1/mapZoom}px ${5/mapZoom}px`, borderRadius: `${3/mapZoom}px`, fontSize: `${Math.max(8, (fzPinFontSize - 1)/mapZoom)}px`, fontWeight: 'bold', whiteSpace: 'nowrap', border: `${1/mapZoom}px solid ${m.color}88`, lineHeight: 1.2, marginTop: `${1/mapZoom}px` }}>
                         {m.label}
                       </div>
                     );
@@ -18221,6 +18222,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 style={{ padding: '2px 9px', borderRadius: '5px', border: `1px solid ${fzAnimPaused ? '#f59e0b' : '#334155'}`, background: fzAnimPaused ? '#2d1d00' : '#1e293b', color: fzAnimPaused ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>
                 {fzAnimPaused ? '▶ הבהוב' : '⏸ הבהוב'}
               </button>
+              {/* Pin font size control */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #334155', borderRadius: '5px', padding: '1px 6px', background: '#1e293b' }}>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>A</span>
+                <button onClick={() => setFzPinFontSize(s => Math.max(7, s - 1))}
+                  style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>−</button>
+                <span style={{ fontSize: '11px', color: '#e2e8f0', minWidth: '16px', textAlign: 'center' }}>{fzPinFontSize}</span>
+                <button onClick={() => setFzPinFontSize(s => Math.min(22, s + 1))}
+                  style={{ padding: '0 4px', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '13px', lineHeight: 1, fontWeight: 'bold' }}>+</button>
+                <span style={{ fontSize: '13px', color: '#64748b' }}>A</span>
+              </div>
               {/* Zone color overrides panel toggle */}
               {fzShowZones && mapZones.length > 0 && (
                 <button onClick={() => setFzZoneColorPanel(v => !v)}
