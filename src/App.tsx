@@ -11478,6 +11478,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const zoneAltRangesRef = useRef<Record<number, any[]>>({});
   const [fzDialog, setFzDialog] = useState<{ stripId: number; zoneName: string; zoneId: number; altRanges: ZoneAltRange[]; selectedAltId: number | null; selectedStatus: string; note: string; displayLabel?: string; posX?: number; posY?: number; requestedZoneIds: number[] } | null>(null);
   const [fzConflictDialog, setFzConflictDialog] = useState<{ pending: { stripId: number; zoneId: number; altRangeId: number | null; posX?: number; posY?: number; requestedZoneIds: number[] } | null; conflicts: StripZoneAssignment[]; coordNote: string } | null>(null);
+  const [fzCoordMenuDialog, setFzCoordMenuDialog] = useState<{ assignment: StripZoneAssignment; strip: any; conflicts: StripZoneAssignment[]; selectedIds: Set<number>; coordNote: string } | null>(null);
   const [fzPinZonePicker, setFzPinZonePicker] = useState<{ stripId: number; posX: number; posY: number; dragLabel: string | null; existing: StripZoneAssignment | undefined } | null>(null);
   const fzDragIsPin = React.useRef(false);
   const fzPinDragRef = useRef<number | null>(null); // strip_id being dragged via pointer
@@ -20572,6 +20573,102 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         document.body
       )}
 
+      {/* FZ Coord Menu Dialog — coordinate conflicts from pin menu */}
+      {fzCoordMenuDialog && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9300 }}
+          onClick={() => setFzCoordMenuDialog(null)}>
+          <div style={{ background: '#1e293b', border: '1px solid #f97316', borderRadius: '12px', padding: '0', width: '420px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ background: 'rgba(239,68,68,0.15)', padding: '14px 18px', borderBottom: '1px solid #ef444433' }}>
+              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '15px' }}>⚠️ תיאום קונפליקט</div>
+              <div style={{ color: '#f1f5f9', fontSize: '13px', marginTop: '3px' }}>
+                {(fzCoordMenuDialog.strip as any)?.callSign || `#${fzCoordMenuDialog.assignment.strip_id}`}
+                {fzCoordMenuDialog.assignment.zone_name && <span style={{ color: fzCoordMenuDialog.assignment.zone_color || '#60a5fa', marginRight: '8px', fontSize: '12px' }}> — {fzCoordMenuDialog.assignment.zone_name}{fzCoordMenuDialog.assignment.alt_range_name ? ` · ${fzCoordMenuDialog.assignment.alt_range_name}` : ''}</span>}
+              </div>
+            </div>
+            {/* Conflict list with checkboxes */}
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #334155', maxHeight: '280px', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="fzcoord-all"
+                  checked={fzCoordMenuDialog.selectedIds.size === fzCoordMenuDialog.conflicts.length}
+                  onChange={e => setFzCoordMenuDialog(p => p ? { ...p, selectedIds: e.target.checked ? new Set(p.conflicts.map(c => c.strip_id)) : new Set() } : p)}
+                  style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#22c55e' }}
+                />
+                <label htmlFor="fzcoord-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>בחר הכל ({fzCoordMenuDialog.conflicts.length} פמ"מ)</label>
+              </div>
+              {fzCoordMenuDialog.conflicts.map(c => {
+                const cs = strips.find((x: any) => parseInt(String(x.id).replace(/^s/, ''), 10) === c.strip_id);
+                const label = cs ? ((cs as any).callSign || `#${c.strip_id}`) : `#${c.strip_id}`;
+                const squadron = cs ? ((cs as any).sq || (cs as any).squadron || '') : '';
+                const isSelected = fzCoordMenuDialog.selectedIds.has(c.strip_id);
+                return (
+                  <div key={c.strip_id}
+                    onClick={() => setFzCoordMenuDialog(p => {
+                      if (!p) return p;
+                      const next = new Set(p.selectedIds);
+                      if (next.has(c.strip_id)) next.delete(c.strip_id); else next.add(c.strip_id);
+                      return { ...p, selectedIds: next };
+                    })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', background: isSelected ? 'rgba(34,197,94,0.08)' : '#0f172a', border: `1px solid ${isSelected ? '#22c55e44' : '#334155'}`, borderRadius: '7px', padding: '8px 12px', marginBottom: '6px', cursor: 'pointer', transition: 'background 0.12s' }}>
+                    <input type="checkbox" checked={isSelected} onChange={() => {}} style={{ width: '14px', height: '14px', accentColor: '#22c55e', cursor: 'pointer', pointerEvents: 'none' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#f1f5f9', fontWeight: 'bold', fontSize: '13px' }}>{label}</span>
+                        {squadron && <span style={{ color: '#a78bfa', fontSize: '11px' }}>{squadron}</span>}
+                        {c.is_coordinated && <span style={{ color: '#22c55e', fontSize: '10px' }}>✓ מתואם</span>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                        {c.zone_name && <span style={{ color: c.zone_color || '#60a5fa' }}>📍 {c.zone_name}</span>}
+                        {c.alt_range_name && <span>📐 {c.alt_range_name}</span>}
+                        {c.status && <span style={{ color: c.status === 'באזור' ? '#22c55e' : c.status === 'עוזב אזור' ? '#f97316' : '#f59e0b' }}>{c.status}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Coordination note */}
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #334155' }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>📝 הערת תיאום:</label>
+              <textarea
+                value={fzCoordMenuDialog.coordNote}
+                onChange={e => setFzCoordMenuDialog(p => p ? { ...p, coordNote: e.target.value } : p)}
+                placeholder="פרט את הסדר שנקבע..."
+                rows={2}
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit', direction: 'rtl' }}
+              />
+            </div>
+            {/* Actions */}
+            <div style={{ padding: '12px 18px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                disabled={fzCoordMenuDialog.selectedIds.size === 0}
+                onClick={async () => {
+                  const { assignment, conflicts, selectedIds, coordNote } = fzCoordMenuDialog;
+                  const selected = conflicts.filter(c => selectedIds.has(c.strip_id));
+                  await Promise.all(selected.map(c =>
+                    doFzSave(c.strip_id, c.zone_id, c.altitude_range_id, c.status, c.note, coordNote, true, c.pos_x ?? undefined, c.pos_y ?? undefined, c.requested_zone_ids)
+                  ));
+                  // Also mark current strip as coordinated
+                  await doFzSave(assignment.strip_id, assignment.zone_id, assignment.altitude_range_id, assignment.status, assignment.note, coordNote, true, assignment.pos_x ?? undefined, assignment.pos_y ?? undefined, assignment.requested_zone_ids);
+                  if (currentMapId) loadStripZoneAssignments(currentMapId);
+                  setFzCoordMenuDialog(null);
+                }}
+                style={{ flex: 2, padding: '10px 16px', background: fzCoordMenuDialog.selectedIds.size === 0 ? '#1e293b' : '#15803d', color: fzCoordMenuDialog.selectedIds.size === 0 ? '#475569' : 'white', border: `1px solid ${fzCoordMenuDialog.selectedIds.size === 0 ? '#334155' : '#22c55e'}`, borderRadius: '7px', cursor: fzCoordMenuDialog.selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                🤝 תאם {fzCoordMenuDialog.selectedIds.size > 0 ? `(${fzCoordMenuDialog.selectedIds.size})` : ''}
+              </button>
+              <button onClick={() => setFzCoordMenuDialog(null)}
+                style={{ flex: 1, padding: '10px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* FZ Assigned Zones Panel */}
       {fzAssignedZonesPanel && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9150 }} onClick={() => setFzAssignedZonesPanel(null)}>
@@ -20733,6 +20830,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 🔀 בטל פיצול ({fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length} חלקים)
               </button>
             )}
+            {/* Coordinated conflict button — only when there are uncoordinated conflicts */}
+            {(() => {
+              const a = fzPinMenu.assignment;
+              if (!a || a.zone_id == null) return null;
+              const allZonesA = [a.zone_id, ...((a.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
+              const menuConflicts = (stripZoneAssignments as StripZoneAssignment[]).filter((b: StripZoneAssignment) => {
+                if (b.strip_id === a.strip_id || b.zone_id == null || b.is_coordinated) return false;
+                const allZonesB = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)];
+                if (!allZonesA.some(z => allZonesB.includes(z))) return false;
+                return a.altitude_range_id === null || b.altitude_range_id === null || a.altitude_range_id === b.altitude_range_id;
+              });
+              if (menuConflicts.length === 0) return null;
+              return (
+                <button onClick={() => {
+                  setFzCoordMenuDialog({ assignment: a, strip: fzPinMenu.strip, conflicts: menuConflicts, selectedIds: new Set(menuConflicts.map(c => c.strip_id)), coordNote: '' });
+                  setFzPinMenu(null);
+                }}
+                  style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'rgba(239,68,68,0.1)', border: 'none', borderBottom: '1px solid #334155', color: '#fca5a5', cursor: 'pointer', fontSize: '12px', textAlign: 'right', fontWeight: 'bold' }}>
+                  ⚠️ קונפליקט מתואם ({menuConflicts.length})
+                </button>
+              );
+            })()}
             {/* Unassign */}
             <button onClick={() => { handleFzUnassign(fzPinMenu.stripId); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px', textAlign: 'right' }}>
