@@ -12325,6 +12325,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
     }
+    // Drag to pin-only neighbor marker on map
+    const pinEl = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
+    if (pinEl) {
+      const sectorId = parseInt(pinEl.getAttribute('data-pin-sector') || '0', 10);
+      if (sectorId) {
+        const existingAsgnPin = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        if (existingAsgnPin && existingAsgnPin.status !== 'עוזב אזור') {
+          doFzSave(dragId, existingAsgnPin.zone_id, existingAsgnPin.altitude_range_id, 'עוזב אזור', existingAsgnPin.note, existingAsgnPin.coordination_note, existingAsgnPin.is_coordinated, existingAsgnPin.pos_x ?? undefined, existingAsgnPin.pos_y ?? undefined, existingAsgnPin.requested_zone_ids);
+        }
+        handleTransferWithPartialCheck(String(dragId), sectorId);
+        return;
+      }
+    }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
@@ -12409,6 +12422,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const dragLabel = fzDragLabel;
     if (!isFlightZonesMode || !dragId || !currentMapId) return;
     e.preventDefault();
+    // Check if dropped on a pin-only neighbor marker
+    const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
+    const pinElDrop = elUnderDrop?.closest('[data-pin-sector]') as HTMLElement | null;
+    if (pinElDrop) {
+      const sectorId = parseInt(pinElDrop.getAttribute('data-pin-sector') || '0', 10);
+      if (sectorId) {
+        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
+          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
+        }
+        handleTransferWithPartialCheck(String(dragId), sectorId);
+        return;
+      }
+    }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const dropY = e.clientY - rect.top;
