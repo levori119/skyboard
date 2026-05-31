@@ -13620,6 +13620,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
   const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
+    // Dedup: check if strip already has an outgoing transfer
+    const existingT = outgoingTransfersRef.current.find((t: any) => String(t.strip_id) === String(stripId));
+    if (existingT) {
+      if (Number(existingT.to_sector_id) === Number(toSectorId) && !toWorkstationId) return; // same dest — skip
+      // Different dest: move the transfer instead of creating a new one
+      try {
+        await fetch(`${API_URL}/transfers/${existingT.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to_sector_id: toSectorId }) });
+        loadData();
+      } catch {}
+      return;
+    }
     try {
       await fetch(`${API_URL}/strips/${stripId}/transfer`, {
         method: 'POST',
