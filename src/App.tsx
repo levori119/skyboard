@@ -20527,11 +20527,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
               🟡 הדגש אזורים על מפה (5 שנ׳)
             </button>
-            {/* Split */}
+            {/* Split — only if more than 1 aircraft */}
+            {(Number(fzPinMenu.strip.numberOfFormation) > 1) && (
             <button onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#c4b5fd', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
               ✂ פיצול פמ"מ
             </button>
+            )}
             {/* Merge — show if split siblings exist */}
             {fzSplitItems.filter(si => si.parentStripId === fzPinMenu.stripId).length > 0 && (
               <button onClick={() => { setFzSplitItems(prev => prev.filter(si => si.parentStripId !== fzPinMenu!.stripId)); setFzPinMenu(null); }}
