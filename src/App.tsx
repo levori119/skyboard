@@ -2663,7 +2663,11 @@ const DraggableNeighborPanel = ({
   return (
     <>
       {/* Card container */}
-      <div style={{
+      <div
+        onDragOver={e => { e.preventDefault(); setIsStripDragOver(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsStripDragOver(false); }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(false); const sid = dragStripId || e.dataTransfer.getData('text/strip-id-for-transfer') || (() => { try { const d = JSON.parse(e.dataTransfer.getData('text/plain')); return d.stripId ? String(d.stripId) : null; } catch { return null; } })(); if (sid && onStripDrop) onStripDrop(String(sid), neighbor.id); }}
+        style={{
         margin: '6px 6px',
         borderRadius: '10px',
         border: isStripDragOver ? '2px solid #22c55e' : (hasConflict ? '2px solid #ef4444' : (lightMode ? '1px solid #cbd5e1' : '1px solid #2d4060')),
