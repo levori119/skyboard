@@ -4575,9 +4575,9 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
     background: (isBlockDeviation && !blockDeviation)
       ? undefined
       : blockDeviation
-        ? 'rgba(234, 88, 12, 0.15)'
+        ? (lightMode ? 'white' : 'rgba(234, 88, 12, 0.15)')
         : isAltConflict
-          ? 'rgba(127, 29, 29, 0.15)'
+          ? (lightMode ? 'white' : 'rgba(127, 29, 29, 0.15)')
           : s.airborne ? '#dbeafe' : 'white',
     border: (isBlockDeviation || blockDeviation)
       ? (lightMode ? '2px solid black' : '2px solid #f97316')
