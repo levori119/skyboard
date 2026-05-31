@@ -12152,6 +12152,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       } else {
         setMapBrightness(1.0);
       }
+    } else {
+      setMapBrightness(0.35);
     }
   }, [lightMode, myPresetConfig?.flight_zones_mode]);
 
