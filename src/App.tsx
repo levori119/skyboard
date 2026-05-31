@@ -3805,7 +3805,7 @@ const DraggableIncomingTransfer = ({ transfer, onAccept, onReject, onAcceptToMap
 };
 
 // --- רכיב פ"מ (Strip) ---
-const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null }: any) => {
+const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, onUpdateNotes, onUpdateDetails, zoom = 1, pan = null, serials = [], serialSelections = [], onSerialSelect, onSerialDismiss, onSerialRemove, allBlockSpaces = [], allBlocks = [], allBlockTables = [], allWorkstationPresets = [], activeBlockTableId = null, mapConflictIds = null, viewerPresetId = null, lightMode = false }: any) => {
   const controls = useDragControls();
   const [edit, setEdit] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -4580,7 +4580,7 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
           ? 'rgba(127, 29, 29, 0.15)'
           : s.airborne ? '#dbeafe' : 'white',
     border: (isBlockDeviation || blockDeviation)
-      ? '2px solid #f97316'
+      ? (lightMode ? '2px solid black' : '2px solid #f97316')
       : isAltConflict
         ? '2px solid #ef4444'
         : s.airborne ? '2px solid #3b82f6' : '2px solid black',
@@ -17730,6 +17730,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 activeBlockTableId={effectiveBlockTableId}
                 mapConflictIds={mapStripConflictIds}
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
+                lightMode={lightMode}
               />
             ))}
 
