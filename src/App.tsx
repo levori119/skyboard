@@ -18056,7 +18056,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const ib = mapImgBounds;
               const arrowLines: React.ReactNode[] = [];
               neighborPins.forEach((pin, pIdx) => {
-                const pinTransfers = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(pin.sectorId));
+                const pinTransfers = outgoingTransfers.filter(t => {
+                  if (Number(t.to_sector_id) !== Number(pin.sectorId)) return false;
+                  if (!showPendingTransfer) {
+                    const tStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(t.strip_id) || String(s.id) === 's' + String(t.strip_id));
+                    if (tStrip && tStrip.status === 'pending_transfer') return false;
+                  }
+                  return true;
+                });
                 pinTransfers.forEach(t => {
                   let x1: number | null = null;
                   let y1: number | null = null;
@@ -18164,7 +18171,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
             {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
               const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
-              return !_s || _s.status !== 'pending_transfer';
+              return !_s || showPendingTransfer || _s.status !== 'pending_transfer';
             }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
