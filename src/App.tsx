@@ -265,6 +265,15 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
   const [roleForm, setRoleForm] = useState({ kshp: '', mefale: '', achori: '' });
   const [roleFormLoading, setRoleFormLoading] = useState(false);
 
+  // Force dark mode on login screen regardless of user preference
+  useEffect(() => {
+    const wasLight = document.body.classList.contains('light-mode');
+    document.body.classList.remove('light-mode');
+    return () => {
+      if (wasLight) document.body.classList.add('light-mode');
+    };
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -373,11 +382,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         title="החלף מצב תצוגה"
       >☀️ / 🌙</button>
       <div style={{ 
-        background: 'white', 
+        background: '#1e293b', 
         padding: '40px', 
         borderRadius: '16px', 
         minWidth: '450px',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+        boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+        border: '1px solid #334155'
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
@@ -448,7 +458,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
+            <div style={{ fontSize: '28px', fontWeight: '800', color: '#f1f5f9', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
             <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
           </div>
         </div>
@@ -456,7 +466,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
         
         {!selectedCrewMember ? (
           <>
-            <p style={{ margin: '0 0 15px', color: '#334155', textAlign: 'center', fontWeight: 'bold' }}>בחר איש צוות:</p>
+            <p style={{ margin: '0 0 15px', color: '#94a3b8', textAlign: 'center', fontWeight: 'bold' }}>בחר איש צוות:</p>
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -468,10 +478,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   width: '100%',
                   padding: '15px 20px',
                   borderRadius: '10px',
-                  border: '2px solid #e2e8f0',
+                  border: '2px solid #475569',
                   fontSize: '16px',
                   boxSizing: 'border-box',
-                  direction: 'rtl'
+                  direction: 'rtl',
+                  background: '#0f172a',
+                  color: '#f1f5f9'
                 }}
               />
               {showCrewDropdown && (
@@ -480,14 +492,14 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   top: '100%',
                   left: 0,
                   right: 0,
-                  background: 'white',
-                  border: '2px solid #e2e8f0',
+                  background: '#0f172a',
+                  border: '2px solid #475569',
                   borderTop: 'none',
                   borderRadius: '0 0 10px 10px',
                   maxHeight: '250px',
                   overflowY: 'auto',
                   zIndex: 100,
-                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
                 }}>
                   {crewMembers
                     .filter(cm => {
@@ -506,9 +518,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                         style={{
                           width: '100%',
                           padding: '12px 20px',
-                          background: 'white',
+                          background: '#0f172a',
                           border: 'none',
-                          borderBottom: '1px solid #e2e8f0',
+                          borderBottom: '1px solid #1e293b',
                           fontSize: '16px',
                           cursor: 'pointer',
                           display: 'flex',
@@ -517,10 +529,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                           gap: '10px',
                           textAlign: 'right'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#1e293b'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#0f172a'}
                       >
-                        <span style={{ color: '#1e293b', fontWeight: '500' }}>
+                        <span style={{ color: '#f1f5f9', fontWeight: '500' }}>
                           {cm.first_name && cm.last_name ? `${cm.first_name} ${cm.last_name}` : cm.name}
                           {cm.personal_id && <span style={{ color: '#64748b', fontSize: '13px', marginRight: '8px' }}>({cm.personal_id})</span>}
                         </span>
@@ -547,8 +559,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           </>
         ) : (
           <>
-            <div style={{ background: '#dbeafe', padding: '10px 15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', color: '#1e40af' }}>איש צוות: {selectedCrewMember.first_name && selectedCrewMember.last_name ? `${selectedCrewMember.first_name} ${selectedCrewMember.last_name}` : selectedCrewMember.name}</span>
+            <div style={{ background: '#1e3a5f', padding: '10px 15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #2563eb' }}>
+              <span style={{ fontWeight: 'bold', color: '#93c5fd' }}>איש צוות: {selectedCrewMember.first_name && selectedCrewMember.last_name ? `${selectedCrewMember.first_name} ${selectedCrewMember.last_name}` : selectedCrewMember.name}</span>
               <button onClick={() => setSelectedCrewMember(null)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>החלף</button>
             </div>
             
@@ -647,16 +659,17 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
           zIndex: 1000
         }}>
           <div style={{
-            background: 'white',
+            background: '#1e293b',
             padding: '30px',
             borderRadius: '16px',
             minWidth: '500px',
             maxHeight: '80vh',
-            overflow: 'auto'
+            overflow: 'auto',
+            border: '1px solid #334155'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#0f172a' }}>בחירת עמדה</h2>
-              <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+              <h2 style={{ margin: 0, color: '#f1f5f9' }}>בחירת עמדה</h2>
+              <button onClick={() => setShowWorkstationSelect(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
             </div>
             
             {/* Workstation Presets Dropdown — filtered by approved_workstations */}
@@ -674,7 +687,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               );
               return (
                 <div style={{ marginBottom: '25px' }}>
-                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#334155' }}>בחר עמדה מוגדרת:</label>
+                  <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold', color: '#94a3b8' }}>בחר עמדה מוגדרת:</label>
                   <select
                     onChange={(e) => {
                       const preset = workstationPresets.find((p: any) => p.id === Number(e.target.value));
@@ -694,7 +707,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                       border: '2px solid #2563eb',
                       borderRadius: '8px',
                       fontSize: '16px',
-                      background: 'white',
+                      background: '#0f172a',
+                      color: '#f1f5f9',
                       cursor: 'pointer',
                       direction: 'rtl'
                     }}
