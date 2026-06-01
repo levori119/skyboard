@@ -20745,7 +20745,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 🔴 פתרון קונפליקט גובה
               </span>
               <span style={{ color: '#fca5a5', fontSize: '12px' }}>
-                {(myTableStrips.find((x: any) => String(x.id) === tableConflictDialog.stripId) as any)?.callSign || tableConflictDialog.stripId}
+                {(() => { const st = myTableStrips.find((x: any) => String(x.id) === tableConflictDialog.stripId) as any; if (!st) return tableConflictDialog.stripId; const name = getFormationDisplayName(st); const count = !st.aircraft_indices && st.numberOfFormation ? `/${st.numberOfFormation}` : ''; return name + count; })()}
               </span>
             </div>
             {/* Conflict strip list */}
@@ -20774,7 +20774,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     })}
                     style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', background: isSelected ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSelected ? '#22c55e' : '#334155'}`, marginBottom: '6px' }}>
                     <input type="checkbox" checked={isSelected} readOnly style={{ width: '14px', height: '14px', accentColor: '#22c55e', pointerEvents: 'none' }} />
-                    <span style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{cs.callSign || `#${cs.id}`}</span>
+                    <span style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{(() => { const n = getFormationDisplayName(cs); const cnt = !cs.aircraft_indices && cs.numberOfFormation ? `/${cs.numberOfFormation}` : ''; return (n + cnt) || `#${cs.id}`; })()}</span>
                     <span style={{ color: '#94a3b8', fontSize: '12px' }}>{cs.alt || '–'}</span>
                     <span style={{ color: '#64748b', fontSize: '11px', marginRight: 'auto' }}>{cs.sq || cs.squadron || ''}</span>
                   </div>
