@@ -19573,17 +19573,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             );
                             const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
                             return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#64748b' : '#334155'}`, borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ background: lightMode ? '#334155' : '#0a0f1a', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#e2e8f0' : '#94a3b8', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
-                                  <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', overflow: 'hidden', background: lightMode ? '#f1f5f9' : '#131f30' }}>
+                                <div style={{ background: lightMode ? '#475569' : '#1e3a5f', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#f1f5f9' : '#bfdbfe', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
+                                  <span style={{ fontSize: '9px', color: lightMode ? '#e2e8f0' : '#93c5fd', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
                                 </div>
-                                <div style={{ padding: '4px', background: lightMode ? '#f8fafc' : '#060c18' }}>
+                                <div style={{ padding: '4px' }}>
                                 {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0d1626', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e293b'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0f2040', border: `1px solid ${lightMode ? '#cbd5e1' : '#2a4060'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
