@@ -5173,7 +5173,7 @@ app.post('/api/block-tables/:id/duplicate', async (req, res) => {
     for (const blk of blocks.rows) {
       await pool.query(
         'INSERT INTO blocks (block_table_id, alt_from, alt_to, mission, color, workstations, platforms, sort_order, note, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
-        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, blk.workstations, blk.platforms, blk.sort_order, blk.note]
+        [newId, blk.alt_from, blk.alt_to, blk.mission, blk.color, JSON.stringify(blk.workstations || []), JSON.stringify(blk.platforms || []), blk.sort_order, blk.note]
       );
     }
     res.json(newTable.rows[0]);
