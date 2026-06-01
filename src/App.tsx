@@ -5,8 +5,6 @@ import { createPortal, flushSync } from 'react-dom';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
 import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
-import { AeroZone } from './aerozone/AeroZone';
-import { AZAdminTabContent } from './aerozone/AZAdminTabContent';
 import { ClockWidget } from './ClockWidget';
 
 const API_URL = '/api';
@@ -67,7 +65,7 @@ interface CrewMember {
   ground_status_filter?: string[] | null;
   ground_filter_mode?: 'AND' | 'OR' | null;
   classic_panel_orders?: Record<string, any> | null;
-  can_access_aerozone?: boolean;
+
 }
 
 interface WorkstationSession {
@@ -11697,7 +11695,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
-  const [showAeroZone, setShowAeroZone] = useState(false);
+
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditMode, setPressureEditMode] = useState<'inhg' | 'mb' | null>(null);
   const [pressureMbInput, setPressureMbInput] = useState('');
@@ -14907,16 +14905,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             title="חוזי עומס — גרף עומס לפי שעה"
             style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
           >📈 עומס</button>
-          {/* כפתור AeroZone — רק לבעלי הרשאה */}
-          {session.crewMember?.can_access_aerozone && (
-            <button
-              onClick={() => setShowAeroZone(true)}
-              style={{ background: showAeroZone ? '#0c4a6e' : '#1e3a5f', color: '#7dd3fc', border: '1px solid #0ea5e9', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-              title="AeroZone — ניהול קרקעי שדה תעופה"
-            >
-              ✈ AeroZone
-            </button>
-          )}
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
@@ -15323,10 +15311,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         );
       })()}
 
-      {/* AeroZone Overlay */}
-      {showAeroZone && (
-        <AeroZone lightMode={lightMode} onClose={() => setShowAeroZone(false)} />
-      )}
 
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {
@@ -23299,9 +23283,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips' | 'aerozone';
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips';
   const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'civ_strips'];
-  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials', 'aerozone'];
+  const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
   const [csvImportResult, setCsvImportResult] = useState<{ imported: number; updated: number; skipped: number; errors: string[]; unresolvedAirfields?: string[]; detectedColumns?: string[]; airfieldDebug?: string[] } | null>(null);
@@ -23363,7 +23347,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Crew member editing
   const [editingCrewMember, setEditingCrewMember] = useState<CrewMember | null>(null);
-  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[], can_access_aerozone: false });
+  const [crewMemberForm, setCrewMemberForm] = useState({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] as number[] });
   
   // Sector editing
   const [editingSector, setEditingSector] = useState<any | null>(null);
@@ -23609,7 +23593,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         body: JSON.stringify(crewMemberForm)
       });
       setEditingCrewMember(null);
-      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [], can_access_aerozone: false });
+      setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] });
       loadData();
     } catch (err) {
       console.error('Failed to save crew member:', err);
@@ -23625,7 +23609,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       is_admin: member.is_admin,
       is_team_lead: member.is_team_lead || false,
       approved_workstations: member.approved_workstations || [],
-      can_access_aerozone: member.can_access_aerozone || false
     });
   };
 
@@ -23928,7 +23911,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
         {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={tabStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
         {availableTabs.includes('civ_strips') && <button onClick={() => setActiveTab('civ_strips')} style={tabStyle(activeTab === 'civ_strips')}>✈ סטריפים אזרחי</button>}
-        {availableTabs.includes('aerozone') && <button onClick={() => setActiveTab('aerozone')} style={{ ...tabStyle(activeTab === 'aerozone'), ...(activeTab === 'aerozone' ? { background: '#0c4a6e', color: '#7dd3fc', borderColor: '#0ea5e9' } : { color: '#7dd3fc' }) }}>✈ AeroZone</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -25733,7 +25715,7 @@ CHARLIE,1,301,`}
               <MaybeSettingsModal
                 show={!!editingCrewMember}
                 title={`עריכת משתמש: ${editingCrewMember ? editingCrewMember.first_name + ' ' + editingCrewMember.last_name : ''}`}
-                onClose={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [], can_access_aerozone: false }); }}
+                onClose={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
               >
               <div style={{ background: editingCrewMember ? 'transparent' : '#0f172a', borderRadius: '8px', padding: editingCrewMember ? '0' : '20px', marginBottom: '20px' }}>
                 <h3 style={{ margin: '0 0 15px 0', fontSize: '16px', color: '#94a3b8' }}>
@@ -25780,15 +25762,6 @@ CHARLIE,1,301,`}
                         מנהל מערכת
                       </label>
                     </div>
-                    {/* AeroZone permission */}
-                    <div style={{ marginTop: '10px', padding: '8px 12px', background: '#0c1a3a', border: '1px solid #1e3a5f', borderRadius: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#7dd3fc', cursor: 'pointer', fontSize: '13px' }}>
-                        <input type="checkbox" checked={crewMemberForm.can_access_aerozone}
-                          onChange={e => setCrewMemberForm(f => ({ ...f, can_access_aerozone: e.target.checked }))}
-                          style={{ accentColor: '#0ea5e9', width: 15, height: 15 }} />
-                        ✈ גישה ל-AeroZone
-                      </label>
-                    </div>
                   </div>
                   
                   {/* Approved Workstations Multi-Select */}
@@ -25826,7 +25799,7 @@ CHARLIE,1,301,`}
                     </button>
                     {editingCrewMember && (
                       <button
-                        onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [], can_access_aerozone: false }); }}
+                        onClick={() => { setEditingCrewMember(null); setCrewMemberForm({ first_name: '', last_name: '', personal_id: '', is_admin: false, is_team_lead: false, approved_workstations: [] }); }}
                         style={{ padding: '10px 20px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                       >
                         ביטול
@@ -25850,9 +25823,6 @@ CHARLIE,1,301,`}
                         )}
                         {!member.is_admin && member.is_team_lead && (
                           <span style={{ fontSize: '12px', background: '#06b6d4', color: '#0c4a6e', padding: '2px 10px', borderRadius: '12px', fontWeight: 'bold' }}>ראש צוות</span>
-                        )}
-                        {member.can_access_aerozone && (
-                          <span style={{ fontSize: '11px', background: '#0c4a6e', color: '#7dd3fc', padding: '2px 8px', borderRadius: '12px', border: '1px solid #0ea5e9' }}>✈ AeroZone</span>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
@@ -28025,14 +27995,6 @@ CHARLIE,1,301,`}
         {activeTab === 'default_names' && <DefaultNamesManager />}
 
         {activeTab === 'civ_strips' && <CivilianStripsAdmin />}
-
-        {activeTab === 'aerozone' && (
-          <div>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#7dd3fc' }}>✈ AeroZone — ניהול שדות תעופה</h2>
-            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#64748b' }}>הגדרת שדות תעופה, מפות ואלמנטים (מסלולים, רחבות, אזורי הסעה). גישה מבצעית דרך כפתור AeroZone בכותרת הראשית (לבעלי הרשאה).</p>
-            <AZAdminTabContent lightMode={false} />
-          </div>
-        )}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
