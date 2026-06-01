@@ -17849,11 +17849,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
             {/* Strips Layer — only show strips placed by this workstation */}
-            {strips.filter(s => s.onMap && (
-              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
-              (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
-            )).map(s => (
-              <Strip key={s.id} s={s} 
+            {(() => {
+              const _outgoingStripIds = new Set(outgoingTransfers.map((t: any) => String('s' + t.strip_id)));
+              const _isOutgoing = (s: any) => _outgoingStripIds.has(String(s.id));
+              return strips.filter(s => (
+                // Normal map strips for this workstation
+                (s.onMap && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer'))
+                ||
+                // Outgoing pending_transfer strips: show on map even if in table (use their x,y coords)
+                (showPendingTransfer && s.status === 'pending_transfer' && _isOutgoing(s) && s.x != null && s.y != null)
+              )).map(s => {
+                const displayS = (!s.onMap && showPendingTransfer && s.status === 'pending_transfer' && _isOutgoing(s))
+                  ? { ...s, onMap: true } : s;
+                return <Strip key={s.id} s={displayS} 
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
                 neighbors={allSectors}
@@ -17876,8 +17884,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 mapConflictIds={mapStripConflictIds}
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
                 lightMode={lightMode}
-              />
-            ))}
+              />;
+              });
+            })()}
 
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
