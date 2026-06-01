@@ -11513,6 +11513,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [map2PenSize, setMap2PenSize] = useState(3);
   const [map2ShowBrightnessPanel, setMap2ShowBrightnessPanel] = useState(false);
   const [mapZoom, setMapZoom] = useState(1);
+  const [showMapPinStrips, setShowMapPinStrips] = useState(true);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
@@ -17642,6 +17643,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             )}
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
+            {/* Toggle: show strips pinned to transfer points */}
+            <button
+              title={showMapPinStrips ? 'הסתר פ"מ בנקודות העברה' : 'הצג פ"מ בנקודות העברה'}
+              onClick={() => setShowMapPinStrips(v => !v)}
+              style={{ width: 20, height: 20, background: showMapPinStrips ? '#15803d' : '#475569', color: showMapPinStrips ? '#86efac' : '#94a3b8', border: `1px solid ${showMapPinStrips ? '#22c55e' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>
+              📍
+            </button>
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
             <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
@@ -17867,7 +17875,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             ))}
 
             {/* Map Zone Pins & Lines overlay */}
-            {isMapZonesMode && (() => {
+            {isMapZonesMode && showMapPinStrips && (() => {
               const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && s.status !== 'pending_transfer' && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
               if (pinStrips.length === 0) return null;
               return (
