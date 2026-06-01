@@ -199,6 +199,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_status_filter JSONB`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS ground_filter_mode VARCHAR(3)`);
   await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS classic_panel_orders JSONB`);
+  await pool.query(`ALTER TABLE crew_members ADD COLUMN IF NOT EXISTS can_access_aerozone BOOLEAN DEFAULT FALSE`);
   
   // Junction table for crew member approved workstations
   await pool.query(`
@@ -1201,11 +1202,11 @@ app.get('/api/crew-members', async (req, res) => {
 
 app.post('/api/crew-members', async (req, res) => {
   try {
-    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;
+    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations, can_access_aerozone } = req.body;
     const name = `${first_name} ${last_name}`.trim();
     const result = await pool.query(
-      'INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin, is_team_lead) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [name, first_name, last_name, personal_id, is_admin || false, is_team_lead || false]
+      'INSERT INTO crew_members (name, first_name, last_name, personal_id, is_admin, is_team_lead, can_access_aerozone) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [name, first_name, last_name, personal_id, is_admin || false, is_team_lead || false, can_access_aerozone || false]
     );
     const crewMemberId = result.rows[0].id;
     
@@ -1228,11 +1229,11 @@ app.post('/api/crew-members', async (req, res) => {
 
 app.put('/api/crew-members/:id', async (req, res) => {
   try {
-    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations } = req.body;
+    const { first_name, last_name, personal_id, is_admin, is_team_lead, approved_workstations, can_access_aerozone } = req.body;
     const name = `${first_name} ${last_name}`.trim();
     await pool.query(
-      'UPDATE crew_members SET name = $1, first_name = $2, last_name = $3, personal_id = $4, is_admin = $5, is_team_lead = $6 WHERE id = $7',
-      [name, first_name, last_name, personal_id, is_admin, is_team_lead || false, req.params.id]
+      'UPDATE crew_members SET name = $1, first_name = $2, last_name = $3, personal_id = $4, is_admin = $5, is_team_lead = $6, can_access_aerozone = $7 WHERE id = $8',
+      [name, first_name, last_name, personal_id, is_admin, is_team_lead || false, can_access_aerozone || false, req.params.id]
     );
     
     // Update approved workstations
