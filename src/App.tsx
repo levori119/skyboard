@@ -14966,7 +14966,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const found = headerSearchHitId != null;
           const noHit = headerSearchQ.trim().length > 0 && !found;
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1.5px solid ${noHit ? '#ef4444' : found ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '160px', maxWidth: '220px', flex: '0 1 200px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1.5px solid ${noHit ? '#ef4444' : found ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '7px', padding: '2px 8px', minWidth: '80px', maxWidth: '110px', flex: '0 1 100px' }}>
               <span style={{ fontSize: '13px', flexShrink: 0, opacity: 0.6 }}>🔍</span>
               <input
                 type="text"
