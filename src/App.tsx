@@ -9683,7 +9683,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const textColor = lightMode ? '#64748b' : '#94a3b8';
   const boldTextColor = lightMode ? '#1e293b' : '#e2e8f0';
 
-  const MIN_CHART_W = 600;
+  const MIN_CHART_W = 160;
   const segCount = orderedSegments.length;
   const segW = Math.max(chartW / Math.max(segCount, 1), MIN_CHART_W);
   const stripPxW = segW * STRIP_DUR_MS / TOTAL_MS;
