@@ -16046,6 +16046,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
                   <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={showMapPinStrips} onChange={e => setShowMapPinStrips(e.target.checked)}
+                      style={{ width: '13px', height: '13px', accentColor: '#22c55e', cursor: 'pointer', margin: 0 }} />
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>הצג פ"מ בנקודות על מפה</span>
+                  </label>
                 </div>
                 <button
                   onClick={() => setNeighborPanelOpen(false)}
@@ -17643,13 +17648,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             )}
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
-            {/* Toggle: show strips pinned to transfer points */}
-            <button
-              title={showMapPinStrips ? 'הסתר פ"מ בנקודות העברה' : 'הצג פ"מ בנקודות העברה'}
-              onClick={() => setShowMapPinStrips(v => !v)}
-              style={{ width: 20, height: 20, background: showMapPinStrips ? '#15803d' : '#475569', color: showMapPinStrips ? '#86efac' : '#94a3b8', border: `1px solid ${showMapPinStrips ? '#22c55e' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>
-              📍
-            </button>
             <button onClick={() => setMapZoom(z => Math.min(z + 0.25, 3))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>+</button>
             <button onClick={() => setMapZoom(z => Math.max(z - 0.25, 0.5))} style={{ width: 20, height: 20, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1, padding: 0 }}>−</button>
             <button onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }} style={{ width: 20, height: 16, background: '#475569', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '7px', lineHeight: 1, padding: 0 }}>איפוס</button>
