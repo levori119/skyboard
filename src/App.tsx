@@ -5,6 +5,7 @@ import { createPortal, flushSync } from 'react-dom';
 import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
 import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
+import { AeroZone } from './aerozone/AeroZone';
 import { ClockWidget } from './ClockWidget';
 
 const API_URL = '/api';
@@ -11694,6 +11695,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showAeroZone, setShowAeroZone] = useState(false);
   const [pressureInHg, setPressureInHg] = useState('');
   const [pressureEditMode, setPressureEditMode] = useState<'inhg' | 'mb' | null>(null);
   const [pressureMbInput, setPressureMbInput] = useState('');
@@ -14903,6 +14905,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             title="חוזי עומס — גרף עומס לפי שעה"
             style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
           >📈 עומס</button>
+          {/* כפתור AeroZone */}
+          <button
+            onClick={() => setShowAeroZone(true)}
+            style={{ background: showAeroZone ? '#0c4a6e' : '#1e3a5f', color: '#7dd3fc', border: '1px solid #0ea5e9', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+            title="AeroZone — ניהול קרקעי שדה תעופה"
+          >
+            ✈ AeroZone
+          </button>
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
@@ -15308,6 +15318,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </div>
         );
       })()}
+
+      {/* AeroZone Overlay */}
+      {showAeroZone && (
+        <AeroZone lightMode={lightMode} onClose={() => setShowAeroZone(false)} />
+      )}
 
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {

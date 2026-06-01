@@ -3,6 +3,7 @@ import cors from 'cors';
 import pg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -973,9 +974,209 @@ async function cleanupExpiredStrips() {
   }
 }
 
+// ─── AeroZone DB init ────────────────────────────────────────────────────────
+async function initAeroZoneDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS az_airports (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      icao_code VARCHAR(10),
+      type VARCHAR(20) DEFAULT 'military',
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS az_maps (
+      id SERIAL PRIMARY KEY,
+      airport_id INTEGER REFERENCES az_airports(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      file_name TEXT,
+      is_active BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS az_polygons (
+      id SERIAL PRIMARY KEY,
+      airport_id INTEGER REFERENCES az_airports(id) ON DELETE CASCADE,
+      map_id INTEGER REFERENCES az_maps(id) ON DELETE SET NULL,
+      parent_id INTEGER REFERENCES az_polygons(id) ON DELETE SET NULL,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) DEFAULT 'area',
+      color VARCHAR(7) DEFAULT '#3b82f6',
+      note TEXT,
+      coordinates JSONB DEFAULT '[]',
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS az_polygon_status (
+      polygon_id INTEGER PRIMARY KEY REFERENCES az_polygons(id) ON DELETE CASCADE,
+      operational VARCHAR(20) DEFAULT 'operational',
+      grf VARCHAR(20) DEFAULT 'dry',
+      rvr INTEGER,
+      visibility_category VARCHAR(20) DEFAULT 'good',
+      note TEXT,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS az_status_log (
+      id SERIAL PRIMARY KEY,
+      polygon_id INTEGER REFERENCES az_polygons(id) ON DELETE CASCADE,
+      operational VARCHAR(20),
+      grf VARCHAR(20),
+      rvr INTEGER,
+      note TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+// ─── AeroZone File Upload helper ─────────────────────────────────────────────
+const AZ_MAP_DIR = path.join(__dirname, 'public', 'az-maps');
+if (!fs.existsSync(AZ_MAP_DIR)) fs.mkdirSync(AZ_MAP_DIR, { recursive: true });
+
+// ─── AeroZone API Routes ──────────────────────────────────────────────────────
+
+// Airports
+app.get('/api/az/airports', async (req, res) => {
+  try { res.json((await pool.query('SELECT * FROM az_airports ORDER BY name')).rows); }
+  catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.post('/api/az/airports', async (req, res) => {
+  try {
+    const { name, icao_code, type } = req.body;
+    const r = await pool.query('INSERT INTO az_airports (name,icao_code,type) VALUES ($1,$2,$3) RETURNING *', [name, icao_code || null, type || 'military']);
+    res.json(r.rows[0]);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.put('/api/az/airports/:id', async (req, res) => {
+  try {
+    const { name, icao_code, type, is_active } = req.body;
+    const r = await pool.query('UPDATE az_airports SET name=COALESCE($1,name), icao_code=COALESCE($2,icao_code), type=COALESCE($3,type), is_active=COALESCE($4,is_active) WHERE id=$5 RETURNING *', [name, icao_code, type, is_active, req.params.id]);
+    res.json(r.rows[0]);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+
+// Maps
+app.get('/api/az/maps', async (req, res) => {
+  try { res.json((await pool.query('SELECT * FROM az_maps ORDER BY created_at DESC')).rows); }
+  catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.post('/api/az/maps', async (req, res) => {
+  try {
+    const { airport_id, name } = req.body;
+    const r = await pool.query('INSERT INTO az_maps (airport_id,name) VALUES ($1,$2) RETURNING *', [airport_id, name]);
+    res.json(r.rows[0]);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.post('/api/az/maps/upload', async (req, res) => {
+  try {
+    const { airport_id, name, image_data, ext } = req.body;
+    const fileName = `map_${Date.now()}.${ext || 'png'}`;
+    const filePath = path.join(AZ_MAP_DIR, fileName);
+    const base64 = image_data.replace(/^data:image\/\w+;base64,/, '');
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    const r = await pool.query('INSERT INTO az_maps (airport_id,name,file_name) VALUES ($1,$2,$3) RETURNING *', [airport_id, name, fileName]);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Upload failed' }); }
+});
+app.put('/api/az/maps/:id/activate', async (req, res) => {
+  try {
+    const { airport_id } = req.body;
+    await pool.query('UPDATE az_maps SET is_active=FALSE WHERE airport_id=$1', [airport_id]);
+    await pool.query('UPDATE az_maps SET is_active=TRUE WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.delete('/api/az/maps/:id', async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM az_maps WHERE id=$1 RETURNING file_name', [req.params.id]);
+    if (r.rows[0]?.file_name) { try { fs.unlinkSync(path.join(AZ_MAP_DIR, r.rows[0].file_name)); } catch {} }
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+
+// Polygons
+app.get('/api/az/airports/:airportId/polygons', async (req, res) => {
+  try { res.json((await pool.query('SELECT * FROM az_polygons WHERE airport_id=$1 ORDER BY sort_order,name', [req.params.airportId])).rows); }
+  catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.post('/api/az/polygons', async (req, res) => {
+  try {
+    const { airport_id, map_id, parent_id, name, type, color, note, coordinates } = req.body;
+    const r = await pool.query(
+      'INSERT INTO az_polygons (airport_id,map_id,parent_id,name,type,color,note,coordinates) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [airport_id, map_id || null, parent_id || null, name, type || 'area', color || '#3b82f6', note || null, JSON.stringify(coordinates || [])]
+    );
+    await pool.query('INSERT INTO az_polygon_status (polygon_id) VALUES ($1) ON CONFLICT DO NOTHING', [r.rows[0].id]);
+    res.json(r.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'DB error' }); }
+});
+app.put('/api/az/polygons/:id', async (req, res) => {
+  try {
+    const { name, type, color, note, coordinates, sort_order } = req.body;
+    const r = await pool.query(
+      'UPDATE az_polygons SET name=COALESCE($1,name), type=COALESCE($2,type), color=COALESCE($3,color), note=COALESCE($4,note), coordinates=COALESCE($5,coordinates), sort_order=COALESCE($6,sort_order) WHERE id=$7 RETURNING *',
+      [name, type, color, note, coordinates ? JSON.stringify(coordinates) : null, sort_order, req.params.id]
+    );
+    res.json(r.rows[0]);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+app.delete('/api/az/polygons/:id', async (req, res) => {
+  try { await pool.query('DELETE FROM az_polygons WHERE id=$1', [req.params.id]); res.json({ success: true }); }
+  catch { res.status(500).json({ error: 'DB error' }); }
+});
+
+// Statuses — bulk fetch
+app.get('/api/az/polygons/statuses', async (req, res) => {
+  try {
+    const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean);
+    if (!ids.length) return res.json([]);
+    res.json((await pool.query('SELECT * FROM az_polygon_status WHERE polygon_id = ANY($1)', [ids])).rows);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+
+// Status update
+app.post('/api/az/polygons/:id/status', async (req, res) => {
+  try {
+    const { operational, grf, rvr, visibility_category, note } = req.body;
+    const visCategory = rvr != null ? (rvr >= 800 ? 'good' : rvr >= 400 ? 'reduced' : 'low') : (visibility_category || 'good');
+    await pool.query(
+      `INSERT INTO az_polygon_status (polygon_id,operational,grf,rvr,visibility_category,note,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+       ON CONFLICT (polygon_id) DO UPDATE SET operational=$2,grf=$3,rvr=$4,visibility_category=$5,note=$6,updated_at=NOW()`,
+      [req.params.id, operational || 'operational', grf || 'dry', rvr || null, visCategory, note || null]
+    );
+    await pool.query(
+      'INSERT INTO az_status_log (polygon_id,operational,grf,rvr,note) VALUES ($1,$2,$3,$4,$5)',
+      [req.params.id, operational, grf, rvr || null, note || null]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'DB error' }); }
+});
+
+// Status log
+app.get('/api/az/airports/:airportId/status-log', async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT l.*, p.name as polygon_name FROM az_status_log l
+       JOIN az_polygons p ON p.id=l.polygon_id
+       WHERE p.airport_id=$1 ORDER BY l.created_at DESC LIMIT 200`,
+      [req.params.airportId]
+    );
+    res.json(r.rows);
+  } catch { res.status(500).json({ error: 'DB error' }); }
+});
+
+// ─── AeroZone DB Init call ───────────────────────────────────────────────────
 initDb().then(() => {
   cleanupExpiredStrips();
   setInterval(cleanupExpiredStrips, 60 * 60 * 1000);
+  return initAeroZoneDb();
 }).catch(console.error);
 
 // --- Crew Members API ---
@@ -4792,6 +4993,9 @@ app.delete('/api/activity-log', async (req, res) => {
     res.status(500).json({ error: 'Failed to clear activity log' });
   }
 });
+
+// Serve az-maps static files
+app.use('/az-maps', express.static(AZ_MAP_DIR));
 
 // Serve frontend
 if (process.env.NODE_ENV === 'production') {
