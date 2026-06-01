@@ -11832,6 +11832,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
   const [tableConflictResolutions, setTableConflictResolutions] = useState<Map<string, { note: string; resolvedWith: Set<string> }>>(new Map());
   const [tableConflictDialog, setTableConflictDialog] = useState<{ stripId: string; conflictingStrips: any[]; note: string; selectedIds: Set<string> } | null>(null);
+  const [tableConflictConfirm, setTableConflictConfirm] = useState<'resolve' | 'cancel' | null>(null);
   // Ref so pointer-event handlers can always see latest outgoingTransfers + allSectors
   const outgoingTransfersRef = useRef<any[]>([]);
   const allSectorsRef = useRef<any[]>([]);
@@ -20735,7 +20736,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Table-mode conflict resolution dialog */}
       {tableConflictDialog && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9300 }}
-          onClick={() => setTableConflictDialog(null)}>
+          onClick={() => { setTableConflictDialog(null); setTableConflictConfirm(null); }}>
           <div style={{ background: '#1e293b', border: '1px solid #ef4444', borderRadius: '12px', width: '400px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
@@ -20791,35 +20792,84 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}
               />
             </div>
+            {/* Cancel resolution button — shown only when a resolution already exists */}
+            {tableConflictResolutions.has(tableConflictDialog.stripId) && !tableConflictConfirm && (
+              <div style={{ padding: '10px 18px', borderBottom: '1px solid #334155' }}>
+                <button
+                  onClick={() => setTableConflictConfirm('cancel')}
+                  style={{ width: '100%', padding: '8px', background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid #ef444455', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                  🗑 בטל פתרון קיים
+                </button>
+              </div>
+            )}
+            {/* Confirmation bar */}
+            {tableConflictConfirm && (
+              <div style={{ padding: '12px 18px', background: tableConflictConfirm === 'cancel' ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.1)', borderTop: `1px solid ${tableConflictConfirm === 'cancel' ? '#ef444455' : '#22c55e55'}` }}>
+                <div style={{ color: tableConflictConfirm === 'cancel' ? '#fca5a5' : '#86efac', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px', textAlign: 'center' }}>
+                  {tableConflictConfirm === 'cancel' ? '⚠️ האם לבטל את הפתרון הקיים?' : `🤝 לסמן ${tableConflictDialog.selectedIds.size} פמ"מ כפתורים?`}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setTableConflictConfirm(null)}
+                    style={{ flex: 1, padding: '8px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                    לא
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (tableConflictConfirm === 'resolve') {
+                        const { stripId, selectedIds, note } = tableConflictDialog;
+                        setTableConflictResolutions(prev => {
+                          const next = new Map(prev);
+                          next.set(stripId, { note, resolvedWith: new Set(selectedIds) });
+                          for (const otherId of selectedIds) {
+                            const otherExisting = next.get(otherId);
+                            const otherResolved = new Set(otherExisting?.resolvedWith || []);
+                            otherResolved.add(stripId);
+                            next.set(otherId, { note: otherExisting?.note || note, resolvedWith: otherResolved });
+                          }
+                          return next;
+                        });
+                      } else {
+                        const { stripId, conflictingStrips } = tableConflictDialog;
+                        setTableConflictResolutions(prev => {
+                          const next = new Map(prev);
+                          const removed = next.get(stripId)?.resolvedWith || new Set<string>();
+                          next.delete(stripId);
+                          for (const otherId of removed) {
+                            const otherExisting = next.get(otherId);
+                            if (otherExisting) {
+                              const otherResolved = new Set(otherExisting.resolvedWith);
+                              otherResolved.delete(stripId);
+                              if (otherResolved.size === 0) next.delete(otherId);
+                              else next.set(otherId, { ...otherExisting, resolvedWith: otherResolved });
+                            }
+                          }
+                          return next;
+                        });
+                      }
+                      setTableConflictConfirm(null);
+                      setTableConflictDialog(null);
+                    }}
+                    style={{ flex: 2, padding: '8px 16px', background: tableConflictConfirm === 'cancel' ? '#7f1d1d' : '#15803d', color: 'white', border: `1px solid ${tableConflictConfirm === 'cancel' ? '#ef4444' : '#22c55e'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                    {tableConflictConfirm === 'cancel' ? '✓ כן, בטל פתרון' : '✓ כן, סמן כפתור'}
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Buttons */}
-            <div style={{ padding: '12px 18px', display: 'flex', gap: '10px' }}>
-              <button onClick={() => setTableConflictDialog(null)}
-                style={{ flex: 1, padding: '9px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
-              </button>
-              <button
-                disabled={tableConflictDialog.selectedIds.size === 0}
-                onClick={() => {
-                  const { stripId, selectedIds, note, conflictingStrips } = tableConflictDialog;
-                  setTableConflictResolutions(prev => {
-                    const next = new Map(prev);
-                    // Update the main strip
-                    next.set(stripId, { note, resolvedWith: new Set(selectedIds) });
-                    // Also mark the selected strips as resolved against this strip
-                    for (const otherId of selectedIds) {
-                      const otherExisting = next.get(otherId);
-                      const otherResolved = new Set(otherExisting?.resolvedWith || []);
-                      otherResolved.add(stripId);
-                      next.set(otherId, { note: otherExisting?.note || note, resolvedWith: otherResolved });
-                    }
-                    return next;
-                  });
-                  setTableConflictDialog(null);
-                }}
-                style={{ flex: 2, padding: '9px 16px', background: tableConflictDialog.selectedIds.size === 0 ? '#1e293b' : '#15803d', color: tableConflictDialog.selectedIds.size === 0 ? '#475569' : 'white', border: `1px solid ${tableConflictDialog.selectedIds.size === 0 ? '#334155' : '#22c55e'}`, borderRadius: '7px', cursor: tableConflictDialog.selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                🤝 סמן כפתור {tableConflictDialog.selectedIds.size > 0 ? `(${tableConflictDialog.selectedIds.size})` : ''}
-              </button>
-            </div>
+            {!tableConflictConfirm && (
+              <div style={{ padding: '12px 18px', display: 'flex', gap: '10px' }}>
+                <button onClick={() => { setTableConflictDialog(null); setTableConflictConfirm(null); }}
+                  style={{ flex: 1, padding: '9px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                  סגור
+                </button>
+                <button
+                  disabled={tableConflictDialog.selectedIds.size === 0}
+                  onClick={() => { if (tableConflictDialog.selectedIds.size > 0) setTableConflictConfirm('resolve'); }}
+                  style={{ flex: 2, padding: '9px 16px', background: tableConflictDialog.selectedIds.size === 0 ? '#1e293b' : '#15803d', color: tableConflictDialog.selectedIds.size === 0 ? '#475569' : 'white', border: `1px solid ${tableConflictDialog.selectedIds.size === 0 ? '#334155' : '#22c55e'}`, borderRadius: '7px', cursor: tableConflictDialog.selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                  🤝 סמן כפתור {tableConflictDialog.selectedIds.size > 0 ? `(${tableConflictDialog.selectedIds.size})` : ''}
+                </button>
+              </div>
+            )}
           </div>
         </div>,
         document.body
