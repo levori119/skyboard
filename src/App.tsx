@@ -20552,6 +20552,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={async () => {
                 if (!fzConflictDialog.pending || !fzDialog) return;
                 const _p = fzConflictDialog.pending;
+                await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, fzDialog.selectedStatus, fzDialog.note, fzConflictDialog.coordNote, false, _p.posX, _p.posY);
+                const _numSidCoord = parseInt(String(_p.stripId).replace(/^s/,''), 10);
+                const _oldExtraC = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSidCoord)?.extra_zones) || []) as {id:number;zone_id:number}[];
+                const _oldExtraIdsC = new Set(_oldExtraC.map((e) => e.zone_id));
+                const _newExtraIdsC = new Set(_p.requestedZoneIds || []);
+                await Promise.all([
+                  ...[..._newExtraIdsC].filter(id => !_oldExtraIdsC.has(id)).map(zid => fetch(`${API_URL}/strip-zone-extra-zones`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strip_id: _numSidCoord, zone_id: zid, map_id: currentMapId }) }).catch(()=>{})),
+                  ..._oldExtraC.filter((e) => !_newExtraIdsC.has(e.zone_id)).map((e) => fetch(`${API_URL}/strip-zone-extra-zones/${e.id}`, { method: 'DELETE' }).catch(()=>{}))
+                ]);
+                if (currentMapId) await loadStripZoneAssignments(currentMapId);
+                const _synthAssignment: StripZoneAssignment = {
+                  id: 0, strip_id: _numSidCoord, zone_id: _p.zoneId, altitude_range_id: _p.altRangeId,
+                  status: fzDialog.selectedStatus, note: fzDialog.note, coordination_note: '', is_coordinated: false,
+                  zone_name: null, zone_color: null, alt_range_name: null, alt_min: null, alt_max: null,
+                  pos_x: _p.posX ?? null, pos_y: _p.posY ?? null, requested_zone_ids: _p.requestedZoneIds
+                };
+                const _synthStrip = strips.find((x: any) => parseInt(String(x.id).replace(/^s/,''), 10) === _numSidCoord) || null;
+                setFzCoordMenuDialog({ assignment: _synthAssignment, strip: _synthStrip, conflicts: fzConflictDialog.conflicts, selectedIds: new Set(fzConflictDialog.conflicts.map(c => c.strip_id)), coordNote: fzConflictDialog.coordNote });
+                setFzConflictDialog(null); setFzDialog(null);
+              }} style={{ padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                🤝 פתרי קונפליקט
+              </button>
+              <button onClick={async () => {
+                if (!fzConflictDialog.pending || !fzDialog) return;
+                const _p = fzConflictDialog.pending;
                 await doFzSave(_p.stripId, _p.zoneId, _p.altRangeId, 'coordinated', fzDialog.note, fzConflictDialog.coordNote, true, _p.posX, _p.posY);
                 const _numSid = parseInt(String(_p.stripId).replace(/^s/,''), 10);
                 const _oldExtra = ((stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === _numSid)?.extra_zones) || []) as {id:number;zone_id:number}[];
@@ -20651,8 +20676,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   await Promise.all(selected.map(c =>
                     doFzSave(c.strip_id, c.zone_id, c.altitude_range_id, c.status, c.note, coordNote, true, c.pos_x ?? undefined, c.pos_y ?? undefined, c.requested_zone_ids)
                   ));
-                  // Also mark current strip as coordinated
-                  await doFzSave(assignment.strip_id, assignment.zone_id, assignment.altitude_range_id, assignment.status, assignment.note, coordNote, true, assignment.pos_x ?? undefined, assignment.pos_y ?? undefined, assignment.requested_zone_ids);
                   if (currentMapId) loadStripZoneAssignments(currentMapId);
                   setFzCoordMenuDialog(null);
                 }}
