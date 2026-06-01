@@ -14899,11 +14899,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             </div>
           );
         })()}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none', background: lightMode ? '#f1f5f9' : '#1e293b', border: `1px solid ${showPendingTransfer ? '#22c55e' : (lightMode ? '#94a3b8' : '#334155')}`, borderRadius: '4px', padding: '3px 8px', flexShrink: 0 }} title={'המשך להציג פ"מ על מפה/לוח גם שהם בדרך לנקודת העברה (עד קבלה של העמדה השנייה)'}>
-          <input type="checkbox" checked={showPendingTransfer} onChange={e => setShowPendingTransfer(e.target.checked)}
-            style={{ width: '13px', height: '13px', accentColor: '#22c55e', cursor: 'pointer', margin: 0 }} />
-          <span style={{ fontSize: '11px', color: showPendingTransfer ? (lightMode ? '#15803d' : '#86efac') : (lightMode ? '#64748b' : '#64748b'), whiteSpace: 'nowrap' }}>הצג פ"מ בהעברה</span>
-        </label>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* כפתור חוזי עומס */}
           <button
@@ -16055,6 +16050,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
                   <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>{tableMode ? 'גרור שורת פמם מהטבלה להעברה' : 'גרור למפה להעברה עם מיקום'}</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '5px', cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={showPendingTransfer} onChange={e => setShowPendingTransfer(e.target.checked)}
+                      style={{ width: '13px', height: '13px', accentColor: '#22c55e', cursor: 'pointer', margin: 0 }} />
+                    <span style={{ fontSize: '10px', color: lightMode ? '#475569' : '#94a3b8' }}>הצג פ"מ על מפה גם בהעברה</span>
+                  </label>
                 </div>
                 <button
                   onClick={() => setNeighborPanelOpen(false)}
@@ -17849,7 +17849,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Flight Zones Mode: no overlays — zones are invisible drop targets only */}
             
             {/* Strips Layer — only show strips placed by this workstation */}
-            {strips.filter(s => s.onMap && (showPendingTransfer || s.status !== 'pending_transfer') && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId))).map(s => (
+            {strips.filter(s => s.onMap && (
+              ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+              (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+            )).map(s => (
               <Strip key={s.id} s={s} 
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
@@ -17878,7 +17881,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
-              const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (showPendingTransfer || s.status !== 'pending_transfer') && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
+              const pinStrips = strips.filter((s: any) => s.onMap && s.map_pin_x != null && s.map_pin_y != null && (
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+              ));
               if (pinStrips.length === 0) return null;
               return (
                 <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none', zIndex: 190 }}>
@@ -17941,7 +17947,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
             {/* Formation Split/Merge Overlay — split button for multi-aircraft strips, merge for siblings */}
             {mapSplitMergeMode && (() => {
-              const onMapStrips = strips.filter(s => s.onMap && (showPendingTransfer || s.status !== 'pending_transfer') && (!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)));
+              const onMapStrips = strips.filter(s => s.onMap && (
+                ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
+                (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
+              ));
               return onMapStrips.map(s => {
                 const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
                 const mapSiblings = getSectorSiblings(s).filter((sib: any) => sib.onMap);
