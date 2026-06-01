@@ -11830,6 +11830,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Pointer-events drag from table row to neighbor transfer panel or back to sidebar
   const tablePointerDragRef = useRef<{ id: string; label: string } | null>(null);
   const [tablePointerGhost, setTablePointerGhost] = useState<{ x: number; y: number; label: string; overSidebar?: boolean } | null>(null);
+  const [tableConflictResolutions, setTableConflictResolutions] = useState<Map<string, { note: string; resolvedWith: Set<string> }>>(new Map());
+  const [tableConflictDialog, setTableConflictDialog] = useState<{ stripId: string; conflictingStrips: any[]; note: string; selectedIds: Set<string> } | null>(null);
   // Ref so pointer-event handlers can always see latest outgoingTransfers + allSectors
   const outgoingTransfersRef = useRef<any[]>([]);
   const allSectorsRef = useRef<any[]>([]);
@@ -12976,6 +12978,86 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
     return result;
   }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy]);
+
+  // tableConflictPairsMap — same detection logic, but maps each strip ID to the IDs it conflicts with.
+  const tableConflictPairsMap = React.useMemo(() => {
+    const result = new Map<string, string[]>();
+    if (!tableMode) return result;
+    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    if (delta <= 0) return result;
+    const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
+    const btIds: number[] = (preset?.block_table_ids || []).map(Number);
+    const pid = preset ? Number(preset.id) : null;
+    const relBlocks = dashboardBlocks.filter((b: any) =>
+      btIds.includes(Number(b.block_table_id)) ||
+      (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))
+    );
+    const hasMultipleTables = new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size > 1;
+    const parseAltVal = (alt: string | null | undefined): number | null => {
+      if (!alt) return null;
+      const m = alt.match(/\d+/);
+      return m ? parseInt(m[0]) : null;
+    };
+    const resolveBlock = (strip: any, fl: number): { tableId: number; blockId: number } | null => {
+      const erka = (strip.erka || '').trim();
+      if (erka && hasMultipleTables) {
+        const matchedTable = dashboardBlockTables.find((bt: any) => (bt.name || '').trim() === erka);
+        if (matchedTable) {
+          const mtId = Number(matchedTable.id);
+          const blk = relBlocks.find((b: any) => Number(b.block_table_id) === mtId && fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
+          return blk ? { tableId: mtId, blockId: Number(blk.id) } : { tableId: mtId, blockId: -1 };
+        }
+      }
+      const inlineBtId: number | null = activeBlockTableId ?? (
+        new Set(relBlocks.map((b: any) => Number(b.block_table_id))).size === 1 ? Number(relBlocks[0]?.block_table_id) : null
+      );
+      if (inlineBtId === null) return null;
+      const blk = relBlocks.find((b: any) => Number(b.block_table_id) === inlineBtId && fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
+      return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
+    };
+    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    for (let i = 0; i < boardStrips.length; i++) {
+      const a = boardStrips[i];
+      const altA = parseAltVal(a.alt);
+      if (altA == null) continue;
+      for (let j = i + 1; j < boardStrips.length; j++) {
+        const b = boardStrips[j];
+        const altB = parseAltVal(b.alt);
+        if (altB == null) continue;
+        if (Math.abs(altA - altB) * 100 > delta) continue;
+        if (verticalGroupBy !== 'none') {
+          const field = verticalGroupBy === 'block_space_id' ? 'block_space_id' : verticalGroupBy;
+          const valA = String((a as any)[field] || '').trim();
+          const valB = String((b as any)[field] || '').trim();
+          if (valA && valB && valA !== valB) continue;
+        }
+        if (relBlocks.length > 0) {
+          const infoA = resolveBlock(a, altA);
+          const infoB = resolveBlock(b, altB);
+          if (infoA !== null && infoB !== null) {
+            if (infoA.tableId !== infoB.tableId) continue;
+            if (infoA.blockId !== infoB.blockId && infoA.blockId !== -1 && infoB.blockId !== -1) continue;
+          }
+        }
+        const idA = String(a.id), idB = String(b.id);
+        if (!result.has(idA)) result.set(idA, []);
+        if (!result.has(idB)) result.set(idB, []);
+        result.get(idA)!.push(idB);
+        result.get(idB)!.push(idA);
+      }
+    }
+    return result;
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy]);
+
+  // tableEffectiveConflictIds — conflict IDs excluding fully-resolved ones (session-only).
+  const tableEffectiveConflictIds = React.useMemo(() => {
+    const result = new Set<string>();
+    for (const [stripId, conflictingIds] of tableConflictPairsMap) {
+      const resolved = tableConflictResolutions.get(stripId)?.resolvedWith || new Set<string>();
+      if (conflictingIds.some(id => !resolved.has(id))) result.add(stripId);
+    }
+    return result;
+  }, [tableConflictPairsMap, tableConflictResolutions]);
 
   // Ground workstation: same unified query-driven list.
   const myGroundStrips = isGroundMode ? myStrips : [];
@@ -17258,7 +17340,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const isRowDeviationAck = !!s.block_deviation;
                     const isRowDeviation = isRowDeviationRaw && !muteBlockAlerts;
                     const isRowDeviationAckEff = isRowDeviationAck && !muteBlockAlerts;
-                    const isRowAltConflict = tableStripConflictIds.has(String(s.id));
+                    const isRowAltConflict = tableEffectiveConflictIds.has(String(s.id));
+                    const isRowConflictResolved = tableConflictPairsMap.has(String(s.id)) && !isRowAltConflict;
                     const rowBg = isDragOver ? '#1d4ed8'
                       : isRowAltConflict ? (lightMode ? '#fef2f2' : '#3b0000')
                       : (isRowDeviation && !isRowDeviationAck) ? undefined
@@ -17310,17 +17393,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableRowCtxMenu({ stripId: s.id, x: e.clientX, y: e.clientY }); }}
                         style={{
                           background: rowBg,
-                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowAltConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #e2e8f0' : '1px solid #1e293b'),
+                          borderBottom: isDragOver ? '2px solid #3b82f6' : isRowAltConflict ? '1px solid #ef4444' : isRowConflictResolved ? '1px solid #22c55e' : (lightMode ? '1px solid #e2e8f0' : '1px solid #1e293b'),
                           outline: isRowAltConflict ? '1px solid #ef4444' : undefined,
                           opacity: isPendingTransfer ? 0.6 : (tableDragRow === s.id ? 0.5 : 1),
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '2px 4px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                        <td style={{ padding: '1px 2px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '22px', minWidth: '22px', maxWidth: '22px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
-                              title={isRowAltConflict ? 'קונפליקט גובה עם פ״מ אחר' : ''}
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowAltConflict ? '#ef4444' : 'transparent', color: isRowAltConflict ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                              title={isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
+                              onClick={e => {
+                                if (!tableConflictPairsMap.has(String(s.id))) return;
+                                e.stopPropagation();
+                                const conflictingIds = tableConflictPairsMap.get(String(s.id)) || [];
+                                const conflictingStrips = conflictingIds.map(id => myTableStrips.find((x: any) => String(x.id) === id)).filter(Boolean);
+                                const existing = tableConflictResolutions.get(String(s.id));
+                                setTableConflictDialog({ stripId: String(s.id), conflictingStrips, note: existing?.note || '', selectedIds: existing?.resolvedWith ? new Set(existing.resolvedWith) : new Set(conflictingIds.map(String)) });
+                              }}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowAltConflict ? '#ef4444' : isRowConflictResolved ? '#22c55e' : 'transparent', color: (isRowAltConflict || isRowConflictResolved) ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none', cursor: tableConflictPairsMap.has(String(s.id)) ? 'pointer' : 'default' }}
                             >ק</span>
                             {isRowDeviation && !isRowDeviationAck ? (
                               <span
@@ -20217,7 +20308,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableStripConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -20234,7 +20325,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableStripConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
         </div>
       ))}
 
@@ -20635,6 +20726,99 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 ✓ סמן כמתואם
               </button>
               <button onClick={() => setFzConflictDialog(null)} style={{ padding: '8px 14px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Table-mode conflict resolution dialog */}
+      {tableConflictDialog && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9300 }}
+          onClick={() => setTableConflictDialog(null)}>
+          <div style={{ background: '#1e293b', border: '1px solid #ef4444', borderRadius: '12px', width: '400px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.85)', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ padding: '14px 18px', background: '#7f1d1d', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '15px', color: 'white' }}>
+                🔴 פתרון קונפליקט גובה
+              </span>
+              <span style={{ color: '#fca5a5', fontSize: '12px' }}>
+                {(myTableStrips.find((x: any) => String(x.id) === tableConflictDialog.stripId) as any)?.callSign || tableConflictDialog.stripId}
+              </span>
+            </div>
+            {/* Conflict strip list */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #334155' }}>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>בחר את הפמ"מ שפתרת איתם את הקונפליקט:</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="tcd-all"
+                  checked={tableConflictDialog.selectedIds.size === tableConflictDialog.conflictingStrips.length}
+                  onChange={e => setTableConflictDialog(p => p ? { ...p, selectedIds: e.target.checked ? new Set(tableConflictDialog.conflictingStrips.map((x: any) => String(x.id))) : new Set() } : p)}
+                  style={{ width: '15px', height: '15px', cursor: 'pointer', accentColor: '#22c55e' }}
+                />
+                <label htmlFor="tcd-all" style={{ color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>בחר הכל ({tableConflictDialog.conflictingStrips.length})</label>
+              </div>
+              {tableConflictDialog.conflictingStrips.map((cs: any) => {
+                const cid = String(cs.id);
+                const isSelected = tableConflictDialog.selectedIds.has(cid);
+                return (
+                  <div key={cid}
+                    onClick={() => setTableConflictDialog(p => {
+                      if (!p) return p;
+                      const next = new Set(p.selectedIds);
+                      isSelected ? next.delete(cid) : next.add(cid);
+                      return { ...p, selectedIds: next };
+                    })}
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '7px', cursor: 'pointer', background: isSelected ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSelected ? '#22c55e' : '#334155'}`, marginBottom: '6px' }}>
+                    <input type="checkbox" checked={isSelected} readOnly style={{ width: '14px', height: '14px', accentColor: '#22c55e', pointerEvents: 'none' }} />
+                    <span style={{ color: 'white', fontWeight: 'bold', fontSize: '13px' }}>{cs.callSign || `#${cs.id}`}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '12px' }}>{cs.alt || '–'}</span>
+                    <span style={{ color: '#64748b', fontSize: '11px', marginRight: 'auto' }}>{cs.sq || cs.squadron || ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Note */}
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #334155' }}>
+              <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>הערה (אופציונלי):</div>
+              <input
+                type="text"
+                value={tableConflictDialog.note}
+                onChange={e => setTableConflictDialog(p => p ? { ...p, note: e.target.value } : p)}
+                placeholder="פרט תיאום..."
+                style={{ width: '100%', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '7px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}
+              />
+            </div>
+            {/* Buttons */}
+            <div style={{ padding: '12px 18px', display: 'flex', gap: '10px' }}>
+              <button onClick={() => setTableConflictDialog(null)}
+                style={{ flex: 1, padding: '9px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+              <button
+                disabled={tableConflictDialog.selectedIds.size === 0}
+                onClick={() => {
+                  const { stripId, selectedIds, note, conflictingStrips } = tableConflictDialog;
+                  setTableConflictResolutions(prev => {
+                    const next = new Map(prev);
+                    // Update the main strip
+                    next.set(stripId, { note, resolvedWith: new Set(selectedIds) });
+                    // Also mark the selected strips as resolved against this strip
+                    for (const otherId of selectedIds) {
+                      const otherExisting = next.get(otherId);
+                      const otherResolved = new Set(otherExisting?.resolvedWith || []);
+                      otherResolved.add(stripId);
+                      next.set(otherId, { note: otherExisting?.note || note, resolvedWith: otherResolved });
+                    }
+                    return next;
+                  });
+                  setTableConflictDialog(null);
+                }}
+                style={{ flex: 2, padding: '9px 16px', background: tableConflictDialog.selectedIds.size === 0 ? '#1e293b' : '#15803d', color: tableConflictDialog.selectedIds.size === 0 ? '#475569' : 'white', border: `1px solid ${tableConflictDialog.selectedIds.size === 0 ? '#334155' : '#22c55e'}`, borderRadius: '7px', cursor: tableConflictDialog.selectedIds.size === 0 ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                🤝 סמן כפתור {tableConflictDialog.selectedIds.size > 0 ? `(${tableConflictDialog.selectedIds.size})` : ''}
+              </button>
             </div>
           </div>
         </div>,
