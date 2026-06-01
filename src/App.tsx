@@ -19573,25 +19573,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             );
                             const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
                             return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#3b82f6' : '#2563eb'}`, borderRadius: '4px', overflow: 'hidden' }}>
-                                <div style={{ background: lightMode ? '#1e40af' : '#1d4ed8', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ffffff', direction: 'rtl', flex: 1, letterSpacing: '0.3px' }}>📂 {cat}</span>
-                                  <span style={{ fontSize: '10px', color: '#bfdbfe', background: 'rgba(0,0,0,0.25)', borderRadius: '3px', padding: '1px 6px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
+                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#1e293b'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{ background: lightMode ? '#334155' : '#0a0f1a', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#e2e8f0' : '#94a3b8', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
+                                  <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
                                 </div>
-                                <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#0a1929' }}>
+                                <div style={{ padding: '4px', background: lightMode ? '#f8fafc' : '#060c18' }}>
                                 {filtered.filter((d: any) => (d.category || 'כללי') === cat).map((doc: any) => (
                                   <div
                                     key={doc.id}
                                     onDoubleClick={() => { setBdhViewerDoc(doc); }}
-                                    style={{ padding: '6px 8px', background: lightMode ? '#ffffff' : '#0f2744', border: `1px solid ${lightMode ? '#93c5fd' : '#1d4ed8'}`, borderRadius: '3px', marginBottom: '4px', fontSize: '11px', color: lightMode ? '#1e40af' : '#93c5fd', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
+                                    style={{ padding: '4px 6px', background: lightMode ? '#ffffff' : '#0d1626', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e293b'}`, borderRadius: '3px', marginBottom: '3px', fontSize: '11px', color: lightMode ? '#334155' : '#94a3b8', fontWeight: 'bold', direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}
                                   >
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📋 {doc.name}</div>
-                                      <div style={{ fontSize: '9px', color: lightMode ? '#64748b' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים</div>
+                                      <div style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', fontWeight: 'normal', marginTop: '1px' }}>{(doc.items || []).length} סעיפים</div>
                                     </div>
                                     <button
                                       onClick={e => { e.stopPropagation(); setBdhViewerDoc(doc); }}
-                                      style={{ background: lightMode ? '#1e40af' : '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', padding: '3px 10px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
+                                      style={{ background: lightMode ? '#334155' : '#1e293b', color: lightMode ? '#e2e8f0' : '#94a3b8', border: 'none', borderRadius: '3px', padding: '2px 8px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', flexShrink: 0 }}
                                     >פתח</button>
                                   </div>
                                 ))}
