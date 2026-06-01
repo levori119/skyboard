@@ -11436,7 +11436,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [bdhAlertPopup, setBdhAlertPopup] = useState<any | null>(null);
   const bdhSessionStartRef = React.useRef<string>(new Date().toISOString());
   const [linksPanelOpen, setLinksPanelOpen] = useState(false);
-  const [blocksPanelOpen, setBlocksPanelOpen] = useState(true);
+  const [blocksPanelOpen, setBlocksPanelOpen] = useState(false);
   const [blockMiniViewOpen, setBlockMiniViewOpen] = useState(false);
   const [classicStripTables, setClassicStripTables] = useState<any[]>([]);
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
@@ -11960,7 +11960,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workGroupNotes, setWorkGroupNotes] = useState<any[]>([]);
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
-  const [basePanelOpen, setBasePanelOpen] = useState(true);
+  const [basePanelOpen, setBasePanelOpen] = useState(false);
+  const [madaniyotOpen, setMadaniyotOpen] = useState(false);
   const [bsGroupByStatus, setBsGroupByStatus] = useState(false);
   const prevBaseAdRef = useRef<Record<number, string>>({});
   const [adAlerts, setAdAlerts] = useState<{ key: number; baseName: string; prev: string; next: string; color: string }[]>([]);
@@ -19190,7 +19191,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {aidGroup && (aidGroup.items || []).map((item: any) => (
                     <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
                       <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#1e293b' : 'white', padding: '7px 8px', cursor: 'pointer', textAlign: 'right', fontSize: '12px', fontWeight: 'bold' }}>
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#334155' : '#94a3b8', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
                         <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
@@ -19206,10 +19207,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Auto block tables — always-open בלוקים section with mini block view */}
                   {aidBlockTables.length > 0 && (
                     <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${T.border}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#6d28d9' : '#a5b4fc', flex: 1 }}>🗂️ בלוקים</span>
+                      <div onClick={() => setBlocksPanelOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: blocksPanelOpen ? '4px' : 0 }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>🗂️ בלוקים</span>
+                        <span style={{ fontSize: '10px', color: T.muted }}>{blocksPanelOpen ? '▲' : '▼'}</span>
                       </div>
-                      {aidBlockTables.map((bt: any) => {
+                      {blocksPanelOpen && aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
                         const isOpen = aidExpandedIds.has(btKey);
                         const btBlocks = dashboardBlocks.filter((b: any) => b.block_table_id === bt.id).sort((a: any, b: any) => b.alt_from - a.alt_from);
@@ -19268,10 +19270,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const groups = Array.from(new Set(workGroupNotes.map((n: any) => n.work_group_id)));
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0f766e' : '#2dd4bf' }}>📌 מדניות</span>
+                        <div onClick={() => setMadaniyotOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: madaniyotOpen ? '4px' : 0 }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📌 מדניות</span>
+                          <span style={{ fontSize: '10px', color: T.muted }}>{madaniyotOpen ? '▲' : '▼'}</span>
                         </div>
-                        {groups.map(gid => {
+                        {madaniyotOpen && groups.map(gid => {
                           const gNotes = workGroupNotes.filter((n: any) => n.work_group_id === gid);
                           const groupName = gNotes[0]?.group_name || '';
                           const isAdmin = gNotes[0]?.admin_preset_id === session.presetId;
@@ -19380,10 +19383,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setLinksPanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#ede9fe' : '#1e1b4b', marginBottom: linksPanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: linksPanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#7c3aed' : '#a78bfa' }}>🔗 קישורים</span>
-                          <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{linksPanelOpen ? '▲' : '▼'}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>🔗 קישורים</span>
+                          <span style={{ fontSize: '10px', color: T.muted }}>{linksPanelOpen ? '▲' : '▼'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
                           <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#7c3aed' : '#6d28d9'}`, borderRadius: '4px', overflow: 'hidden' }}>
@@ -19416,16 +19419,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setContactsPanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: contactsPanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: contactsPanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📡 קשרים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📡 קשרים</span>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                             <button
                               onClick={e => { e.stopPropagation(); setContactsSummaryOpen(v => !v); if (!contactsSummaryOpen) { fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {}); } }}
                               style={{ fontSize: '9px', padding: '1px 5px', background: contactsSummaryOpen ? '#0369a1' : '#1e3a5f', color: '#7dd3fc', border: '1px solid #1e4976', borderRadius: '3px', cursor: 'pointer' }}
                               title="ריכוז קשרים לכל העמדות"
                             >ריכוז</button>
-                            <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{contactsPanelOpen ? '▲' : '▼'}</span>
+                            <span style={{ fontSize: '10px', color: T.muted }}>{contactsPanelOpen ? '▲' : '▼'}</span>
                           </div>
                         </div>
                         {contactsPanelOpen && (
@@ -19501,9 +19504,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div
                           onClick={() => setBasePanelOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: basePanelOpen ? '4px' : 0 }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: basePanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>🏛 סטטוס בסיסים</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>🏛 סטטוס בסיסים</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {basePanelOpen && (
                               <button
@@ -19551,10 +19554,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
                       <div
                         onClick={() => setBdhPanelOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 4px', borderRadius: '4px', background: lightMode ? '#e0f2fe' : '#0c1a2e', marginBottom: bdhPanelOpen ? '4px' : 0 }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
                       >
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#0369a1' : '#38bdf8' }}>📋 בד"ח</span>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{bdhPanelOpen ? '▲' : '▼'}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📋 בד"ח</span>
+                        <span style={{ fontSize: '10px', color: T.muted }}>{bdhPanelOpen ? '▲' : '▼'}</span>
                       </div>
                       {bdhPanelOpen && (
                         <div>
