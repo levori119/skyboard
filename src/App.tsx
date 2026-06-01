@@ -18153,7 +18153,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             })()}
 
             {/* Flight Zones Pin Markers — inside transform div, moves with zoom/pan */}
-            {isFlightZonesMode && mapImgBounds && stripZoneAssignments.map((a: StripZoneAssignment) => {
+            {isFlightZonesMode && mapImgBounds && stripZoneAssignments.filter((a: StripZoneAssignment) => {
+              const _s = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
+              return !_s || _s.status !== 'pending_transfer';
+            }).map((a: StripZoneAssignment) => {
               const strip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/, ''), 10) === Number(a.strip_id));
               // Fallback to zone polygon centroid when pos not yet set (skip if no zone)
               const zoneData = a.zone_id != null ? mapZones.find((z: any) => z.id === a.zone_id) : null;
