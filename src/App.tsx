@@ -18460,8 +18460,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {fzShowZones ? '🗺 הסתר' : '🗺 הצג'}
               </button>
               {(['all','occupied','free'] as const).map(f => (
-                <button key={f} onClick={() => setFzZoneFilter(f)}
-                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
+                <button key={f} onClick={() => {
+                  if (fzZoneFilter === f && fzShowZones) {
+                    setFzShowZones(false);
+                  } else {
+                    setFzZoneFilter(f);
+                    setFzShowZones(true);
+                  }
+                }}
+                  style={{ padding: '2px 8px', borderRadius: '5px', border: `1px solid ${fzZoneFilter === f && fzShowZones ? '#f59e0b' : '#334155'}`, background: fzZoneFilter === f && fzShowZones ? '#2d1d00' : '#1e293b', color: fzZoneFilter === f && fzShowZones ? '#fcd34d' : '#94a3b8', cursor: 'pointer', fontSize: '11px' }}>
                   {f === 'all' ? '🔵 הכל' : f === 'occupied' ? '🔴 תפוסים' : '🟢 פנויים'}
                 </button>
               ))}
