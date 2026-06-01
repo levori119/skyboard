@@ -19573,7 +19573,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             );
                             const cats = Array.from(new Set(filtered.map((d: any) => d.category || 'כללי'))).sort() as string[];
                             return cats.map(cat => (
-                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#94a3b8' : '#1e293b'}`, borderRadius: '4px', overflow: 'hidden' }}>
+                              <div key={cat} style={{ marginBottom: '6px', border: `1px solid ${lightMode ? '#64748b' : '#334155'}`, borderRadius: '4px', overflow: 'hidden' }}>
                                 <div style={{ background: lightMode ? '#334155' : '#0a0f1a', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#e2e8f0' : '#94a3b8', direction: 'rtl', flex: 1 }}>📂 {cat}</span>
                                   <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', padding: '1px 5px', fontWeight: 'bold' }}>{filtered.filter((d: any) => (d.category || 'כללי') === cat).length}</span>
