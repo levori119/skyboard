@@ -17316,31 +17316,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? '2px 5px' : '0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, minWidth: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? undefined : 0, width: (isRowDeviation || isRowDeviationAck || isRowAltConflict) ? undefined : 0, overflow: 'hidden' }}>
-                          {isRowAltConflict && (
-                            <span title="קונפליקט גובה עם פ״מ אחר" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '12px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>!</span>
-                          )}
-                          {isRowDeviation && !isRowDeviationAck ? (
+                        <td style={{ padding: '2px 4px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                             <span
-                              onClick={async e => {
-                                e.stopPropagation();
-                                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
-                                setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x));
-                              }}
-                              title="אישור חריגה מבלוק"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#f97316', color: 'white', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
-                            >!</span>
-                          ) : isRowDeviationAck ? (
-                            <span
-                              onClick={async e => {
-                                e.stopPropagation();
-                                try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
-                                setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x));
-                              }}
-                              title="חריגה מאושרת — לחץ לביטול"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
-                            >!</span>
-                          ) : null}
+                              title={isRowAltConflict ? 'קונפליקט גובה עם פ״מ אחר' : ''}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: isRowAltConflict ? '#ef4444' : 'transparent', color: isRowAltConflict ? 'white' : 'transparent', fontSize: '10px', fontWeight: 'bold', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                            >ק</span>
+                            {isRowDeviation && !isRowDeviationAck ? (
+                              <span
+                                onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: true } : x)); }}
+                                title="חריגה מבלוק — לחץ לאישור"
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                              >ב</span>
+                            ) : isRowDeviationAck ? (
+                              <span
+                                onClick={async e => { e.stopPropagation(); try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {} setStrips(prev => prev.map((x: any) => String(x.id) === String(s.id) ? { ...x, block_deviation: false } : x)); }}
+                                title="חריגה מאושרת — לחץ לביטול"
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '16px', height: '16px', borderRadius: '50%', background: '#22c55e', color: 'white', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}
+                              >ב</span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', width: '16px', height: '16px', flexShrink: 0 }} />
+                            )}
+                          </div>
                         </td>
                         <td
                           className={hasFrozen ? 'frozen-col' : undefined}
@@ -17358,9 +17355,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         >
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                             <span style={{ fontSize: '16px', lineHeight: 1 }}>⠿</span>
-                            {isRowAltConflict && (
-                              <span title="קונפליקט גובה עם פ״מ אחר בלוח" style={{ fontSize: '9px', background: '#ef4444', color: 'white', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3, fontWeight: 'bold' }}>⚠️</span>
-                            )}
                             {isPendingTransfer && (
                               <span title="ממתין לקבלה על ידי הנמען" style={{ fontSize: '9px', background: '#374151', color: '#9ca3af', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', lineHeight: 1.3 }}>ממתין ⏳</span>
                             )}
