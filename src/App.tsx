@@ -17400,7 +17400,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           transition: 'background 0.1s'
                         }}
                       >
-                        <td style={{ padding: '1px 2px', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '22px', minWidth: '22px', maxWidth: '22px' }}>
+                        <td style={{ padding: '1px 0', whiteSpace: 'nowrap', verticalAlign: 'middle', background: rowBg ?? (lightMode ? '#e2e8f0' : '#1e293b'), position: 'sticky', right: tableStickyOffsets[0] ?? 0, zIndex: 5, width: '16px', minWidth: '16px', maxWidth: '16px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center' }}>
                             <span
                               title={isRowAltConflict ? 'קונפליקט גובה — לחץ לפתרון' : isRowConflictResolved ? 'קונפליקט פתור — לחץ לצפייה' : ''}
