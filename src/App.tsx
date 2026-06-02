@@ -9361,6 +9361,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
   const [dragOverSegKey, setDragOverSegKey] = React.useState<string | null>(null);
   const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number } | null>(null);
+  const [altExpandDrag, setAltExpandDrag] = React.useState<{ stripId: string; edge: 'top' | 'bottom'; origLo: number; origHi: number; currentAlt: number } | null>(null);
   const [altExpand, setAltExpand] = React.useState(0); // extra feet added on each side (positive = expand)
 
   React.useEffect(() => {
@@ -9570,6 +9571,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   topAltRef.current = topAlt;
   const altDragRef = React.useRef(altDrag);
   altDragRef.current = altDrag;
+  const altExpandDragRef = React.useRef(altExpandDrag);
+  altExpandDragRef.current = altExpandDrag;
 
   React.useEffect(() => {
     if (!altDrag) return;
@@ -9600,6 +9603,37 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [altDrag?.stripId]);
+
+  React.useEffect(() => {
+    if (!altExpandDrag) return;
+    const fmtAltRange = (lo: number, hi: number): string => {
+      if (lo === hi) { const fl = Math.round(lo / 100); return lo >= 10000 ? String(fl) : lo >= 1000 ? `${(lo / 1000).toFixed(1)}k` : String(Math.round(lo)); }
+      return `${Math.round(lo / 100)}-${Math.round(hi / 100)}`;
+    };
+    const commitExpand = () => {
+      const d = altExpandDragRef.current;
+      if (!d) return;
+      const newHi = d.edge === 'top' ? Math.max(d.currentAlt, d.origHi) : d.origHi;
+      const newLo = d.edge === 'bottom' ? Math.min(d.currentAlt, d.origLo) : d.origLo;
+      onUpdateStripAlt?.(d.stripId, fmtAltRange(newLo, newHi));
+      setAltExpandDrag(null);
+    };
+    const calcExpandAlt = (clientY: number) => {
+      const el = chartContentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      const rawAlt = topAltRef.current - pct * altRangeRef.current;
+      const snapped = Math.round(rawAlt / 1000) * 1000;
+      setAltExpandDrag(prev => prev ? { ...prev, currentAlt: snapped } : null);
+    };
+    const handlePointerMove = (e: PointerEvent) => calcExpandAlt(e.clientY);
+    const handlePointerUp = () => commitExpand();
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    return () => { window.removeEventListener('pointermove', handlePointerMove); window.removeEventListener('pointerup', handlePointerUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [altExpandDrag?.stripId]);
 
   const GROUP_FIELD_LABEL: Record<string, string> = { erka: 'ערכה', koteret: 'כותרת', mivtza: 'אזור ביצוע', block_space_id: 'מרחב בלוקים' };
 
@@ -9726,7 +9760,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   );
 
   const renderChartContent = (placed: any[], blocksToShow: any[], isFirst = false) => (
-    <div ref={isFirst ? chartContentRef : undefined} style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint', cursor: altDrag ? 'ns-resize' : 'default' }}>
+    <div ref={isFirst ? chartContentRef : undefined} style={{ flex: 1, position: 'relative', background: bg, overflow: 'hidden', contain: 'paint', cursor: (altDrag || altExpandDrag) ? 'ns-resize' : 'default' }}>
       {/* Block range background bands */}
       {blocksToShow.map((b: any) => {
         const bAltHi = b.alt_to * 100;
@@ -9800,6 +9834,26 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
         );
       })()}
 
+      {/* Altitude range expand drag indicator */}
+      {altExpandDrag && (() => {
+        const d = altExpandDrag;
+        const dragPct = altPct(d.currentAlt);
+        const effHi = d.edge === 'top' ? Math.max(d.currentAlt, d.origHi) : d.origHi;
+        const effLo = d.edge === 'bottom' ? Math.min(d.currentAlt, d.origLo) : d.origLo;
+        const hiPct = altPct(effHi);
+        const loPct = altPct(effLo);
+        const label = `${Math.round(effLo / 100)}-${Math.round(effHi / 100)}`;
+        return (
+          <>
+            <div style={{ position: 'absolute', left: 0, right: 0, top: `${hiPct}%`, height: `${Math.max(loPct - hiPct, 2)}%`, background: 'rgba(99,102,241,0.15)', border: '1px dashed #818cf8', zIndex: 9, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', left: 0, right: 0, top: `${dragPct}%`, height: 2, background: '#818cf8', zIndex: 10, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', right: 4, top: `${dragPct}%`, transform: 'translateY(-50%)', background: '#4f46e5', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '1px 4px', borderRadius: 3, zIndex: 11, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+              {label}
+            </div>
+          </>
+        );
+      })()}
+
       {placed.map(s => {
         const isDragging = altDrag?.stripId === s.id;
         const sq = s.sq || s.squadron || '';
@@ -9848,6 +9902,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
                 boxSizing: 'border-box', cursor: 'default',
                 opacity: isDragging ? 0.6 : 1,
               }}>
+              {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'top', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altHi }); }} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, cursor: 'n-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
+              {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'bottom', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altLo }); }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, cursor: 's-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
               {onUpdateStripAlt && (
                 <div
                   onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
@@ -9855,7 +9911,9 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
                   ⠿
                 </div>
               )}
-              <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+              <div
+                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+                style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
                   {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
@@ -9903,6 +9961,8 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
                 boxSizing: 'border-box', cursor: 'default',
                 opacity: isDragging ? 0.6 : 1,
               }}>
+              {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'top', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altHi }); }} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, cursor: 'n-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
+              {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'bottom', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altLo }); }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, cursor: 's-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
               {onUpdateStripAlt && (
                 <div
                   onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
@@ -9910,7 +9970,9 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
                   ⠿
                 </div>
               )}
-              <div style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl' }}>
+              <div
+                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+                style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
                   {s.alt && <span style={{ fontSize: `${Math.max(stripFontSize - 1, 8)}px`, color: (effectiveDeviation || effectiveDeviationAck) ? '#f97316' : textColor, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>גובה: {normalizeAlt(s.alt)}{(effectiveDeviation || effectiveDeviationAck) ? ' ⚠️' : ''}</span>}
