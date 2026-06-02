@@ -25424,6 +25424,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   )}
                 </div>}
 
+                {/* Classic partners & sector points editor — only for classic strips workstations */}
+                {(presetForm.preset_type === 'classic' || presetForm.display_mode === 'classic') && (
+                  <div style={{ marginTop: '20px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    <label style={{ display: 'block', marginBottom: '10px', color: '#93c5fd', fontSize: '14px', fontWeight: 'bold' }}>🔗 שותפות וקשרי סקטור (סטריפים קלאסי):</label>
+                    <ClassicPartnersAndPointsEditor
+                      presetForm={presetForm}
+                      setPresetForm={setPresetForm}
+                      presets={presets}
+                      sectors={sectors}
+                      editingPresetId={editingPreset?.id}
+                      onShowHelp={() => {}}
+                    />
+                  </div>
+                )}
+
                 {blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
