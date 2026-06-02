@@ -5930,8 +5930,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const getContactsForSector = (sectorId: number): { presetId: number; presetName: string; contacts: any[] }[] => {
     if (!allContactsCache) return [];
+    // Derive the current workstation's name so we can exclude same-name day/night variants.
+    const myPresetName = allContactsCache.find(c => Number(c.preset_id) === Number(currentPresetId))?.preset_name || '';
     const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
     for (const c of allContactsCache) {
+      // Exclude current workstation by ID and by name (handles day/night preset variants).
+      if (Number(c.preset_id) === Number(currentPresetId)) continue;
+      if (myPresetName && (c.preset_name || '') === myPresetName) continue;
       let sectors: number[] = [];
       try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
       if (!sectors.map(Number).includes(sectorId)) continue;
