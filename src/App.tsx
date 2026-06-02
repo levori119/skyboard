@@ -76,6 +76,7 @@ interface WorkstationSession {
   presetId?: number;
   authToken: string;
   crewMember?: CrewMember;
+  sectorId?: number | string | null;
 }
 
 // --- Query Builder Types & Logic ---
@@ -17844,7 +17845,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Map Zones Overlay — two layers: legacy (full-container %) and geo (image-bounded %) */}
             {mapZones.length > 0 && (!isFlightZonesMode || fzShowZones || fzFlashZoneIds.size > 0) && (() => {
               const mapAnchor = mapGeoAnchor;
-              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id));
+              const occupiedZoneIds = new Set<number>(stripZoneAssignments.map((a: StripZoneAssignment) => a.zone_id).filter((id): id is number => id !== null));
               const requestedOnlyZoneIds = new Set<number>();
               stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
               const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
@@ -18994,7 +18995,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? _za.zone_color : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
@@ -19062,7 +19063,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }} onPointerDown={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
                           {assignment ? (
                             <>
-                              <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: assignment.zone_color + '33', color: assignment.zone_color, border: `1px solid ${assignment.zone_color}66` }}>📍 {assignment.zone_name}</span>
+                              <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: (assignment.zone_color || '#888888') + '33', color: assignment.zone_color || '#888888', border: `1px solid ${(assignment.zone_color || '#888888')}66` }}>📍 {assignment.zone_name}</span>
                               {assignment.alt_range_name && <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', background: '#1e3a5f', color: '#7dd3fc' }}>📐 {assignment.alt_range_name}</span>}
                               {assignment.status && (() => {
                                 const stColor = allStColors[assignment.status] || '#64748b';
@@ -19135,7 +19136,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const _sorted=[...sidebarStripList].sort((a,b)=>{const zaA=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(a.id).replace(/^s/,''),10));const zaB=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(b.id).replace(/^s/,''),10));if(zaA&&!zaB)return -1;if(!zaA&&zaB)return 1;if(zaA&&zaB&&zaA.zone_id!==zaB.zone_id)return (zaA.zone_name||'').localeCompare((zaB.zone_name||''),'he');if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
                   const _zg=new Map<number,{za:StripZoneAssignment,strips:any[]}>();const _ua:any[]=[];
                   for(const s of _sorted){const za=stripZoneAssignments.find((x:StripZoneAssignment)=>parseInt(String(x.strip_id),10)===parseInt(String(s.id).replace(/^s/,''),10));if(za){const _seenZ=new Set<number>();let _added=false;if(za.zone_id!=null&&!_seenZ.has(za.zone_id)){_seenZ.add(za.zone_id);if(!_zg.has(za.zone_id))_zg.set(za.zone_id,{za,strips:[]});_zg.get(za.zone_id)!.strips.push(s);_added=true;}for(const ez of ((za.extra_zones||[]) as any[])){if(ez.zone_id==null||_seenZ.has(ez.zone_id))continue;_seenZ.add(ez.zone_id);const _ezM=mapZones.find((z:any)=>z.id===ez.zone_id);const _fza={...za,zone_id:ez.zone_id,zone_name:ez.zone_name||_ezM?.name||null,zone_color:ez.zone_color||_ezM?.color||null};if(!_zg.has(ez.zone_id))_zg.set(ez.zone_id,{za:_fza,strips:[]});_zg.get(ez.zone_id)!.strips.push(s);_added=true;}if(!_added)_ua.push(s);}else _ua.push(s);}
-                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id}-${s.id}`,s,..._gst(s)});}
+                  for(const{za,strips}of _zg.values()){renderItems.push({kind:'zone',zoneId:za.zone_id??0,za,count:strips.length});if(!fzPanelCollapsed.has(za.zone_id??0))for(const s of strips)renderItems.push({kind:'strip',_rk:`z${za.zone_id??0}-${s.id}`,s,..._gst(s)});}
                   if(_ua.length){renderItems.push({kind:'unassigned',count:_ua.length});if(!fzPanelCollapsed.has(-1))for(const s of _ua)renderItems.push({kind:'strip',_rk:`ua-${s.id}`,s,..._gst(s)});}
                 } else {
                   const _sorted=[...sidebarStripList].sort((a,b)=>{if(a.airborne&&!b.airborne)return -1;if(!a.airborne&&b.airborne)return 1;const ta=a.takeoff_time?new Date(a.takeoff_time).getTime():Infinity;const tb=b.takeoff_time?new Date(b.takeoff_time).getTime():Infinity;return ta-tb;});
@@ -19147,9 +19148,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {renderItems.map(item => {
                 if (item.kind === 'zone') return (
                   <div key={`fzh-z${item.zoneId}`} onClick={() => setFzPanelCollapsed(prev => { const n=new Set(prev); n.has(item.zoneId)?n.delete(item.zoneId):n.add(item.zoneId); return n; })}
-                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color}`, direction:'rtl', userSelect:'none' }}>
-                    <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color, flexShrink:0, display:'inline-block' }} />
-                    <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color, flex:1 }}>{item.za.zone_name}</span>
+                    style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 8px', marginBottom:'4px', cursor:'pointer', background: lightMode ? '#e2e8f0' : '#0f172a', borderRadius:'5px', border:`2px solid ${item.za.zone_color || '#ffffff'}`, direction:'rtl', userSelect:'none' }}>
+                    <span style={{ width:10, height:10, borderRadius:'50%', background:item.za.zone_color || '#ffffff', flexShrink:0, display:'inline-block' }} />
+                    <span style={{ fontWeight:'bold', fontSize:'12px', color:item.za.zone_color || '#ffffff', flex:1 }}>{item.za.zone_name}</span>
                     <span style={{ fontSize:'11px', color:T.muted }}>({item.count})</span>
                     <span style={{ fontSize:'10px', color:T.muted }}>{fzPanelCollapsed.has(item.zoneId) ? '▶' : '▼'}</span>
                   </div>
@@ -19185,7 +19186,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   <div style={{ padding: '4px 6px', flex: 1, direction: 'rtl', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? _za.zone_color : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '12px', color: (() => { if (s.airborne) return 'white'; const _za = isFlightZonesMode ? stripZoneAssignments.find((a: StripZoneAssignment) => parseInt(String(a.strip_id), 10) === parseInt(String(s.id).replace(/^s/, ''), 10)) : null; return _za ? (_za.zone_color || (lightMode ? '#1e293b' : '#f1f5f9')) : (lightMode ? '#1e293b' : '#f1f5f9'); })(), ...(s.airborne ? { background: '#1d4ed8', border: '2px solid #3b82f6', borderRadius: '4px', padding: '1px 4px' } : {}) }}>
                           {getFormationDisplayName(s)}
                         </span>
                         {(s.sq || s.squadron) && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 'bold', flexShrink: 0 }}>{s.sq || s.squadron}</span>}
@@ -19578,12 +19579,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {baseStatuses.length > 0 && (() => {
                     const hasPrev = true; // contacts section always renders above
                     const _bsRow = (bs: any) => {
-                      const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.textMuted;
+                      const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.muted;
                       return (
                         <div key={bs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, gap: '4px', direction: 'rtl', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.textMuted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
+                          <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
                           {bs.relevant_to && bs.relevant_to !== 'כולם' && (
-                            <span style={{ fontSize: '9px', color: T.textMuted, flexShrink: 0 }}>{bs.relevant_to}</span>
+                            <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bs.relevant_to}</span>
                           )}
                           <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
                             {bs.air_defense_status || '—'}
@@ -19603,7 +19604,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             {basePanelOpen && (
                               <button
                                 onClick={e => { e.stopPropagation(); setBsGroupByStatus(v => !v); }}
-                                style={{ padding: '1px 7px', borderRadius: '4px', border: `1px solid ${bsGroupByStatus ? '#38bdf8' : T.border}`, background: bsGroupByStatus ? (lightMode ? '#e0f2fe' : '#0c3050') : 'transparent', color: bsGroupByStatus ? (lightMode ? '#0369a1' : '#7dd3fc') : T.textMuted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                                style={{ padding: '1px 7px', borderRadius: '4px', border: `1px solid ${bsGroupByStatus ? '#38bdf8' : T.border}`, background: bsGroupByStatus ? (lightMode ? '#e0f2fe' : '#0c3050') : 'transparent', color: bsGroupByStatus ? (lightMode ? '#0369a1' : '#7dd3fc') : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
                               >קבץ</button>
                             )}
                             <span style={{ fontSize: '13px' }}>🏛</span>
@@ -19624,7 +19625,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
                               });
                               return sorted.map(([status, items]) => {
-                                const grpColor = AIR_DEFENSE_STATUSES.find(s => s.label === status)?.color || T.textMuted;
+                                const grpColor = AIR_DEFENSE_STATUSES.find(s => s.label === status)?.color || T.muted;
                                 return (
                                   <div key={status} style={{ marginBottom: '2px' }}>
                                     <div style={{ fontSize: '10px', fontWeight: 'bold', color: grpColor, padding: '2px 6px', background: grpColor + '18', borderRadius: '3px', marginBottom: '2px', direction: 'rtl' }}>{status}</div>
@@ -20622,6 +20623,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         displayLabel: fzPinZonePicker.dragLabel ?? undefined,
                         posX: fzPinZonePicker.posX,
                         posY: fzPinZonePicker.posY,
+                        requestedZoneIds: [],
                       });
                       setFzPinZonePicker(null);
                     }}
@@ -24019,7 +24021,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '' });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 });
       } else if (saved) {
         editPreset(saved);
       }
@@ -24191,7 +24193,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '' }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -24201,7 +24203,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '' }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -25052,7 +25054,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '' }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
@@ -25497,7 +25499,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       const res = await fetch(`${API_URL}/strips/import`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ strips, creator_preset_id: session.presetId || null })
+                        body: JSON.stringify({ strips, creator_preset_id: getSession()?.presetId || null })
                       });
                       const result = await res.json();
                       setCsvImportResult({ ...result, detectedColumns, airfieldDebug });
