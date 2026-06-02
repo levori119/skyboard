@@ -16587,6 +16587,107 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       )}
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
+
+        {/* ===== כל המכלול — טבלה ראשית מאוחדת ===== */}
+        {showFullPicture && myPresetConfig?.show_full_picture && (() => {
+          const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
+          const groupPresetIds = new Set<number>((myGroup?.members || []).map((m: any) => Number(m.preset_id)));
+          const allGroupStrips = strips.filter((s: any) =>
+            s.status !== 'cancelled' && s.status !== 'rejected' &&
+            groupPresetIds.has(Number(s.workstation_preset_id))
+          );
+          const rawId = (s: any) => parseInt(String(s.id).replace(/^s/, '')) || 0;
+          const getParentId = (s: any): number => s.parent_strip_id || rawId(s);
+          const myPresetName = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.name || '';
+          // Dedup by parent formation — keep representative with most aircraft
+          const seenParents = new Set<number>();
+          const rows: any[] = [];
+          for (const s of allGroupStrips) {
+            const pid = getParentId(s);
+            if (seenParents.has(pid)) continue;
+            seenParents.add(pid);
+            const siblings = allGroupStrips.filter((sib: any) => getParentId(sib) === pid);
+            const rep = [...siblings].sort((a: any, b: any) =>
+              (parseInt(b.numberOfFormation || b.number_of_formation || '1') || 1) -
+              (parseInt(a.numberOfFormation || a.number_of_formation || '1') || 1)
+            )[0] || s;
+            // "אצל מי בדסק" — workstations with on_map=true for any sibling
+            const deskPresets: string[] = [];
+            for (const sib of siblings) {
+              if (sib.onMap) {
+                const preset = workstationPresets.find((p: any) => Number(p.id) === Number(sib.workstation_preset_id));
+                const name = preset?.name || `עמדה ${sib.workstation_preset_id}`;
+                if (!deskPresets.includes(name)) deskPresets.push(name);
+              }
+            }
+            rows.push({ ...rep, deskPresets });
+          }
+          rows.sort((a: any, b: any) => (a.callSign || a.callsign || '').localeCompare(b.callSign || b.callsign || ''));
+          const cols = [
+            { key: 'callsign', label: 'פמ"מ', w: '14%' },
+            { key: 'sq', label: 'סמ"ע', w: '8%' },
+            { key: 'squadron', label: 'מכ"מ', w: '10%' },
+            { key: 'alt', label: 'גובה', w: '8%' },
+            { key: 'task', label: 'משימה', w: '10%' },
+            { key: 'desk', label: 'אצל מי בדסק 🖥', w: '50%' },
+          ];
+          return (
+            <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: lightMode ? '#f8fafc' : '#020617', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+              {/* header */}
+              <div style={{ padding: '9px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, display: 'flex', alignItems: 'center', gap: '10px', background: lightMode ? '#fff' : '#0f172a', flexShrink: 0 }}>
+                <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#f1f5f9' }}>🌐 כל המכלול</span>
+                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{myGroup?.name || 'קבוצת העבודה'} · {rows.length} פמ"מ (ייחודיים)</span>
+                <button onClick={() => setShowFullPicture(false)} style={{ marginInlineStart: 'auto', background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 12px', borderRadius: '5px', fontSize: '12px' }}>✕ סגור</button>
+              </div>
+              {/* table */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl', tableLayout: 'fixed' }}>
+                  <thead>
+                    <tr style={{ background: lightMode ? '#f1f5f9' : '#0f172a', position: 'sticky', top: 0, zIndex: 2 }}>
+                      {cols.map(c => (
+                        <th key={c.key} style={{ width: c.w, padding: '7px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '11px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#1e293b'}`, whiteSpace: 'nowrap', overflow: 'hidden' }}>{c.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: lightMode ? '#94a3b8' : '#475569' }}>אין פממים בקבוצת העבודה</td></tr>
+                    ) : rows.map((s: any) => {
+                      const cs = s.callSign || s.callsign || '—';
+                      const nof = parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1;
+                      const onMyDesk = s.deskPresets.includes(myPresetName);
+                      return (
+                        <tr key={s.id} style={{ borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#0a0f1a'}`, background: onMyDesk ? (lightMode ? '#eff6ff' : '#0d1e3d') : (lightMode ? '#fff' : 'transparent') }}>
+                          <td style={{ padding: '7px 10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {cs}{nof > 1 ? <span style={{ color: '#60a5fa', fontWeight: 'normal', fontSize: '11px' }}>/{nof}</span> : null}
+                          </td>
+                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sq || '—'}</td>
+                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.squadron || '—'}</td>
+                          <td style={{ padding: '7px 10px', fontWeight: 'bold', color: '#34d399', whiteSpace: 'nowrap' }}>{s.alt ? `FL${s.alt}` : '—'}</td>
+                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.task || '—'}</td>
+                          <td style={{ padding: '7px 10px' }}>
+                            {s.deskPresets.length === 0 ? (
+                              <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#334155' }}>—</span>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                {s.deskPresets.map((name: string) => (
+                                  <span key={name} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: name === myPresetName ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), color: name === myPresetName ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: name === myPresetName ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                                    {name === myPresetName ? '⭐ ' : ''}{name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
@@ -20536,83 +20637,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             onSubmit={handlePartialTransferSubmit}
           />
         )}
-
-        {/* FullPicture Panel — כל המכלול: פממים שנגררו ללוח מכל עמדות קבוצת העבודה */}
-        {showFullPicture && myPresetConfig?.show_full_picture && (() => {
-          const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
-          const groupPresetIds = new Set<number>((myGroup?.members || []).map((m: any) => Number(m.preset_id)));
-          const onMapStrips = strips.filter((s: any) => s.onMap && s.status !== 'cancelled' && groupPresetIds.has(Number(s.workstation_preset_id)));
-          // Group by preset
-          const byPreset: { pid: number; name: string; strips: any[] }[] = [];
-          for (const s of onMapStrips) {
-            const pid = Number(s.workstation_preset_id);
-            let group = byPreset.find(g => g.pid === pid);
-            if (!group) {
-              const preset = workstationPresets.find((p: any) => Number(p.id) === pid);
-              group = { pid, name: preset?.name || `עמדה ${pid}`, strips: [] };
-              byPreset.push(group);
-            }
-            group.strips.push(s);
-          }
-          const isMine = (pid: number) => Number(pid) === Number(session.presetId);
-          return (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 8500, pointerEvents: 'none' }}>
-              {/* backdrop — click to close */}
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'auto' }} onClick={() => setShowFullPicture(false)} />
-              {/* panel */}
-              <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '360px', background: lightMode ? '#f8fafc' : '#0f172a', borderLeft: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, boxShadow: '4px 0 24px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', direction: 'rtl', pointerEvents: 'auto', zIndex: 1 }}>
-                {/* header */}
-                <div style={{ padding: '12px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: lightMode ? '#fff' : '#1e293b', flexShrink: 0 }}>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#f1f5f9' }}>🌐 כל המכלול</div>
-                    <div style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', marginTop: '2px' }}>
-                      פממים שנגררו ללוח — {myGroup?.name || 'קבוצת העבודה'} · {onMapStrips.length} פמ"מ
-                    </div>
-                  </div>
-                  <button onClick={() => setShowFullPicture(false)} style={{ background: 'transparent', border: 'none', color: lightMode ? '#64748b' : '#94a3b8', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '4px 6px' }}>✕</button>
-                </div>
-                {/* content */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-                  {byPreset.length === 0 ? (
-                    <div style={{ padding: '32px 16px', textAlign: 'center', color: lightMode ? '#94a3b8' : '#475569', fontSize: '13px' }}>
-                      אין פממים שנגררו ללוח בקבוצת העבודה
-                    </div>
-                  ) : byPreset.map(grp => (
-                    <div key={grp.pid} style={{ marginBottom: '4px' }}>
-                      {/* preset header */}
-                      <div style={{ padding: '6px 14px', background: isMine(grp.pid) ? (lightMode ? '#eff6ff' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: isMine(grp.pid) ? '#60a5fa' : (lightMode ? '#475569' : '#94a3b8') }}>
-                          {isMine(grp.pid) ? '⭐ ' : ''}{grp.name}
-                        </span>
-                        <span style={{ fontSize: '10px', color: lightMode ? '#94a3b8' : '#64748b' }}>({grp.strips.length})</span>
-                      </div>
-                      {/* strips */}
-                      {grp.strips.map((s: any) => {
-                        const cs = s.callSign || s.callsign || '—';
-                        const nof = parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1;
-                        const alt = s.alt ? `FL${s.alt}` : '—';
-                        const isPending = s.status === 'pending_transfer';
-                        return (
-                          <div key={s.id} style={{ padding: '7px 14px', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#0f172a'}`, display: 'flex', alignItems: 'center', gap: '8px', background: lightMode ? '#fff' : '#0a1628' }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 'bold', fontSize: '13px', color: lightMode ? '#1e293b' : '#e2e8f0', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                {cs}{nof > 1 ? <span style={{ color: '#60a5fa', fontSize: '11px' }}>/{nof}</span> : null}
-                                {s.sq ? <span style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{s.sq}</span> : null}
-                              </div>
-                              {s.squadron ? <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#64748b' }}>{s.squadron}</div> : null}
-                            </div>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#34d399', minWidth: '40px', textAlign: 'left' }}>{alt}</div>
-                            {isPending && <div style={{ fontSize: '10px', background: '#7c2d12', color: '#fbbf24', padding: '2px 6px', borderRadius: '4px' }}>בהעברה</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Workstation Picker Modal — בחירת עמדה יעד כאשר הסקטור משותף למספר עמדות */}
         {workstationPickModal && (() => {
