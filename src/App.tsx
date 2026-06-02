@@ -16811,7 +16811,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   presetId={session.presetId}
                   crewMemberId={session?.crewMember?.id ?? null}
                   initialPanelOrder={session?.crewMember?.classic_panel_orders?.[String(session.presetId ?? 'global')] ?? null}
-                  onTransfer={(stripId, toSectorId) => handleTransfer(stripId, toSectorId)}
+                  onTransfer={(stripId, toSectorId) => handleTransferWithWorkstationPick(stripId, toSectorId)}
                   onTransferToPreset={handleClassicTransfer}
                   onAcceptTransfer={handleAcceptTransfer}
                   onUpdateStripField={handleUpdateStripField}
