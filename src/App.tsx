@@ -15555,8 +15555,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           return arr.map((p: any) => Number(p.sector_id)).filter(Boolean);
         })();
         const myAllSectors = [...new Set([...myRelSectors, ...myXferSectors])];
+        const myPresetName = myPreset?.name || '';
         const relatedPresetIds = myAllSectors.length === 0 ? [] : workstationPresets
-          .filter(p => Number(p.id) !== Number(session.presetId))
+          .filter(p => Number(p.id) !== Number(session.presetId) && (!myPresetName || p.name !== myPresetName))
           .filter(p => {
             const prs: number[] = (() => { const rs = p.relevant_sectors; if (!rs) return []; if (Array.isArray(rs)) return rs.map(Number); try { return (JSON.parse(rs) as any[]).map(Number); } catch { return []; } })();
             const pxs: number[] = (() => { const xp = p.classic_transfer_points; if (!xp) return []; const arr = Array.isArray(xp) ? xp : (() => { try { return JSON.parse(xp); } catch { return []; } })(); return arr.map((x: any) => Number(x.sector_id)).filter(Boolean); })();
@@ -15565,7 +15566,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })
           .map(p => Number(p.id));
         const filteredContacts = contactsSummaryData.filter(c =>
-          relatedPresetIds.includes(Number(c.preset_id)) && Number(c.preset_id) !== Number(session.presetId)
+          relatedPresetIds.includes(Number(c.preset_id)) &&
+          Number(c.preset_id) !== Number(session.presetId) &&
+          (!myPresetName || (c.preset_name || '') !== myPresetName)
         );
         const byPreset: Record<string, any[]> = {};
         filteredContacts.forEach(c => {
