@@ -25761,7 +25761,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               
               {/* Sectors List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {sectors.map(sector => (
+                {sectors.map(sector => {
+                  const sid = Number(sector.id);
+                  const recvPresets = presets.filter((p: any) => (Array.isArray(p.classic_receive_points) ? p.classic_receive_points : []).some((pt: any) => Number(pt.sector_id) === sid));
+                  const xferPresets = presets.filter((p: any) => (Array.isArray(p.classic_transfer_points) ? p.classic_transfer_points : []).some((pt: any) => Number(pt.sector_id) === sid));
+                  const relPresets = presets.filter((p: any) => {
+                    const rs = Array.isArray(p.relevant_sectors) ? p.relevant_sectors : [];
+                    return rs.map(Number).includes(sid);
+                  }).filter((p: any) => !recvPresets.some((rp: any) => rp.id === p.id) && !xferPresets.some((xp: any) => xp.id === p.id));
+                  const hasAny = recvPresets.length > 0 || xferPresets.length > 0 || relPresets.length > 0;
+                  return (
                   <div key={sector.id} style={{ background: '#0f172a', borderRadius: '8px', padding: '15px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div style={{ flex: 1 }}>
@@ -25772,6 +25781,31 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                             <span style={{ background: '#7c3aed', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' }}>{sector.category}</span>
                           )}
                         </div>
+                        {/* Workstations using this sector */}
+                        {hasAny ? (
+                          <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                            <span style={{ color: '#475569', fontSize: '11px' }}>עמדות:</span>
+                            {recvPresets.map((p: any) => (
+                              <span key={`recv-${p.id}`} title="נקודת קבלה (סטריפים קלאסי)" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#052e16', border: '1px solid #166534', borderRadius: '10px', fontSize: '11px', color: '#86efac' }}>
+                                📥 {p.name}
+                              </span>
+                            ))}
+                            {xferPresets.map((p: any) => (
+                              <span key={`xfer-${p.id}`} title="נקודת העברה (סטריפים קלאסי)" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#422006', border: '1px solid #92400e', borderRadius: '10px', fontSize: '11px', color: '#fcd34d' }}>
+                                📤 {p.name}
+                              </span>
+                            ))}
+                            {relPresets.map((p: any) => (
+                              <span key={`rel-${p.id}`} title="נקודת העברה רלוונטית (עמדת מפה/טבלה)" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', fontSize: '11px', color: '#94a3b8' }}>
+                                📍 {p.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: '6px' }}>
+                            <span style={{ color: '#374151', fontSize: '11px', fontStyle: 'italic' }}>לא בשימוש באף עמדה</span>
+                          </div>
+                        )}
                         {sector.notes && (
                           <div style={{ marginTop: '8px', padding: '10px', background: '#1e293b', borderRadius: '6px', color: '#94a3b8', fontSize: '13px', borderRight: '3px solid #f59e0b' }}>
                             {sector.notes}
@@ -25784,7 +25818,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {sectors.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>
                     אין נקודות העברה מוגדרות. הוסף נקודה חדשה למעלה.
