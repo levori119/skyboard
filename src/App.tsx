@@ -2491,6 +2491,7 @@ const DraggableNeighborPanel = ({
   mapZoom,
   mapPan,
   lightMode = false,
+  tableMode = false,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -2511,6 +2512,7 @@ const DraggableNeighborPanel = ({
   mapZoom?: number;
   mapPan?: { x: number; y: number };
   lightMode?: boolean;
+  tableMode?: boolean;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -2692,7 +2694,7 @@ const DraggableNeighborPanel = ({
         <div
           className="neighbor-drop-zone"
           data-sector-id={neighbor.id}
-          onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else { handlePointerDown(e); } }}
+          onPointerDown={(e) => { if (dragStripId) { e.preventDefault(); e.stopPropagation(); } else if (!tableMode) { handlePointerDown(e); } }}
           onPointerEnter={() => { if (dragStripId) setIsStripDragOver(true); }}
           onPointerLeave={() => { if (dragStripId) setIsStripDragOver(false); }}
           onDragOver={(e => { e.preventDefault(); e.stopPropagation(); setIsStripDragOver(true); })}
@@ -2705,7 +2707,7 @@ const DraggableNeighborPanel = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '6px',
-            cursor: dragStripId ? 'copy' : 'grab',
+            cursor: dragStripId ? 'copy' : tableMode ? 'default' : 'grab',
             userSelect: 'none',
             direction: 'rtl',
             borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`,
@@ -2758,8 +2760,8 @@ const DraggableNeighborPanel = ({
         {isExpanded && hasSubSectors && neighborSubSectors.map(ss => (
           <div
             key={ss.id}
-            onPointerDown={(e) => handlePointerDown(e, ss.label)}
-            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: 'grab', userSelect: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
+            onPointerDown={(e) => { if (!tableMode) handlePointerDown(e, ss.label); }}
+            style={{ padding: '5px 12px', fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}`, cursor: tableMode ? 'default' : 'grab', userSelect: 'none', direction: 'rtl', background: lightMode ? '#f1f5f9' : '#080f18' }}
           >
             ↳ {ss.label}
           </div>
@@ -16442,6 +16444,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     mapZoom={mapZoom}
                     mapPan={mapPan}
                     lightMode={lightMode}
+                    tableMode={tableMode}
                   />
                 ))}
               </div>
