@@ -2447,9 +2447,11 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
         <div style={{ marginBottom: '3px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginBottom: '1px', opacity: 0.85 }}>{sq}</div>}
-              <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-                {isConflict && '⚠ '}{getTransferLabel(t)}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', overflow: 'hidden' }}>
+                <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', flexShrink: 1, minWidth: 0 }}>
+                  {isConflict && '⚠ '}{getTransferLabel(t)}
+                </div>
+                {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
               </div>
               <span
                 ref={altRef}
@@ -3034,11 +3036,13 @@ const DraggableIncomingTransferMini = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '4px' }}>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-              {isConflict && '⚠️ '}{getTransferLabel(transfer)}
+          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', overflow: 'hidden' }}>
+              <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', flexShrink: 1, minWidth: 0 }}>
+                {isConflict && '⚠️ '}{getTransferLabel(transfer)}
+              </div>
+              {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
             </div>
-            {getTransferSq(transfer) && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{getTransferSq(transfer)}</div>}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
             <span
