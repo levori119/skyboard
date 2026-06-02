@@ -2564,6 +2564,8 @@ const DraggableNeighborPanel = ({
   const [dragLabel, setDragLabel] = useState<string | null>(null);
   const [neighborContactsOpen, setNeighborContactsOpen] = useState(false);
   const [neighborContactsCache, setNeighborContactsCache] = useState<any[] | null>(null);
+  const [outCollapsed, setOutCollapsed] = useState(false);
+  const [inCollapsed, setInCollapsed] = useState(false);
 
   const getNeighborContacts = () => {
     if (!neighborContactsCache) return [];
@@ -2817,55 +2819,65 @@ const DraggableNeighborPanel = ({
         {/* Two-column transfers — always visible */}
         <div style={{ display: 'flex', direction: 'rtl' }}>
 
-          {/* מוסר — outgoing (right in RTL = left visually) */}
+          {/* מוסר — outgoing */}
           <div style={{ flex: 1, borderInlineEnd: `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3d'}` }}>
-            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#f59e0b', background: lightMode ? '#fffbeb' : '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+            <div
+              onClick={() => setOutCollapsed(v => !v)}
+              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#f59e0b', background: lightMode ? '#fffbeb' : '#130a00', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
               <span>🔥</span><span>מוסר</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorOutgoing.length})</span>
+              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{outCollapsed ? '▼' : '▲'}</span>
             </div>
-            <div style={{ padding: '3px', minHeight: '24px' }}>
-              {sectorOutgoing.map(t => (
-                <OutgoingTransferCard
-                  key={t.id}
-                  t={t}
-                  isConflict={conflictingTransferIds.has(String(t.id))}
-                  onCancel={onCancelTransfer}
-                  onUpdateStripField={onUpdateStripField}
-                  lightMode={lightMode}
-                  presetId={presetId}
-                  onUpdateNote={onUpdateNote}
-                />
-              ))}
-              {sectorOutgoing.length === 0 && (
-                <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-              )}
-            </div>
+            {!outCollapsed && (
+              <div style={{ padding: '3px', minHeight: '24px' }}>
+                {sectorOutgoing.map(t => (
+                  <OutgoingTransferCard
+                    key={t.id}
+                    t={t}
+                    isConflict={conflictingTransferIds.has(String(t.id))}
+                    onCancel={onCancelTransfer}
+                    onUpdateStripField={onUpdateStripField}
+                    lightMode={lightMode}
+                    presetId={presetId}
+                    onUpdateNote={onUpdateNote}
+                  />
+                ))}
+                {sectorOutgoing.length === 0 && (
+                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* מקבל — incoming */}
           <div style={{ flex: 1 }}>
-            <div style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#22c55e', background: lightMode ? '#f0fdf4' : '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px' }}>
+            <div
+              onClick={() => setInCollapsed(v => !v)}
+              style={{ padding: '4px 6px', fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#22c55e', background: lightMode ? '#f0fdf4' : '#020d04', textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '3px', cursor: 'pointer', userSelect: 'none' }}>
               <span>📥</span><span>מקבל</span><span style={{ fontWeight: 'normal', opacity: 0.75 }}>({sectorIncoming.length})</span>
+              <span style={{ fontSize: '9px', opacity: 0.6, marginInlineStart: '2px' }}>{inCollapsed ? '▼' : '▲'}</span>
             </div>
-            <div style={{ padding: '3px', minHeight: '24px' }}>
-              {sectorIncoming.map(t => (
-                <DraggableIncomingTransferMini
-                  key={t.id}
-                  transfer={t}
-                  onAccept={onAcceptTransfer}
-                  onReject={onRejectTransfer}
-                  onAcceptToMap={onAcceptToMap}
-                  isConflict={conflictingTransferIds.has(String(t.id))}
-                  onUpdateStripField={onUpdateStripField}
-                  zoom={mapZoom}
-                  pan={mapPan}
-                  presetId={presetId}
-                  onUpdateNote={onUpdateNote}
-                />
-              ))}
-              {sectorIncoming.length === 0 && (
-                <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
-              )}
-            </div>
+            {!inCollapsed && (
+              <div style={{ padding: '3px', minHeight: '24px' }}>
+                {sectorIncoming.map(t => (
+                  <DraggableIncomingTransferMini
+                    key={t.id}
+                    transfer={t}
+                    onAccept={onAcceptTransfer}
+                    onReject={onRejectTransfer}
+                    onAcceptToMap={onAcceptToMap}
+                    isConflict={conflictingTransferIds.has(String(t.id))}
+                    onUpdateStripField={onUpdateStripField}
+                    zoom={mapZoom}
+                    pan={mapPan}
+                    presetId={presetId}
+                    onUpdateNote={onUpdateNote}
+                  />
+                ))}
+                {sectorIncoming.length === 0 && (
+                  <div style={{ padding: '6px 4px', fontSize: '10px', color: lightMode ? '#94a3b8' : '#334155', textAlign: 'center' }}>—</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
