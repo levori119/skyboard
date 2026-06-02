@@ -2438,18 +2438,16 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
         border: isConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
         background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-              {isConflict && '⚠ '}{getTransferLabel(t)}
-            </div>
-            {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
+        <div style={{ marginBottom: '3px' }}>
+          {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginBottom: '1px', opacity: 0.85 }}>{sq}</div>}
+          <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+            {isConflict && '⚠ '}{getTransferLabel(t)}
           </div>
           <span
             ref={altRef}
             title="לחץ לעדכון גובה"
             onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', flexShrink: 0, letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
+            style={{ display: 'inline-block', marginTop: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
           >
             {t.alt ? normalizeAlt(t.alt) : '—'}
           </span>
