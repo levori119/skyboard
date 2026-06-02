@@ -11841,6 +11841,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [allPendingTransfers, setAllPendingTransfers] = useState<any[]>([]);
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
+  const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
   const [neighborDropDialog, setNeighborDropDialog] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string; clientX: number; clientY: number} | null>(null);
@@ -14145,6 +14146,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
     } else {
       handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
+    }
+  };
+
+  // Workstation picker: if the target sector is served by multiple presets, ask the user which one.
+  const handleTransferWithWorkstationPick = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string) => {
+    const candidates = workstationPresets.filter((p: any) => {
+      if (Number(p.id) === Number(session.presetId)) return false;
+      const relSectors: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+      const recvSectors: number[] = (p.classic_receive_points || []).map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+      return relSectors.includes(Number(toSectorId)) || recvSectors.includes(Number(toSectorId));
+    });
+    if (candidates.length > 1) {
+      setWorkstationPickModal({ stripId, toSectorId, targetX, targetY, subLabel, candidates });
+    } else {
+      handleTransferWithPartialCheck(stripId, toSectorId, targetX, targetY, subLabel, candidates.length === 1 ? Number(candidates[0].id) : undefined);
     }
   };
 
@@ -16594,7 +16610,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onRejectTransfer={handleRejectTransfer}
                     onAcceptToMap={handleAcceptToMap}
                     dragStripId={tableMode ? tableDragRow : null}
-                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithPartialCheck(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
+                    onStripDrop={(tableMode || isFlightZonesMode) ? (stripId, sectorId) => { handleTransferWithWorkstationPick(stripId, sectorId); if (tableMode) setTableDragRow(null); } : undefined}
                     crossSectorConflictIds={crossSectorConflictIds}
                     conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500}
                     onUpdateStripField={handleUpdateStripField}
@@ -18381,7 +18397,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
                 neighbors={allSectors}
-                onTransfer={handleTransferWithPartialCheck}
+                onTransfer={handleTransferWithWorkstationPick}
                 onToggleAirborne={handleToggleAirborne}
                 onUpdateNotes={handleUpdateStripNotes}
                 onUpdateDetails={handleUpdateStripDetails}
@@ -20507,6 +20523,43 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             onSubmit={handlePartialTransferSubmit}
           />
         )}
+
+        {/* Workstation Picker Modal — בחירת עמדה יעד כאשר הסקטור משותף למספר עמדות */}
+        {workstationPickModal && (() => {
+          const sec = allSectors.find((s: any) => Number(s.id) === Number(workstationPickModal.toSectorId));
+          const secName = sec?.label_he || sec?.name || `סקטור ${workstationPickModal.toSectorId}`;
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: '#1e293b', border: '1px solid #475569', borderRadius: '10px', padding: '24px', minWidth: '280px', maxWidth: '380px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#f1f5f9', marginBottom: '6px' }}>בחר עמדה יעד</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '18px' }}>
+                  לנקודת העברה <span style={{ color: '#60a5fa', fontWeight: 'bold' }}>{secName}</span> מחוברות מספר עמדות — לאיזו להעביר?
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {workstationPickModal.candidates.map((p: any) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        const { stripId, toSectorId, targetX, targetY, subLabel } = workstationPickModal;
+                        setWorkstationPickModal(null);
+                        handleTransferWithPartialCheck(stripId, toSectorId, targetX, targetY, subLabel, Number(p.id));
+                      }}
+                      style={{ padding: '10px 16px', borderRadius: '7px', border: '1px solid #334155', background: '#0f172a', color: '#e2e8f0', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', textAlign: 'right', transition: 'background 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#1e40af')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#0f172a')}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setWorkstationPickModal(null)}
+                  style={{ marginTop: '14px', width: '100%', padding: '7px', borderRadius: '6px', border: '1px solid #475569', background: 'transparent', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}
+                >ביטול</button>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Floating Notepad */}
         {showNotepad && (
