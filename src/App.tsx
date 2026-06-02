@@ -9360,7 +9360,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [blockSpaceOrder, setBlockSpaceOrder] = React.useState<string[]>([]);
   const [dragSegKey, setDragSegKey] = React.useState<string | null>(null);
   const [dragOverSegKey, setDragOverSegKey] = React.useState<string | null>(null);
-  const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number } | null>(null);
+  const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number; origLo: number; origHi: number } | null>(null);
   const [altExpandDrag, setAltExpandDrag] = React.useState<{ stripId: string; edge: 'top' | 'bottom'; origLo: number; origHi: number; currentAlt: number } | null>(null);
   const [altExpand, setAltExpand] = React.useState(0); // extra feet added on each side (positive = expand)
   const [altSuggestion, setAltSuggestion] = React.useState<{ stripId: string; proposedRange: string; count: number; nightMode: boolean } | null>(null);
@@ -9652,11 +9652,21 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   React.useEffect(() => {
     if (!altDrag) return;
     const commitAlt = (currentAlt: number) => {
+      const d = altDragRef.current!;
       const newAlt = Math.round(currentAlt);
-      const fl = Math.round(newAlt / 100);
-      const altStr = newAlt >= 10000 ? String(fl) : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
-      onUpdateStripAlt?.(altDragRef.current!.stripId, altStr);
-      tryShowAltSuggestion(altDragRef.current!.stripId, newAlt);
+      let altStr: string;
+      if (d.origLo !== d.origHi) {
+        // Preserve range width, shift center to newAlt
+        const halfWidth = (d.origHi - d.origLo) / 2;
+        const newLo = Math.round((newAlt - halfWidth) / 100);
+        const newHi = Math.round((newAlt + halfWidth) / 100);
+        altStr = `${newLo}-${newHi}`;
+      } else {
+        const fl = Math.round(newAlt / 100);
+        altStr = newAlt >= 10000 ? String(fl) : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
+      }
+      onUpdateStripAlt?.(d.stripId, altStr);
+      tryShowAltSuggestion(d.stripId, newAlt);
       setAltDrag(null);
     };
     const calcAlt = (clientY: number) => {
@@ -9689,8 +9699,11 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
     const commitExpand = () => {
       const d = altExpandDragRef.current;
       if (!d) return;
-      const newHi = d.edge === 'top' ? Math.max(d.currentAlt, d.origHi) : d.origHi;
-      const newLo = d.edge === 'bottom' ? Math.min(d.currentAlt, d.origLo) : d.origLo;
+      const rawHi = d.edge === 'top' ? d.currentAlt : d.origHi;
+      const rawLo = d.edge === 'bottom' ? d.currentAlt : d.origLo;
+      // Allow shrinking but enforce minimum 500ft range and correct ordering
+      const newHi = Math.max(rawHi, rawLo + 500);
+      const newLo = Math.min(rawLo, rawHi - 500);
       onUpdateStripAlt?.(d.stripId, fmtAltRange(newLo, newHi));
       tryShowAltSuggestion(d.stripId, (newLo + newHi) / 2);
       setAltExpandDrag(null);
@@ -9983,13 +9996,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'bottom', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altLo }); }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, cursor: 's-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
               {onUpdateStripAlt && (
                 <div
-                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); }}
                   style={{ width: '12px', flexShrink: 0, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.12)', touchAction: 'none', userSelect: 'none', fontSize: '9px', color: '#94a3b8' }}>
                   ⠿
                 </div>
               )}
               <div
-                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); } : undefined}
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
@@ -10042,13 +10055,13 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
               {onUpdateStripAlt && <div onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltExpandDrag({ stripId: s.id, edge: 'bottom', origLo: s._altLo, origHi: s._altHi, currentAlt: s._altLo }); }} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, cursor: 's-resize', background: 'rgba(99,102,241,0.45)', zIndex: 20, touchAction: 'none', userSelect: 'none' }} />}
               {onUpdateStripAlt && (
                 <div
-                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); }}
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); }}
                   style={{ width: '12px', flexShrink: 0, cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.12)', touchAction: 'none', userSelect: 'none', fontSize: '9px', color: '#94a3b8' }}>
                   ⠿
                 </div>
               )}
               <div
-                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2 }); } : undefined}
+                onPointerDown={onUpdateStripAlt ? (e) => { e.preventDefault(); e.stopPropagation(); setAltDrag({ stripId: s.id, currentAlt: (s._altLo + s._altHi) / 2, origLo: s._altLo, origHi: s._altHi }); } : undefined}
                 style={{ flex: 1, overflow: 'hidden', padding: '2px 4px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', direction: 'rtl', cursor: onUpdateStripAlt ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}>
                 <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', fontSize: `${stripFontSize}px`, lineHeight: 1.3, display: 'flex', gap: '4px', alignItems: 'baseline' }}>
                   <span style={{ fontWeight: 'bold', color: textMainColor, flexShrink: 0 }}>{getFormationDisplayName(s) || '—'}{sq ? ` / ${sq}` : ''}</span>
@@ -10992,20 +11005,33 @@ const AdminDashboard: React.FC<{
     const delta: number = preset.conflict_alt_delta ?? 500;
     const conflictIds = new Set<string>();
     if (delta > 0 && strips.length >= 2) {
-      const parseAlt = (alt: string | null | undefined): number | null => {
+      const parseAltR = (alt: string | null | undefined): { lo: number; hi: number } | null => {
         if (!alt) return null;
-        const m = String(alt).match(/\d+/);
-        return m ? parseInt(m[0]) : null;
+        const u = String(alt).trim().toUpperCase().replace(/,/g, '');
+        const rangeM = u.match(/(?:FL?)?(\d+)\s*[-–]\s*(?:FL?)?(\d+)/);
+        if (rangeM) {
+          let lo = parseInt(rangeM[1]); let hi = parseInt(rangeM[2]);
+          if (lo >= 100 && lo <= 999) lo *= 100; if (hi >= 100 && hi <= 999) hi *= 100;
+          if (lo > hi) [lo, hi] = [hi, lo];
+          return { lo, hi };
+        }
+        const m = u.match(/\d+/);
+        if (!m) return null;
+        const n = parseInt(m[0]);
+        const ft = (n >= 100 && n <= 999) ? n * 100 : n;
+        return { lo: ft, hi: ft };
       };
       for (let i = 0; i < strips.length; i++) {
         const a = strips[i];
-        const altA = parseAlt(a.alt);
-        if (altA == null) continue;
+        const rA = parseAltR(a.alt);
+        if (rA == null) continue;
         for (let j = i + 1; j < strips.length; j++) {
           const b = strips[j];
-          const altB = parseAlt(b.alt);
-          if (altB == null) continue;
-          if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+          const rB = parseAltR(b.alt);
+          if (rB == null) continue;
+          // gap < 0: overlap; 0 <= gap < delta: close proximity — both are conflicts
+          const gap = Math.max(rA.lo, rB.lo) - Math.min(rA.hi, rB.hi);
+          if (gap < delta && !(rA.lo === rB.lo && rA.hi === rB.hi)) {
             conflictIds.add(String(a.id));
             conflictIds.add(String(b.id));
           }
