@@ -11892,6 +11892,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showMapDropdown, setShowMapDropdown] = useState(false);
   const [showTableDropdown, setShowTableDropdown] = useState(false);
   const [showAlertsMenu, setShowAlertsMenu] = useState(false);
+  const [showContactsOnTransfer, setShowContactsOnTransfer] = useState(true);
+  const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
@@ -13975,15 +13977,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         stripCallsign: strip?.callSign || strip?.callsign,
         details: { toSectorId, toWorkstationId: toWorkstationId || null }
       });
-      // Auto-open contacts summary and flash for 5 seconds
-      setContactsSummaryOpen(true);
-      setContactsSummaryFlashing(true);
-      fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
-      if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
-      contactsAutoCloseTimer.current = setTimeout(() => {
-        setContactsSummaryFlashing(false);
-        setContactsSummaryOpen(false);
-      }, 5000);
+      // Auto-open contacts summary and flash for 5 seconds (only if toggle is on)
+      if (showContactsOnTransfer) {
+        setContactsSummaryOpen(true);
+        setContactsSummaryFlashing(true);
+        fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
+        if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
+        contactsAutoCloseTimer.current = setTimeout(() => {
+          setContactsSummaryFlashing(false);
+          setContactsSummaryOpen(false);
+        }, 5000);
+      }
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
@@ -15243,7 +15247,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     </button>
                   </div>
                   {/* Block alert row */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
                     <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
                       {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
                     </span>
@@ -15252,6 +15256,30 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} בלוקים
+                    </button>
+                  </div>
+                  {/* Contacts on transfer row */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
+                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#64748b' }}>
+                      {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
+                    </span>
+                    <button
+                      onClick={() => setShowContactsOnTransfer(v => !v)}
+                      style={{ background: showContactsOnTransfer ? '#1e3a5f' : '#334155', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8', border: `1px solid ${showContactsOnTransfer ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {showContactsOnTransfer ? '🔕 כבה' : '🔔 הפעל'}
+                    </button>
+                  </div>
+                  {/* Suggest alt range for formation row */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
+                      {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
+                    </span>
+                    <button
+                      onClick={() => setSuggestAltRangeFormation(v => !v)}
+                      style={{ background: suggestAltRangeFormation ? '#2e1a5e' : '#334155', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8', border: `1px solid ${suggestAltRangeFormation ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
                 </div>
@@ -20515,7 +20543,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={myPresetConfig?.suggest_alt_range === true} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -20532,7 +20560,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={myPresetConfig?.suggest_alt_range === true} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={suggestAltRangeFormation || myPresetConfig?.suggest_alt_range === true} />
         </div>
       ))}
 
