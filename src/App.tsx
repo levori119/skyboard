@@ -9350,7 +9350,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 };
 
 // --- תצוגה ורטיקאלית ---
-const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void }) => {
+const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], blockSpaces = [], blockTables = [], allBlocks = [], muteBlockAlerts = false, onStripContextMenu, activeBlockTableId = null, onTimeFieldChange, timeBased = true, onUpdateStripAlt, conflictAltDelta = 500, presetAltMin = null, presetAltMax = null, viewerPresetId = null, externalConflictIds = undefined, initialGroupBy = 'none', onGroupByChange, suggestAltRange = false }: { strips: any[]; timeField: 'takeoff' | 'zmm'; lightMode: boolean; relevantBlocks?: any[]; blockSpaces?: any[]; blockTables?: any[]; allBlocks?: any[]; muteBlockAlerts?: boolean; onStripContextMenu?: (stripId: string, x: number, y: number) => void; activeBlockTableId?: number | null; onTimeFieldChange?: (v: 'takeoff' | 'zmm') => void; timeBased?: boolean; onUpdateStripAlt?: (stripId: string, newAlt: string) => void; conflictAltDelta?: number; presetAltMin?: number | null; presetAltMax?: number | null; viewerPresetId?: number | null; externalConflictIds?: Set<string>; initialGroupBy?: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id'; onGroupByChange?: (g: 'none' | 'erka' | 'koteret' | 'mivtza' | 'block_space_id') => void; suggestAltRange?: boolean }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const chartContentRef = React.useRef<HTMLDivElement>(null);
   const [chartW, setChartW] = React.useState(800);
@@ -9363,6 +9363,81 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
   const [altDrag, setAltDrag] = React.useState<{ stripId: string; currentAlt: number } | null>(null);
   const [altExpandDrag, setAltExpandDrag] = React.useState<{ stripId: string; edge: 'top' | 'bottom'; origLo: number; origHi: number; currentAlt: number } | null>(null);
   const [altExpand, setAltExpand] = React.useState(0); // extra feet added on each side (positive = expand)
+  const [altSuggestion, setAltSuggestion] = React.useState<{ stripId: string; proposedRange: string; count: number; nightMode: boolean } | null>(null);
+  const [sunTimes, setSunTimes] = React.useState<{ firstLight: number; lastLight: number } | null>(null);
+  const stripsRef = React.useRef(strips);
+  stripsRef.current = strips;
+  const relevantBlocksRef = React.useRef(relevantBlocks);
+  relevantBlocksRef.current = relevantBlocks;
+  const suggestAltRangeRef = React.useRef(suggestAltRange);
+  suggestAltRangeRef.current = suggestAltRange;
+  const sunTimesRef = React.useRef(sunTimes);
+  sunTimesRef.current = sunTimes;
+
+  React.useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    fetch(`https://api.sunrise-sunset.org/json?lat=31.7683&lng=35.2137&date=${today}&formatted=0`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === 'OK') {
+          const sr = new Date(d.results.sunrise).getTime();
+          const ss = new Date(d.results.sunset).getTime();
+          setSunTimes({ firstLight: sr - 15 * 60 * 1000, lastLight: ss + 15 * 60 * 1000 });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const parseAltRangeForSuggestion = (alt: string): { lo: number; hi: number } | null => {
+    if (!alt) return null;
+    const u = alt.trim().toUpperCase().replace(/,/g, '');
+    const rangeMatch = u.match(/(?:FL?)?(\d+)\s*[-–]\s*(?:FL?)?(\d+)/);
+    if (rangeMatch) {
+      let lo = parseInt(rangeMatch[1]); let hi = parseInt(rangeMatch[2]);
+      if (lo < 1000) lo *= 100; if (hi < 1000) hi *= 100;
+      return lo <= hi ? { lo, hi } : { lo: hi, hi: lo };
+    }
+    const fl = u.match(/^F[L]?(\d+)/); if (fl) { const v = parseInt(fl[1]) * 100; return { lo: v, hi: v }; }
+    const num = u.match(/^(\d+)$/); if (num) { const n = parseInt(num[1]); const v = n >= 100 && n <= 999 ? n * 100 : n; return { lo: v, hi: v }; }
+    return null;
+  };
+
+  const tryShowAltSuggestion = React.useCallback((stripId: string, chosenAlt: number) => {
+    if (!suggestAltRangeRef.current) return;
+    const allStrips = stripsRef.current;
+    const strip = allStrips.find((s: any) => String(s.id) === String(stripId));
+    if (!strip) return;
+    const count = Math.max(1, parseInt(strip.numberOfFormation ?? strip.number_of_formation ?? '1') || 1);
+    if (count <= 2) return;
+    const extraPairs = Math.ceil((count - 2) / 2);
+    const rangeSize = extraPairs * 1000;
+    const st = sunTimesRef.current;
+    const nightMode = st ? (Date.now() < st.firstLight || Date.now() > st.lastLight) : false;
+    const minSep = nightMode ? 2000 : 0;
+    const blocks = relevantBlocksRef.current;
+    const othersWithAlt = allStrips
+      .filter((s: any) => String(s.id) !== String(stripId))
+      .map((s: any) => parseAltRangeForSuggestion(s.alt || ''))
+      .filter(Boolean) as { lo: number; hi: number }[];
+    const isFree = (lo: number, hi: number): boolean => {
+      if (blocks.length > 0) {
+        const inBlock = blocks.some((b: any) => b.alt_from * 100 <= lo && b.alt_to * 100 >= hi);
+        if (!inBlock) return false;
+      }
+      for (const o of othersWithAlt) {
+        if (hi + minSep > o.lo && lo - minSep < o.hi) return false;
+      }
+      return true;
+    };
+    const snapped = Math.round(chosenAlt / 1000) * 1000;
+    const options = [[snapped, snapped + rangeSize], [snapped - rangeSize, snapped], [snapped - rangeSize / 2, snapped + rangeSize / 2]];
+    for (const [lo, hi] of options) {
+      if (isFree(lo, hi)) {
+        setAltSuggestion({ stripId, proposedRange: `${Math.round(lo / 100)}-${Math.round(hi / 100)}`, count, nightMode });
+        return;
+      }
+    }
+  }, []);
 
   React.useEffect(() => {
     const el = containerRef.current;
@@ -9581,6 +9656,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       const fl = Math.round(newAlt / 100);
       const altStr = newAlt >= 10000 ? String(fl) : newAlt >= 1000 ? `${(newAlt / 1000).toFixed(1)}k` : String(newAlt);
       onUpdateStripAlt?.(altDragRef.current!.stripId, altStr);
+      tryShowAltSuggestion(altDragRef.current!.stripId, newAlt);
       setAltDrag(null);
     };
     const calcAlt = (clientY: number) => {
@@ -9616,6 +9692,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
       const newHi = d.edge === 'top' ? Math.max(d.currentAlt, d.origHi) : d.origHi;
       const newLo = d.edge === 'bottom' ? Math.min(d.currentAlt, d.origLo) : d.origLo;
       onUpdateStripAlt?.(d.stripId, fmtAltRange(newLo, newHi));
+      tryShowAltSuggestion(d.stripId, (newLo + newHi) / 2);
       setAltExpandDrag(null);
     };
     const calcExpandAlt = (clientY: number) => {
@@ -9982,6 +10059,31 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
           );
         }
       })}
+
+      {/* Alt range suggestion banner */}
+      {altSuggestion && (() => {
+        const sg = altSuggestion;
+        const strip = placed.find(p => String(p.id) === String(sg.stripId));
+        const yPct = strip ? altPct((strip._altLo + strip._altHi) / 2) : 50;
+        const clampedY = Math.max(5, Math.min(90, yPct));
+        return (
+          <div style={{ position: 'absolute', left: 4, top: `${clampedY}%`, transform: 'translateY(-50%)', zIndex: 30, background: sg.nightMode ? '#1e1b4b' : '#0c2a1a', border: `1px solid ${sg.nightMode ? '#818cf8' : '#4ade80'}`, borderRadius: 8, padding: '6px 10px', direction: 'rtl', boxShadow: '0 4px 16px rgba(0,0,0,0.5)', minWidth: 180, maxWidth: 240, fontSize: '12px', color: sg.nightMode ? '#c7d2fe' : '#bbf7d0', pointerEvents: 'all' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: 4, color: sg.nightMode ? '#a5b4fc' : '#86efac' }}>
+              {sg.nightMode ? '🌙' : '☀️'} הצעת בלוק גבהים
+            </div>
+            <div style={{ marginBottom: 6, lineHeight: 1.5 }}>
+              הפ"מ מכיל <strong>{sg.count}</strong> מטוסים
+              {sg.nightMode ? ' (לילה)' : ''}
+              <br />
+              מוצע: <strong style={{ fontSize: '13px', color: sg.nightMode ? '#e0e7ff' : '#f0fdf4' }}>FL{sg.proposedRange}</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => { onUpdateStripAlt?.(sg.stripId, sg.proposedRange); setAltSuggestion(null); }} style={{ flex: 1, padding: '3px 0', background: sg.nightMode ? '#4338ca' : '#15803d', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontWeight: 'bold', fontSize: '11px' }}>✓ קבל</button>
+              <button onClick={() => setAltSuggestion(null)} style={{ flex: 1, padding: '3px 0', background: 'rgba(255,255,255,0.1)', color: sg.nightMode ? '#c7d2fe' : '#bbf7d0', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: '11px' }}>✕ בטל</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {placed.length === 0 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: textColor, fontSize: '12px', direction: 'rtl' }}>
@@ -20373,7 +20475,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={myPresetConfig?.suggest_alt_range === true} />
         </div>
       ) : (
         /* Map mode: fixed overlay so map area stays full size and strips don't move */
@@ -20390,7 +20492,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} />
+          <VerticalView strips={tableMode ? myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer')) : myTableStrips.filter(s => showPendingTransfer || s.status !== 'pending_transfer')} timeField={verticalTimeField} lightMode={lightMode} relevantBlocks={(() => { const preset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null; const btIds: number[] = preset?.block_table_ids || []; const pid = preset ? Number(preset.id) : null; const allRel = dashboardBlocks.filter((b: any) => btIds.includes(b.block_table_id) || (pid !== null && Array.isArray(b.workstations) && b.workstations.map(Number).includes(pid))); return activeBlockTableId ? allRel.filter((b: any) => b.block_table_id === activeBlockTableId) : allRel; })()} blockSpaces={dashboardBlockSpaces} blockTables={dashboardBlockTables} allBlocks={dashboardBlocks} muteBlockAlerts={muteBlockAlerts} onStripContextMenu={(id, x, y) => setVerticalCtxMenu({ stripId: id, x, y })} activeBlockTableId={effectiveBlockTableId} onTimeFieldChange={setVerticalTimeField} timeBased={myPresetConfig?.vertical_time_based !== false} onUpdateStripAlt={async (stripId, altStr) => { try { const targetStrip = strips.find(s => String(s.id) === String(stripId)); const syntheticStrip = targetStrip ? { ...targetStrip, alt: altStr } : null; const newDeviation = syntheticStrip ? computeBlockDeviation(syntheticStrip, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false; await fetch(`${API_URL}/strips/${stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt: altStr, block_deviation: newDeviation }) }); setStrips(prev => prev.map(s => String(s.id) === String(stripId) ? { ...s, alt: altStr, block_deviation: newDeviation } : s)); } catch (e) { console.error(e); } }} conflictAltDelta={myPresetConfig?.conflict_alt_delta ?? 500} presetAltMin={myPresetConfig?.view_alt_min ?? null} presetAltMax={myPresetConfig?.view_alt_max ?? null} viewerPresetId={session.presetId ? Number(session.presetId) : null} externalConflictIds={tableMode ? tableEffectiveConflictIds : undefined} initialGroupBy={verticalGroupBy} onGroupByChange={setVerticalGroupBy} suggestAltRange={myPresetConfig?.suggest_alt_range === true} />
         </div>
       ))}
 
@@ -23723,6 +23825,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     can_update_pressure: false as boolean,
     show_dashboard: false as boolean,
     flight_zones_mode: false as boolean,
+    suggest_alt_range: false as boolean,
     use_map_zones: false as boolean,
     can_update_mazaa: false as boolean,
     datk_show_minutes: '' as string | number,
@@ -24061,6 +24164,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           can_update_pressure: presetForm.can_update_pressure === true,
           show_dashboard: presetForm.show_dashboard === true,
           flight_zones_mode: presetForm.flight_zones_mode === true,
+          suggest_alt_range: presetForm.suggest_alt_range === true,
           use_map_zones: presetForm.use_map_zones === true,
           can_update_mazaa: presetForm.can_update_mazaa === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
@@ -24083,7 +24187,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false });
       } else if (saved) {
         editPreset(saved);
       }
@@ -24128,6 +24232,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       can_update_pressure: preset.can_update_pressure === true,
       show_dashboard: preset.show_dashboard === true,
       flight_zones_mode: preset.flight_zones_mode === true,
+      suggest_alt_range: preset.suggest_alt_range === true,
       use_map_zones: preset.use_map_zones === true,
       can_update_mazaa: preset.can_update_mazaa === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
@@ -24255,7 +24360,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -24265,7 +24370,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -24818,6 +24923,23 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
+                {/* suggest_alt_range toggle */}
+                {(presetForm.block_table_ids?.length > 0) && (
+                  <div style={{ marginTop: '15px', padding: '12px', background: '#0f1a0f', borderRadius: '8px', border: '1px solid #14532d' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#86efac', fontSize: '14px', fontWeight: 'bold' }}>📐 הצעת טווח בלוק גבהים:</label>
+                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                      {([{ val: true, label: '✅ פעיל — הצעה לפי מספר מטוסים' }, { val: false, label: '⬜ כבוי' }] as { val: boolean; label: string }[]).map(opt => (
+                        <button key={String(opt.val)} type="button"
+                          onClick={() => setPresetForm(p => ({ ...p, suggest_alt_range: opt.val }))}
+                          style={{ padding: '6px 16px', borderRadius: '6px', border: `1px solid ${presetForm.suggest_alt_range === opt.val ? '#22c55e' : '#334155'}`, background: presetForm.suggest_alt_range === opt.val ? '#14532d' : '#1e293b', color: presetForm.suggest_alt_range === opt.val ? '#86efac' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.suggest_alt_range === opt.val ? 'bold' : 'normal' }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#4ade80' }}>כשמופעל: לאחר הגדרת גובה לפ"מ עם 3+ מטוסים — המערכת מציעה טווח בלוק פנוי (+1000 רגל לכל זוג מטוסים מעבר לשניים). בלילה: הפרדה של 2000 רגל מפממים סמוכים.</p>
+                  </div>
+                )}
+
                 {/* use_map_zones toggle */}
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🧭 התחשב באזורים על מפה:</label>
@@ -25116,7 +25238,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50 }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
