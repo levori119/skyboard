@@ -534,6 +534,15 @@ body.light-mode .table-header-menu button:hover {
   animation: alt-conflict-flash 0.8s ease-in-out infinite;
 }
 
+/* Contacts summary flash after transfer */
+@keyframes contacts-transfer-flash {
+  0%, 100% { border-color: #3b82f6; box-shadow: 0 0 18px rgba(59,130,246,0.6); }
+  50% { border-color: #93c5fd; box-shadow: 0 0 4px rgba(59,130,246,0.2); }
+}
+.contacts-transfer-flashing {
+  animation: contacts-transfer-flash 0.6s ease-in-out infinite;
+}
+
 /* Strip search hit highlight */
 @keyframes strip-search-pulse {
   0%, 100% { box-shadow: 0 0 0 2px #facc15, 0 0 12px 4px rgba(250,204,21,0.55); }

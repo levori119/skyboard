@@ -12162,6 +12162,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [contactsPanelOpen, setContactsPanelOpen] = useState(false);
   const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
+  const [contactsSummaryFlashing, setContactsSummaryFlashing] = useState(false);
+  const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
   const contactsSummaryDragRef = React.useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -13973,6 +13975,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         stripCallsign: strip?.callSign || strip?.callsign,
         details: { toSectorId, toWorkstationId: toWorkstationId || null }
       });
+      // Auto-open contacts summary and flash for 5 seconds
+      setContactsSummaryOpen(true);
+      setContactsSummaryFlashing(true);
+      fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {});
+      if (contactsAutoCloseTimer.current) clearTimeout(contactsAutoCloseTimer.current);
+      contactsAutoCloseTimer.current = setTimeout(() => {
+        setContactsSummaryFlashing(false);
+        setContactsSummaryOpen(false);
+      }, 5000);
       loadData();
     } catch (err) {
       console.error('Failed to initiate transfer:', err);
@@ -15525,7 +15536,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             return pAll.some(s => myAllSectors.includes(s));
           })
           .map(p => Number(p.id));
-        const filteredContacts = contactsSummaryData.filter(c => relatedPresetIds.includes(Number(c.preset_id)));
+        const filteredContacts = contactsSummaryData.filter(c =>
+          relatedPresetIds.includes(Number(c.preset_id)) && Number(c.preset_id) !== Number(session.presetId)
+        );
         const byPreset: Record<string, any[]> = {};
         filteredContacts.forEach(c => {
           const key = `${c.preset_id}__${c.preset_name}`;
@@ -15535,6 +15548,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const entries = Object.entries(byPreset);
         return (
           <div
+            className={contactsSummaryFlashing ? 'contacts-transfer-flashing' : undefined}
             style={{ position: 'fixed', left: contactsSummaryPos.x, top: contactsSummaryPos.y, zIndex: 9600, width: '420px', maxHeight: '70vh', background: '#0f172a', border: '2px solid #1e40af', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden', pointerEvents: 'auto' }}
           >
             <div
@@ -15552,7 +15566,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               }}
             >
               <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'white' }}>📡 ריכוז קשרים — עמדות ממשק</span>
-              <button onClick={() => setContactsSummaryOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '16px', cursor: 'pointer', padding: '0 4px' }}>✕</button>
+              <button onClick={() => { if (contactsAutoCloseTimer.current) { clearTimeout(contactsAutoCloseTimer.current); contactsAutoCloseTimer.current = null; } setContactsSummaryFlashing(false); setContactsSummaryOpen(false); }} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '16px', cursor: 'pointer', padding: '0 4px' }}>✕</button>
             </div>
             <div style={{ overflowY: 'auto', padding: '10px', flex: 1 }}>
               {entries.length === 0 ? (
