@@ -2452,7 +2452,7 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
           )}
           {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
           <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
-            {isConflict && '⚠ '}{getTransferLabel(t)}
+            {getTransferLabel(t)}
           </div>
           {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
         </div>
@@ -2463,7 +2463,7 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
           onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
           style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
         >
-          {t.alt ? normalizeAlt(t.alt) : '—'}
+          {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
         </span>
         {t.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#93c5fd', background: hasExternalNote ? '#2d0505' : '#0c1e35', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#1e3a5f'}`, direction: 'rtl' }}>
@@ -3049,7 +3049,7 @@ const DraggableIncomingTransferMini = ({
           )}
           {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
           <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
-            {isConflict && '⚠️ '}{getTransferLabel(transfer)}
+            {getTransferLabel(transfer)}
           </div>
           {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
         </div>
@@ -3060,7 +3060,7 @@ const DraggableIncomingTransferMini = ({
           onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
           style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
         >
-          {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
+          {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
         </span>
         {transfer.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#6ee7b7', background: hasExternalNote ? '#2d0505' : '#052e16', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#166534'}`, direction: 'rtl' }}>
