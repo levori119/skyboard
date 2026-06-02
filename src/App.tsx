@@ -2444,33 +2444,27 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
         border: isConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
         background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
-        <div style={{ marginBottom: '3px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', overflow: 'hidden' }}>
-                <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', flexShrink: 1, minWidth: 0 }}>
-                  {isConflict && '⚠ '}{getTransferLabel(t)}
-                </div>
-                {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
-              </div>
-              <span
-                ref={altRef}
-                title="לחץ לעדכון גובה"
-                onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-                style={{ display: 'inline-block', marginTop: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
-              >
-                {t.alt ? normalizeAlt(t.alt) : '—'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
-              {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '12px', lineHeight: 1 }}>📢</span>}
-              {onUpdateNote && (
-                <button onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
-                  style={{ background: noteOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${noteOpen ? '#3b82f6' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: t.note ? '#60a5fa' : '#475569', padding: '1px 3px', lineHeight: 1 }}>💬</button>
-              )}
-            </div>
+        {/* שורה 1: 💬 | callsign | sq */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '2px' }}>
+          {onUpdateNote && (
+            <button onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
+              style={{ background: noteOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${noteOpen ? '#3b82f6' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: t.note ? '#60a5fa' : '#475569', padding: '1px 2px', lineHeight: 1, flexShrink: 0 }}>💬</button>
+          )}
+          {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
+          <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
+            {isConflict && '⚠ '}{getTransferLabel(t)}
           </div>
+          {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
         </div>
+        {/* שורה 2: alt רוחב מלא */}
+        <span
+          ref={altRef}
+          title="לחץ לעדכון גובה"
+          onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
+          style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
+        >
+          {t.alt ? normalizeAlt(t.alt) : '—'}
+        </span>
         {t.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#93c5fd', background: hasExternalNote ? '#2d0505' : '#0c1e35', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#1e3a5f'}`, direction: 'rtl' }}>
             {t.note}
@@ -3047,31 +3041,27 @@ const DraggableIncomingTransferMini = ({
           direction: 'rtl'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '4px' }}>
-          <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', overflow: 'hidden' }}>
-              <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', flexShrink: 1, minWidth: 0 }}>
-                {isConflict && '⚠️ '}{getTransferLabel(transfer)}
-              </div>
-              {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
-            </div>
+        {/* שורה 1: 💬 | callsign | sq */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '2px' }}>
+          {onUpdateNote && (
+            <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
+              style={{ background: noteOpen ? '#14532d' : 'transparent', border: `1px solid ${noteOpen ? '#22c55e' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: transfer.note ? '#22c55e' : '#475569', padding: '1px 2px', lineHeight: 1, flexShrink: 0 }}>💬</button>
+          )}
+          {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '10px', lineHeight: 1, flexShrink: 0 }}>📢</span>}
+          <div style={{ flex: 1, fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px', minWidth: 0 }}>
+            {isConflict && '⚠️ '}{getTransferLabel(transfer)}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
-            <span
-              ref={altRef}
-              title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-              onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
-              style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
-            >
-              {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
-            </span>
-            {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '11px', lineHeight: 1 }}>📢</span>}
-            {onUpdateNote && (
-              <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
-                style={{ background: noteOpen ? '#14532d' : 'transparent', border: `1px solid ${noteOpen ? '#22c55e' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: transfer.note ? '#22c55e' : '#475569', padding: '1px 3px', lineHeight: 1 }}>💬</button>
-            )}
-          </div>
+          {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
         </div>
+        {/* שורה 2: alt רוחב מלא */}
+        <span
+          ref={altRef}
+          title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+          onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
+          style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+        >
+          {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
+        </span>
         {transfer.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#6ee7b7', background: hasExternalNote ? '#2d0505' : '#052e16', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#166534'}`, direction: 'rtl' }}>
             {transfer.note}
