@@ -2565,8 +2565,11 @@ const DraggableNeighborPanel = ({
 
   const getNeighborContacts = () => {
     if (!neighborContactsCache) return [];
+    const myPresetName = neighborContactsCache.find((c: any) => Number(c.preset_id) === Number(presetId))?.preset_name || '';
     const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
     for (const c of neighborContactsCache) {
+      if (Number(c.preset_id) === Number(presetId)) continue;
+      if (myPresetName && (c.preset_name || '') === myPresetName) continue;
       let sectors: number[] = [];
       try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
       if (!sectors.map(Number).includes(Number(neighbor.id))) continue;
@@ -8962,8 +8965,11 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   const [classicAllContactsCache, setClassicAllContactsCache] = useState<any[] | null>(null);
   const getClassicContactsForSector = (sectorId: number) => {
     if (!classicAllContactsCache) return [];
+    const myPresetName = classicAllContactsCache.find((c: any) => Number(c.preset_id) === Number(presetId))?.preset_name || '';
     const byPreset = new Map<number, { presetName: string; contacts: any[] }>();
     for (const c of classicAllContactsCache) {
+      if (Number(c.preset_id) === Number(presetId)) continue;
+      if (myPresetName && (c.preset_name || '') === myPresetName) continue;
       let sectors: number[] = [];
       try { sectors = Array.isArray(c.relevant_sectors) ? c.relevant_sectors : (typeof c.relevant_sectors === 'string' ? JSON.parse(c.relevant_sectors) : []); } catch {}
       if (!sectors.map(Number).includes(sectorId)) continue;
