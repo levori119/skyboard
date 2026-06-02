@@ -13860,7 +13860,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 3000);
+    const interval = setInterval(loadData, 1500);
     return () => clearInterval(interval);
   }, [primarySectorId]);
 
@@ -13982,6 +13982,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           ...(!toMap ? { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '' } : {})
         })
       });
+      loadData();
     } catch (err) {
       console.error('Failed to update strip position:', err);
     }
@@ -16704,7 +16705,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               tableSidebarDragId.current = null;
               if (session.presetId) {
                 const pid = Number(session.presetId);
-                fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: sid, preset_id: pid }) }).catch(() => {});
+                fetch(`${API_URL}/strip-table-assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strip_id: sid, preset_id: pid }) })
+                  .then(() => loadData())
+                  .catch(() => {});
                 setStrips(prev => prev.map((s: any) => {
                   if (s.id === 's' + sid) {
                     const ids: number[] = Array.isArray(s.table_preset_ids) ? s.table_preset_ids : [];
@@ -19386,7 +19389,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               if (session.presetId) {
                 const numId = String(sid).replace(/^s/, '');
                 const pid = Number(session.presetId);
-                fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' }).catch(() => {});
+                fetch(`${API_URL}/strip-table-assignments/${numId}/${pid}`, { method: 'DELETE' })
+                  .then(() => loadData())
+                  .catch(() => {});
                 setStrips(prev => prev.map((s: any) => String(s.id) === sid
                   ? { ...s, table_preset_ids: (Array.isArray(s.table_preset_ids) ? s.table_preset_ids : []).filter((x: number) => x !== pid) }
                   : s));
