@@ -8511,18 +8511,6 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
         </div>
       </div>
 
-      {/* Section: transfer points (with linked partners) */}
-      <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-        <label style={{ display: 'block', marginBottom: '4px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות העברה לעמדות שאינן סטריפים:</label>
-        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>נקודות סקטור לקבלה והעברה מ/אל עמדות מפה/טבלה רגילות. ניתן לסמן לכל נקודה אילו עמדות סטריפים שותפות עוברות דרכה (להמחשה בתרשים).</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <PointList pts={recvPts} reorderApi={recvReorder} accent="#86efac" emoji="📥" label="נקודות קבלה"
-            partnerDirIds={incomingIds} partnerDirLabel="עמדות שותפות בקבלה" onUpdate={setRecv} />
-          <PointList pts={xferPts} reorderApi={xferReorder} accent="#fcd34d" emoji="📤" label="נקודות העברה"
-            partnerDirIds={outgoingIds} partnerDirLabel="עמדות שותפות בהעברה" onUpdate={setXfer} />
-        </div>
-      </div>
-
       {/* Section: live flow diagram */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
         <label style={{ display: 'block', marginBottom: '6px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>🔀 תרשים זרימה (בזמ"א):</label>
