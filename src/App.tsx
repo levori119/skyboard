@@ -2420,17 +2420,23 @@ const serializeNoteValue = (text: string, hw: string): string => {
 };
 
 // --- כרטיס מוסר בסקטור ---
-const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lightMode = false }: {
+const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lightMode = false, presetId, onUpdateNote }: {
   t: any;
   isConflict: boolean;
   onCancel: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   lightMode?: boolean;
+  presetId?: number | string | null;
+  onUpdateNote?: (transferId: string, note: string) => void;
 }) => {
   const altRef = useRef<HTMLSpanElement>(null);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const [showHw, setShowHw] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [editBuffer, setEditBuffer] = useState('');
   const sq = getTransferSq(t);
+  const hasExternalNote = !!t.note && String(t.note_by_preset_id) !== String(presetId);
+  const openNote = () => { setEditBuffer(t.note || ''); setNoteOpen(true); };
   return (
     <>
       <div style={{
@@ -2439,19 +2445,53 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
         background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
         <div style={{ marginBottom: '3px' }}>
-          {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginBottom: '1px', opacity: 0.85 }}>{sq}</div>}
-          <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-            {isConflict && '⚠ '}{getTransferLabel(t)}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {sq && <div style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : '#b45309', marginBottom: '1px', opacity: 0.85 }}>{sq}</div>}
+              <div style={{ fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+                {isConflict && '⚠ '}{getTransferLabel(t)}
+              </div>
+              <span
+                ref={altRef}
+                title="לחץ לעדכון גובה"
+                onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
+                style={{ display: 'inline-block', marginTop: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
+              >
+                {t.alt ? normalizeAlt(t.alt) : '—'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
+              {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '12px', lineHeight: 1 }}>📢</span>}
+              {onUpdateNote && (
+                <button onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
+                  style={{ background: noteOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${noteOpen ? '#3b82f6' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: t.note ? '#60a5fa' : '#475569', padding: '1px 3px', lineHeight: 1 }}>💬</button>
+              )}
+            </div>
           </div>
-          <span
-            ref={altRef}
-            title="לחץ לעדכון גובה"
-            onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-            style={{ display: 'inline-block', marginTop: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 6px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
-          >
-            {t.alt ? normalizeAlt(t.alt) : '—'}
-          </span>
         </div>
+        {t.note && !noteOpen && (
+          <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#93c5fd', background: hasExternalNote ? '#2d0505' : '#0c1e35', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#1e3a5f'}`, direction: 'rtl' }}>
+            {t.note}
+          </div>
+        )}
+        {noteOpen && (
+          <div style={{ marginBottom: '3px' }} onClick={e => e.stopPropagation()}>
+            <textarea
+              value={editBuffer}
+              onChange={e => setEditBuffer(e.target.value)}
+              rows={3}
+              style={{ width: '100%', background: '#0c1e35', color: '#e2e8f0', border: '1px solid #3b82f6', borderRadius: '3px', fontSize: '10px', padding: '3px 4px', resize: 'none', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+              placeholder="כתוב הערה..."
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+              <button onClick={e => { e.stopPropagation(); if (onUpdateNote) onUpdateNote(String(t.id), editBuffer); setNoteOpen(false); }}
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#1e40af', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>שמור</button>
+              <button onClick={e => { e.stopPropagation(); setNoteOpen(false); }}
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>ביטול</button>
+            </div>
+          </div>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onCancel(t.id); }}
           style={{ width: '100%', padding: '1px', background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fde68a' : '#7f1d1d'), color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#78350f' : '#fca5a5'), border: `1px solid ${isConflict ? '#dc2626' : (lightMode ? '#d97706' : '#dc2626')}`, borderRadius: '3px', fontSize: '9px', cursor: 'pointer' }}
@@ -2490,6 +2530,8 @@ const DraggableNeighborPanel = ({
   mapPan,
   lightMode = false,
   tableMode = false,
+  presetId,
+  onUpdateNote,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -2511,6 +2553,8 @@ const DraggableNeighborPanel = ({
   mapPan?: { x: number; y: number };
   lightMode?: boolean;
   tableMode?: boolean;
+  presetId?: number | string | null;
+  onUpdateNote?: (transferId: string, note: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -2782,6 +2826,8 @@ const DraggableNeighborPanel = ({
                   onCancel={onCancelTransfer}
                   onUpdateStripField={onUpdateStripField}
                   lightMode={lightMode}
+                  presetId={presetId}
+                  onUpdateNote={onUpdateNote}
                 />
               ))}
               {sectorOutgoing.length === 0 && (
@@ -2807,6 +2853,8 @@ const DraggableNeighborPanel = ({
                   onUpdateStripField={onUpdateStripField}
                   zoom={mapZoom}
                   pan={mapPan}
+                  presetId={presetId}
+                  onUpdateNote={onUpdateNote}
                 />
               ))}
               {sectorIncoming.length === 0 && (
@@ -2876,6 +2924,8 @@ const DraggableIncomingTransferMini = ({
   onUpdateStripField,
   zoom = 1,
   pan,
+  presetId,
+  onUpdateNote,
 }: {
   transfer: any;
   onAccept: (id: string) => void;
@@ -2885,12 +2935,18 @@ const DraggableIncomingTransferMini = ({
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   zoom?: number;
   pan?: { x: number; y: number };
+  presetId?: number | string | null;
+  onUpdateNote?: (transferId: string, note: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
   const [editingAlt, setEditingAlt] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [editBuffer, setEditBuffer] = useState('');
   const altRef = useRef<HTMLSpanElement>(null);
+  const hasExternalNote = !!transfer.note && String(transfer.note_by_preset_id) !== String(presetId);
+  const openNote = () => { setEditBuffer(transfer.note || ''); setNoteOpen(true); };
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -2981,15 +3037,45 @@ const DraggableIncomingTransferMini = ({
             </div>
             {getTransferSq(transfer) && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{getTransferSq(transfer)}</div>}
           </div>
-          <span
-            ref={altRef}
-            title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-            onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
-            style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
-          >
-            {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
+            <span
+              ref={altRef}
+              title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+              onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
+              style={{ fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+            >
+              {transfer.alt ? normalizeAlt(transfer.alt) : '—'}
+            </span>
+            {hasExternalNote && <span title="הערה מעמדה אחרת" style={{ fontSize: '11px', lineHeight: 1 }}>📢</span>}
+            {onUpdateNote && (
+              <button onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); noteOpen ? setNoteOpen(false) : openNote(); }} title={noteOpen ? 'סגור הערה' : 'כתוב/ערוך הערה'}
+                style={{ background: noteOpen ? '#14532d' : 'transparent', border: `1px solid ${noteOpen ? '#22c55e' : 'transparent'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: transfer.note ? '#22c55e' : '#475569', padding: '1px 3px', lineHeight: 1 }}>💬</button>
+            )}
+          </div>
         </div>
+        {transfer.note && !noteOpen && (
+          <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#6ee7b7', background: hasExternalNote ? '#2d0505' : '#052e16', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#166534'}`, direction: 'rtl' }}>
+            {transfer.note}
+          </div>
+        )}
+        {noteOpen && (
+          <div style={{ marginBottom: '3px' }} onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <textarea
+              value={editBuffer}
+              onChange={e => setEditBuffer(e.target.value)}
+              rows={3}
+              style={{ width: '100%', background: '#052e16', color: '#dcfce7', border: '1px solid #22c55e', borderRadius: '3px', fontSize: '10px', padding: '3px 4px', resize: 'none', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+              placeholder="כתוב הערה..."
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '3px', marginTop: '2px' }}>
+              <button onClick={e => { e.stopPropagation(); if (onUpdateNote) onUpdateNote(String(transfer.id), editBuffer); setNoteOpen(false); }}
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#166534', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>שמור</button>
+              <button onClick={e => { e.stopPropagation(); setNoteOpen(false); }}
+                style={{ flex: 1, fontSize: '9px', padding: '2px', background: '#374151', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>ביטול</button>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: '2px' }}>
           <button
             onClick={(e) => { e.stopPropagation(); onAccept(transfer.id); }}
@@ -11650,6 +11736,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [subSectors, setSubSectors] = useState<any[]>([]);
   const [incomingTransfers, setIncomingTransfers] = useState<any[]>([]);
   const [outgoingTransfers, setOutgoingTransfers] = useState<any[]>([]);
+  const [transferNoteAlert, setTransferNoteAlert] = useState<{ label: string; note: string } | null>(null);
+  const transferNoteTrackRef = useRef<Map<string, string | null>>(new Map());
   const [classicIncomingTransfers, setClassicIncomingTransfers] = useState<any[]>([]);
   const [classicOutgoingTransfers, setClassicOutgoingTransfers] = useState<any[]>([]);
   const [allStripsForClassic, setAllStripsForClassic] = useState<any[]>([]);
@@ -13566,8 +13654,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       
       if (subSectorsRes.ok) setSubSectors(await subSectorsRes.json());
       if (mapsRes.ok) setAvailableMaps(await mapsRes.json());
-      if (incomingRes.ok) setIncomingTransfers(await incomingRes.json());
-      if (outgoingRes.ok) setOutgoingTransfers(await outgoingRes.json());
+      if (incomingRes.ok) {
+        const freshIncoming = await incomingRes.json();
+        freshIncoming.forEach((t: any) => {
+          if (t.note && String(t.note_by_preset_id) !== String(session.presetId)) {
+            const prev = transferNoteTrackRef.current.get(String(t.id));
+            if (prev !== t.note) setTransferNoteAlert({ label: getTransferLabel(t), note: t.note });
+          }
+          transferNoteTrackRef.current.set(String(t.id), t.note || null);
+        });
+        setIncomingTransfers(freshIncoming);
+      }
+      if (outgoingRes.ok) {
+        const freshOutgoing = await outgoingRes.json();
+        freshOutgoing.forEach((t: any) => {
+          if (t.note && String(t.note_by_preset_id) !== String(session.presetId)) {
+            const prev = transferNoteTrackRef.current.get(String(t.id));
+            if (prev !== t.note) setTransferNoteAlert({ label: getTransferLabel(t), note: t.note });
+          }
+          transferNoteTrackRef.current.set(String(t.id), t.note || null);
+        });
+        setOutgoingTransfers(freshOutgoing);
+      }
       fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => setAllPendingTransfers(data)).catch(() => {});
       if (session.presetId) {
         fetch(`${API_URL}/presets/${session.presetId}/classic-incoming`)
@@ -14788,6 +14896,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const handleUpdateTransferNote = async (transferId: string, note: string) => {
+    try {
+      await fetch(`${API_URL}/transfers/${transferId}/note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note, preset_id: session.presetId }),
+      });
+      const myPresetId = session.presetId;
+      setIncomingTransfers(prev => prev.map(t => String(t.id) === transferId ? { ...t, note: note || null, note_by_preset_id: myPresetId } : t));
+      setOutgoingTransfers(prev => prev.map(t => String(t.id) === transferId ? { ...t, note: note || null, note_by_preset_id: myPresetId } : t));
+      transferNoteTrackRef.current.set(transferId, note || null);
+    } catch (err) {
+      console.error('Failed to update transfer note:', err);
+    }
+  };
+
   const handleMoveTransfer = async (transferId: string, target: { to_sector_id?: number; to_preset_id?: number }) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/move`, {
@@ -15999,6 +16123,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         </div>
       )}
 
+      {/* Transfer Note Alert Popup */}
+      {transferNoteAlert && (
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9750, background: '#0c1a2e', border: '2px solid #3b82f6', borderRadius: '12px', padding: '0', boxShadow: '0 0 40px rgba(59,130,246,0.5)', minWidth: '300px', maxWidth: '440px', direction: 'rtl', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1e40af 100%)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>📢</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>הערה על העברה</div>
+              <div style={{ fontSize: '11px', color: '#60a5fa', opacity: 0.85, marginTop: '1px' }}>{transferNoteAlert.label}</div>
+            </div>
+            <button onClick={() => setTransferNoteAlert(null)} style={{ background: 'none', border: 'none', color: '#93c5fd', cursor: 'pointer', fontSize: '16px', padding: '2px 4px', lineHeight: 1 }}>✕</button>
+          </div>
+          <div style={{ padding: '14px 16px' }}>
+            <div style={{ fontSize: '13px', color: '#e2e8f0', background: '#0a1525', borderRadius: '6px', padding: '10px 12px', whiteSpace: 'pre-wrap', lineHeight: 1.5, border: '1px solid #1e3a5f', direction: 'rtl' }}>
+              {transferNoteAlert.note}
+            </div>
+          </div>
+          <div style={{ padding: '8px 16px 14px', display: 'flex', justifyContent: 'center' }}>
+            <button onClick={() => setTransferNoteAlert(null)} style={{ background: '#1e40af', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 28px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>הבנתי</button>
+          </div>
+        </div>
+      )}
+
       {/* Serials Panel Modal */}
       {showSerialsPanel && (
         <SerialsPanelModal
@@ -16443,6 +16589,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     mapPan={mapPan}
                     lightMode={lightMode}
                     tableMode={tableMode}
+                    presetId={session.presetId}
+                    onUpdateNote={handleUpdateTransferNote}
                   />
                 ))}
               </div>

@@ -626,6 +626,8 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS to_preset_id INTEGER`);
   await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS from_preset_id INTEGER`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note TEXT`);
+  await pool.query(`ALTER TABLE strip_transfers ADD COLUMN IF NOT EXISTS note_by_preset_id INTEGER`);
   // Fix legacy rows where text_color was incorrectly defaulted to '#000000' — reset to empty so dark mode works
   await pool.query(`UPDATE classic_strip_rows SET text_color = '' WHERE text_color = '#000000'`);
   // Fix classic_strip_rows default to empty string (not black) for new rows
@@ -2265,6 +2267,21 @@ app.post('/api/transfers/:id/move', async (req, res) => {
   } catch (err) {
     console.error('Error moving transfer:', err);
     res.status(500).json({ error: 'Failed to move transfer' });
+  }
+});
+
+app.patch('/api/transfers/:id/note', async (req, res) => {
+  try {
+    const { note, preset_id } = req.body;
+    const result = await pool.query(
+      'UPDATE strip_transfers SET note=$1, note_by_preset_id=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3 RETURNING id',
+      [note || null, preset_id || null, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Transfer not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating transfer note:', err);
+    res.status(500).json({ error: 'Failed to update note' });
   }
 });
 
