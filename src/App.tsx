@@ -13911,6 +13911,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleMoveRef = useRef<(id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => void>(() => {});
   const handleTransferRef = useRef<(stripId: string, toSectorId: number) => void>(() => {});
+  const handleTransferWithPickRef = useRef<(stripId: string, toSectorId: number) => void>(() => {});
   const tableModeRef = useRef(false);
   const sessionRef = useRef(session);
   const mapZoomRef = useRef(1);
@@ -14165,6 +14166,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       handleTransferWithPartialCheck(stripId, toSectorId, targetX, targetY, subLabel, candidates.length === 1 ? Number(candidates[0].id) : undefined);
     }
   };
+  handleTransferWithPickRef.current = handleTransferWithWorkstationPick;
 
   const handlePartialTransferAll = async () => {
     if (!partialTransferModal) return;
@@ -14418,14 +14420,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const neighborPanel = findSidebarNeighborPanel(e.clientX, e.clientY);
       if (neighborPanel) {
         const sectorId = Number(neighborPanel.getAttribute('data-sector-id'));
-        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+        if (sectorId) { handleTransferWithPickRef.current(String(id), sectorId); return; }
       }
 
       // 2. סמן מפה — כל מוד (getBoundingClientRect אמין דרך CSS transforms)
       const markerEl = findSidebarMarker(e.clientX, e.clientY);
       if (markerEl) {
         const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0');
-        if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+        if (sectorId) { handleTransferWithPickRef.current(String(id), sectorId); return; }
       }
 
       // 2.5 pin-only neighbor markers on map
@@ -14433,7 +14435,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const r = el.getBoundingClientRect();
         if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
           const sectorId = parseInt((el as HTMLElement).getAttribute('data-pin-sector') || '0');
-          if (sectorId) { handleTransferRef.current(String(id), sectorId); return; }
+          if (sectorId) { handleTransferWithPickRef.current(String(id), sectorId); return; }
         }
       }
 
@@ -14574,7 +14576,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const neighborEl = els.find((el: Element) => el.classList.contains('neighbor-drop-zone') && el.getAttribute('data-sector-id'));
       if (neighborEl) {
         const sectorId = Number(neighborEl.getAttribute('data-sector-id'));
-        handleTransferRef.current(id, sectorId);
+        handleTransferWithPickRef.current(id, sectorId);
         return;
       }
       // Dropped on another row → reorder (only when no sort active; within same group when grouped)
