@@ -13256,7 +13256,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
     };
 
-    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    // Strips currently in a pending outgoing transfer are "at a transfer point" — exclude from table conflict detection
+    const pendingOutgoingStripIds = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
+    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id) && !pendingOutgoingStripIds.has(String(s.id)));
     for (let i = 0; i < boardStrips.length; i++) {
       const a = boardStrips[i];
       const altA = parseAltVal(a.alt);
@@ -13291,7 +13293,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
 
   // tableConflictPairsMap — same detection logic, but maps each strip ID to the IDs it conflicts with.
   const tableConflictPairsMap = React.useMemo(() => {
@@ -13329,7 +13331,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const blk = relBlocks.find((b: any) => Number(b.block_table_id) === inlineBtId && fl >= Number(b.alt_from) && fl <= Number(b.alt_to));
       return blk ? { tableId: inlineBtId, blockId: Number(blk.id) } : null;
     };
-    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id));
+    const pendingOutgoingStripIdsP = new Set(outgoingTransfers.map((t: any) => String(t.strip_id)));
+    const boardStrips = myTableStrips.filter((s: any) => tableOnBoard.has(s.id) && !pendingOutgoingStripIdsP.has(String(s.id)));
     for (let i = 0; i < boardStrips.length; i++) {
       const a = boardStrips[i];
       const altA = parseAltVal(a.alt);
@@ -13361,7 +13364,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
 
   // tableEffectiveConflictIds — conflict IDs excluding fully-resolved ones (session-only).
   const tableEffectiveConflictIds = React.useMemo(() => {
