@@ -13184,11 +13184,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
     if (!myGroup) return myTableStrips;
     const groupPresetIds = new Set<number>((myGroup.members || []).map((m: any) => Number(m.preset_id)));
-    return strips.filter((s: any) =>
+    const allGroupStrips = strips.filter((s: any) =>
       s.status !== 'cancelled' && s.status !== 'rejected' &&
-      (groupPresetIds.has(Number(s.workstation_preset_id)) ||
-       (Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).some((id: number) => groupPresetIds.has(id))))
+      groupPresetIds.has(Number(s.workstation_preset_id))
     );
+    const _rawId = (s: any) => parseInt(String(s.id).replace(/^s/, '')) || 0;
+    const _pid = (s: any): number => s.parent_strip_id || _rawId(s);
+    const seen = new Set<number>();
+    const result: any[] = [];
+    for (const s of allGroupStrips) {
+      const pid = _pid(s);
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      const siblings = allGroupStrips.filter((sib: any) => _pid(sib) === pid);
+      const rep = [...siblings].sort((a: any, b: any) =>
+        (parseInt(b.numberOfFormation || b.number_of_formation || '1') || 1) -
+        (parseInt(a.numberOfFormation || a.number_of_formation || '1') || 1)
+      )[0] || s;
+      const _deskPresets: string[] = [];
+      for (const sib of siblings) {
+        if (sib.onMap) {
+          const p = workstationPresets.find((p: any) => Number(p.id) === Number(sib.workstation_preset_id));
+          const name = p?.name || `עמדה ${sib.workstation_preset_id}`;
+          if (!_deskPresets.includes(name)) _deskPresets.push(name);
+        }
+      }
+      result.push({ ...rep, _deskPresets });
+    }
+    return result;
   })();
 
   // Table-mode altitude conflict detection — must be after myTableStrips declaration.
@@ -13489,7 +13512,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Computed strips order for table display (tableOnBoard = strips ON the board / center table)
   const tableDisplayStrips = (() => {
-    const visStrips = myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
+    const visStrips = showFullPicture
+      ? fullPictureStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer')
+      : myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
     if (tableSortBySector) {
       return [...visStrips].sort((a, b) => {
         const sA = allSectors.find(sec => sec.id === a.sectorId)?.name || '';
@@ -13539,7 +13564,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   const tableDisplayItems: any[] = (() => {
-    const visStrips = myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
+    const visStrips = showFullPicture
+      ? fullPictureStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer')
+      : myTableStrips.filter(s => tableOnBoard.has(s.id) && (showPendingTransfer || s.status !== 'pending_transfer'));
     if (!tableGroupByKey) {
       if (tableSortKey) {
         return [...visStrips].sort((a, b) => {
@@ -16588,106 +16615,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
       <div style={{ flex: 1, display: 'flex', background: '#eee', overflow: 'hidden', position: 'relative' }}>
 
-        {/* ===== כל המכלול — טבלה ראשית מאוחדת ===== */}
-        {showFullPicture && myPresetConfig?.show_full_picture && (() => {
-          const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
-          const groupPresetIds = new Set<number>((myGroup?.members || []).map((m: any) => Number(m.preset_id)));
-          const allGroupStrips = strips.filter((s: any) =>
-            s.status !== 'cancelled' && s.status !== 'rejected' &&
-            groupPresetIds.has(Number(s.workstation_preset_id))
-          );
-          const rawId = (s: any) => parseInt(String(s.id).replace(/^s/, '')) || 0;
-          const getParentId = (s: any): number => s.parent_strip_id || rawId(s);
-          const myPresetName = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.name || '';
-          // Dedup by parent formation — keep representative with most aircraft
-          const seenParents = new Set<number>();
-          const rows: any[] = [];
-          for (const s of allGroupStrips) {
-            const pid = getParentId(s);
-            if (seenParents.has(pid)) continue;
-            seenParents.add(pid);
-            const siblings = allGroupStrips.filter((sib: any) => getParentId(sib) === pid);
-            const rep = [...siblings].sort((a: any, b: any) =>
-              (parseInt(b.numberOfFormation || b.number_of_formation || '1') || 1) -
-              (parseInt(a.numberOfFormation || a.number_of_formation || '1') || 1)
-            )[0] || s;
-            // "אצל מי בדסק" — workstations with on_map=true for any sibling
-            const deskPresets: string[] = [];
-            for (const sib of siblings) {
-              if (sib.onMap) {
-                const preset = workstationPresets.find((p: any) => Number(p.id) === Number(sib.workstation_preset_id));
-                const name = preset?.name || `עמדה ${sib.workstation_preset_id}`;
-                if (!deskPresets.includes(name)) deskPresets.push(name);
-              }
-            }
-            rows.push({ ...rep, deskPresets });
-          }
-          rows.sort((a: any, b: any) => (a.callSign || a.callsign || '').localeCompare(b.callSign || b.callsign || ''));
-          const cols = [
-            { key: 'callsign', label: 'פמ"מ', w: '14%' },
-            { key: 'sq', label: 'סמ"ע', w: '8%' },
-            { key: 'squadron', label: 'מכ"מ', w: '10%' },
-            { key: 'alt', label: 'גובה', w: '8%' },
-            { key: 'task', label: 'משימה', w: '10%' },
-            { key: 'desk', label: 'אצל מי בדסק 🖥', w: '50%' },
-          ];
-          return (
-            <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: lightMode ? '#f8fafc' : '#020617', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
-              {/* header */}
-              <div style={{ padding: '9px 14px', borderBottom: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, display: 'flex', alignItems: 'center', gap: '10px', background: lightMode ? '#fff' : '#0f172a', flexShrink: 0 }}>
-                <span style={{ fontWeight: 'bold', fontSize: '14px', color: lightMode ? '#1e293b' : '#f1f5f9' }}>🌐 כל המכלול</span>
-                <span style={{ fontSize: '11px', color: lightMode ? '#64748b' : '#94a3b8' }}>{myGroup?.name || 'קבוצת העבודה'} · {rows.length} פמ"מ (ייחודיים)</span>
-                <button onClick={() => setShowFullPicture(false)} style={{ marginInlineStart: 'auto', background: lightMode ? '#e2e8f0' : '#334155', border: 'none', color: lightMode ? '#475569' : '#94a3b8', cursor: 'pointer', padding: '4px 12px', borderRadius: '5px', fontSize: '12px' }}>✕ סגור</button>
-              </div>
-              {/* table */}
-              <div style={{ flex: 1, overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', direction: 'rtl', tableLayout: 'fixed' }}>
-                  <thead>
-                    <tr style={{ background: lightMode ? '#f1f5f9' : '#0f172a', position: 'sticky', top: 0, zIndex: 2 }}>
-                      {cols.map(c => (
-                        <th key={c.key} style={{ width: c.w, padding: '7px 10px', textAlign: 'right', fontWeight: 'bold', fontSize: '11px', color: lightMode ? '#475569' : '#94a3b8', borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#1e293b'}`, whiteSpace: 'nowrap', overflow: 'hidden' }}>{c.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.length === 0 ? (
-                      <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: lightMode ? '#94a3b8' : '#475569' }}>אין פממים בקבוצת העבודה</td></tr>
-                    ) : rows.map((s: any) => {
-                      const cs = s.callSign || s.callsign || '—';
-                      const nof = parseInt(s.numberOfFormation || s.number_of_formation || '1') || 1;
-                      const onMyDesk = s.deskPresets.includes(myPresetName);
-                      return (
-                        <tr key={s.id} style={{ borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#0a0f1a'}`, background: onMyDesk ? (lightMode ? '#eff6ff' : '#0d1e3d') : (lightMode ? '#fff' : 'transparent') }}>
-                          <td style={{ padding: '7px 10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {cs}{nof > 1 ? <span style={{ color: '#60a5fa', fontWeight: 'normal', fontSize: '11px' }}>/{nof}</span> : null}
-                          </td>
-                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sq || '—'}</td>
-                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#94a3b8', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.squadron || '—'}</td>
-                          <td style={{ padding: '7px 10px', fontWeight: 'bold', color: '#34d399', whiteSpace: 'nowrap' }}>{s.alt ? `FL${s.alt}` : '—'}</td>
-                          <td style={{ padding: '7px 10px', color: lightMode ? '#475569' : '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.task || '—'}</td>
-                          <td style={{ padding: '7px 10px' }}>
-                            {s.deskPresets.length === 0 ? (
-                              <span style={{ fontSize: '11px', color: lightMode ? '#94a3b8' : '#334155' }}>—</span>
-                            ) : (
-                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                {s.deskPresets.map((name: string) => (
-                                  <span key={name} style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: name === myPresetName ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), color: name === myPresetName ? '#3b82f6' : (lightMode ? '#475569' : '#94a3b8'), fontWeight: name === myPresetName ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
-                                    {name === myPresetName ? '⭐ ' : ''}{name}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
@@ -17836,6 +17763,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         </th>
                       );
                     })}
+                    {showFullPicture && (
+                      <th style={{ padding: '8px 10px', textAlign: 'right', color: T.muted, borderBottom: `2px solid ${lightMode ? '#cbd5e1' : '#334155'}`, position: 'sticky', top: 0, zIndex: 10, fontSize: '11px', whiteSpace: 'nowrap', minWidth: '120px' }}>
+                        🖥 אצל מי בדסק
+                      </th>
+                    )}
                     <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 16, width: 0, padding: 0, background: lightMode ? '#e2e8f0' : '#1e293b', border: 'none' }} />
                   </tr>
                 </thead>
@@ -17879,7 +17811,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             });
                           }}
                         >
-                          <td colSpan={columns.length + 3} style={{ padding: '0', direction: 'rtl' }}>
+                          <td colSpan={columns.length + 3 + (showFullPicture ? 1 : 0)} style={{ padding: '0', direction: 'rtl' }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
                               <span data-drag-handle style={{ color: T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
                               <span style={{ fontSize: '11px', color: '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
@@ -18040,6 +17972,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           }
                           return cell;
                         })}
+                        {showFullPicture && (() => {
+                          const myPresetName = workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId))?.name || '';
+                          const deskPresets: string[] = s._deskPresets || [];
+                          return (
+                            <td style={{ padding: '5px 10px', verticalAlign: 'middle' }}>
+                              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                                {deskPresets.length === 0
+                                  ? <span style={{ color: T.muted, fontSize: '10px' }}>—</span>
+                                  : deskPresets.map((name: string) => (
+                                    <span key={name} style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '10px', background: name === myPresetName ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#f1f5f9' : '#1e293b'), color: name === myPresetName ? '#3b82f6' : T.muted, fontWeight: name === myPresetName ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                                      {name === myPresetName ? '⭐ ' : ''}{name}
+                                    </span>
+                                  ))
+                                }
+                              </div>
+                            </td>
+                          );
+                        })()}
                         <td style={{ position: 'sticky', left: 0, zIndex: 10, width: 0, padding: 0, border: 'none', background: 'transparent', overflow: 'visible', verticalAlign: 'middle' }}>
                           {isPendingTransfer && (
                             <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 0, height: 0, borderTop: '16px solid transparent', borderBottom: '16px solid transparent', borderRight: '26px solid #22c55e', zIndex: 50, filter: 'drop-shadow(0 0 5px rgba(34,197,94,0.7))', pointerEvents: 'none' }} />
@@ -18049,7 +17999,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })}
                   {myTableStrips.length === 0 && (
-                    <tr><td colSpan={columns.length + 2} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
+                    <tr><td colSpan={columns.length + 2 + (showFullPicture ? 1 : 0)} style={{ padding: '60px 40px', textAlign: 'center', color: '#475569' }}>
                       <div style={{ fontSize: '32px', marginBottom: '12px' }}>⟵</div>
                       <div style={{ fontSize: '15px', color: '#64748b' }}>גרור פממים מהצד הימני לכאן</div>
                     </td></tr>
