@@ -8789,7 +8789,7 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases }: {
+const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
   partnerPresets?: any[];
@@ -8807,6 +8807,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   onSplitPartial?: (sourceStripId: string, indices: number[]) => void;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => void;
   getSiblings?: (strip: any) => any[];
+  tableMode?: boolean;
 }) => {
   const isPresetMode = !!partnerPresets;
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
@@ -9119,8 +9120,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             const clsHdrBg = isDrop ? (lightMode ? '#dcfce7' : '#166534') : sectorHeaderBg;
                             return (<>
                               <div style={{ ...SEC_HDR, background: clsHdrBg, color: isDrop ? (lightMode ? '#166534' : '#86efac') : sectorHeaderColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-point'); }} onDragEnd={() => setDraggingSection(null)}
-                                  style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
+                                <span draggable={!tableMode} onDragStart={e => { if (tableMode) return; e.stopPropagation(); setDraggingSection({ panel: 'right', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'right-point'); }} onDragEnd={() => setDraggingSection(null)}
+                                  style={{ cursor: tableMode ? 'default' : 'grab', marginInlineEnd: '4px', opacity: tableMode ? 0.2 : 0.55, userSelect: 'none' }} title={tableMode ? '' : 'גרור לסידור'}>≡</span>
                                 <span style={{ flex: 1 }}>📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptOut.length}){isDrop && <span style={{ fontSize: '10px', marginInlineStart: '6px' }}>↓ שחרר להעביר</span>}</span>
                                 {!isDrop && (
                                   <button
@@ -9321,8 +9322,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                             }
                           }}>
                           <div style={SEC_HDR}>
-                            <span draggable onDragStart={e => { e.stopPropagation(); setDraggingSection({ panel: 'left', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'left-point'); }} onDragEnd={() => setDraggingSection(null)}
-                              style={{ cursor: 'grab', marginInlineEnd: '4px', opacity: 0.55, userSelect: 'none' }} title="גרור לסידור">≡</span>
+                            <span draggable={!tableMode} onDragStart={e => { if (tableMode) return; e.stopPropagation(); setDraggingSection({ panel: 'left', kind: 'point', id: Number(pt.sector_id) }); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/sky-section', 'left-point'); }} onDragEnd={() => setDraggingSection(null)}
+                              style={{ cursor: tableMode ? 'default' : 'grab', marginInlineEnd: '4px', opacity: tableMode ? 0.2 : 0.55, userSelect: 'none' }} title={tableMode ? '' : 'גרור לסידור'}>≡</span>
                             📍 {pt.label || allSectors.find((s: any) => s.id === pt.sector_id)?.label_he || `סקטור ${pt.sector_id}`} ({ptT.length})
                           </div>
                           <div style={{ padding: '3px' }}>
@@ -16637,6 +16638,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   onSplitPartial={(sourceId, indices) => { setSectorSplitSelected(indices.length ? indices : []); setSectorSplitModal({ strip: strips.find((x: any) => String(x.id) === sourceId) || classicCenterStrips.find((x: any) => String(x.id) === sourceId) }); }}
                   onMergePartial={(targetId, sourceId) => { const src = classicCenterStrips.find((x: any) => String(x.id) === sourceId); const sibs = getSectorSiblings(src || {}); if (sibs.length === 1) { setSectorMergeConfirm({ targetId, sourceId, targetName: sibs[0]?.callSign || targetId, sourceName: src?.callSign || sourceId }); } else if (sibs.length > 1) { setSectorMergeModal({ strip: src, siblings: sibs }); } }}
                   getSiblings={getSectorSiblings}
+                  tableMode={tableMode}
                 />
               </div>
             );
