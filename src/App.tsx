@@ -10915,8 +10915,12 @@ const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel,
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '28px 24px', minWidth: '320px', maxWidth: '440px', direction: 'rtl', color: 'white', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
         <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה חלקית</div>
-        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
-          {getFormationDisplayName(strip)} — בחר מטוסים להעברה
+        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+          {getFormationDisplayName(strip)} — הדלק את המטוסים שרוצים להעביר
+        </div>
+        <div style={{ fontSize: '11px', color: '#475569', marginBottom: '16px', display: 'flex', gap: '12px', direction: 'rtl' }}>
+          <span>🔵 = מועבר לנקודת העברה</span>
+          <span>⬜ = נשאר בטבלה (מפוצל)</span>
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '18px' }}>
@@ -10925,17 +10929,19 @@ const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel,
             return (
               <button key={idx} onClick={() => onToggleIndex(idx)} style={{
                 width: '52px', height: '52px', borderRadius: '8px',
-                border: `2px solid ${sel ? '#3b82f6' : '#475569'}`,
-                background: sel ? '#1d4ed8' : '#334155',
-                color: sel ? 'white' : '#94a3b8',
-                cursor: 'pointer', fontWeight: 'bold', fontSize: '18px'
+                border: `2px solid ${sel ? '#3b82f6' : '#334155'}`,
+                background: sel ? '#1d4ed8' : '#0f172a',
+                color: sel ? 'white' : '#475569',
+                cursor: 'pointer', fontWeight: 'bold', fontSize: '18px',
+                transition: 'all 0.15s',
+                boxShadow: sel ? '0 0 8px rgba(59,130,246,0.5)' : 'none'
               }}>{idx}</button>
             );
           })}
         </div>
 
         <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '20px', textAlign: 'center' }}>
-          {selectedIndices.length} / {availableIndices.length} מטוסים נבחרו
+          {selectedIndices.length} מטוסים להעברה · {availableIndices.length - selectedIndices.length} נשארים
         </div>
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -10948,7 +10954,7 @@ const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel,
             cursor: selectedIndices.length === 0 ? 'default' : 'pointer',
             fontSize: '13px', fontWeight: 'bold'
           }}>
-            העברה חלקית ({selectedIndices.length})
+            העבר {selectedIndices.length > 0 ? `(${selectedIndices.length})` : ''}
           </button>
         </div>
       </div>
@@ -14156,8 +14162,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
     const count = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
     if (count > 1) {
-      const indices = Array.isArray(strip?.aircraft_indices) ? strip.aircraft_indices : Array.from({ length: count }, (_, i) => i + 1);
-      setPartialSelectedIndices(indices);
+      setPartialSelectedIndices([]);
       setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
     } else {
       handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
@@ -14203,7 +14208,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const res = await fetch(`${API_URL}/strips/partial-create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices })
+        body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices, in_table: false })
       });
       if (!res.ok) throw new Error(await res.text());
       const { newStripId } = await res.json();
