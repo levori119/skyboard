@@ -7972,6 +7972,39 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   );
 };
 
+// --- Strip Grid Card Layout (SGNode) ---
+interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; }
+interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
+type SGNode = SGCell | SGSplit;
+interface SGCondition { id: string; checkField: string; operator: 'eq'|'ne'|'contains'|'gt'|'lt'|'empty'|'notEmpty'; value: string; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; }
+const sgGenId = () => Math.random().toString(36).slice(2, 9);
+const sgDefaultCell = (): SGCell => ({ id: sgGenId(), type: 'cell', fieldKey: '', textAlign: 'center' });
+function sgUpdate(node: SGNode, id: string, fn: (n: any) => any): SGNode {
+  if (node.id === id) return fn(node);
+  if (node.type === 'split') return { ...node, children: node.children.map(c => sgUpdate(c, id, fn)) };
+  return node;
+}
+function sgSplit(node: SGNode, id: string, dir: 'h'|'v'): SGNode {
+  if (node.id === id && node.type === 'cell') return { id: sgGenId(), type: 'split', direction: dir, sizes: [50, 50], children: [node, sgDefaultCell()] };
+  if (node.type === 'split') return { ...node, children: node.children.map(c => sgSplit(c, id, dir)) };
+  return node;
+}
+function sgRemove(node: SGNode, id: string): SGNode {
+  if (node.type === 'cell') return node;
+  const keep = node.children.filter(c => c.id !== id);
+  if (keep.length === node.children.length) return { ...node, children: node.children.map(c => sgRemove(c, id)) };
+  if (keep.length === 0) return sgDefaultCell();
+  if (keep.length === 1) return sgRemove(keep[0], id);
+  const keptIdx = node.children.reduce<number[]>((acc, c, i) => c.id !== id ? [...acc, i] : acc, []);
+  const newSizes = keptIdx.map(i => node.sizes[i] ?? (100 / node.children.length));
+  const total = newSizes.reduce((s, x) => s + x, 0);
+  return { ...node, children: keep.map(c => sgRemove(c, id)), sizes: newSizes.map(s => (s / total) * 100) };
+}
+function sgGetAllCells(node: SGNode): SGCell[] {
+  if (node.type === 'cell') return [node];
+  return (node as SGSplit).children.flatMap(c => sgGetAllCells(c));
+}
+
 // --- תצוגת סטריפים קלאסית ---
 const CLASSIC_STRIP_FIELDS = [
   { key: '', label: '— ריק —' },
@@ -8003,7 +8036,7 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'star', label: 'STAR' },
 ];
 
-const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors }: {
+const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson }: {
   strip: any; rows: any[]; lightMode: boolean;
   onUpdateField?: (field: string, value: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
@@ -8011,6 +8044,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   singleClickEdit?: boolean;
   aviationBases?: any[];
   allSectors?: any[];
+  layoutJson?: SGNode | null;
+  conditionsJson?: SGCondition[];
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -8081,8 +8116,75 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     return fields.length === 1 ? fields[0].field_name : null;
   };
   const defaultColor = lightMode ? '#1e293b' : '#e2e8f0';
-  // Compact card with a colored accent stripe at the bottom for clear visual separation between strips.
   const accent = lightMode ? '#3b82f6' : '#1d4ed8';
+
+  // Evaluate conditions for grid layout
+  const evalConditions = (conds: SGCondition[], targetCellId?: string) => {
+    let bg: string | undefined; let text: string | undefined;
+    for (const c of (conds || [])) {
+      if (c.target === 'cell' && targetCellId && c.targetCellId !== targetCellId) continue;
+      if (c.target === 'strip' && targetCellId !== undefined) continue;
+      const fv = getVal(c.checkField);
+      let match = false;
+      if (c.operator === 'eq') match = fv === c.value;
+      else if (c.operator === 'ne') match = fv !== c.value;
+      else if (c.operator === 'contains') match = fv.includes(c.value);
+      else if (c.operator === 'gt') match = parseFloat(fv) > parseFloat(c.value);
+      else if (c.operator === 'lt') match = parseFloat(fv) < parseFloat(c.value);
+      else if (c.operator === 'empty') match = !fv;
+      else if (c.operator === 'notEmpty') match = !!fv;
+      if (match) { if (c.styleBg) bg = c.styleBg; if (c.styleText) text = c.styleText; }
+    }
+    return { bg, text };
+  };
+
+  const renderSGNode = (node: SGNode, stripBg?: string, stripTxt?: string): React.ReactNode => {
+    if (node.type === 'cell') {
+      const cell = node as SGCell;
+      const val = getVal(cell.fieldKey);
+      const condStyle = evalConditions(conditionsJson || [], cell.id);
+      const bg = condStyle.bg || cell.bgColor || (lightMode ? '#ffffff' : '#1e293b');
+      const clr = condStyle.text || cell.textColor || defaultColor;
+      return (
+        <div key={cell.id} style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: cell.textAlign || 'center',
+          background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
+          fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal',
+          overflow: 'hidden', padding: '1px 4px', minHeight: '20px', minWidth: 0,
+        }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center' }}>{val}</span>
+        </div>
+      );
+    }
+    const split = node as SGSplit;
+    const condStyle = evalConditions(conditionsJson || []);
+    const activeBg = condStyle.bg || stripBg; const activeTxt = condStyle.text || stripTxt;
+    return (
+      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, overflow: 'hidden' }}>
+        {split.children.map((child, i) => (
+          <div key={child.id} style={{ [split.direction === 'h' ? 'width' : 'height']: `${split.sizes[i] ?? (100 / split.children.length)}%`, display: 'flex', overflow: 'hidden', flexDirection: split.direction === 'h' ? 'column' : 'row', borderInlineEnd: split.direction === 'h' && i < split.children.length - 1 ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : undefined, borderBottom: split.direction === 'v' && i < split.children.length - 1 ? `1px solid ${lightMode ? '#e2e8f0' : '#334155'}` : undefined }}>
+            {renderSGNode(child, activeBg, activeTxt)}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (layoutJson) {
+    const stripCondStyle = evalConditions(conditionsJson || []);
+    return (
+      <div
+        draggable={!!onDragStart} onDragStart={onDragStart}
+        onMouseEnter={() => setCardHovered(true)}
+        onMouseLeave={() => setCardHovered(false)}
+        style={{ border: `1.5px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', marginBottom: '5px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none', boxShadow: `0 2px 0 ${accent}`, display: 'flex', flexDirection: 'column', background: stripCondStyle.bg || (lightMode ? '#ffffff' : '#1e293b'), color: stripCondStyle.text || defaultColor }}
+      >
+        {renderSGNode(layoutJson)}
+      </div>
+    );
+  }
+
+  // Compact card with a colored accent stripe at the bottom for clear visual separation between strips.
   return (
     <div
       draggable={!!onDragStart}
@@ -8902,6 +9004,7 @@ const CivilianView = ({ strips, presetId, civColumns, assignments, onAssign, onU
 const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStripTable, receivePoints, transferPoints, partnerPresets, allSectors, lightMode, presetId, crewMemberId, initialPanelOrder, onTransfer, onTransferToPreset, onAcceptTransfer, onUpdateStripField, onCancelTransfer, onMoveTransfer, onSplitPartial, onMergePartial, getSiblings, aviationBases, tableMode }: {
   strips: any[]; incomingTransfers: any[]; outgoingTransfers: any[];
   classicStripTable: any; receivePoints: any[]; transferPoints: any[];
+  /* layoutJson/conditionsJson are extracted from classicStripTable inside ClassicView */
   partnerPresets?: any[];
   allSectors: any[]; lightMode: boolean;
   aviationBases?: any[];
@@ -8921,6 +9024,8 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
 }) => {
   const isPresetMode = !!partnerPresets;
   const rows = (classicStripTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
+  const sgLayoutJson: SGNode | null = classicStripTable?.layout_json || null;
+  const sgConditionsJson: SGCondition[] = classicStripTable?.conditions_json || [];
   const [draggingStripId, setDraggingStripId] = useState<string | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   // For dragging an already-transferred outgoing strip between transfer points / partner stations.
@@ -9179,7 +9284,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors}
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
@@ -9257,7 +9362,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                                   onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDraggingTransferMoveId(String(t.id)); }}
                                   onDragEnd={() => { setDraggingTransferMoveId(null); setDropTarget(null); }}
                                   onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY, transferId: String(t.id) }); }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors}
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} singleClickEdit aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
                                     onUpdateField={(field, val) => onUpdateStripField(String(t.strip_id), field, val)} />
                                   <button onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} draggable={false}
                                     onClick={e => { e.stopPropagation(); if (onCancelTransfer) onCancelTransfer(String(t.id)); }}
@@ -9342,7 +9447,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                     </div>
                   )}
                   <div data-classic-strip="true" draggable onDragStart={() => setDraggingStripId(String(s.id))} onDragEnd={() => { setDraggingStripId(null); setDropTarget(null); }}>
-                    <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)} aviationBases={aviationBases} allSectors={allSectors}
+                    <ClassicStripCard strip={s} rows={rows} lightMode={centerLight} isDragging={draggingStripId === String(s.id)} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson}
                       onUpdateField={(field, val) => onUpdateStripField(String(s.id), field, val)} />
                   </div>
                 </div>
@@ -9404,7 +9509,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים ממתינים</div>
                               : ptIn.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                                     style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>קבל</button>
@@ -9444,7 +9549,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
                               ? <div style={{ color: headerColor, fontSize: '11px', textAlign: 'center', padding: '4px', opacity: 0.4 }}>אין פמ"מים</div>
                               : ptT.map((t: any) => (
                                 <div key={t.id} style={{ position: 'relative' }}>
-                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} />
+                                  <ClassicStripCard strip={transferToSynth(t)} rows={rows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={sgLayoutJson} conditionsJson={sgConditionsJson} />
                                   <button title="קבל העברה" onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
                                     onClick={e => { e.stopPropagation(); onAcceptTransfer(String(t.id)); }}
                                     style={{ position: 'absolute', top: '2px', insetInlineEnd: '2px', padding: '2px 7px', borderRadius: '4px', background: '#166534', color: '#86efac', border: 'none', fontSize: '11px', lineHeight: 1.4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.4)', fontWeight: 'bold' }}>קבל</button>
@@ -24245,6 +24350,281 @@ const DefaultNamesManager = () => {
   );
 };
 
+// --- Strip Grid Card Layout Editor ---
+const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tableId: number; tableName: string; apiUrl: string; onClose: () => void; onSaved: (updated: any) => void }) => {
+  const [tree, setTree] = useState<SGNode>(sgDefaultCell());
+  const [conditions, setConditions] = useState<SGCondition[]>([]);
+  const [selCellId, setSelCellId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'layout'|'conditions'>('layout');
+  const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
+
+  React.useEffect(() => {
+    fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
+      const t = tables.find((x: any) => x.id === tableId);
+      if (t?.layout_json) setTree(t.layout_json);
+      if (t?.conditions_json) setConditions(t.conditions_json);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [tableId, apiUrl]);
+
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current; if (!d) return;
+      const pos = d.dir === 'h' ? e.clientX : e.clientY;
+      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
+      const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
+      const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
+      setTree(prev => sgUpdate(prev, d.splitId, (n: SGSplit) => { const ns = [...n.sizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...n, sizes: ns }; }));
+      setDirty(true);
+    };
+    const onUp = () => { dragRef.current = null; };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
+  const selCell = React.useMemo(() => { if (!selCellId) return null; const cells = sgGetAllCells(tree); return cells.find(c => c.id === selCellId) || null; }, [tree, selCellId]);
+
+  const FIELDS = [
+    { key: '', label: '— ריק —' }, { key: 'callSign', label: 'או"ק' }, { key: 'sq', label: 'טייסת' },
+    { key: 'numberOfFormation', label: 'כמות' }, { key: 'alt', label: 'גובה' }, { key: 'task', label: 'משימה' },
+    { key: 'takeoff_time', label: 'זמן המראה' }, { key: 'notes', label: 'הערות' }, { key: 'status', label: 'סטטוס' },
+    { key: 'sector', label: 'סקטור' }, { key: 'airborne', label: 'אוויר/קרקע' }, { key: 'weapons', label: 'חימושים' },
+    { key: 'targets', label: 'מטרות' }, { key: 'systems', label: 'מערכות' },
+    { key: 'takeoff_airfield', label: 'שדה יציאה' }, { key: 'landing_airfield', label: 'שדה נחיתה' },
+  ];
+  const OPERATORS = [
+    { key: 'eq', label: '=' }, { key: 'ne', label: '≠' }, { key: 'contains', label: 'מכיל' },
+    { key: 'gt', label: '>' }, { key: 'lt', label: '<' }, { key: 'empty', label: 'ריק' }, { key: 'notEmpty', label: 'לא ריק' },
+  ];
+
+  const renderEditorNode = (node: SGNode, parentSplit?: SGSplit): React.ReactNode => {
+    if (node.type === 'cell') {
+      const cell = node as SGCell;
+      const isSel = selCellId === cell.id;
+      const val = FIELDS.find(f => f.key === cell.fieldKey)?.label || (cell.fieldKey || '— ריק —');
+      return (
+        <div key={cell.id} onClick={e => { e.stopPropagation(); setSelCellId(cell.id); }}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '36px', minWidth: '40px', background: cell.bgColor || '#1e293b', border: `2px solid ${isSel ? '#3b82f6' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', position: 'relative', gap: '2px', padding: '2px', overflow: 'hidden' }}>
+          <span style={{ fontSize: '11px', color: cell.textColor || '#e2e8f0', fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{val}</span>
+          {isSel && (
+            <div style={{ display: 'flex', gap: '2px', position: 'absolute', bottom: '1px', left: 0, right: 0, justifyContent: 'center' }}>
+              <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'h')); }} title="פצל אופקי" style={{ fontSize: '9px', padding: '1px 3px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⟺</button>
+              <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgSplit(t, cell.id, 'v')); }} title="פצל אנכי" style={{ fontSize: '9px', padding: '1px 3px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>⇅</button>
+              {parentSplit && <button onMouseDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); mutate(t => sgRemove(t, cell.id)); setSelCellId(null); }} title="הסר" style={{ fontSize: '9px', padding: '1px 3px', background: '#7f1d1d', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer', lineHeight: 1 }}>✕</button>}
+            </div>
+          )}
+        </div>
+      );
+    }
+    const split = node as SGSplit;
+    return (
+      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden' }}>
+        {split.children.map((child, i) => (
+          <React.Fragment key={child.id}>
+            <div style={{ [split.direction === 'h' ? 'width' : 'height']: `${split.sizes[i] ?? (100 / split.children.length)}%`, display: 'flex', overflow: 'hidden' }}>
+              {renderEditorNode(child, split)}
+            </div>
+            {i < split.children.length - 1 && (
+              <div
+                onMouseDown={e => {
+                  e.preventDefault();
+                  const container = (e.currentTarget as HTMLElement).parentElement!;
+                  const rect = container.getBoundingClientRect();
+                  dragRef.current = { splitId: split.id, idx: i, startPos: split.direction === 'h' ? e.clientX : e.clientY, startSizes: [...split.sizes], dir: split.direction, containerPx: split.direction === 'h' ? rect.width : rect.height };
+                }}
+                style={{ [split.direction === 'h' ? 'width' : 'height']: '4px', [split.direction === 'h' ? 'height' : 'width']: '100%', background: '#475569', cursor: split.direction === 'h' ? 'col-resize' : 'row-resize', flexShrink: 0, borderRadius: '2px' }}
+              />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch(`${apiUrl}/classic-strip-tables/${tableId}/layout`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout_json: tree, conditions_json: conditions }),
+      });
+      if (r.ok) { const updated = await r.json(); onSaved(updated); setDirty(false); }
+    } finally { setSaving(false); }
+  };
+
+  const clearLayout = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch(`${apiUrl}/classic-strip-tables/${tableId}/layout`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout_json: null, conditions_json: null }),
+      });
+      if (r.ok) { const updated = await r.json(); onSaved(updated); setTree(sgDefaultCell()); setConditions([]); setDirty(false); }
+    } finally { setSaving(false); }
+  };
+
+  const addCondition = () => setConditions(prev => [...prev, { id: sgGenId(), checkField: 'status', operator: 'eq', value: '', target: 'strip', styleBg: '', styleText: '' }]);
+  const updateCondition = (id: string, changes: Partial<SGCondition>) => setConditions(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
+  const removeCondition = (id: string) => setConditions(prev => prev.filter(c => c.id !== id));
+
+  const previewStrip = { callSign: 'F-16', sq: '101', alt: 'FL200', task: 'CAS', takeoff_time: '0800', notes: 'הערה', status: 'active', sector: 'מרחב' };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '12px', width: '90vw', maxWidth: '960px', height: '80vh', display: 'flex', flexDirection: 'column', color: '#e2e8f0', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #1e3a5f', gap: '12px' }}>
+          <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#93c5fd' }}>📐 עורך גריד — {tableName}</span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {dirty && <span style={{ fontSize: '12px', color: '#fbbf24' }}>● שינויים לא שמורים</span>}
+            <button onClick={clearLayout} title="נקה גריד" style={{ padding: '5px 12px', background: '#7f1d1d', color: '#fecaca', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 נקה גריד</button>
+            <button onClick={save} disabled={saving} style={{ padding: '5px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>{saving ? '...' : '💾 שמור'}</button>
+            <button onClick={onClose} style={{ padding: '5px 10px', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>✕ סגור</button>
+          </div>
+        </div>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #1e3a5f' }}>
+          {([['layout','📐 תצורת גריד'],['conditions','🎨 פורמט מותנה']] as const).map(([tab, label]) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '8px 18px', background: activeTab === tab ? '#1e3a5f' : 'transparent', color: activeTab === tab ? '#93c5fd' : '#64748b', border: 'none', borderBottom: activeTab === tab ? '2px solid #3b82f6' : '2px solid transparent', cursor: 'pointer', fontSize: '13px', fontWeight: activeTab === tab ? 'bold' : 'normal' }}>{label}</button>
+          ))}
+        </div>
+        {loading ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>טוען...</div> : (
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {activeTab === 'layout' && (
+              <>
+                {/* Canvas */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px', overflow: 'hidden' }}>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>לחץ על תא לבחירה • ⟺ פצל אופקי • ⇅ פצל אנכי • ✕ הסר</div>
+                  <div style={{ flex: 1, display: 'flex', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0 }}>
+                    {renderEditorNode(tree)}
+                  </div>
+                  {/* Preview */}
+                  <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                    <div style={{ fontSize: '11px', color: '#475569', marginBottom: '6px' }}>תצוגה מקדימה:</div>
+                    <div style={{ maxWidth: '320px' }}>
+                      <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} />
+                    </div>
+                  </div>
+                </div>
+                {/* Cell Properties */}
+                <div style={{ width: '220px', flexShrink: 0, borderInlineStart: '1px solid #1e3a5f', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', overflow: 'auto' }}>
+                  {selCell ? (
+                    <>
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd' }}>✏ תא נבחר</div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>שדה:</label>
+                        <select value={selCell.fieldKey} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fieldKey: e.target.value })))}
+                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                          {FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>רקע:</label>
+                        <input type="color" value={selCell.bgColor || '#1e293b'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bgColor: e.target.value })))}
+                          style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>צבע טקסט:</label>
+                        <input type="color" value={selCell.textColor || '#e2e8f0'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textColor: e.target.value })))}
+                          style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>גופן (px):</label>
+                        <input type="number" min={8} max={24} value={selCell.fontSize || 12} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fontSize: Number(e.target.value) })))}
+                          style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={!!selCell.bold} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, bold: e.target.checked })))} />
+                          <b>B</b>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#94a3b8', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={!!selCell.italic} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, italic: e.target.checked })))} />
+                          <i>I</i>
+                        </label>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>יישור:</label>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {(['right','center','left'] as const).map(a => (
+                            <button key={a} onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textAlign: a })))}
+                              style={{ flex: 1, padding: '4px', background: selCell.textAlign === a ? '#1d4ed8' : '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', cursor: 'pointer', fontSize: '12px' }}>
+                              {a === 'right' ? '→' : a === 'left' ? '←' : '↔'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: '#475569', fontSize: '12px', paddingTop: '20px', textAlign: 'center' }}>לחץ על תא לעריכת מאפייניו</div>
+                  )}
+                </div>
+              </>
+            )}
+            {activeTab === 'conditions' && (
+              <div style={{ flex: 1, padding: '16px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: '#93c5fd', fontWeight: 'bold' }}>כללי פורמט מותנה</span>
+                  <button onClick={addCondition} style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ הוסף כלל</button>
+                </div>
+                {conditions.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px' }}>אין כללים. לחץ "הוסף כלל" כדי להוסיף.</div>}
+                {conditions.map(c => {
+                  const allCells = sgGetAllCells(tree);
+                  return (
+                    <div key={c.id} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select value={c.checkField} onChange={e => { updateCondition(c.id, { checkField: e.target.value }); setDirty(true); }}
+                          style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                          {FIELDS.filter(f => f.key).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                        </select>
+                        <select value={c.operator} onChange={e => { updateCondition(c.id, { operator: e.target.value as any }); setDirty(true); }}
+                          style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }}>
+                          {OPERATORS.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
+                        </select>
+                        {!['empty','notEmpty'].includes(c.operator) && (
+                          <input value={c.value} onChange={e => { updateCondition(c.id, { value: e.target.value }); setDirty(true); }}
+                            placeholder="ערך" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', width: '80px' }} />
+                        )}
+                        <button onClick={() => { removeCondition(c.id); setDirty(true); }} style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select value={c.target} onChange={e => { updateCondition(c.id, { target: e.target.value as any, targetCellId: undefined }); setDirty(true); }}
+                          style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                          <option value="strip">כל הכרטיס</option>
+                          <option value="cell">תא ספציפי</option>
+                        </select>
+                        {c.target === 'cell' && (
+                          <select value={c.targetCellId || ''} onChange={e => { updateCondition(c.id, { targetCellId: e.target.value }); setDirty(true); }}
+                            style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                            <option value="">— בחר תא —</option>
+                            {allCells.map((cell, ci) => <option key={cell.id} value={cell.id}>{FIELDS.find(f => f.key === cell.fieldKey)?.label || `תא ${ci+1}`}</option>)}
+                          </select>
+                        )}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+                          רקע: <input type="color" value={c.styleBg || '#1e293b'} onChange={e => { updateCondition(c.id, { styleBg: e.target.value }); setDirty(true); }}
+                            style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+                          טקסט: <input type="color" value={c.styleText || '#e2e8f0'} onChange={e => { updateCondition(c.id, { styleText: e.target.value }); setDirty(true); }}
+                            style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- Strip Window Layout Builder ---
 interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
@@ -24669,6 +25049,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
 
   // Classic Strip Tables state
   const [classicTables, setClassicTables] = useState<any[]>([]);
+  const [sgEditorTableId, setSgEditorTableId] = useState<number | null>(null);
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
   const [airfieldForm, setAirfieldForm] = useState({ name: '', map_id: '', sids: [] as { label: string; sector_id: number | null }[], stars: [] as string[], newSid: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
@@ -27775,12 +28156,18 @@ CHARLIE,1,301,`}
                     <button onClick={startNew} style={{ padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ חדש</button>
                   </div>
                   {classicTables.map((ct: any) => (
-                    <div key={ct.id} onClick={() => startEdit(ct)}
-                      style={{ padding: '8px 10px', marginBottom: '4px', borderRadius: '6px', cursor: 'pointer', background: editingClassicTable?.id === ct.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingClassicTable?.id === ct.id ? '#3b82f6' : '#1e293b'}`, color: editingClassicTable?.id === ct.id ? '#93c5fd' : '#94a3b8', fontSize: '13px' }}>
-                      {ct.name}
+                    <div key={ct.id}
+                      style={{ padding: '6px 8px', marginBottom: '4px', borderRadius: '6px', background: editingClassicTable?.id === ct.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingClassicTable?.id === ct.id ? '#3b82f6' : '#1e293b'}`, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span onClick={() => startEdit(ct)} style={{ flex: 1, cursor: 'pointer', color: editingClassicTable?.id === ct.id ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name}</span>
+                      <button title="עורך גריד" onClick={e => { e.stopPropagation(); setSgEditorTableId(ct.id); }}
+                        style={{ flexShrink: 0, padding: '2px 5px', background: ct.layout_json ? '#1e3a5f' : 'transparent', border: `1px solid ${ct.layout_json ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: ct.layout_json ? '#93c5fd' : '#475569', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}
+                        title={ct.layout_json ? 'גריד מוגדר — לחץ לעריכה' : 'הגדר גריד'}>📐</button>
                     </div>
                   ))}
                   {classicTables.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין תבניות</div>}
+                  {sgEditorTableId && (() => { const tbl = classicTables.find(x => x.id === sgEditorTableId); return tbl ? (
+                    <StripGridEditor tableId={tbl.id} tableName={tbl.name} apiUrl={API_URL} onClose={() => setSgEditorTableId(null)} onSaved={updated => setClassicTables(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))} />
+                  ) : null; })()}
                 </div>
 
                 {/* Right: form */}
