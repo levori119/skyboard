@@ -17060,7 +17060,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (sid) setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                   }) : undefined}
                 >
-                  <div style={{ padding: '4px 10px', background: leaf.header_color || '#1e3a5f', fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
                     <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
@@ -24800,7 +24800,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
 };
 
 // --- Strip Window Layout Builder ---
-interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; }
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; header_height?: number; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -25051,6 +25051,17 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                           style={{ width: '32px', height: '26px', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
                         <span style={{ fontSize: '10px', color: '#64748b' }}>{selLeaf.header_color || '#1e3a5f'}</span>
                       </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>גובה כותרת: {selLeaf.header_height || 24}px</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="range" min={16} max={72} step={2} value={selLeaf.header_height || 24}
+                        onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_height: Number(e.target.value) })))}
+                        style={{ flex: 1 }} />
+                      <input type="number" min={16} max={72} step={2} value={selLeaf.header_height || 24}
+                        onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_height: Math.max(16, Math.min(72, Number(e.target.value))) })))}
+                        style={{ width: '46px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '2px 4px', textAlign: 'center' }} />
                     </div>
                   </div>
                   <div>
