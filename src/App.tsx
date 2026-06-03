@@ -7996,10 +7996,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 };
 
 // --- Strip Grid Card Layout (SGNode) ---
-interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; }
+interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; blink?: boolean; blinkColor?: string; blinkRate?: number; }
 interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 type SGNode = SGCell | SGSplit;
-interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; }
+interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; blink?: boolean; blinkColor?: string; blinkRate?: number; }
+let _sgBlinkStyleInjected = false;
+const ensureSGBlinkStyle = () => {
+  if (_sgBlinkStyleInjected) return;
+  const el = document.createElement('style');
+  el.textContent = '@keyframes sg-cell-blink { 0%,49%{background-color:var(--sg-bb);} 50%,100%{background-color:var(--sg-bt);} }';
+  document.head.appendChild(el);
+  _sgBlinkStyleInjected = true;
+};
 const sgGenId = () => Math.random().toString(36).slice(2, 9);
 const sgDefaultCell = (): SGCell => ({ id: sgGenId(), type: 'cell', fieldKey: '', textAlign: 'center' });
 function sgUpdate(node: SGNode, id: string, fn: (n: any) => any): SGNode {
@@ -8164,15 +8172,18 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
 
   // Evaluate conditions for grid layout
   const evalConditions = (conds: SGCondition[], targetCellId?: string) => {
-    let bg: string | undefined; let text: string | undefined;
+    let bg: string | undefined; let text: string | undefined; let blink = false; let blinkColor = '#ef4444'; let blinkRate = 0.8;
     for (const c of (conds || [])) {
       if (c.target === 'cell' && targetCellId && c.targetCellId !== targetCellId) continue;
       if (c.target === 'strip' && targetCellId !== undefined) continue;
       let match = false;
       try { match = c.query ? evaluateQuery(strip, c.query) : false; } catch { match = false; }
-      if (match) { if (c.styleBg) bg = c.styleBg; if (c.styleText) text = c.styleText; }
+      if (match) {
+        if (c.styleBg) bg = c.styleBg; if (c.styleText) text = c.styleText;
+        if (c.blink) { blink = true; if (c.blinkColor) blinkColor = c.blinkColor; if (c.blinkRate) blinkRate = c.blinkRate; }
+      }
     }
-    return { bg, text };
+    return { bg, text, blink, blinkColor, blinkRate };
   };
 
   const renderSGNode = (node: SGNode, stripBg?: string, stripTxt?: string): React.ReactNode => {
@@ -8182,13 +8193,18 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
       const condStyle = evalConditions(conditionsJson || [], cell.id);
       const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
       const clr = condStyle.text || cell.textColor || stripTxt || defaultColor;
+      const shouldBlink = condStyle.blink || !!cell.blink;
+      const blinkClr = condStyle.blink ? condStyle.blinkColor : (cell.blinkColor || '#ef4444');
+      const blinkSpd = condStyle.blink ? condStyle.blinkRate : (cell.blinkRate || 0.8);
+      if (shouldBlink) ensureSGBlinkStyle();
       return (
         <div key={cell.id} style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: cell.textAlign || 'center',
           background: bg, color: clr, fontSize: `${cell.fontSize || 12}px`,
           fontWeight: cell.bold ? 'bold' : 'normal', fontStyle: cell.italic ? 'italic' : 'normal',
           overflow: 'hidden', padding: '1px 4px', minHeight: '20px', minWidth: 0,
-        }}>
+          ...(shouldBlink ? { '--sg-bb': bg, '--sg-bt': blinkClr, animation: `sg-cell-blink ${blinkSpd}s step-end infinite` } : {}),
+        } as React.CSSProperties}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center' }}>{val}</span>
         </div>
       );
@@ -17214,8 +17230,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: 10 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
+                      const canvas = e.currentTarget as HTMLCanvasElement;
+                      // Auto-size canvas if not yet sized (happens when pen mode first activates)
+                      if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
+                        canvas.width = canvas.offsetWidth;
+                        canvas.height = canvas.offsetHeight;
+                        swRedrawAll(canvas);
+                      }
                       swIsDrawing.current = true;
-                      const rect = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+                      const rect = canvas.getBoundingClientRect();
                       swCurStroke.current = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
                     }}
                     onMouseMove={e => {
@@ -24794,6 +24817,21 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                           ))}
                         </div>
                       </div>
+                      {/* Blink settings */}
+                      <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#fbbf24', cursor: 'pointer', marginBottom: '6px' }}>
+                          <input type="checkbox" checked={!!selCell.blink} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blink: e.target.checked })))} />
+                          ✦ הבהוב
+                        </label>
+                        {selCell.blink && <>
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>צבע הבהוב:</label>
+                          <input type="color" value={selCell.blinkColor || '#ef4444'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkColor: e.target.value })))}
+                            style={{ width: '100%', height: '26px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '6px' }} />
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>קצב הבהוב (שניות):</label>
+                          <input type="number" min={0.2} max={5} step={0.1} value={selCell.blinkRate || 0.8} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, blinkRate: Number(e.target.value) })))}
+                            style={{ width: '100%', padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
+                        </>}
+                      </div>
                     </>
                   ) : (
                     <div style={{ color: '#475569', fontSize: '12px', paddingTop: '20px', textAlign: 'center' }}>לחץ על תא לעריכת מאפייניו</div>
@@ -24852,6 +24890,20 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                           טקסט: <input type="color" value={c.styleText || '#e2e8f0'} onChange={e => { updateCondition(c.id, { styleText: e.target.value }); setDirty(true); }}
                             style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                         </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#fbbf24', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={!!c.blink} onChange={e => { updateCondition(c.id, { blink: e.target.checked }); setDirty(true); }} />
+                          ✦ הבהוב
+                        </label>
+                        {c.blink && <>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+                            צבע הבהוב: <input type="color" value={c.blinkColor || '#ef4444'} onChange={e => { updateCondition(c.id, { blinkColor: e.target.value }); setDirty(true); }}
+                              style={{ width: '28px', height: '22px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+                            קצב (ש׳): <input type="number" min={0.2} max={5} step={0.1} value={c.blinkRate || 0.8} onChange={e => { updateCondition(c.id, { blinkRate: Number(e.target.value) }); setDirty(true); }}
+                              style={{ width: '52px', padding: '2px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px' }} />
+                          </label>
+                        </>}
                       </div>
                     </div>
                   );
