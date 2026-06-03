@@ -8180,8 +8180,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
       const cell = node as SGCell;
       const val = getVal(cell.fieldKey);
       const condStyle = evalConditions(conditionsJson || [], cell.id);
-      const bg = condStyle.bg || cell.bgColor || (lightMode ? '#ffffff' : '#1e293b');
-      const clr = condStyle.text || cell.textColor || defaultColor;
+      const bg = condStyle.bg || cell.bgColor || stripBg || (lightMode ? '#ffffff' : '#1e293b');
+      const clr = condStyle.text || cell.textColor || stripTxt || defaultColor;
       return (
         <div key={cell.id} style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: cell.textAlign || 'center',
