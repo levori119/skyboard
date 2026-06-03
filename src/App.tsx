@@ -25149,21 +25149,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 </div>
 
-                {/* strip_window_id selector — at top of form */}
-                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: `1px solid ${(presetForm as any).strip_window_id ? '#7c3aed' : '#1e293b'}` }}>
-                  <label style={{ display: 'block', marginBottom: '6px', color: (presetForm as any).strip_window_id ? '#c4b5fd' : '#94a3b8', fontSize: '13px', fontWeight: 'bold' }}>🪟 חלון סטריפים:</label>
-                  <select
-                    value={(presetForm as any).strip_window_id || ''}
-                    onChange={e => setPresetForm(p => ({ ...p, strip_window_id: e.target.value || null }))}
-                    style={{ background: '#1e293b', border: `1px solid ${(presetForm as any).strip_window_id ? '#7c3aed' : '#334155'}`, borderRadius: '6px', color: '#f1f5f9', padding: '7px 10px', fontSize: '13px', width: '100%' }}
-                  >
-                    <option value=''>— ללא חלון סטריפים —</option>
-                    {stripWindowLayouts.map((lay: any) => (
-                      <option key={lay.id} value={lay.id}>🪟 {lay.name}</option>
-                    ))}
-                  </select>
-                  {(presetForm as any).strip_window_id && <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#a78bfa' }}>✅ עמדה זו תציג חלון סטריפים. נקודות העברה אינן רלוונטיות למצב זה.</p>}
-                </div>
+                {/* strip_window_id selector — only for classic strip preset type */}
+                {presetForm.preset_type === 'classic' ? (
+                  <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: (presetForm as any).strip_window_id ? '1px solid #7c3aed' : '1px solid #1e293b' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', color: (presetForm as any).strip_window_id ? '#c4b5fd' : '#94a3b8', fontSize: '13px', fontWeight: 'bold' }}>🪟 חלון סטריפים:</label>
+                    <select
+                      value={(presetForm as any).strip_window_id || ''}
+                      onChange={e => setPresetForm(p => ({ ...p, strip_window_id: e.target.value || null }))}
+                      style={{ background: '#1e293b', border: (presetForm as any).strip_window_id ? '1px solid #7c3aed' : '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', padding: '7px 10px', fontSize: '13px', width: '100%' }}
+                    >
+                      <option value=''>— ללא חלון סטריפים —</option>
+                      {stripWindowLayouts.map((lay: any) => (
+                        <option key={lay.id} value={lay.id}>🪟 {lay.name}</option>
+                      ))}
+                    </select>
+                    {(presetForm as any).strip_window_id && (
+                      <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#a78bfa' }}>✅ עמדה זו תציג חלון סטריפים. נקודות העברה אינן רלוונטיות למצב זה.</p>
+                    )}
+                  </div>
+                ) : null}
 
                 {/* Row 2: Conditional based on preset type */}
                 {presetForm.preset_type === 'ground' ? (
