@@ -16863,7 +16863,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
                 return (
-                  <div style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minHeight: 0, overflow: 'hidden', direction: isV ? 'ltr' : undefined }}>
                     {(node as SWSplit).children.map((child, i) => (
                       <div key={child.id} style={{
                         flex: `0 0 ${(node as SWSplit).sizes[i] ?? (100 / (node as SWSplit).children.length)}%`,
@@ -24341,7 +24341,7 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
       const isV = node.direction === 'v';
       const sizes = node.sizes.length === node.children.length ? node.sizes : node.children.map(() => 100 / node.children.length);
       return (
-        <div key={node.id} style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+        <div key={node.id} style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden', direction: isV ? 'ltr' : undefined }}>
           {node.children.map((child, idx) => (
             <React.Fragment key={child.id}>
               <div style={{ flex: `0 0 ${sizes[idx]}%`, display: 'flex', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
