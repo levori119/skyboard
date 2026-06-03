@@ -16964,6 +16964,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {/* Strip Window View — replaces ClassicView when strip_window_id is configured */}
           {!isGroundMode && isStripWindowMode && swLayoutJson && (() => {
             const swQCtx = _qCtx;
+            const swClassicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
+            const swClassicTableNight = myPresetConfig?.classic_strip_table_id_night ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night) : null;
+            const swClassicTable = lightMode ? swClassicTableDay : (swClassicTableNight || swClassicTableDay);
+            const swRows = (swClassicTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
+            const swLayoutJsonCard: SGNode | null = swClassicTable?.layout_json || null;
+            const swConditionsJson: SGCondition[] = swClassicTable?.conditions_json || [];
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
@@ -16999,19 +17005,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
                     )}
                     {leafStrips.map((strip: any) => (
-                      <div key={strip.id} style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: 'default' }}>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
-                          <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
-                          {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>ממתין</span>}
-                        </div>
-                        {(strip.sector || strip.notes) && (
-                          <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
-                            {strip.sector && <span>📍 {strip.sector}</span>}
-                            {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
+                      swClassicTable
+                        ? <ClassicStripCard key={strip.id} strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} />
+                        : (
+                          <div key={strip.id} style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: 'default' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
+                              <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
+                              {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>ממתין</span>}
+                            </div>
+                            {(strip.sector || strip.notes) && (
+                              <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
+                                {strip.sector && <span>📍 {strip.sector}</span>}
+                                {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        )
                     ))}
                   </div>
                 </div>
