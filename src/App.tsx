@@ -12668,7 +12668,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [swPenSize, setSwPenSize] = React.useState(3);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
   const swCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
-  const swCanvasSized = React.useRef(false);
+  // Stable ref callback — useCallback(fn,[]) ensures React never calls it again on re-renders,
+  // only on actual mount/unmount, so el.width assignment won't wipe the canvas mid-draw.
+  const swCanvasRefCallback = React.useCallback((el: HTMLCanvasElement | null) => {
+    swCanvasRef.current = el;
+    if (el) {
+      const parent = el.parentElement;
+      if (parent) { el.width = parent.clientWidth; el.height = parent.clientHeight; }
+    }
+  }, []);
   const swIsDrawing = React.useRef(false);
   const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
@@ -17202,15 +17210,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {renderSWNode(swLayoutJson)}
                   {/* Drawing canvas overlay */}
                   <canvas
-                    ref={el => {
-                      if (!el) { swCanvasRef.current = null; swCanvasSized.current = false; return; }
-                      swCanvasRef.current = el;
-                      if (!swCanvasSized.current) {
-                        const parent = el.parentElement;
-                        if (parent) { el.width = parent.clientWidth; el.height = parent.clientHeight; }
-                        swCanvasSized.current = true;
-                      }
-                    }}
+                    ref={swCanvasRefCallback}
                     style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: 10 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
