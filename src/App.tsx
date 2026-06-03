@@ -9435,14 +9435,14 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
               return (
                 <div key={s.id} style={{ position: 'relative' }}>
                   {(showSplit || showMerge) && (
-                    <div style={{ display: 'flex', gap: '3px', padding: '2px 4px 0', justifyContent: 'flex-end' }}>
+                    <div style={{ position: 'absolute', top: '2px', insetInlineStart: '2px', display: 'flex', gap: '2px', zIndex: 5 }}>
                       {showSplit && (
                         <button onClick={e => { e.stopPropagation(); onSplitPartial!(String(s.id), []); }}
-                          style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>✂ פצל</button>
+                          style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', lineHeight: 1 }}>✂</button>
                       )}
                       {showMerge && (
                         <button onClick={e => { e.stopPropagation(); onMergePartial!(String(cSiblings[0].id), String(s.id)); }}
-                          style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '4px', padding: '1px 7px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>⊕ אחד</button>
+                          style={{ background: '#1e3a5f', border: '1px solid #1d4ed8', color: '#93c5fd', borderRadius: '4px', padding: '1px 5px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', lineHeight: 1 }}>⊕</button>
                       )}
                     </div>
                   )}
@@ -17006,7 +17006,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     )}
                     {leafStrips.map((strip: any) => (
                       swClassicTable
-                        ? <ClassicStripCard key={strip.id} strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} />
+                        ? <div key={strip.id} style={{ flexShrink: 0 }}><ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} /></div>
                         : (
                           <div key={strip.id} style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: 'default' }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
