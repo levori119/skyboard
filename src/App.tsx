@@ -12662,6 +12662,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
   const [swLeafAssign, setSwLeafAssign] = React.useState<Record<string, string>>({}); // stripId -> leafId override
+  const [swSplitSizes, setSwSplitSizes] = React.useState<Record<string, number[]>>({}); // splitId -> runtime sizes
+  const swResizeDragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = swResizeDragRef.current; if (!d) return;
+      const pos = d.dir === 'v' ? e.clientX : e.clientY;
+      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
+      const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
+      const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
+      setSwSplitSizes(prev => { const ns = [...d.startSizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...prev, [d.splitId]: ns }; });
+    };
+    const onUp = () => { swResizeDragRef.current = null; };
+    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
   React.useEffect(() => {
     if (!stripWindowId) { setSwLayoutJson(null); return; }
     fetch(`${API_URL}/strip-window-layouts`)
@@ -17020,17 +17035,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
+                const split = node as SWSplit;
+                const runtimeSizes = swSplitSizes[split.id];
+                const sizes = runtimeSizes && runtimeSizes.length === split.children.length ? runtimeSizes : split.sizes;
                 return (
                   <div style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minHeight: 0, overflow: 'hidden', direction: isV ? 'ltr' : undefined }}>
-                    {(node as SWSplit).children.map((child, i) => (
-                      <div key={child.id} style={{
-                        flex: `0 0 ${(node as SWSplit).sizes[i] ?? (100 / (node as SWSplit).children.length)}%`,
-                        display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
-                        borderRight: isV && i < (node as SWSplit).children.length - 1 ? '2px solid #1e293b' : undefined,
-                        borderBottom: !isV && i < (node as SWSplit).children.length - 1 ? '2px solid #1e293b' : undefined,
-                      }}>
-                        {renderSWNode(child)}
-                      </div>
+                    {split.children.map((child, i) => (
+                      <React.Fragment key={child.id}>
+                        <div style={{
+                          flex: `0 0 ${sizes[i] ?? (100 / split.children.length)}%`,
+                          display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+                        }}>
+                          {renderSWNode(child)}
+                        </div>
+                        {i < split.children.length - 1 && (
+                          <div
+                            style={{ flexShrink: 0, background: '#1e293b', cursor: isV ? 'col-resize' : 'row-resize', zIndex: 5, transition: 'background 0.15s', ...(isV ? { width: '4px' } : { height: '4px' }) }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#3b82f6'}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#1e293b'}
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              const parent = (e.currentTarget as HTMLElement).parentElement;
+                              const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
+                              swResizeDragRef.current = { splitId: split.id, idx: i, startPos: isV ? e.clientX : e.clientY, startSizes: [...(swSplitSizes[split.id] || split.sizes)], dir: split.direction, containerPx };
+                            }}
+                          />
+                        )}
+                      </React.Fragment>
                     ))}
                   </div>
                 );
@@ -24548,7 +24579,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
       onMove(e);
       const hd = heightDragRef.current;
       if (!hd) return;
-      const delta = e.clientY - hd.startY;
+      const delta = hd.startY - e.clientY;
       setStripHeight(Math.max(24, Math.min(200, hd.startH + delta)));
     };
     document.addEventListener('mousemove', onMoveAll); document.addEventListener('mouseup', onUp);
