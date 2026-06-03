@@ -949,6 +949,32 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS suggest_alt_range BOOLEAN DEFAULT false`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS show_full_picture BOOLEAN DEFAULT false`);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_window_layouts (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_window_columns (
+      id SERIAL PRIMARY KEY,
+      layout_id INTEGER NOT NULL REFERENCES strip_window_layouts(id) ON DELETE CASCADE,
+      col_index INTEGER NOT NULL DEFAULT 0,
+      width INTEGER DEFAULT 120
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS strip_window_cells (
+      id SERIAL PRIMARY KEY,
+      column_id INTEGER NOT NULL REFERENCES strip_window_columns(id) ON DELETE CASCADE,
+      row_index INTEGER NOT NULL DEFAULT 0,
+      waypoint VARCHAR(100) DEFAULT '',
+      bg_color VARCHAR(20) DEFAULT '#1e293b',
+      header_color VARCHAR(20) DEFAULT '#f1f5f9'
+    )
+  `);
+  await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS strip_window_id INTEGER REFERENCES strip_window_layouts(id) ON DELETE SET NULL`);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS civilian_strip_assignments (
       id SERIAL PRIMARY KEY,
       strip_id INTEGER NOT NULL REFERENCES strips(id) ON DELETE CASCADE,
@@ -5442,6 +5468,93 @@ app.put('/api/base-pressure/:baseId', async (req, res) => {
     await pool.query('UPDATE aviation_bases SET pressure_inhg=$1 WHERE id=$2', [val, id]);
     res.json({ pressure_inhg: val });
   } catch (err) { res.status(500).json({ error: 'Failed to update base pressure' }); }
+});
+
+// --- Strip Window Layouts API ---
+app.get('/api/strip-window-layouts', async (req, res) => {
+  try {
+    const layouts = await pool.query('SELECT * FROM strip_window_layouts ORDER BY name');
+    const result = [];
+    for (const lay of layouts.rows) {
+      const cols = await pool.query('SELECT * FROM strip_window_columns WHERE layout_id=$1 ORDER BY col_index', [lay.id]);
+      const columns = [];
+      for (const col of cols.rows) {
+        const cells = await pool.query('SELECT * FROM strip_window_cells WHERE column_id=$1 ORDER BY row_index', [col.id]);
+        columns.push({ ...col, cells: cells.rows });
+      }
+      result.push({ ...lay, columns });
+    }
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/strip-window-layouts', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const r = await pool.query('INSERT INTO strip_window_layouts (name) VALUES ($1) RETURNING *', [name]);
+    res.json({ ...r.rows[0], columns: [] });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.put('/api/strip-window-layouts/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const r = await pool.query('UPDATE strip_window_layouts SET name=$1 WHERE id=$2 RETURNING *', [name, req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-window-layouts/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_window_layouts WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/strip-window-layouts/:id/columns', async (req, res) => {
+  try {
+    const layoutId = req.params.id;
+    const maxIdx = await pool.query('SELECT COALESCE(MAX(col_index),0) AS m FROM strip_window_columns WHERE layout_id=$1', [layoutId]);
+    const nextIdx = (maxIdx.rows[0].m || 0) + 1;
+    const r = await pool.query('INSERT INTO strip_window_columns (layout_id, col_index, width) VALUES ($1,$2,120) RETURNING *', [layoutId, nextIdx]);
+    res.json({ ...r.rows[0], cells: [] });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-window-columns/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_window_columns WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/strip-window-columns/:id/cells', async (req, res) => {
+  try {
+    const colId = req.params.id;
+    const maxIdx = await pool.query('SELECT COALESCE(MAX(row_index),0) AS m FROM strip_window_cells WHERE column_id=$1', [colId]);
+    const nextIdx = (maxIdx.rows[0].m || 0) + 1;
+    const r = await pool.query("INSERT INTO strip_window_cells (column_id, row_index, waypoint, bg_color, header_color) VALUES ($1,$2,'','#1e293b','#f1f5f9') RETURNING *", [colId, nextIdx]);
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.put('/api/strip-window-cells/:id', async (req, res) => {
+  try {
+    const { waypoint, bg_color, header_color } = req.body;
+    const r = await pool.query('UPDATE strip_window_cells SET waypoint=$1, bg_color=$2, header_color=$3 WHERE id=$4 RETURNING *',
+      [waypoint ?? '', bg_color ?? '#1e293b', header_color ?? '#f1f5f9', req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(r.rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/strip-window-cells/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM strip_window_cells WHERE id=$1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
 
 // --- Base Statuses API ---

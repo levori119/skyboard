@@ -24117,8 +24117,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'civ_strips'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips' | 'strip_windows';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'civ_strips'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -24290,6 +24290,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminSelMapSrc, setAdminSelMapSrc] = useState<string | null>(null);
   const [classicTableForm, setClassicTableForm] = useState({ name: '', description: '' });
   const [editingClassicTable, setEditingClassicTable] = useState<any | null>(null);
+  const [stripWindowLayouts, setStripWindowLayouts] = useState<any[]>([]);
+  const [editingStripWindow, setEditingStripWindow] = useState<any | null>(null);
+  const [stripWindowNameDraft, setStripWindowNameDraft] = useState('');
+  const [newStripWindowName, setNewStripWindowName] = useState('');
+  const loadStripWindowLayouts = async () => {
+    const r = await fetch(`${API_URL}/strip-window-layouts`);
+    if (r.ok) setStripWindowLayouts(await r.json());
+  };
   const [classicTableRows, setClassicTableRows] = useState<{ row_number: number; field_name: string; fields: { field_name: string }[]; separator: string; row_label: string; editable: boolean; text_color: string; bg_color: string; font_size: number; bold: boolean; italic: boolean; underline: boolean; text_align: string }[]>([
     { row_number: 1, field_name: 'callSign', fields: [], separator: ' / ', row_label: '', editable: false, text_color: '', bg_color: '', font_size: 12, bold: true, italic: false, underline: false, text_align: 'center' },
     { row_number: 2, field_name: 'alt', fields: [], separator: ' / ', row_label: '', editable: true, text_color: '', bg_color: '', font_size: 12, bold: false, italic: false, underline: false, text_align: 'center' },
@@ -24566,6 +24574,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           flight_zones_mode: presetForm.flight_zones_mode === true,
           suggest_alt_range: presetForm.suggest_alt_range === true,
           show_full_picture: (presetForm as any).show_full_picture === true,
+          strip_window_id: (presetForm as any).strip_window_id ? Number((presetForm as any).strip_window_id) : null,
           use_map_zones: presetForm.use_map_zones === true,
           can_update_mazaa: presetForm.can_update_mazaa === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
@@ -24635,6 +24644,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       flight_zones_mode: preset.flight_zones_mode === true,
       suggest_alt_range: preset.suggest_alt_range === true,
       show_full_picture: preset.show_full_picture === true,
+      strip_window_id: preset.strip_window_id || '',
       use_map_zones: preset.use_map_zones === true,
       can_update_mazaa: preset.can_update_mazaa === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
@@ -24648,6 +24658,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     setPresetForm(f);
     setPresetFormInitial(JSON.stringify(f));
     loadPresetLinks(preset.id);
+    loadStripWindowLayouts();
     setShowAddLinkForm(false);
     setEditingLinkId(null);
     setNewLinkForm({ url: '', name: '', category: '', note: '' });
@@ -24733,6 +24744,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
         {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
+        {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={tabStyle(activeTab === 'strip_windows')}>🪟 חלון סטריפים</button>}
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
         {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
         {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={tabStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
@@ -25358,6 +25370,22 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#a78bfa' }}>כשמופעל, מופיע בעמדה כפתור "🌐 כל המכלול" (במוד טבלה בלבד). לחיצה עליו מציגה את כל הפ"מ של כלל עמדות קבוצת העבודה.</p>
                   </div>
                 )}
+
+                {/* strip_window_id selector */}
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🪟 חלון סטריפים:</label>
+                  <select
+                    value={(presetForm as any).strip_window_id || ''}
+                    onChange={e => setPresetForm(p => ({ ...p, strip_window_id: e.target.value || null }))}
+                    style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', padding: '7px 10px', fontSize: '13px', width: '100%' }}
+                  >
+                    <option value=''>— ללא חלון סטריפים —</option>
+                    {stripWindowLayouts.map((lay: any) => (
+                      <option key={lay.id} value={lay.id}>🪟 {lay.name}</option>
+                    ))}
+                  </select>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>בחר חלון סטריפים מוגדר מראש לעמדה זו. ניתן ליצור ולערוך חלונות בטאב "🪟 חלון סטריפים".</p>
+                </div>
 
                 {/* use_map_zones toggle */}
                 <div style={{ marginTop: '15px' }}>
@@ -28916,6 +28944,123 @@ CHARLIE,1,301,`}
         })()}
 
         {activeTab === 'default_names' && <DefaultNamesManager />}
+
+        {activeTab === 'strip_windows' && (() => {
+          const T2 = { bg: '#0f172a', card: '#1e293b', border: '#334155', text: '#f1f5f9', muted: '#94a3b8', accent: '#7dd3fc' };
+          const allWaypoints = ['TALMI','DESHE','RAMON','GEVA','NAKHAL','ARAD','SHOREK','KETURA','YODFAT','TZUR','CARMEL','GILBOA'];
+          const swSave = async (lay: any, newName: string) => {
+            await fetch(`${API_URL}/strip-window-layouts/${lay.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName }) });
+            loadStripWindowLayouts();
+          };
+          const swAddCol = async (lay: any) => {
+            await fetch(`${API_URL}/strip-window-layouts/${lay.id}/columns`, { method: 'POST' });
+            loadStripWindowLayouts();
+          };
+          const swDelCol = async (col: any) => {
+            await fetch(`${API_URL}/strip-window-columns/${col.id}`, { method: 'DELETE' });
+            loadStripWindowLayouts();
+          };
+          const swAddCell = async (col: any) => {
+            await fetch(`${API_URL}/strip-window-columns/${col.id}/cells`, { method: 'POST' });
+            loadStripWindowLayouts();
+          };
+          const swDelCell = async (cell: any) => {
+            await fetch(`${API_URL}/strip-window-cells/${cell.id}`, { method: 'DELETE' });
+            loadStripWindowLayouts();
+          };
+          const swUpdateCell = async (cell: any, patch: any) => {
+            await fetch(`${API_URL}/strip-window-cells/${cell.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waypoint: cell.waypoint, bg_color: cell.bg_color, header_color: cell.header_color, ...patch }) });
+            loadStripWindowLayouts();
+          };
+          return (
+            <div style={{ padding: '20px', direction: 'rtl', color: T2.text }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0, fontSize: '18px' }}>🪟 הגדרת חלון סטריפים</h2>
+                <div style={{ display: 'flex', gap: '8px', marginInlineStart: 'auto', alignItems: 'center' }}>
+                  <input value={newStripWindowName} onChange={e => setNewStripWindowName(e.target.value)}
+                    placeholder="שם חלון חדש..."
+                    style={{ background: T2.card, border: `1px solid ${T2.border}`, color: T2.text, padding: '6px 10px', borderRadius: '6px', fontSize: '13px', width: '180px' }}
+                    onKeyDown={e => { if (e.key === 'Enter' && newStripWindowName.trim()) { fetch(`${API_URL}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newStripWindowName.trim() }) }).then(() => { setNewStripWindowName(''); loadStripWindowLayouts(); }); } }}
+                  />
+                  <button onClick={() => { if (!newStripWindowName.trim()) return; fetch(`${API_URL}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newStripWindowName.trim() }) }).then(() => { setNewStripWindowName(''); loadStripWindowLayouts(); }); }}
+                    style={{ background: '#1d4ed8', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>+ חלון חדש</button>
+                </div>
+              </div>
+              {stripWindowLayouts.length === 0 && (
+                <div style={{ padding: '40px', textAlign: 'center', color: T2.muted }}>אין חלונות מוגדרים. צור חלון חדש.</div>
+              )}
+              {stripWindowLayouts.map((lay: any) => {
+                const isEditing = editingStripWindow?.id === lay.id;
+                return (
+                  <div key={lay.id} style={{ marginBottom: '24px', background: T2.card, border: `1px solid ${T2.border}`, borderRadius: '10px', padding: '16px' }}>
+                    {/* Layout header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                      {isEditing ? (
+                        <>
+                          <input value={stripWindowNameDraft} onChange={e => setStripWindowNameDraft(e.target.value)}
+                            style={{ background: '#0f172a', border: '1px solid #7c3aed', color: T2.text, padding: '5px 9px', borderRadius: '5px', fontSize: '14px', fontWeight: 'bold', flex: 1 }}
+                            onKeyDown={e => { if (e.key === 'Enter') { swSave(lay, stripWindowNameDraft); setEditingStripWindow(null); } if (e.key === 'Escape') setEditingStripWindow(null); }}
+                          />
+                          <button onClick={() => { swSave(lay, stripWindowNameDraft); setEditingStripWindow(null); }} style={{ background: '#16a34a', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>💾 שמור</button>
+                          <button onClick={() => setEditingStripWindow(null)} style={{ background: T2.border, color: T2.muted, border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 'bold', fontSize: '15px' }}>🪟 {lay.name}</span>
+                          <button onClick={() => { setEditingStripWindow(lay); setStripWindowNameDraft(lay.name); }}
+                            style={{ background: 'transparent', color: T2.muted, border: `1px solid ${T2.border}`, padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>✏️ שנה שם</button>
+                          <button onClick={() => { if (confirm(`למחוק את חלון "${lay.name}"?`)) { fetch(`${API_URL}/strip-window-layouts/${lay.id}`, { method: 'DELETE' }).then(() => loadStripWindowLayouts()); } }}
+                            style={{ background: 'transparent', color: '#f87171', border: '1px solid #f87171', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', marginInlineStart: 'auto' }}>🗑 מחק חלון</button>
+                        </>
+                      )}
+                    </div>
+                    {/* Columns grid */}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', overflowX: 'auto', paddingBottom: '8px' }}>
+                      {lay.columns.map((col: any) => (
+                        <div key={col.id} style={{ minWidth: '140px', background: '#0f172a', border: `1px solid ${T2.border}`, borderRadius: '7px', padding: '8px', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '10px', color: T2.muted }}>עמודה</span>
+                            <button onClick={() => { if (confirm('למחוק עמודה זו?')) swDelCol(col); }}
+                              style={{ background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', fontSize: '11px', padding: '1px 4px' }}>✕</button>
+                          </div>
+                          {col.cells.map((cell: any) => (
+                            <div key={cell.id} style={{ marginBottom: '6px', background: cell.bg_color || '#1e293b', borderRadius: '5px', padding: '6px', border: '1px solid #334155', position: 'relative' }}>
+                              <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '4px' }}>
+                                <select value={cell.waypoint || ''}
+                                  onChange={e => swUpdateCell(cell, { waypoint: e.target.value })}
+                                  style={{ flex: 1, background: 'transparent', border: 'none', color: cell.header_color || '#f1f5f9', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', outline: 'none' }}>
+                                  <option value=''>— נקודה —</option>
+                                  {allWaypoints.map(w => <option key={w} value={w} style={{ background: '#1e293b', color: '#f1f5f9' }}>{w}</option>)}
+                                </select>
+                                <button onClick={() => swDelCell(cell)}
+                                  style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: '10px', padding: '0 2px', flexShrink: 0 }}>✕</button>
+                              </div>
+                              <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                <label style={{ fontSize: '9px', color: T2.muted }}>רקע:</label>
+                                <input type='color' value={cell.bg_color || '#1e293b'}
+                                  onChange={e => swUpdateCell(cell, { bg_color: e.target.value })}
+                                  style={{ width: '22px', height: '16px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0, background: 'none' }} />
+                                <label style={{ fontSize: '9px', color: T2.muted }}>כותרת:</label>
+                                <input type='color' value={cell.header_color || '#f1f5f9'}
+                                  onChange={e => swUpdateCell(cell, { header_color: e.target.value })}
+                                  style={{ width: '22px', height: '16px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0, background: 'none' }} />
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => swAddCell(col)}
+                            style={{ width: '100%', background: 'transparent', border: `1px dashed ${T2.border}`, color: T2.muted, borderRadius: '5px', padding: '4px', cursor: 'pointer', fontSize: '11px', marginTop: '2px' }}>+ שורה</button>
+                        </div>
+                      ))}
+                      <button onClick={() => swAddCol(lay)}
+                        style={{ minWidth: '50px', height: '60px', background: 'transparent', border: `2px dashed ${T2.border}`, color: T2.muted, borderRadius: '7px', cursor: 'pointer', fontSize: '20px', flexShrink: 0, alignSelf: 'center' }}>+</button>
+                    </div>
+                    <p style={{ margin: '10px 0 0 0', fontSize: '10px', color: T2.muted }}>{lay.columns.length} עמודות · {lay.columns.reduce((s: number, c: any) => s + c.cells.length, 0)} תאים</p>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {activeTab === 'civ_strips' && <CivilianStripsAdmin />}
 
