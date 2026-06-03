@@ -24689,8 +24689,10 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                 {/* Canvas */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px', overflow: 'hidden' }}>
                   <div style={{ fontSize: '12px', color: '#64748b' }}>לחץ על תא לבחירה • ⟺ פצל אופקי • ⇅ פצל אנכי • ✕ הסר</div>
-                  <div style={{ flex: 1, display: 'flex', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0, direction: 'ltr' }}>
-                    {renderEditorNode(tree)}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0 }}>
+                    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, direction: 'ltr' }}>
+                      {renderEditorNode(tree)}
+                    </div>
                   </div>
                   {/* Preview */}
                   <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
