@@ -12682,7 +12682,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [swPenMode, setSwPenMode] = React.useState(false);
   const [swPenColor, setSwPenColor] = React.useState('#ef4444');
   const [swPenSize, setSwPenSize] = React.useState(3);
-  const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
+  const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) return [];
+      const saved = localStorage.getItem(`sw_strokes_${pid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const swCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   // Stable ref callback — useCallback(fn,[]) ensures React never calls it again on re-renders,
   // only on actual mount/unmount, so el.width assignment won't wipe the canvas mid-draw.
@@ -12712,6 +12719,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   }, []);
+  // Persist strokes to localStorage whenever they change
+  React.useEffect(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) return;
+      if (swStrokes.length === 0) { localStorage.removeItem(`sw_strokes_${pid}`); }
+      else { localStorage.setItem(`sw_strokes_${pid}`, JSON.stringify(swStrokes)); }
+    } catch {}
+  }, [swStrokes, session.presetId]);
+
+  // Reload strokes from localStorage when preset changes
+  React.useEffect(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) { setSwStrokes([]); return; }
+      const saved = localStorage.getItem(`sw_strokes_${pid}`);
+      setSwStrokes(saved ? JSON.parse(saved) : []);
+    } catch { setSwStrokes([]); }
+  }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Redraw stored strokes whenever swStrokes changes (avoids canvas wipe on re-render)
   React.useEffect(() => {
     const canvas = swCanvasRef.current; if (!canvas) return;
@@ -17216,7 +17243,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    <button onClick={() => { setSwStrokes([]); const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
+                    <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
                       style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 נקה</button>
                   </>}
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
