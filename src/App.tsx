@@ -24913,8 +24913,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'civ_strips' | 'strip_windows';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'civ_strips'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -25561,7 +25561,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
             }).catch(() => {});
         }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
         {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={tabStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
-        {availableTabs.includes('civ_strips') && <button onClick={() => setActiveTab('civ_strips')} style={tabStyle(activeTab === 'civ_strips')}>✈ סטריפים אזרחי</button>}
       </div>
       
       <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
@@ -29794,7 +29793,6 @@ CHARLIE,1,301,`}
 
         {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
 
-        {activeTab === 'civ_strips' && <CivilianStripsAdmin />}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
