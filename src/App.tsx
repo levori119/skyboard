@@ -25050,6 +25050,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Classic Strip Tables state
   const [classicTables, setClassicTables] = useState<any[]>([]);
   const [sgEditorTableId, setSgEditorTableId] = useState<number | null>(null);
+  const [showNewModePicker, setShowNewModePicker] = useState(false);
+  const [newCivilTableName, setNewCivilTableName] = useState('');
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
   const [airfieldForm, setAirfieldForm] = useState({ name: '', map_id: '', sids: [] as { label: string; sector_id: number | null }[], stars: [] as string[], newSid: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
@@ -28150,23 +28152,58 @@ CHARLIE,1,301,`}
             return (
               <div style={{ display: 'flex', gap: '16px', direction: 'rtl' }}>
                 {/* Left: table list */}
-                <div style={{ width: '200px', flexShrink: 0 }}>
+                <div style={{ width: '200px', flexShrink: 0, position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#94a3b8' }}>תבניות ({classicTables.length})</span>
-                    <button onClick={startNew} style={{ padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ חדש</button>
+                    <button onClick={() => { setShowNewModePicker(true); setNewCivilTableName(''); }} style={{ padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ חדש</button>
                   </div>
-                  {classicTables.map((ct: any) => (
-                    <div key={ct.id}
-                      style={{ padding: '6px 8px', marginBottom: '4px', borderRadius: '6px', background: editingClassicTable?.id === ct.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${editingClassicTable?.id === ct.id ? '#3b82f6' : '#1e293b'}`, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span onClick={() => startEdit(ct)} style={{ flex: 1, cursor: 'pointer', color: editingClassicTable?.id === ct.id ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name}</span>
-                      <button title="עורך גריד" onClick={e => { e.stopPropagation(); setSgEditorTableId(ct.id); }}
-                        style={{ flexShrink: 0, padding: '2px 5px', background: ct.layout_json ? '#1e3a5f' : 'transparent', border: `1px solid ${ct.layout_json ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: ct.layout_json ? '#93c5fd' : '#475569', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}
-                        title={ct.layout_json ? 'גריד מוגדר — לחץ לעריכה' : 'הגדר גריד'}>📐</button>
+
+                  {/* Mode picker popup */}
+                  {showNewModePicker && (
+                    <div onClick={() => setShowNewModePicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div onClick={e => e.stopPropagation()} style={{ background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: '12px', padding: '24px', width: '360px', direction: 'rtl', color: '#e2e8f0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#93c5fd', textAlign: 'center' }}>בחר סוג תבנית חדשה</div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                          {/* 3 rows mode */}
+                          <button onClick={() => { setShowNewModePicker(false); startNew(); }}
+                            style={{ flex: 1, padding: '16px 8px', background: '#0f172a', border: '2px solid #334155', borderRadius: '10px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#e2e8f0', transition: 'border-color 0.2s' }}
+                            onMouseEnter={e => (e.currentTarget.style.borderColor = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.borderColor = '#334155')}>
+                            <span style={{ fontSize: '28px' }}>🗂</span>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>3 שורות</span>
+                            <span style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>תבנית סטריפ רגיל עם 3 שורות מוגדרות</span>
+                          </button>
+                          {/* Civil/grid mode */}
+                          <div style={{ flex: 1, padding: '16px 8px', background: '#0f172a', border: '2px solid #334155', borderRadius: '10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#e2e8f0' }}>
+                            <span style={{ fontSize: '28px' }}>📐</span>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold' }}>מוד אזרחי</span>
+                            <span style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>גריד חופשי עם עורך ויזואלי</span>
+                            <input value={newCivilTableName} onChange={e => setNewCivilTableName(e.target.value)}
+                              placeholder="שם התבנית..." onKeyDown={async e => { if (e.key === 'Enter' && newCivilTableName.trim()) { e.preventDefault(); const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) }); const created = await r.json(); const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []); setClassicTables(updated); setShowNewModePicker(false); setSgEditorTableId(created.id); } }}
+                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' as const }} />
+                            <button disabled={!newCivilTableName.trim()} onClick={async () => { const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) }); const created = await r.json(); const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []); setClassicTables(updated); setShowNewModePicker(false); setSgEditorTableId(created.id); }}
+                              style={{ width: '100%', padding: '5px 8px', background: newCivilTableName.trim() ? '#1d4ed8' : '#1e293b', border: 'none', borderRadius: '6px', color: newCivilTableName.trim() ? 'white' : '#475569', cursor: newCivilTableName.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>צור ופתח עורך</button>
+                          </div>
+                        </div>
+                        <button onClick={() => setShowNewModePicker(false)} style={{ alignSelf: 'center', padding: '4px 14px', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#64748b', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                      </div>
                     </div>
-                  ))}
+                  )}
+
+                  {classicTables.map((ct: any) => {
+                    const isCivil = ct.mode === 'civil';
+                    const isSelected = editingClassicTable?.id === ct.id || sgEditorTableId === ct.id;
+                    return (
+                      <div key={ct.id} onClick={() => { if (isCivil) { setEditingClassicTable(null); setSgEditorTableId(ct.id); } else { startEdit(ct); setSgEditorTableId(null); } }}
+                        style={{ padding: '6px 8px', marginBottom: '4px', borderRadius: '6px', background: isSelected ? '#1e3a5f' : '#0f172a', border: `1px solid ${isSelected ? '#3b82f6' : '#1e293b'}`, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                        <span title={isCivil ? 'מוד אזרחי' : '3 שורות'} style={{ fontSize: '13px', flexShrink: 0 }}>{isCivil ? '📐' : '🗂'}</span>
+                        <span style={{ flex: 1, color: isSelected ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name}</span>
+                      </div>
+                    );
+                  })}
                   {classicTables.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין תבניות</div>}
+
                   {sgEditorTableId && (() => { const tbl = classicTables.find(x => x.id === sgEditorTableId); return tbl ? (
-                    <StripGridEditor tableId={tbl.id} tableName={tbl.name} apiUrl={API_URL} onClose={() => setSgEditorTableId(null)} onSaved={updated => setClassicTables(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))} />
+                    <StripGridEditor tableId={tbl.id} tableName={tbl.name} apiUrl={API_URL} onClose={() => setSgEditorTableId(null)} onSaved={updated => { setClassicTables(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t)); setSgEditorTableId(null); }} />
                   ) : null; })()}
                 </div>
 

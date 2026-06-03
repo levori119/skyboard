@@ -581,6 +581,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_strip_table_id_night INTEGER REFERENCES classic_strip_tables(id) ON DELETE SET NULL`);
   await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS layout_json JSONB`);
   await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS conditions_json JSONB`);
+  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS mode VARCHAR DEFAULT '3rows'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
 
@@ -3193,17 +3194,20 @@ app.get('/api/classic-strip-tables', async (req, res) => {
 
 app.post('/api/classic-strip-tables', async (req, res) => {
   try {
-    const { name } = req.body;
-    const result = await pool.query('INSERT INTO classic_strip_tables (name) VALUES ($1) RETURNING *', [name]);
+    const { name, mode } = req.body;
+    const tableMode = mode || '3rows';
+    const result = await pool.query('INSERT INTO classic_strip_tables (name, mode) VALUES ($1, $2) RETURNING *', [name, tableMode]);
     const t = result.rows[0];
-    // Create 3 default rows with sensible field defaults
-    const defaultFields = ['callSign', 'alt', 'task'];
-    for (let i = 1; i <= 3; i++) {
-      await pool.query(
-        `INSERT INTO classic_strip_rows (table_id, row_number, field_name, font_size, bold, text_align)
-         VALUES ($1, $2, $3, 14, $4, 'center') ON CONFLICT DO NOTHING`,
-        [t.id, i, defaultFields[i - 1], i === 1]
-      );
+    if (tableMode === '3rows') {
+      // Create 3 default rows with sensible field defaults
+      const defaultFields = ['callSign', 'alt', 'task'];
+      for (let i = 1; i <= 3; i++) {
+        await pool.query(
+          `INSERT INTO classic_strip_rows (table_id, row_number, field_name, font_size, bold, text_align)
+           VALUES ($1, $2, $3, 14, $4, 'center') ON CONFLICT DO NOTHING`,
+          [t.id, i, defaultFields[i - 1], i === 1]
+        );
+      }
     }
     const rows = await pool.query('SELECT * FROM classic_strip_rows WHERE table_id = $1 ORDER BY row_number', [t.id]);
     res.json({ ...t, rows: rows.rows });
