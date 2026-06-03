@@ -23972,7 +23972,31 @@ const CivilianStripsAdmin = () => {
         >+ NEW STRIP</button>
 
         {loading && <span style={{ color: '#64748b', fontSize: '11px', fontFamily: 'monospace' }}>LOADING...</span>}
-        <span style={{ color: '#475569', fontSize: '11px', fontFamily: 'monospace', marginLeft: 'auto' }}>{strips.length} STRIPS</span>
+        <span style={{ color: '#475569', fontSize: '11px', fontFamily: 'monospace' }}>{strips.length} STRIPS</span>
+        <button
+          style={{ marginLeft: 'auto', background: '#0f2744', color: '#7dd3fc', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '6px' }}
+          onClick={() => {
+            const preset = presets.find(p => p.id === selectedPresetId);
+            const colMap = Object.fromEntries(assignments.map(a => [String(a.strip_id), a.col_key]));
+            const cols = ['CALLSIGN','AIRLINE','FL','STAND','GATE','TIME','SSR','RWY','STATUS','ROUTE','COLUMN'];
+            const rows = strips.map(s => [
+              s.callSign || '', s.unit || '', s.civ_fl || '', s.civ_stand || '', s.civ_dest || '',
+              s.civ_time || '', s.civ_ssr || '', s.civ_runway || '', s.civ_status || '',
+              s.civ_route || '', colMap[String(s.id)] || ''
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            const csv = [cols.join(','), ...rows].join('\n');
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `civ-strips-${preset?.name || 'export'}-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          title="ייצא סטריפים אזרחיים ל-CSV"
+        >
+          <span>↓</span> סטריפים אזרחי
+        </button>
       </div>
 
       {/* Add strip form */}
