@@ -24147,6 +24147,269 @@ const DefaultNamesManager = () => {
   );
 };
 
+// --- Strip Window Layout Builder ---
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; }
+interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
+type SWNode = SWLeaf | SWSplit;
+const swGenId = () => Math.random().toString(36).slice(2, 9);
+const swDefaultLeaf = (): SWLeaf => ({ id: swGenId(), type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' });
+function swUpdate(node: SWNode, id: string, fn: (n: any) => any): SWNode {
+  if (node.id === id) return fn(node);
+  if (node.type === 'split') return { ...node, children: node.children.map(c => swUpdate(c, id, fn)) };
+  return node;
+}
+function swSplit(node: SWNode, id: string, dir: 'h' | 'v'): SWNode {
+  if (node.id === id && node.type === 'leaf') return { id: swGenId(), type: 'split', direction: dir, sizes: [50, 50], children: [node, swDefaultLeaf()] };
+  if (node.type === 'split') return { ...node, children: node.children.map(c => swSplit(c, id, dir)) };
+  return node;
+}
+function swRemove(node: SWNode, id: string): SWNode {
+  if (node.type === 'leaf') return node;
+  const keep = node.children.filter(c => c.id !== id);
+  if (keep.length === node.children.length) return { ...node, children: node.children.map(c => swRemove(c, id)) };
+  if (keep.length === 0) return swDefaultLeaf();
+  if (keep.length === 1) return swRemove(keep[0], id);
+  const keptIdx = node.children.reduce<number[]>((acc, c, i) => c.id !== id ? [...acc, i] : acc, []);
+  const rawSizes = keptIdx.map(i => node.sizes[i] ?? (100 / node.children.length));
+  const total = rawSizes.reduce((s, n) => s + n, 0);
+  return { ...node, children: keep, sizes: rawSizes.map(s => (s / total) * 100) };
+}
+function swFindLeaf(node: SWNode, id: string): SWLeaf | null {
+  if (node.type === 'leaf') return node.id === id ? node : null;
+  for (const c of node.children) { const r = swFindLeaf(c, id); if (r) return r; }
+  return null;
+}
+
+const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
+  const [layouts, setLayouts] = useState<any[]>([]);
+  const [selId, setSelId] = useState<number | null>(null);
+  const [tree, setTree] = useState<SWNode | null>(null);
+  const [fullScreen, setFullScreen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [selLeafId, setSelLeafId] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h' | 'v'; containerPx: number } | null>(null);
+
+  const load = React.useCallback(async () => {
+    const r = await fetch(`${apiUrl}/strip-window-layouts`);
+    if (r.ok) setLayouts(await r.json());
+  }, [apiUrl]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const pos = d.dir === 'v' ? e.clientX : e.clientY;
+      const pctDelta = ((pos - d.startPos) / d.containerPx) * 100;
+      const total = d.startSizes[d.idx] + d.startSizes[d.idx + 1];
+      const newA = Math.max(5, Math.min(total - 5, d.startSizes[d.idx] + pctDelta));
+      const newB = total - newA;
+      setTree(prev => prev ? swUpdate(prev, d.splitId, (n: SWSplit) => {
+        const ns = [...n.sizes]; ns[d.idx] = newA; ns[d.idx + 1] = newB; return { ...n, sizes: ns };
+      }) : prev);
+      setDirty(true);
+    };
+    const onUp = () => { dragRef.current = null; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+  }, []);
+
+  const selLay = layouts.find(l => l.id === selId);
+  const selLeaf = React.useMemo(() => (tree && selLeafId) ? swFindLeaf(tree, selLeafId) : null, [tree, selLeafId]);
+  const selectLay = (lay: any) => { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); };
+  const save = async () => {
+    if (!selId || !tree) return;
+    await fetch(`${apiUrl}/strip-window-layouts/${selId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: selLay?.name, layout_json: tree }) });
+    setDirty(false);
+    await load();
+  };
+  const mutate = (fn: (t: SWNode) => SWNode) => { setTree(p => p ? fn(p) : p); setDirty(true); };
+
+  const T = { bg: '#0f172a', card: '#1e293b', border: '#334155', text: '#f1f5f9', muted: '#94a3b8' };
+  const btnSm = (col: string): React.CSSProperties => ({ background: col, color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' as const, flexShrink: 0 });
+
+  const renderNode = (node: SWNode): React.ReactElement => {
+    if (node.type === 'split') {
+      const isV = node.direction === 'v';
+      const sizes = node.sizes.length === node.children.length ? node.sizes : node.children.map(() => 100 / node.children.length);
+      return (
+        <div key={node.id} style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+          {node.children.map((child, idx) => (
+            <React.Fragment key={child.id}>
+              <div style={{ flex: `0 0 ${sizes[idx]}%`, display: 'flex', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
+                {renderNode(child)}
+              </div>
+              {idx < node.children.length - 1 && (
+                <div
+                  style={{ flexShrink: 0, background: '#334155', cursor: isV ? 'col-resize' : 'row-resize', transition: 'background 0.15s', ...(isV ? { width: '5px' } : { height: '5px' }) }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#7c3aed'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = '#334155'}
+                  onMouseDown={e => {
+                    e.preventDefault();
+                    const parent = e.currentTarget.parentElement;
+                    const containerPx = isV ? (parent?.offsetWidth ?? 800) : (parent?.offsetHeight ?? 600);
+                    dragRef.current = { splitId: node.id, idx, startPos: isV ? e.clientX : e.clientY, startSizes: [...sizes], dir: node.direction, containerPx };
+                  }}
+                />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    }
+    const sel = node.id === selLeafId;
+    return (
+      <div key={node.id} onClick={() => setSelLeafId(node.id)}
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, background: node.bg_color || '#0f172a', border: sel ? '2px solid #7c3aed' : '1px solid #334155', boxSizing: 'border-box', overflow: 'hidden', cursor: 'pointer', minWidth: 0, minHeight: 0 }}>
+        <div style={{ background: node.header_color || '#1e3a5f', padding: '3px 7px', fontSize: '11px', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {node.label || node.waypoint || '— תא —'}
+          </span>
+          {node.query && <span style={{ fontSize: '9px', opacity: 0.7 }}>⚡</span>}
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '4px', flexWrap: 'wrap' }}>
+          <button onClick={e => { e.stopPropagation(); mutate(t => swSplit(t, node.id, 'h')); }} style={btnSm('#1d4ed8')} title="חלק לעליון ותחתון">+ שורה</button>
+          <button onClick={e => { e.stopPropagation(); mutate(t => swSplit(t, node.id, 'v')); }} style={btnSm('#065f46')} title="חלק לשמאל וימין">+ עמודה</button>
+        </div>
+      </div>
+    );
+  };
+
+  const sidebar = (
+    <div style={{ width: '220px', flexShrink: 0, background: T.card, borderInlineEnd: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ padding: '10px', borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: T.text }}>🪟 חלונות סטריפים</div>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="שם חדש..."
+            onKeyDown={async e => { if (e.key === 'Enter' && newName.trim()) { await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) }); setNewName(''); load(); } }}
+            style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: '4px 6px', borderRadius: '4px', fontSize: '12px' }} />
+          <button onClick={async () => { if (!newName.trim()) return; await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) }); setNewName(''); load(); }}
+            style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '14px' }}>+</button>
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+        {layouts.length === 0 && <div style={{ color: T.muted, fontSize: '11px', textAlign: 'center', padding: '16px 0' }}>אין חלונות</div>}
+        {layouts.map(lay => (
+          <div key={lay.id}>
+            {renamingId === lay.id ? (
+              <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
+                <input autoFocus value={renameDraft} onChange={e => setRenameDraft(e.target.value)}
+                  onKeyDown={async e => { if (e.key === 'Enter') { await fetch(`${apiUrl}/strip-window-layouts/${lay.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: renameDraft, layout_json: lay.layout_json }) }); setRenamingId(null); load(); } if (e.key === 'Escape') setRenamingId(null); }}
+                  style={{ flex: 1, background: T.bg, border: '1px solid #7c3aed', color: T.text, padding: '3px 5px', borderRadius: '4px', fontSize: '11px' }} />
+                <button onClick={async () => { await fetch(`${apiUrl}/strip-window-layouts/${lay.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: renameDraft, layout_json: lay.layout_json }) }); setRenamingId(null); load(); }}
+                  style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 5px', cursor: 'pointer', fontSize: '11px' }}>✓</button>
+              </div>
+            ) : (
+              <div onClick={() => selectLay(lay)}
+                style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '5px 6px', background: selId === lay.id ? '#1e40af33' : 'transparent', borderRadius: '5px', border: selId === lay.id ? '1px solid #1e40af99' : '1px solid transparent', cursor: 'pointer', marginBottom: '2px' }}>
+                <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.text }}>{lay.name}</span>
+                <button onClick={e => { e.stopPropagation(); setRenamingId(lay.id); setRenameDraft(lay.name); }} style={{ background: 'transparent', color: T.muted, border: 'none', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>✏️</button>
+                <button onClick={e => { e.stopPropagation(); if (confirm(`מחק "${lay.name}"?`)) { fetch(`${apiUrl}/strip-window-layouts/${lay.id}`, { method: 'DELETE' }).then(() => { if (selId === lay.id) { setSelId(null); setTree(null); } load(); }); } }} style={{ background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', fontSize: '10px', padding: '1px 2px' }}>🗑</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', height: '100%', direction: 'rtl', color: T.text, overflow: 'hidden', position: 'relative' }}>
+      {sidebar}
+      {!selLay ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted, fontSize: '14px' }}>בחר חלון מהרשימה או צור חדש</div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', background: T.card, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <span style={{ fontWeight: 'bold', fontSize: '14px' }}>🪟 {selLay.name}</span>
+            {dirty && <span style={{ fontSize: '11px', color: '#fbbf24' }}>●</span>}
+            <div style={{ marginInlineStart: 'auto', display: 'flex', gap: '6px' }}>
+              {dirty && <button onClick={save} style={{ background: '#16a34a', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>💾 שמור</button>}
+              <button onClick={() => setFullScreen(true)} style={{ background: '#7c3aed', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>⛶ ערוך בגדול</button>
+            </div>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden', padding: '8px', display: 'flex' }}>
+            <div style={{ flex: 1, border: `1px solid ${T.border}`, borderRadius: '5px', overflow: 'hidden', display: 'flex' }}>
+              {tree && renderNode(tree)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fullScreen && selLay && tree && (
+        <div style={{ position: 'fixed', inset: 0, background: '#070d1a', zIndex: 9999, display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+          <div style={{ background: '#1e293b', borderBottom: '1px solid #334155', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <span style={{ fontWeight: 'bold', fontSize: '15px' }}>🪟 {selLay.name}</span>
+            {dirty && <span style={{ fontSize: '12px', color: '#fbbf24' }}>● שינויים לא שמורים</span>}
+            <div style={{ marginInlineStart: 'auto', display: 'flex', gap: '8px' }}>
+              {dirty && <button onClick={save} style={{ background: '#16a34a', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>💾 שמור</button>}
+              <button onClick={() => { setFullScreen(false); setSelLeafId(null); }} style={{ background: '#334155', color: '#f1f5f9', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>✕ סגור</button>
+            </div>
+          </div>
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', userSelect: 'none' }}>
+              {renderNode(tree)}
+            </div>
+            {selLeaf && (
+              <div style={{ width: '270px', background: '#1e293b', borderInlineStart: '1px solid #334155', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px' }}>⚙ הגדרות תא</span>
+                  <button onClick={() => { if (confirm('למחוק תא זה?')) { mutate(t => swRemove(t, selLeaf.id)); setSelLeafId(null); } }}
+                    style={{ marginInlineStart: 'auto', background: 'transparent', color: '#f87171', border: '1px solid #f87171', borderRadius: '4px', padding: '2px 7px', cursor: 'pointer', fontSize: '11px' }}>🗑 מחק</button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>כותרת תא</div>
+                    <input value={selLeaf.label || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, label: e.target.value })))} placeholder="כותרת..."
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>נקודת מעבר</div>
+                    <input value={selLeaf.waypoint || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint: e.target.value })))} placeholder="שם נקודת מעבר..."
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>רקע תא</div>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <input type="color" value={selLeaf.bg_color || '#0f172a'} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, bg_color: e.target.value })))}
+                          style={{ width: '32px', height: '26px', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>{selLeaf.bg_color || '#0f172a'}</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>רקע כותרת</div>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <input type="color" value={selLeaf.header_color || '#1e3a5f'} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_color: e.target.value })))}
+                          style={{ width: '32px', height: '26px', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>{selLeaf.header_color || '#1e3a5f'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '4px' }}>שאילתת סינון</div>
+                    <QueryBuilder value={selLeaf.query || null} onChange={q => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, query: q })))} label="שאילתת סינון לתא" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ background: '#0f172a', borderTop: '1px solid #1e293b', padding: '5px 14px', fontSize: '10px', color: '#475569', display: 'flex', gap: '16px' }}>
+            <span>לחץ על תא לבחירה ← הגדרות בפאנל ימין</span>
+            <span>גרור מחיצה ← שינוי גודל</span>
+            <span><b style={{ color: '#94a3b8' }}>+ שורה</b> = עליון/תחתון &nbsp;·&nbsp; <b style={{ color: '#94a3b8' }}>+ עמודה</b> = שמאל/ימין</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- דף ניהול ---
 const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crewMember?: CrewMember | null; mode?: 'admin' | 'team_lead' }) => {
   const isAdmin = crewMember?.is_admin ?? true;
@@ -28982,122 +29245,7 @@ CHARLIE,1,301,`}
 
         {activeTab === 'default_names' && <DefaultNamesManager />}
 
-        {activeTab === 'strip_windows' && (() => {
-          const T2 = { bg: '#0f172a', card: '#1e293b', border: '#334155', text: '#f1f5f9', muted: '#94a3b8', accent: '#7dd3fc' };
-          const allWaypoints = ['TALMI','DESHE','RAMON','GEVA','NAKHAL','ARAD','SHOREK','KETURA','YODFAT','TZUR','CARMEL','GILBOA'];
-          const swSave = async (lay: any, newName: string) => {
-            await fetch(`${API_URL}/strip-window-layouts/${lay.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName }) });
-            loadStripWindowLayouts();
-          };
-          const swAddCol = async (lay: any) => {
-            await fetch(`${API_URL}/strip-window-layouts/${lay.id}/columns`, { method: 'POST' });
-            loadStripWindowLayouts();
-          };
-          const swDelCol = async (col: any) => {
-            await fetch(`${API_URL}/strip-window-columns/${col.id}`, { method: 'DELETE' });
-            loadStripWindowLayouts();
-          };
-          const swAddCell = async (col: any) => {
-            await fetch(`${API_URL}/strip-window-columns/${col.id}/cells`, { method: 'POST' });
-            loadStripWindowLayouts();
-          };
-          const swDelCell = async (cell: any) => {
-            await fetch(`${API_URL}/strip-window-cells/${cell.id}`, { method: 'DELETE' });
-            loadStripWindowLayouts();
-          };
-          const swUpdateCell = async (cell: any, patch: any) => {
-            await fetch(`${API_URL}/strip-window-cells/${cell.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waypoint: cell.waypoint, bg_color: cell.bg_color, header_color: cell.header_color, ...patch }) });
-            loadStripWindowLayouts();
-          };
-          return (
-            <div style={{ padding: '20px', direction: 'rtl', color: T2.text }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                <h2 style={{ margin: 0, fontSize: '18px' }}>🪟 הגדרת חלון סטריפים</h2>
-                <div style={{ display: 'flex', gap: '8px', marginInlineStart: 'auto', alignItems: 'center' }}>
-                  <input value={newStripWindowName} onChange={e => setNewStripWindowName(e.target.value)}
-                    placeholder="שם חלון חדש..."
-                    style={{ background: T2.card, border: `1px solid ${T2.border}`, color: T2.text, padding: '6px 10px', borderRadius: '6px', fontSize: '13px', width: '180px' }}
-                    onKeyDown={e => { if (e.key === 'Enter' && newStripWindowName.trim()) { fetch(`${API_URL}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newStripWindowName.trim() }) }).then(() => { setNewStripWindowName(''); loadStripWindowLayouts(); }); } }}
-                  />
-                  <button onClick={() => { if (!newStripWindowName.trim()) return; fetch(`${API_URL}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newStripWindowName.trim() }) }).then(() => { setNewStripWindowName(''); loadStripWindowLayouts(); }); }}
-                    style={{ background: '#1d4ed8', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>+ חלון חדש</button>
-                </div>
-              </div>
-              {stripWindowLayouts.length === 0 && (
-                <div style={{ padding: '40px', textAlign: 'center', color: T2.muted }}>אין חלונות מוגדרים. צור חלון חדש.</div>
-              )}
-              {stripWindowLayouts.map((lay: any) => {
-                const isEditing = editingStripWindow?.id === lay.id;
-                return (
-                  <div key={lay.id} style={{ marginBottom: '24px', background: T2.card, border: `1px solid ${T2.border}`, borderRadius: '10px', padding: '16px' }}>
-                    {/* Layout header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-                      {isEditing ? (
-                        <>
-                          <input value={stripWindowNameDraft} onChange={e => setStripWindowNameDraft(e.target.value)}
-                            style={{ background: '#0f172a', border: '1px solid #7c3aed', color: T2.text, padding: '5px 9px', borderRadius: '5px', fontSize: '14px', fontWeight: 'bold', flex: 1 }}
-                            onKeyDown={e => { if (e.key === 'Enter') { swSave(lay, stripWindowNameDraft); setEditingStripWindow(null); } if (e.key === 'Escape') setEditingStripWindow(null); }}
-                          />
-                          <button onClick={() => { swSave(lay, stripWindowNameDraft); setEditingStripWindow(null); }} style={{ background: '#16a34a', color: 'white', border: 'none', padding: '5px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>💾 שמור</button>
-                          <button onClick={() => setEditingStripWindow(null)} style={{ background: T2.border, color: T2.muted, border: 'none', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{ fontWeight: 'bold', fontSize: '15px' }}>🪟 {lay.name}</span>
-                          <button onClick={() => { setEditingStripWindow(lay); setStripWindowNameDraft(lay.name); }}
-                            style={{ background: 'transparent', color: T2.muted, border: `1px solid ${T2.border}`, padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px' }}>✏️ שנה שם</button>
-                          <button onClick={() => { if (confirm(`למחוק את חלון "${lay.name}"?`)) { fetch(`${API_URL}/strip-window-layouts/${lay.id}`, { method: 'DELETE' }).then(() => loadStripWindowLayouts()); } }}
-                            style={{ background: 'transparent', color: '#f87171', border: '1px solid #f87171', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', marginInlineStart: 'auto' }}>🗑 מחק חלון</button>
-                        </>
-                      )}
-                    </div>
-                    {/* Columns grid */}
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', overflowX: 'auto', paddingBottom: '8px' }}>
-                      {lay.columns.map((col: any) => (
-                        <div key={col.id} style={{ minWidth: '140px', background: '#0f172a', border: `1px solid ${T2.border}`, borderRadius: '7px', padding: '8px', flexShrink: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '10px', color: T2.muted }}>עמודה</span>
-                            <button onClick={() => { if (confirm('למחוק עמודה זו?')) swDelCol(col); }}
-                              style={{ background: 'transparent', color: '#f87171', border: 'none', cursor: 'pointer', fontSize: '11px', padding: '1px 4px' }}>✕</button>
-                          </div>
-                          {col.cells.map((cell: any) => (
-                            <div key={cell.id} style={{ marginBottom: '6px', background: cell.bg_color || '#1e293b', borderRadius: '5px', padding: '6px', border: '1px solid #334155', position: 'relative' }}>
-                              <div style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '4px' }}>
-                                <select value={cell.waypoint || ''}
-                                  onChange={e => swUpdateCell(cell, { waypoint: e.target.value })}
-                                  style={{ flex: 1, background: 'transparent', border: 'none', color: cell.header_color || '#f1f5f9', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', outline: 'none' }}>
-                                  <option value=''>— נקודה —</option>
-                                  {allWaypoints.map(w => <option key={w} value={w} style={{ background: '#1e293b', color: '#f1f5f9' }}>{w}</option>)}
-                                </select>
-                                <button onClick={() => swDelCell(cell)}
-                                  style={{ background: 'transparent', color: '#94a3b8', border: 'none', cursor: 'pointer', fontSize: '10px', padding: '0 2px', flexShrink: 0 }}>✕</button>
-                              </div>
-                              <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                                <label style={{ fontSize: '9px', color: T2.muted }}>רקע:</label>
-                                <input type='color' value={cell.bg_color || '#1e293b'}
-                                  onChange={e => swUpdateCell(cell, { bg_color: e.target.value })}
-                                  style={{ width: '22px', height: '16px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0, background: 'none' }} />
-                                <label style={{ fontSize: '9px', color: T2.muted }}>כותרת:</label>
-                                <input type='color' value={cell.header_color || '#f1f5f9'}
-                                  onChange={e => swUpdateCell(cell, { header_color: e.target.value })}
-                                  style={{ width: '22px', height: '16px', border: 'none', borderRadius: '3px', cursor: 'pointer', padding: 0, background: 'none' }} />
-                              </div>
-                            </div>
-                          ))}
-                          <button onClick={() => swAddCell(col)}
-                            style={{ width: '100%', background: 'transparent', border: `1px dashed ${T2.border}`, color: T2.muted, borderRadius: '5px', padding: '4px', cursor: 'pointer', fontSize: '11px', marginTop: '2px' }}>+ שורה</button>
-                        </div>
-                      ))}
-                      <button onClick={() => swAddCol(lay)}
-                        style={{ minWidth: '50px', height: '60px', background: 'transparent', border: `2px dashed ${T2.border}`, color: T2.muted, borderRadius: '7px', cursor: 'pointer', fontSize: '20px', flexShrink: 0, alignSelf: 'center' }}>+</button>
-                    </div>
-                    <p style={{ margin: '10px 0 0 0', fontSize: '10px', color: T2.muted }}>{lay.columns.length} עמודות · {lay.columns.reduce((s: number, c: any) => s + c.cells.length, 0)} תאים</p>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+        {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
 
         {activeTab === 'civ_strips' && <CivilianStripsAdmin />}
 

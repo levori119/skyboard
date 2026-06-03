@@ -976,6 +976,7 @@ async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS strip_window_id INTEGER REFERENCES strip_window_layouts(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE strip_window_layouts ADD COLUMN IF NOT EXISTS layout_json JSONB`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS civilian_strip_assignments (
       id SERIAL PRIMARY KEY,
@@ -5518,8 +5519,11 @@ app.post('/api/strip-window-layouts', async (req, res) => {
 
 app.put('/api/strip-window-layouts/:id', async (req, res) => {
   try {
-    const { name } = req.body;
-    const r = await pool.query('UPDATE strip_window_layouts SET name=$1 WHERE id=$2 RETURNING *', [name, req.params.id]);
+    const { name, layout_json } = req.body;
+    const r = await pool.query(
+      'UPDATE strip_window_layouts SET name=$1, layout_json=$2 WHERE id=$3 RETURNING *',
+      [name, layout_json != null ? JSON.stringify(layout_json) : null, req.params.id]
+    );
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(r.rows[0]);
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
