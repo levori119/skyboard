@@ -12508,6 +12508,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
   const dualMapLayout: 'side-by-side' | 'stacked' = (myPresetConfig?.dual_map_layout === 'stacked' ? 'stacked' : 'side-by-side');
 
+  const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
+  const isStripWindowMode = !!stripWindowId;
+  const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
+  React.useEffect(() => {
+    if (!stripWindowId) { setSwLayoutJson(null); return; }
+    fetch(`${API_URL}/strip-window-layouts`)
+      .then(r => r.ok ? r.json() : [])
+      .then((list: any[]) => { const found = list.find((l: any) => Number(l.id) === stripWindowId); setSwLayoutJson(found?.layout_json || null); })
+      .catch(() => {});
+  }, [stripWindowId]);
+
   React.useEffect(() => {
     const val = myPresetConfig?.use_map_zones === true;
     setUseMapZonesActive(val);
@@ -16845,7 +16856,70 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
 
           {/* Classic Strip View */}
-          {!isGroundMode && isClassicMode && (() => {
+          {/* Strip Window View — replaces ClassicView when strip_window_id is configured */}
+          {!isGroundMode && isStripWindowMode && swLayoutJson && (() => {
+            const swQCtx = _qCtx;
+            const renderSWNode = (node: SWNode): React.ReactElement => {
+              if (node.type === 'split') {
+                const isV = node.direction === 'v';
+                return (
+                  <div style={{ display: 'flex', flexDirection: isV ? 'row' : 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                    {(node as SWSplit).children.map((child, i) => (
+                      <div key={child.id} style={{
+                        flex: `0 0 ${(node as SWSplit).sizes[i] ?? (100 / (node as SWSplit).children.length)}%`,
+                        display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden',
+                        borderRight: isV && i < (node as SWSplit).children.length - 1 ? '2px solid #1e293b' : undefined,
+                        borderBottom: !isV && i < (node as SWSplit).children.length - 1 ? '2px solid #1e293b' : undefined,
+                      }}>
+                        {renderSWNode(child)}
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+              const leaf = node as SWLeaf;
+              const leafStrips = (() => {
+                const base = myTableStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer');
+                if (!leaf.query) return base;
+                try { return base.filter((s: any) => evaluateQuery(s, leaf.query!, swQCtx)); } catch { return base; }
+              })();
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: leaf.bg_color || '#0f172a', overflow: 'hidden' }}>
+                  <div style={{ padding: '4px 10px', background: leaf.header_color || '#1e3a5f', fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
+                    <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    {leafStrips.length === 0 && (
+                      <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
+                    )}
+                    {leafStrips.map((strip: any) => (
+                      <div key={strip.id} style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: 'default' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
+                          <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
+                          {strip.status === 'pending_transfer' && <span style={{ fontSize: '10px', background: '#f59e0b', color: '#000', borderRadius: '3px', padding: '1px 4px' }}>ממתין</span>}
+                        </div>
+                        {(strip.sector || strip.notes) && (
+                          <div style={{ marginTop: '2px', display: 'flex', gap: '6px', color: lightMode ? '#374151' : '#94a3b8', fontSize: '11px' }}>
+                            {strip.sector && <span>📍 {strip.sector}</span>}
+                            {strip.notes && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>{strip.notes}</span>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            };
+            return (
+              <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+                {renderSWNode(swLayoutJson)}
+              </div>
+            );
+          })()}
+
+          {!isGroundMode && isClassicMode && !isStripWindowMode && (() => {
             const classicTableDay = classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id);
             const classicTableNight = myPresetConfig?.classic_strip_table_id_night
               ? classicStripTables.find((t: any) => t.id === myPresetConfig?.classic_strip_table_id_night)
