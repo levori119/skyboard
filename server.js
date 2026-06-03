@@ -582,6 +582,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS layout_json JSONB`);
   await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS conditions_json JSONB`);
   await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS mode VARCHAR DEFAULT '3rows'`);
+  await pool.query(`ALTER TABLE classic_strip_tables ADD COLUMN IF NOT EXISTS strip_height INTEGER DEFAULT 48`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_receive_points JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS classic_transfer_points JSONB DEFAULT '[]'`);
 
@@ -3240,13 +3241,14 @@ app.delete('/api/classic-strip-tables/:id', async (req, res) => {
 
 app.put('/api/classic-strip-tables/:id/layout', async (req, res) => {
   try {
-    const { layout_json, conditions_json } = req.body;
+    const { layout_json, conditions_json, strip_height } = req.body;
     const result = await pool.query(
-      'UPDATE classic_strip_tables SET layout_json=$1, conditions_json=$2 WHERE id=$3 RETURNING *',
+      'UPDATE classic_strip_tables SET layout_json=$1, conditions_json=$2, strip_height=COALESCE($4, strip_height) WHERE id=$3 RETURNING *',
       [
         layout_json != null ? JSON.stringify(layout_json) : null,
         conditions_json != null ? JSON.stringify(conditions_json) : null,
-        req.params.id
+        req.params.id,
+        strip_height != null ? Number(strip_height) : null,
       ]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });

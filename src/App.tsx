@@ -8079,7 +8079,7 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'id', label: 'מזהה פנימי' },
 ];
 
-const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson }: {
+const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson, stripHeight }: {
   strip: any; rows: any[]; lightMode: boolean;
   onUpdateField?: (field: string, value: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
@@ -8089,6 +8089,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
   allSectors?: any[];
   layoutJson?: SGNode | null;
   conditionsJson?: SGCondition[];
+  stripHeight?: number;
 }) => {
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -8213,7 +8214,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
         draggable={!!onDragStart} onDragStart={onDragStart}
         onMouseEnter={() => setCardHovered(true)}
         onMouseLeave={() => setCardHovered(false)}
-        style={{ border: `1.5px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', marginBottom: '5px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none', boxShadow: `0 2px 0 ${accent}`, display: 'flex', flexDirection: 'column', background: stripCondStyle.bg || (lightMode ? '#ffffff' : '#1e293b'), color: stripCondStyle.text || defaultColor }}
+        style={{ border: `1.5px solid ${lightMode ? '#94a3b8' : '#475569'}`, borderRadius: '4px', marginBottom: '5px', overflow: 'hidden', opacity: isDragging ? 0.4 : 1, cursor: onDragStart ? 'grab' : 'default', userSelect: 'none', boxShadow: `0 2px 0 ${accent}`, display: 'flex', flexDirection: 'column', background: stripCondStyle.bg || (lightMode ? '#ffffff' : '#1e293b'), color: stripCondStyle.text || defaultColor, height: stripHeight ? `${stripHeight}px` : undefined }}
       >
         {renderSGNode(layoutJson)}
       </div>
@@ -12652,6 +12653,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const stripWindowId: number | null = isClassicMode && myPresetConfig?.strip_window_id ? Number(myPresetConfig.strip_window_id) : null;
   const isStripWindowMode = !!stripWindowId;
   const [swLayoutJson, setSwLayoutJson] = React.useState<any>(null);
+  const [swPenMode, setSwPenMode] = React.useState(false);
+  const [swPenColor, setSwPenColor] = React.useState('#ef4444');
+  const [swPenSize, setSwPenSize] = React.useState(3);
+  const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
+  const swCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const swIsDrawing = React.useRef(false);
+  const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
+  const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
+  const [swLeafAssign, setSwLeafAssign] = React.useState<Record<string, string>>({}); // stripId -> leafId override
   React.useEffect(() => {
     if (!stripWindowId) { setSwLayoutJson(null); return; }
     fetch(`${API_URL}/strip-window-layouts`)
@@ -17006,6 +17016,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const swRows = (swClassicTable?.rows || [{}, {}, {}]).sort((a: any, b: any) => a.row_number - b.row_number);
             const swLayoutJsonCard: SGNode | null = swClassicTable?.layout_json || null;
             const swConditionsJson: SGCondition[] = swClassicTable?.conditions_json || [];
+            const swStripHeight: number | undefined = swClassicTable?.strip_height || undefined;
             const renderSWNode = (node: SWNode): React.ReactElement => {
               if (node.type === 'split') {
                 const isV = node.direction === 'v';
@@ -17027,11 +17038,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const leaf = node as SWLeaf;
               const leafStrips = (() => {
                 const base = myTableStrips.filter((s: any) => showPendingTransfer || s.status !== 'pending_transfer');
-                if (!leaf.query) return base;
-                try { return base.filter((s: any) => evaluateQuery(s, leaf.query!, swQCtx)); } catch { return base; }
+                // Apply manual assignments: add manually-assigned-here, remove manually-assigned-elsewhere
+                const manualHere = Object.entries(swLeafAssign).filter(([, lid]) => lid === leaf.id).map(([sid]) => sid);
+                const manualElsewhere = new Set(Object.entries(swLeafAssign).filter(([, lid]) => lid !== leaf.id).map(([sid]) => sid));
+                let filtered = base;
+                if (leaf.query) {
+                  try { filtered = base.filter((s: any) => manualHere.includes(String(s.id)) || (!manualElsewhere.has(String(s.id)) && evaluateQuery(s, leaf.query!, swQCtx))); }
+                  catch { filtered = base; }
+                } else {
+                  filtered = base.filter((s: any) => manualHere.includes(String(s.id)) || !manualElsewhere.has(String(s.id)));
+                }
+                return filtered;
               })();
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: leaf.bg_color || '#0f172a', overflow: 'hidden' }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, background: leaf.bg_color || '#0f172a', overflow: 'hidden' }}
+                  onDragOver={!swPenMode ? (e => e.preventDefault()) : undefined}
+                  onDrop={!swPenMode ? (e => {
+                    e.preventDefault();
+                    const sid = e.dataTransfer.getData('swStripId');
+                    if (sid) setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
+                  }) : undefined}
+                >
                   <div style={{ padding: '4px 10px', background: leaf.header_color || '#1e3a5f', fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
@@ -17042,9 +17070,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     )}
                     {leafStrips.map((strip: any) => (
                       swClassicTable
-                        ? <div key={strip.id} style={{ flexShrink: 0 }}><ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} /></div>
+                        ? <div key={strip.id} style={{ flexShrink: 0 }}
+                            draggable={!swPenMode}
+                            onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
+                          >
+                            <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
+                          </div>
                         : (
-                          <div key={strip.id} style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: 'default' }}>
+                          <div key={strip.id}
+                            draggable={!swPenMode}
+                            onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
+                            onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
+                            style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
                               <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
@@ -17063,9 +17101,85 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 </div>
               );
             };
+            // Canvas drawing helpers
+            const swDrawStroke = (canvas: HTMLCanvasElement, pts: {x:number,y:number}[], color: string, size: number) => {
+              if (pts.length < 2) return;
+              const ctx2 = canvas.getContext('2d'); if (!ctx2) return;
+              ctx2.strokeStyle = color; ctx2.lineWidth = size; ctx2.lineCap = 'round'; ctx2.lineJoin = 'round';
+              ctx2.beginPath(); ctx2.moveTo(pts[0].x, pts[0].y);
+              for (let i = 1; i < pts.length; i++) ctx2.lineTo(pts[i].x, pts[i].y);
+              ctx2.stroke();
+            };
+            const swRedrawAll = (canvas: HTMLCanvasElement) => {
+              const ctx2 = canvas.getContext('2d'); if (!ctx2) return;
+              ctx2.clearRect(0, 0, canvas.width, canvas.height);
+              for (const stroke of swStrokes) swDrawStroke(canvas, stroke.pts, stroke.color, stroke.size);
+            };
             return (
-              <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
-                {renderSWNode(swLayoutJson)}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+                {/* Pen mode toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: '#0a0f1a', borderBottom: '1px solid #1e293b', flexShrink: 0, direction: 'rtl' }}>
+                  <button
+                    onClick={() => setSwPenMode(v => !v)}
+                    title={swPenMode ? 'כבה מוד עט (גרור סטריפים)' : 'הפעל מוד עט (ציור)'}
+                    style={{ padding: '3px 10px', background: swPenMode ? '#7c3aed' : '#1e293b', color: swPenMode ? '#e9d5ff' : '#94a3b8', border: `1px solid ${swPenMode ? '#7c3aed' : '#475569'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '13px', fontWeight: swPenMode ? 'bold' : 'normal' }}
+                  >{swPenMode ? '✏ עט פעיל' : '✏ עט'}</button>
+                  {swPenMode && <>
+                    <input type="color" value={swPenColor} onChange={e => setSwPenColor(e.target.value)}
+                      title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
+                    <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
+                      title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
+                    <button onClick={() => { setSwStrokes([]); const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
+                      style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 נקה</button>
+                  </>}
+                  {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
+                </div>
+                {/* Main content */}
+                <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+                  {renderSWNode(swLayoutJson)}
+                  {/* Drawing canvas overlay */}
+                  <canvas
+                    ref={el => {
+                      swCanvasRef.current = el;
+                      if (el) {
+                        const parent = el.parentElement;
+                        if (parent) { el.width = parent.clientWidth; el.height = parent.clientHeight; }
+                        swRedrawAll(el);
+                      }
+                    }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: 10 }}
+                    onMouseDown={e => {
+                      if (!swPenMode) return;
+                      swIsDrawing.current = true;
+                      const rect = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
+                      swCurStroke.current = [{ x: e.clientX - rect.left, y: e.clientY - rect.top }];
+                    }}
+                    onMouseMove={e => {
+                      if (!swPenMode || !swIsDrawing.current) return;
+                      const canvas = e.currentTarget as HTMLCanvasElement;
+                      const rect = canvas.getBoundingClientRect();
+                      const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                      swCurStroke.current.push(pt);
+                      swDrawStroke(canvas, swCurStroke.current, swPenColor, swPenSize);
+                    }}
+                    onMouseUp={() => {
+                      if (!swPenMode || !swIsDrawing.current) return;
+                      swIsDrawing.current = false;
+                      if (swCurStroke.current.length >= 2) {
+                        setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                      }
+                      swCurStroke.current = [];
+                    }}
+                    onMouseLeave={() => {
+                      if (!swPenMode || !swIsDrawing.current) return;
+                      swIsDrawing.current = false;
+                      if (swCurStroke.current.length >= 2) {
+                        setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                      }
+                      swCurStroke.current = [];
+                    }}
+                  />
+                </div>
               </div>
             );
           })()}
@@ -24400,18 +24514,21 @@ const DefaultNamesManager = () => {
 const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tableId: number; tableName: string; apiUrl: string; onClose: () => void; onSaved: (updated: any) => void }) => {
   const [tree, setTree] = useState<SGNode>(sgDefaultCell());
   const [conditions, setConditions] = useState<SGCondition[]>([]);
+  const [stripHeight, setStripHeight] = useState(48);
   const [selCellId, setSelCellId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'layout'|'conditions'>('layout');
   const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h'|'v'; containerPx: number } | null>(null);
+  const heightDragRef = React.useRef<{ startY: number; startH: number } | null>(null);
 
   React.useEffect(() => {
     fetch(`${apiUrl}/classic-strip-tables`).then(r => r.ok ? r.json() : []).then((tables: any[]) => {
       const t = tables.find((x: any) => x.id === tableId);
       if (t?.layout_json) setTree(t.layout_json);
       if (t?.conditions_json) setConditions(t.conditions_json);
+      if (t?.strip_height) setStripHeight(t.strip_height);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [tableId, apiUrl]);
@@ -24426,9 +24543,16 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
       setTree(prev => sgUpdate(prev, d.splitId, (n: SGSplit) => { const ns = [...n.sizes]; ns[d.idx] = newA; ns[d.idx + 1] = total - newA; return { ...n, sizes: ns }; }));
       setDirty(true);
     };
-    const onUp = () => { dragRef.current = null; };
-    document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    const onUp = () => { dragRef.current = null; if (heightDragRef.current) { heightDragRef.current = null; setDirty(true); } };
+    const onMoveAll = (e: MouseEvent) => {
+      onMove(e);
+      const hd = heightDragRef.current;
+      if (!hd) return;
+      const delta = e.clientY - hd.startY;
+      setStripHeight(Math.max(24, Math.min(200, hd.startH + delta)));
+    };
+    document.addEventListener('mousemove', onMoveAll); document.addEventListener('mouseup', onUp);
+    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
   }, []);
 
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
@@ -24485,7 +24609,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
     try {
       const r = await fetch(`${apiUrl}/classic-strip-tables/${tableId}/layout`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layout_json: tree, conditions_json: conditions }),
+        body: JSON.stringify({ layout_json: tree, conditions_json: conditions, strip_height: stripHeight }),
       });
       if (r.ok) { const updated = await r.json(); onSaved(updated); setDirty(false); }
     } finally { setSaving(false); }
@@ -24539,9 +24663,20 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                   </div>
                   {/* Preview */}
                   <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '11px', color: '#475569', marginBottom: '6px' }}>תצוגה מקדימה:</div>
-                    <div style={{ maxWidth: '320px' }}>
-                      <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#475569' }}>תצוגה מקדימה: <span style={{ color: '#94a3b8' }}>{stripHeight}px</span></span>
+                      <span style={{ fontSize: '10px', color: '#334155' }}>גרור את הקצה התחתון לשינוי גובה</span>
+                    </div>
+                    <div style={{ maxWidth: '320px', position: 'relative', userSelect: 'none' }}>
+                      <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight} />
+                      {/* Height resize handle */}
+                      <div
+                        onMouseDown={e => { e.preventDefault(); heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
+                        style={{ height: '6px', background: '#1e3a5f', borderRadius: '0 0 4px 4px', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-2px' }}
+                        title="גרור לשינוי גובה"
+                      >
+                        <div style={{ width: '30px', height: '2px', background: '#3b82f6', borderRadius: '1px' }} />
+                      </div>
                     </div>
                   </div>
                 </div>
