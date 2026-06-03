@@ -24721,28 +24721,28 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
               <>
                 {/* Canvas */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px', overflow: 'hidden' }}>
+                  {/* Preview — at top */}
+                  <div style={{ padding: '8px 10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                      <span style={{ fontSize: '11px', color: '#475569' }}>תצוגה מקדימה: <span style={{ color: '#94a3b8' }}>{stripHeight}px</span></span>
+                    </div>
+                    <div style={{ maxWidth: '360px', userSelect: 'none' }}>
+                      <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight} />
+                    </div>
+                  </div>
+                  {/* Editor grid — below preview; drag bottom edge to resize strip height */}
                   <div style={{ fontSize: '12px', color: '#64748b' }}>לחץ על תא לבחירה • ⟺ פצל אופקי • ⇅ פצל אנכי • ✕ הסר</div>
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0 }}>
                     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, direction: 'ltr' }}>
                       {renderEditorNode(tree)}
                     </div>
-                  </div>
-                  {/* Preview */}
-                  <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', color: '#475569' }}>תצוגה מקדימה: <span style={{ color: '#94a3b8' }}>{stripHeight}px</span></span>
-                      <span style={{ fontSize: '10px', color: '#334155' }}>גרור קצה תחתון לשינוי גובה</span>
-                    </div>
-                    <div style={{ maxWidth: '320px', userSelect: 'none' }}>
-                      <ClassicStripCard strip={previewStrip} rows={[]} lightMode={false} layoutJson={tree} conditionsJson={conditions} stripHeight={stripHeight} />
-                      {/* Height resize handle — drag below preview card */}
-                      <div
-                        onMouseDown={e => { e.preventDefault(); heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
-                        style={{ height: '7px', background: '#0f2040', borderTop: '1px solid #1e3a5f', borderRadius: '0 0 4px 4px', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none' }}
-                        title={`גרור לשינוי גובה (${stripHeight}px)`}
-                      >
-                        <div style={{ width: '36px', height: '2px', background: '#3b82f6', borderRadius: '1px' }} />
-                      </div>
+                    {/* Height drag handle — bottom of editor, drag down = taller strip */}
+                    <div
+                      onMouseDown={e => { e.preventDefault(); heightDragRef.current = { startY: e.clientY, startH: stripHeight }; }}
+                      style={{ height: '9px', background: '#0a1820', borderTop: '2px solid #1e3a5f', cursor: 'ns-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', userSelect: 'none', flexShrink: 0 }}
+                      title={`גרור לשינוי גובה סטריפ (${stripHeight}px) — למטה = גדול יותר`}
+                    >
+                      <div style={{ width: '44px', height: '3px', background: '#3b82f6', borderRadius: '2px', opacity: 0.7 }} />
                     </div>
                   </div>
                 </div>
