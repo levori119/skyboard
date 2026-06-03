@@ -24214,11 +24214,16 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [renameDraft, setRenameDraft] = useState('');
   const [selLeafId, setSelLeafId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [swSectors, setSwSectors] = useState<any[]>([]);
   const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h' | 'v'; containerPx: number } | null>(null);
 
   const load = React.useCallback(async () => {
     const r = await fetch(`${apiUrl}/strip-window-layouts`);
     if (r.ok) setLayouts(await r.json());
+  }, [apiUrl]);
+
+  React.useEffect(() => {
+    fetch(`${apiUrl}/sectors`).then(r => r.ok ? r.json() : []).then(data => setSwSectors(Array.isArray(data) ? data : [])).catch(() => {});
   }, [apiUrl]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -24394,8 +24399,13 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                   </div>
                   <div>
                     <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>נקודת מעבר</div>
-                    <input value={selLeaf.waypoint || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint: e.target.value })))} placeholder="שם נקודת מעבר..."
-                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }} />
+                    <select value={selLeaf.waypoint || ''} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, waypoint: e.target.value })))}
+                      style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', padding: '5px 7px', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', direction: 'rtl' }}>
+                      <option value="">— ללא נקודת מעבר —</option>
+                      {swSectors.map((s: any) => (
+                        <option key={s.id} value={String(s.id)}>{s.label_he || s.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
@@ -25138,6 +25148,23 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     </div>
                   </div>
                 </div>
+
+                {/* strip_window_id selector — at top of form */}
+                <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: `1px solid ${(presetForm as any).strip_window_id ? '#7c3aed' : '#1e293b'}` }}>
+                  <label style={{ display: 'block', marginBottom: '6px', color: (presetForm as any).strip_window_id ? '#c4b5fd' : '#94a3b8', fontSize: '13px', fontWeight: 'bold' }}>🪟 חלון סטריפים:</label>
+                  <select
+                    value={(presetForm as any).strip_window_id || ''}
+                    onChange={e => setPresetForm(p => ({ ...p, strip_window_id: e.target.value || null }))}
+                    style={{ background: '#1e293b', border: `1px solid ${(presetForm as any).strip_window_id ? '#7c3aed' : '#334155'}`, borderRadius: '6px', color: '#f1f5f9', padding: '7px 10px', fontSize: '13px', width: '100%' }}
+                  >
+                    <option value=''>— ללא חלון סטריפים —</option>
+                    {stripWindowLayouts.map((lay: any) => (
+                      <option key={lay.id} value={lay.id}>🪟 {lay.name}</option>
+                    ))}
+                  </select>
+                  {(presetForm as any).strip_window_id && <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#a78bfa' }}>✅ עמדה זו תציג חלון סטריפים. נקודות העברה אינן רלוונטיות למצב זה.</p>}
+                </div>
+
                 {/* Row 2: Conditional based on preset type */}
                 {presetForm.preset_type === 'ground' ? (
                   <div style={{ marginBottom: '15px' }}>
@@ -25693,22 +25720,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
-                {/* strip_window_id selector */}
-                <div style={{ marginTop: '15px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🪟 חלון סטריפים:</label>
-                  <select
-                    value={(presetForm as any).strip_window_id || ''}
-                    onChange={e => setPresetForm(p => ({ ...p, strip_window_id: e.target.value || null }))}
-                    style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', padding: '7px 10px', fontSize: '13px', width: '100%' }}
-                  >
-                    <option value=''>— ללא חלון סטריפים —</option>
-                    {stripWindowLayouts.map((lay: any) => (
-                      <option key={lay.id} value={lay.id}>🪟 {lay.name}</option>
-                    ))}
-                  </select>
-                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>בחר חלון סטריפים מוגדר מראש לעמדה זו. ניתן ליצור ולערוך חלונות בטאב "🪟 חלון סטריפים".</p>
-                </div>
-
                 {/* use_map_zones toggle */}
                 <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🧭 התחשב באזורים על מפה:</label>
@@ -25876,7 +25887,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
-                <div style={{ marginTop: '15px' }}>
+                {!(presetForm as any).strip_window_id && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>נקודות העברה (לחץ לבחירה):</label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {sectors.map(sector => {
@@ -25905,7 +25916,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       <span style={{ color: '#64748b', fontSize: '14px' }}>אין נקודות העברה מוגדרות. הוסף נקודות בלשונית "נקודות העברה".</span>
                     )}
                   </div>
-                </div>
+                </div>}
                 
                 {/* Filter Query Builder */}
                 <QueryBuilder
