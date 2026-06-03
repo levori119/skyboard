@@ -24432,7 +24432,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
     }
     const split = node as SGSplit;
     return (
-      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden' }}>
+      <div key={split.id} style={{ display: 'flex', flexDirection: split.direction === 'h' ? 'row' : 'column', flex: 1, gap: '2px', overflow: 'hidden', direction: split.direction === 'h' ? 'ltr' : undefined }}>
         {split.children.map((child, i) => (
           <React.Fragment key={child.id}>
             <div style={{ [split.direction === 'h' ? 'width' : 'height']: `${split.sizes[i] ?? (100 / split.children.length)}%`, display: 'flex', overflow: 'hidden' }}>
@@ -24509,7 +24509,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                 {/* Canvas */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', gap: '12px', overflow: 'hidden' }}>
                   <div style={{ fontSize: '12px', color: '#64748b' }}>לחץ על תא לבחירה • ⟺ פצל אופקי • ⇅ פצל אנכי • ✕ הסר</div>
-                  <div style={{ flex: 1, display: 'flex', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0 }}>
+                  <div style={{ flex: 1, display: 'flex', overflow: 'hidden', border: '1px solid #334155', borderRadius: '6px', background: '#0f172a', minHeight: 0, direction: 'ltr' }}>
                     {renderEditorNode(tree)}
                   </div>
                   {/* Preview */}
