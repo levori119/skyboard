@@ -24876,6 +24876,7 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [dirty, setDirty] = useState(false);
   const [swSectors, setSwSectors] = useState<any[]>([]);
   const dragRef = React.useRef<{ splitId: string; idx: number; startPos: number; startSizes: number[]; dir: 'h' | 'v'; containerPx: number } | null>(null);
+  const headerHeightDragRef = React.useRef<{ leafId: string; startY: number; startH: number } | null>(null);
 
   const load = React.useCallback(async () => {
     const r = await fetch(`${apiUrl}/strip-window-layouts`);
@@ -24902,10 +24903,18 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
       }) : prev);
       setDirty(true);
     };
-    const onUp = () => { dragRef.current = null; };
-    document.addEventListener('mousemove', onMove);
+    const onUp = () => { dragRef.current = null; headerHeightDragRef.current = null; };
+    const onMoveAll = (e: MouseEvent) => {
+      onMove(e);
+      const hd = headerHeightDragRef.current;
+      if (!hd) return;
+      const delta = e.clientY - hd.startY;
+      const newH = Math.max(16, Math.min(72, hd.startH + delta));
+      mutate(t => swUpdate(t, hd.leafId, (n: SWLeaf) => ({ ...n, header_height: newH })));
+    };
+    document.addEventListener('mousemove', onMoveAll);
     document.addEventListener('mouseup', onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    return () => { document.removeEventListener('mousemove', onMoveAll); document.removeEventListener('mouseup', onUp); };
   }, []);
 
   const selLay = layouts.find(l => l.id === selId);
@@ -24955,11 +24964,21 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
     return (
       <div key={node.id} onClick={() => setSelLeafId(node.id)}
         style={{ display: 'flex', flexDirection: 'column', flex: 1, background: node.bg_color || '#0f172a', border: sel ? '2px solid #7c3aed' : '1px solid #334155', boxSizing: 'border-box', overflow: 'hidden', cursor: 'pointer', minWidth: 0, minHeight: 0 }}>
-        <div style={{ background: node.header_color || '#1e3a5f', padding: '3px 7px', fontSize: '11px', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        <div style={{ position: 'relative', background: node.header_color || '#1e3a5f', height: `${node.header_height || 24}px`, padding: '0 7px', fontSize: `${Math.max(9, Math.round((node.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, boxSizing: 'border-box' }}>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label || node.waypoint || '— תא —'}
           </span>
           {node.query && <span style={{ fontSize: '9px', opacity: 0.7 }}>⚡</span>}
+          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)' }}>{node.header_height || 24}px</span>
+          {/* Header height drag handle */}
+          <div
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); headerHeightDragRef.current = { leafId: node.id, startY: e.clientY, startH: node.header_height || 24 }; }}
+            onClick={e => e.stopPropagation()}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '4px', cursor: 'ns-resize', background: 'transparent', zIndex: 10 }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.6)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+            title="גרור לשינוי גובה כותרת"
+          />
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '4px', flexWrap: 'wrap' }}>
           <button onClick={e => { e.stopPropagation(); mutate(t => swSplit(t, node.id, 'h')); }} style={btnSm('#1d4ed8')} title="חלק לעליון ותחתון">+ שורה</button>
