@@ -25542,7 +25542,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
         {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
         {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
-        {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>סטריפים קלאסי</button>}
+        {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>מבנה פ"מ למוד סטריפ</button>}
         {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={tabStyle(activeTab === 'strip_windows')}>🪟 הגדרת חלון סטריפים</button>}
         {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
         {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
