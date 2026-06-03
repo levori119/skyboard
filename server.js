@@ -167,6 +167,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS erka VARCHAR(100)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS koteret VARCHAR(200)`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS mivtza VARCHAR(100)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS tzevet_shilta VARCHAR(100)`);
+  await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS ta_shilta VARCHAR(100)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS workstation_personal_filters (
       id SERIAL PRIMARY KEY,
@@ -1201,7 +1203,9 @@ app.get('/api/strips', async (req, res) => {
       notes: r.notes,
       erka: r.erka || '',
       koteret: r.koteret || '',
-      mivtza: r.mivtza || ''
+      mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || ''
     })));
   } catch (err) {
     console.error('Error fetching strips:', err);
@@ -1234,6 +1238,8 @@ app.get('/api/strips/all', async (req, res) => {
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
       takeoff_airfield_id: r.takeoff_airfield_id || null,
@@ -1292,7 +1298,7 @@ app.post('/api/strips', async (req, res) => {
   try {
     const {
       callSign, sq, alt, task, squadron, sectorId, takeoff_time, numberOfFormation,
-      erka, koteret, mivtza, block_space_id, workstation_preset_id,
+      erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id,
       manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, force_duplicate
     } = req.body;
 
@@ -1318,14 +1324,15 @@ app.post('/api/strips', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO strips
         (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
-         erka, koteret, mivtza, block_space_id, workstation_preset_id, creator_preset_id,
+         erka, koteret, mivtza, tzevet_shilta, ta_shilta, block_space_id, workstation_preset_id, creator_preset_id,
          in_table, manual_entry, creator_crew_id, creator_crew_name, creator_preset_name, expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,$15,$16,$17,$18,$19)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15,$16,$17,$18,$19,$20,$21)
        RETURNING id`,
       [
         callSign, sq, alt, task, squadron, sectorId || null,
         takeoff_time || null, numberOfFormation || null,
         erka || null, koteret || null, mivtza || null,
+        tzevet_shilta || null, ta_shilta || null,
         block_space_id ? parseInt(block_space_id) : null,
         presetId,
         inTable,
@@ -1422,6 +1429,8 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.erka !== undefined) { updates.push(`erka = $${paramIndex++}`); values.push(req.body.erka || null); }
     if (req.body.koteret !== undefined) { updates.push(`koteret = $${paramIndex++}`); values.push(req.body.koteret || null); }
     if (req.body.mivtza !== undefined) { updates.push(`mivtza = $${paramIndex++}`); values.push(req.body.mivtza || null); }
+    if (req.body.tzevet_shilta !== undefined) { updates.push(`tzevet_shilta = $${paramIndex++}`); values.push(req.body.tzevet_shilta || null); }
+    if (req.body.ta_shilta !== undefined) { updates.push(`ta_shilta = $${paramIndex++}`); values.push(req.body.ta_shilta || null); }
     if (req.body.block_space_id !== undefined) { updates.push(`block_space_id = $${paramIndex++}`); values.push(req.body.block_space_id ? parseInt(req.body.block_space_id) : null); }
     if (req.body.block_deviation !== undefined) { updates.push(`block_deviation = $${paramIndex++}`); values.push(!!req.body.block_deviation); }
     if (req.body.callSign !== undefined) { updates.push(`callsign = $${paramIndex++}`); values.push(req.body.callSign); }
@@ -1547,7 +1556,7 @@ app.post('/api/strips/import', async (req, res) => {
       } else {
         try {
           await pool.query(
-            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)',
+            'INSERT INTO strips (callsign, sq, squadron, alt, task, weapons, targets, systems, shkadia, takeoff_time, number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, parent_callsign, takeoff_airfield_id, landing_airfield_id, creator_preset_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)',
             [
               strip.callSign,
               strip.sq || '',
@@ -1563,6 +1572,8 @@ app.post('/api/strips/import', async (req, res) => {
               strip.erka || null,
               strip.koteret || null,
               strip.mivtza || null,
+              strip.tzevet_shilta || null,
+              strip.ta_shilta || null,
               strip.parent_callsign || null,
               (() => { if (strip.takeoff_airfield_id) return strip.takeoff_airfield_id; return null; })(),
               (() => { if (strip.landing_airfield_id) return strip.landing_airfield_id; return null; })(),
@@ -1678,6 +1689,8 @@ app.get('/api/sectors/:id/strips', async (req, res) => {
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false
     })));
@@ -2757,6 +2770,8 @@ app.get('/api/workstations/:presetId/strips', async (req, res) => {
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
       aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
@@ -2836,6 +2851,8 @@ app.get('/api/strips/global', async (req, res) => {
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false,
       aircraft_positions: Array.isArray(r.aircraft_positions) ? r.aircraft_positions : (r.aircraft_positions ? (() => { try { return JSON.parse(r.aircraft_positions); } catch { return []; } })() : []),
@@ -2883,6 +2900,8 @@ app.get('/api/workstation-presets/:id/waiting-strips', async (req, res) => {
       erka: r.erka || '',
       koteret: r.koteret || '',
       mivtza: r.mivtza || '',
+      tzevet_shilta: r.tzevet_shilta || '',
+      ta_shilta: r.ta_shilta || '',
       block_space_id: r.block_space_id || null,
       block_deviation: r.block_deviation || false
     })));
@@ -3570,14 +3589,14 @@ app.post('/api/strips/ground-single-transfer', async (req, res) => {
     // Create new 1-aircraft strip (clone of source fields)
     const newRes = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time,
-         number_of_formation, erka, koteret, mivtza, notes, status, workstation_preset_id,
+         number_of_formation, erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id,
          in_table, parent_strip_id, aircraft_indices, original_formation_count)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,'active',$12,true,$13,$14,$15)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'1',$8,$9,$10,$11,$12,$13,'active',$14,true,$15,$16,$17)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
         src.sector_id, src.takeoff_time,
-        src.erka, src.koteret, src.mivtza, src.notes,
+        src.erka, src.koteret, src.mivtza, src.tzevet_shilta, src.ta_shilta, src.notes,
         src.workstation_preset_id,
         rootParentId, JSON.stringify([originalIndex]), origCount
       ]
@@ -4097,16 +4116,16 @@ app.post('/api/strips/partial-create', async (req, res) => {
     // Create the partial strip (clone of source)
     const partialResult = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
-        erka, koteret, mivtza, notes, status, workstation_preset_id, in_table,
+        erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id, in_table,
         parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
         on_map, x, y)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13,$21,$14,$15,$16,$17,$18,$19,$20)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
         sector_id || src.sector_id, src.takeoff_time,
         String(validIndices.length),
-        src.erka, src.koteret, src.mivtza, src.notes,
+        src.erka, src.koteret, src.mivtza, src.tzevet_shilta, src.ta_shilta, src.notes,
         workstation_preset_id || src.workstation_preset_id,
         rootParentId, JSON.stringify(validIndices), origCount,
         JSON.stringify(partialPositions),

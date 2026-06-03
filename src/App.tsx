@@ -3955,6 +3955,8 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
   const [localErka, setLocalErka] = useState(s.erka || '');
   const [localKoteret, setLocalKoteret] = useState(s.koteret || '');
   const [localMivtza, setLocalMivtza] = useState(s.mivtza || '');
+  const [localTzevetShilta, setLocalTzevetShilta] = useState(s.tzevet_shilta || '');
+  const [localTaShilta, setLocalTaShilta] = useState(s.ta_shilta || '');
   const [localBlockSpaceId, setLocalBlockSpaceId] = useState(s.block_space_id ? String(s.block_space_id) : '');
   const blockSpaceSavingRef = React.useRef(false);
   const [blockDeviation, setBlockDeviation] = useState(s.block_deviation || false);
@@ -4482,6 +4484,29 @@ const Strip = ({ s, onMove, onUpdate, neighbors, onTransfer, onToggleAirborne, o
                   onBlur={async e => {
                     const val = e.target.value;
                     try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mivtza: val }) }); } catch {}
+                  }}
+                  style={{ flex: 1, padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }}
+                />
+              </div>
+              {/* צוות שליטה / תא שליטה */}
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  value={localTzevetShilta}
+                  placeholder="צוות שליטה"
+                  onChange={e => setLocalTzevetShilta(e.target.value)}
+                  onBlur={async e => {
+                    const val = e.target.value;
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tzevet_shilta: val }) }); } catch {}
+                  }}
+                  style={{ flex: 1, padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }}
+                />
+                <input
+                  value={localTaShilta}
+                  placeholder="תא שליטה"
+                  onChange={e => setLocalTaShilta(e.target.value)}
+                  onBlur={async e => {
+                    const val = e.target.value;
+                    try { await fetch(`${API_URL}/strips/${s.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ta_shilta: val }) }); } catch {}
                   }}
                   style={{ flex: 1, padding: '3px 5px', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '9px', minWidth: 0 }}
                 />
@@ -7960,6 +7985,8 @@ const CLASSIC_STRIP_FIELDS = [
   { key: 'erka', label: 'ערקה' },
   { key: 'mivtza', label: 'מבצע' },
   { key: 'koteret', label: 'כותרת' },
+  { key: 'tzevet_shilta', label: 'צוות שליטה' },
+  { key: 'ta_shilta', label: 'תא שליטה' },
   { key: 'notes', label: 'הערות' },
   { key: 'shkadia', label: 'שקדיה' },
   { key: 'weapons', label: 'חימושים' },
@@ -9055,7 +9082,7 @@ const ClassicView = ({ strips, incomingTransfers, outgoingTransfers, classicStri
   const transferToSynth = (t: any) => ({
     callSign: t.callsign, sq: t.sq, alt: t.alt, task: t.task, squadron: t.squadron,
     takeoff_time: t.takeoff_time, notes: t.notes, erka: t.erka, mivtza: t.mivtza,
-    koteret: t.koteret, numberOfFormation: t.number_of_formation,
+    koteret: t.koteret, tzevet_shilta: t.tzevet_shilta, ta_shilta: t.ta_shilta, numberOfFormation: t.number_of_formation,
     aircraft_indices: t.aircraft_indices,
   });
 
@@ -11310,6 +11337,10 @@ const AdminDashboard: React.FC<{
                         return <span style={{ color: muted }}>{s.koteret || '—'}</span>;
                       case 'erka':
                         return <span style={{ color: muted }}>{s.erka || '—'}</span>;
+                      case 'tzevet_shilta':
+                        return <span style={{ color: muted }}>{s.tzevet_shilta || '—'}</span>;
+                      case 'ta_shilta':
+                        return <span style={{ color: muted }}>{s.ta_shilta || '—'}</span>;
                       case 'weapons':
                         return <span style={{ color: lightMode ? '#b45309' : '#fbbf24', fontSize: '11px' }}>
                           {weapons.length === 0 ? '—' : weapons.map((w: any, i: number) => (
@@ -13555,6 +13586,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       case 'erka': return s.erka || '—';
       case 'koteret': return s.koteret || '—';
       case 'mivtza': return s.mivtza || '—';
+      case 'tzevet_shilta': return s.tzevet_shilta || '—';
+      case 'ta_shilta': return s.ta_shilta || '—';
       case 'block_space': {
         if (!s.block_space_id) return '—';
         const bspace = dashboardBlockSpaces.find((bs: any) => String(bs.id) === String(s.block_space_id));
@@ -22149,6 +22182,8 @@ const STRIP_FIELD_DEFS = [
   { key: 'erka',              label: 'ערכה',          editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'koteret',           label: 'כותרת',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'mivtza',            label: 'מבצע',          editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'tzevet_shilta',     label: 'צוות שליטה',   editableOptions: ['none', 'keyboard', 'both'] },
+  { key: 'ta_shilta',         label: 'תא שליטה',     editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'block_space',       label: 'מרחב בלוקים',  editableOptions: ['none', 'dropdown'] },
   { key: 'notes',             label: 'הערות',         editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
@@ -24131,7 +24166,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingStripId, setEditingStripId] = useState<string | null>(null);
   const [editingStripForm, setEditingStripForm] = useState<any>({});
   const [showNewStripForm, setShowNewStripForm] = useState(false);
-  const [newStripForm, setNewStripForm] = useState({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '' });
+  const [newStripForm, setNewStripForm] = useState({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '', tzevet_shilta: '', ta_shilta: '' });
 
   const loadGlobalStrips = async () => {
     setStripsLoading(true);
@@ -25938,7 +25973,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
                   <h2 style={{ margin: 0, fontSize: '18px' }}>רשימת פ"ממ ({globalStrips.length})</h2>
                   <button
-                    onClick={() => { setShowNewStripForm(true); setEditingStripId(null); setNewStripForm({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '' }); }}
+                    onClick={() => { setShowNewStripForm(true); setEditingStripId(null); setNewStripForm({ callSign: '', sq: '', numberOfFormation: '', alt: '', task: '', takeoff_time: '', koteret: '', mivtza: '', tzevet_shilta: '', ta_shilta: '' }); }}
                     style={{ padding: '6px 16px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
                   >+ פמם חדש</button>
                   <button onClick={loadGlobalStrips} style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⟳ רענן</button>
@@ -25994,6 +26029,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         { label: 'משימה', key: 'task' },
                         { label: 'כותרת', key: 'koteret' },
                         { label: 'מבצע', key: 'mivtza' },
+                        { label: 'צוות שליטה', key: 'tzevet_shilta' },
+                        { label: 'תא שליטה', key: 'ta_shilta' },
                       ].map(({ label, key }) => (
                         <div key={key}>
                           <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>{label}</div>
