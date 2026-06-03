@@ -12641,6 +12641,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Determine the effective query filter for this workstation
   const myPresetConfig = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+  const [refreshing, setRefreshing] = React.useState(false);
+  const refreshPresetConfig = React.useCallback(async () => {
+    if (!session.presetId) return;
+    setRefreshing(true);
+    try {
+      const r = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
+      if (r.ok) { const data = await r.json(); setLivePresetConfig(data); }
+    } catch {}
+    setRefreshing(false);
+  }, [session.presetId]);
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
   const isGroundMode = myPresetConfig?.preset_type === 'ground';
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
@@ -15460,9 +15470,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
-          <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
-            {session.workstationName}
-          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+            <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
+              {session.workstationName}
+            </span>
+            <button
+              onClick={refreshPresetConfig}
+              disabled={refreshing}
+              title="רענן הגדרות תצוגה"
+              style={{ fontSize: '10px', padding: '1px 8px', background: 'transparent', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#2563eb' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? 0.5 : 0.8, letterSpacing: '0.5px' }}
+            >{refreshing ? '...' : '🔄 רענן'}</button>
+          </div>
           {session.crewMember && (
             <span style={{ background: '#10b981', padding: '3px 10px', borderRadius: '4px', fontSize: '12px' }}>
               {session.crewMember.name}
