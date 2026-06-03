@@ -12658,6 +12658,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [swPenSize, setSwPenSize] = React.useState(3);
   const [swStrokes, setSwStrokes] = React.useState<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
   const swCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const swCanvasSized = React.useRef(false);
   const swIsDrawing = React.useRef(false);
   const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
@@ -12677,6 +12678,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   }, []);
+  // Redraw stored strokes whenever swStrokes changes (avoids canvas wipe on re-render)
+  React.useEffect(() => {
+    const canvas = swCanvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const stroke of swStrokes) {
+      if (stroke.pts.length < 2) continue;
+      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+      for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+      ctx.stroke();
+    }
+  }, [swStrokes]);
   React.useEffect(() => {
     if (!stripWindowId) { setSwLayoutJson(null); return; }
     fetch(`${API_URL}/strip-window-layouts`)
@@ -17171,11 +17185,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={el => {
+                      if (!el) { swCanvasRef.current = null; swCanvasSized.current = false; return; }
                       swCanvasRef.current = el;
-                      if (el) {
+                      if (!swCanvasSized.current) {
                         const parent = el.parentElement;
                         if (parent) { el.width = parent.clientWidth; el.height = parent.clientHeight; }
-                        swRedrawAll(el);
+                        swCanvasSized.current = true;
                       }
                     }}
                     style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: 10 }}
