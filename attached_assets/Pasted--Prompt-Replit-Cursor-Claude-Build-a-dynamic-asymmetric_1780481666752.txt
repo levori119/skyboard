@@ -1,0 +1,43 @@
+ה-Prompt להעתקה (עבור Replit / Cursor / Claude):
+Build a dynamic, asymmetric ATC (Air Traffic Control) Strip Board Manager using React and Tailwind CSS.
+
+Core Logic:
+
+Dynamic Grid Construction: The UI should start empty. Provide global controls to "Add Column" and "Add Row".
+
+Asymmetry: The grid must NOT be a fixed symmetric table. Each column can have a different number of rows. Use a state-based approach where the data is stored as an array of columns, and each column contains an array of "Cells" (objects).
+
+Construction Sequence: Ensure the UI supports the following flow: Adding a column, then adding a row within a specific column, then selecting a waypoint for that specific cell.
+
+Cell Features (Individual Customization):
+Each cell in the grid should be an independent component with its own local state/settings:
+
+Waypoint Selection: A dropdown or searchable input to select a "Transfer Point" (e.g., TALMI, DESHE, RAMON).
+
+Header Styling: A color picker to define the text color of the Waypoint name (Header).
+
+Background Styling: A color picker to define the background color of the entire cell/square.
+
+Flight Data: Each cell should display mock flight data (Callsign, Altitude, SSR) once a waypoint is selected.
+
+Data Structure Example:
+Store the state as: const [board, setBoard] = useState([{ id: 1, cells: [{ id: 101, waypoint: 'TALMI', bgColor: '#1a1a1a', headerColor: '#deff9a' }] }]).
+
+UI/UX Design:
+
+Theme: Professional Dark Mode (ATC style).
+
+Controls: Use a floating sidebar or a top bar for construction buttons.
+
+Persistence: Save the board configuration to LocalStorage so it persists on refresh.
+
+Responsiveness: Use CSS Grid or Flexbox to ensure the asymmetric columns align correctly.
+
+הסבר על מה שביקשתי בפרומפט (עבורך):
+מנוע הבנייה: הפרומפט מגדיר שהלוח נבנה מ"מערך של עמודות" שבתוכן יש "מערך של תאים". זה מה שמאפשר לכל עמודה להיות באורך שונה (א-סימטריה).
+
+עיצוב פרטני (Per-Cell Styling): הדגשתי שכל תא הוא אובייקט עצמאי. זה אומר שב-State של כל תא נשמרים הצבע של הרקע והצבע של הכותרת.
+
+מנגנון בחירה: ביקשתי Picker (בורר צבעים) לכל תא, כך שתוכל ללחוץ על תא ולבחור לו צבע רקע או צבע טקסט ייחודי.
+
+שמירת נתונים: ביקשתי שישתמש ב-LocalStorage, כדי שכל הלוח שבנית (עם הצבעים והנקודות) לא יימחק כשתרענן את הדף.
