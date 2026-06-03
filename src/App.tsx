@@ -13203,7 +13203,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       )[0] || s;
       const _deskPresets: string[] = [];
       for (const sib of siblings) {
-        // table_preset_ids = workstations that have this strip on their desk/table
+        // 1. strip_table_assignments many-to-many (explicit desk assignments)
         const tpIds: number[] = Array.isArray(sib.table_preset_ids) ? sib.table_preset_ids.map(Number) : [];
         for (const tpid of tpIds) {
           if (!groupPresetIds.has(tpid)) continue;
@@ -13211,7 +13211,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const name = p?.name || `עמדה ${tpid}`;
           if (!_deskPresets.includes(name)) _deskPresets.push(name);
         }
-        // Also flag map-mode workstations (on_map=true)
+        // 2. in_table=true with workstation_preset_id (native/transfer strips on desk)
+        if ((sib.inTable || sib.in_table) && groupPresetIds.has(Number(sib.workstation_preset_id))) {
+          const p = workstationPresets.find((wp: any) => Number(wp.id) === Number(sib.workstation_preset_id));
+          const name = p?.name || `עמדה ${sib.workstation_preset_id}`;
+          if (!_deskPresets.includes(name)) _deskPresets.push(name);
+        }
+        // 3. on_map=true (map-mode workstations)
         if (sib.onMap && groupPresetIds.has(Number(sib.workstation_preset_id))) {
           const p = workstationPresets.find((wp: any) => Number(wp.id) === Number(sib.workstation_preset_id));
           const name = p?.name || `עמדה ${sib.workstation_preset_id}`;
