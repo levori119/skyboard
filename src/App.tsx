@@ -17091,7 +17091,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     if (sid) setSwLeafAssign(prev => ({ ...prev, [sid]: leaf.id }));
                   }) : undefined}
                 >
-                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
+                  <div style={{ padding: `${Math.max(2, ((leaf.header_height || 24) - 16) / 2)}px 10px`, height: `${leaf.header_height || 24}px`, background: leaf.header_color || '#1e3a5f', fontSize: `${leaf.header_font_size || Math.max(10, Math.round((leaf.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: leaf.header_text_color || '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', boxSizing: 'border-box' }}>
                     <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
@@ -24831,7 +24831,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
 };
 
 // --- Strip Window Layout Builder ---
-interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; header_height?: number; }
+interface SWLeaf { id: string; type: 'leaf'; waypoint: string; label: string; query: QGroup | null; bg_color: string; header_color: string; header_height?: number; header_text_color?: string; header_font_size?: number; }
 interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: number[]; children: SWNode[]; }
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
@@ -24963,7 +24963,7 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
     return (
       <div key={node.id} onClick={() => setSelLeafId(node.id)}
         style={{ display: 'flex', flexDirection: 'column', flex: 1, background: node.bg_color || '#0f172a', border: sel ? '2px solid #7c3aed' : '1px solid #334155', boxSizing: 'border-box', overflow: 'hidden', cursor: 'pointer', minWidth: 0, minHeight: 0 }}>
-        <div style={{ position: 'relative', background: node.header_color || '#1e3a5f', height: `${node.header_height || 24}px`, padding: '0 7px', fontSize: `${Math.max(9, Math.round((node.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, boxSizing: 'border-box' }}>
+        <div style={{ position: 'relative', background: node.header_color || '#1e3a5f', height: `${node.header_height || 24}px`, padding: '0 7px', fontSize: `${node.header_font_size || Math.max(9, Math.round((node.header_height || 24) * 0.5))}px`, fontWeight: 'bold', color: node.header_text_color || 'white', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, boxSizing: 'border-box' }}>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {node.label || node.waypoint || '— תא —'}
           </span>
@@ -25111,6 +25111,28 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
                         style={{ flex: 1 }} />
                       <input type="number" min={16} max={72} step={2} value={selLeaf.header_height || 24}
                         onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_height: Math.max(16, Math.min(72, Number(e.target.value))) })))}
+                        style={{ width: '46px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '2px 4px', textAlign: 'center' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>צבע טקסט כותרת</div>
+                      <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                        <input type="color" value={selLeaf.header_text_color || '#e2e8f0'} onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_text_color: e.target.value })))}
+                          style={{ width: '32px', height: '26px', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>{selLeaf.header_text_color || '#e2e8f0'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>גודל טקסט כותרת: {selLeaf.header_font_size || 'אוטומטי'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input type="range" min={8} max={32} step={1} value={selLeaf.header_font_size || Math.max(10, Math.round((selLeaf.header_height || 24) * 0.5))}
+                        onChange={e => mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_font_size: Number(e.target.value) })))}
+                        style={{ flex: 1 }} />
+                      <input type="number" min={8} max={32} step={1} value={selLeaf.header_font_size || ''}
+                        placeholder="auto"
+                        onChange={e => { const v = e.target.value === '' ? undefined : Math.max(8, Math.min(32, Number(e.target.value))); mutate(t => swUpdate(t, selLeaf.id, (n: SWLeaf) => ({ ...n, header_font_size: v }))); }}
                         style={{ width: '46px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '2px 4px', textAlign: 'center' }} />
                     </div>
                   </div>
