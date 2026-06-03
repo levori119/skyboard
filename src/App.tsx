@@ -104,32 +104,55 @@ const hasConditions = (node: QNode | null): boolean => {
 };
 
 const Q_FIELDS: { key: string; label: string; ftype: 'text' | 'bool' | 'preset_select' }[] = [
-  // ── שדות פמם ──
+  // ── שדות פמם בסיסיים ──
   { key: 'callSign', label: 'או"ק', ftype: 'text' },
   { key: 'sq', label: 'טייסת', ftype: 'text' },
+  { key: 'squadron', label: 'טייסת (מורחב)', ftype: 'text' },
   { key: 'numberOfFormation', label: 'מס׳ גיחה', ftype: 'text' },
+  { key: 'original_formation_count', label: 'מצבה מקורית', ftype: 'text' },
   { key: 'task', label: 'משימה', ftype: 'text' },
   { key: 'alt', label: 'גובה', ftype: 'text' },
+  { key: 'status', label: 'מצב', ftype: 'text' },
+  { key: 'sector', label: 'אזור', ftype: 'text' },
   { key: 'takeoff_time', label: 'זמן המראה', ftype: 'text' },
-  { key: 'takeoff_airfield', label: 'שדה המראה', ftype: 'text' },
-  { key: 'landing_airfield', label: 'שדה נחיתה', ftype: 'text' },
-  { key: 'weapons', label: 'חימושים', ftype: 'text' },
-  { key: 'targets', label: 'מטרות', ftype: 'text' },
-  { key: 'systems', label: 'מערכות', ftype: 'text' },
+  // ── שדות זהות ופ"מ ──
   { key: 'erka', label: 'ערכה', ftype: 'text' },
   { key: 'mivtza', label: 'מבצע', ftype: 'text' },
   { key: 'koteret', label: 'כותרת', ftype: 'text' },
+  { key: 'tzevet_shilta', label: 'צוות שליטה', ftype: 'text' },
+  { key: 'ta_shilta', label: 'תא שליטה', ftype: 'text' },
   { key: 'parent_callsign', label: 'או"ק פמ מקורי', ftype: 'text' },
   { key: 'formation_notes', label: 'הערה לפמ', ftype: 'text' },
-  { key: 'sector', label: 'אזור', ftype: 'text' },
-  { key: 'status', label: 'מצב', ftype: 'text' },
+  // ── שדות ניווט ──
+  { key: 'takeoff_airfield', label: 'שדה המראה', ftype: 'text' },
+  { key: 'landing_airfield', label: 'שדה נחיתה', ftype: 'text' },
+  { key: 'sid', label: 'SID', ftype: 'text' },
+  { key: 'star', label: 'STAR', ftype: 'text' },
+  // ── שדות ציוד ──
+  { key: 'weapons', label: 'חימושים', ftype: 'text' },
+  { key: 'targets', label: 'מטרות', ftype: 'text' },
+  { key: 'systems', label: 'מערכות', ftype: 'text' },
+  { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
+  // ── שדות הערות ──
+  { key: 'notes', label: 'הערות', ftype: 'text' },
+  // ── שדות קרקע ──
+  { key: 'ground_status', label: 'מצב קרקע', ftype: 'text' },
+  // ── שדות אזרחי ──
+  { key: 'civ_status', label: 'סטטוס (אז׳)', ftype: 'text' },
+  { key: 'civ_stand', label: 'פיר', ftype: 'text' },
+  { key: 'civ_dest', label: 'יעד', ftype: 'text' },
+  { key: 'civ_ssr', label: 'SSR', ftype: 'text' },
+  // ── שדות מערכת פנימיים ──
   { key: 'airborne', label: 'באוויר', ftype: 'bool' },
   { key: 'in_table', label: 'הועבר אלי', ftype: 'bool' },
+  { key: 'on_map', label: 'על המפה', ftype: 'bool' },
+  { key: 'block_deviation', label: 'חריגה מבלוק', ftype: 'bool' },
   { key: 'created_by_me', label: 'פ"מ שיצרתי', ftype: 'bool' },
   { key: 'created_by_preset', label: 'נוצר ע"י עמדה', ftype: 'preset_select' },
-  // ── טקסט חופשי ──
-  { key: 'shkadia', label: 'שקדיה', ftype: 'text' },
-  { key: 'notes', label: 'הערות', ftype: 'text' },
+  { key: 'workstation_preset_name', label: 'עמדה נוכחית', ftype: 'text' },
+  { key: 'creator_preset_name', label: 'עמדה יוצרת', ftype: 'text' },
+  { key: 'created_at', label: 'זמן יצירה', ftype: 'text' },
+  { key: 'id', label: 'מזהה פנימי', ftype: 'text' },
 ];
 
 const Q_TEXT_OPS: { key: QCompare; label: string }[] = [
@@ -203,7 +226,7 @@ const evalQLeaf = (strip: any, leaf: QLeaf, ctx?: { presetId?: number | string |
   const raw = getQFieldValue(strip, leaf.field, ctx);
   const val = String(raw).toLowerCase();
   const cmp = (leaf.value || '').toLowerCase().trim();
-  const isBool = leaf.field === 'airborne' || leaf.field === 'in_table' || leaf.field === 'created_by_me';
+  const isBool = leaf.field === 'airborne' || leaf.field === 'in_table' || leaf.field === 'created_by_me' || leaf.field === 'on_map' || leaf.field === 'block_deviation';
   const boolCmp = cmp === '' ? true : (cmp.includes('באוויר') || cmp === 'כן' || cmp === 'true' || cmp === '1' || cmp === 'yes');
   switch (leaf.compare) {
     case 'eq': return isBool ? (!!raw) === boolCmp : val === cmp;
@@ -7976,7 +7999,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; }
 interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 type SGNode = SGCell | SGSplit;
-interface SGCondition { id: string; checkField: string; operator: 'eq'|'ne'|'contains'|'gt'|'lt'|'empty'|'notEmpty'; value: string; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; }
+interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; }
 const sgGenId = () => Math.random().toString(36).slice(2, 9);
 const sgDefaultCell = (): SGCell => ({ id: sgGenId(), type: 'cell', fieldKey: '', textAlign: 'center' });
 function sgUpdate(node: SGNode, id: string, fn: (n: any) => any): SGNode {
@@ -8008,32 +8031,52 @@ function sgGetAllCells(node: SGNode): SGCell[] {
 // --- תצוגת סטריפים קלאסית ---
 const CLASSIC_STRIP_FIELDS = [
   { key: '', label: '— ריק —' },
+  // ── שדות בסיסיים ──
   { key: 'callSign', label: 'או"ק' },
   { key: 'sq', label: 'טייסת' },
+  { key: 'squadron', label: 'טייסת (מורחב)' },
   { key: 'numberOfFormation', label: 'מספר מצבה' },
+  { key: 'original_formation_count', label: 'מצבה מקורית' },
   { key: 'alt', label: 'גובה' },
   { key: 'task', label: 'משימה' },
   { key: 'takeoff_time', label: 'שעת המראה' },
   { key: 'airborne', label: 'מאוויר/קרקע' },
-  { key: 'erka', label: 'ערקה' },
+  { key: 'status', label: 'סטטוס' },
+  { key: 'sector', label: 'אזור (שם)' },
+  // ── שדות זהות ופ"מ ──
+  { key: 'erka', label: 'ערכה' },
   { key: 'mivtza', label: 'מבצע' },
   { key: 'koteret', label: 'כותרת' },
   { key: 'tzevet_shilta', label: 'צוות שליטה' },
   { key: 'ta_shilta', label: 'תא שליטה' },
-  { key: 'notes', label: 'הערות' },
-  { key: 'shkadia', label: 'שקדיה' },
+  { key: 'parent_callsign', label: 'או"ק פמ מקורי' },
+  { key: 'formation_notes', label: 'הערה לפמ' },
+  // ── שדות ניווט/שדות תעופה ──
+  { key: 'takeoff_airfield', label: 'שדה המראה' },
+  { key: 'landing_airfield', label: 'שדה נחיתה' },
+  { key: 'sid', label: 'SID' },
+  { key: 'star', label: 'STAR' },
+  // ── שדות ציוד ──
   { key: 'weapons', label: 'חימושים' },
   { key: 'targets', label: 'מטרות' },
   { key: 'systems', label: 'מערכות' },
-  { key: 'parent_callsign', label: 'או"ק פמ מקורי' },
-  { key: 'formation_notes', label: 'הערה לפמ' },
-  { key: 'takeoff_airfield', label: 'שדה המראה' },
-  { key: 'landing_airfield', label: 'שדה נחיתה' },
-  { key: 'sector', label: 'אזור' },
-  { key: 'status', label: 'סטטוס' },
+  { key: 'shkadia', label: 'שקדיה' },
+  // ── שדות הערות ──
+  { key: 'notes', label: 'הערות' },
+  // ── שדות קרקע / מגרש ──
   { key: 'ground_status', label: 'סטטוס קרקע' },
-  { key: 'sid', label: 'SID' },
-  { key: 'star', label: 'STAR' },
+  // ── שדות אזרחי ──
+  { key: 'civ_status', label: 'סטטוס (אז׳)' },
+  { key: 'civ_stand', label: 'פיר' },
+  { key: 'civ_dest', label: 'יעד' },
+  { key: 'civ_ssr', label: 'SSR' },
+  // ── שדות מערכת פנימיים ──
+  { key: 'in_table', label: 'הועבר אלי' },
+  { key: 'on_map', label: 'על המפה' },
+  { key: 'block_deviation', label: 'חריגה מבלוק' },
+  { key: 'workstation_preset_name', label: 'עמדה נוכחית' },
+  { key: 'created_at', label: 'זמן יצירה' },
+  { key: 'id', label: 'מזהה פנימי' },
 ];
 
 const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, isDragging, singleClickEdit, aviationBases, allSectors, layoutJson, conditionsJson }: {
@@ -8124,15 +8167,8 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     for (const c of (conds || [])) {
       if (c.target === 'cell' && targetCellId && c.targetCellId !== targetCellId) continue;
       if (c.target === 'strip' && targetCellId !== undefined) continue;
-      const fv = getVal(c.checkField);
       let match = false;
-      if (c.operator === 'eq') match = fv === c.value;
-      else if (c.operator === 'ne') match = fv !== c.value;
-      else if (c.operator === 'contains') match = fv.includes(c.value);
-      else if (c.operator === 'gt') match = parseFloat(fv) > parseFloat(c.value);
-      else if (c.operator === 'lt') match = parseFloat(fv) < parseFloat(c.value);
-      else if (c.operator === 'empty') match = !fv;
-      else if (c.operator === 'notEmpty') match = !!fv;
+      try { match = c.query ? evaluateQuery(strip, c.query) : false; } catch { match = false; }
       if (match) { if (c.styleBg) bg = c.styleBg; if (c.styleText) text = c.styleText; }
     }
     return { bg, text };
@@ -23030,7 +23066,7 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '6px 8px', flexWrap: 'wrap', direction: 'rtl' }}>
       <select value={leaf.field} onChange={e => {
         const fd = Q_FIELDS.find(f => f.key === e.target.value) || Q_FIELDS[0];
-        const boolDefault = (e.target.value === 'in_table' || e.target.value === 'created_by_me') ? 'כן' : 'באוויר';
+        const boolDefault = (e.target.value === 'airborne') ? 'באוויר' : 'כן';
         const defaultVal = fd.ftype === 'bool' ? boolDefault : '';
         const defaultCmp: QCompare = fd.ftype === 'bool' ? 'eq' : fd.ftype === 'preset_select' ? 'in' : 'contains';
         onUpdate({ ...leaf, field: e.target.value, compare: defaultCmp, value: defaultVal });
@@ -23065,17 +23101,17 @@ const QLeafEditor = ({ leaf, onUpdate, onDelete }: { leaf: QLeaf; onUpdate: (l: 
             ))}
           </div>
         ) : fieldDef.ftype === 'bool' ? (
-          (leaf.field === 'in_table' || leaf.field === 'created_by_me') ? (
-            <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
-              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
-              <option value="כן">✅ כן</option>
-              <option value="לא">❌ לא</option>
-            </select>
-          ) : (
+          leaf.field === 'airborne' ? (
             <select value={leaf.value || 'באוויר'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
               style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
               <option value="באוויר">✈ באוויר</option>
               <option value="קרקע">⬛ קרקע</option>
+            </select>
+          ) : (
+            <select value={leaf.value || 'כן'} onChange={e => onUpdate({ ...leaf, value: e.target.value })}
+              style={{ padding: '4px 6px', background: '#1e293b', color: 'white', border: '1px solid #475569', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>
+              <option value="כן">✅ כן</option>
+              <option value="לא">❌ לא</option>
             </select>
           )
         ) : (
@@ -24398,18 +24434,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
   const mutate = (fn: (t: SGNode) => SGNode) => { setTree(fn); setDirty(true); };
   const selCell = React.useMemo(() => { if (!selCellId) return null; const cells = sgGetAllCells(tree); return cells.find(c => c.id === selCellId) || null; }, [tree, selCellId]);
 
-  const FIELDS = [
-    { key: '', label: '— ריק —' }, { key: 'callSign', label: 'או"ק' }, { key: 'sq', label: 'טייסת' },
-    { key: 'numberOfFormation', label: 'כמות' }, { key: 'alt', label: 'גובה' }, { key: 'task', label: 'משימה' },
-    { key: 'takeoff_time', label: 'זמן המראה' }, { key: 'notes', label: 'הערות' }, { key: 'status', label: 'סטטוס' },
-    { key: 'sector', label: 'סקטור' }, { key: 'airborne', label: 'אוויר/קרקע' }, { key: 'weapons', label: 'חימושים' },
-    { key: 'targets', label: 'מטרות' }, { key: 'systems', label: 'מערכות' },
-    { key: 'takeoff_airfield', label: 'שדה יציאה' }, { key: 'landing_airfield', label: 'שדה נחיתה' },
-  ];
-  const OPERATORS = [
-    { key: 'eq', label: '=' }, { key: 'ne', label: '≠' }, { key: 'contains', label: 'מכיל' },
-    { key: 'gt', label: '>' }, { key: 'lt', label: '<' }, { key: 'empty', label: 'ריק' }, { key: 'notEmpty', label: 'לא ריק' },
-  ];
+  const FIELDS = CLASSIC_STRIP_FIELDS;
 
   const renderEditorNode = (node: SGNode, parentSplit?: SGSplit): React.ReactNode => {
     if (node.type === 'cell') {
@@ -24477,7 +24502,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
     } finally { setSaving(false); }
   };
 
-  const addCondition = () => setConditions(prev => [...prev, { id: sgGenId(), checkField: 'status', operator: 'eq', value: '', target: 'strip', styleBg: '', styleText: '' }]);
+  const addCondition = () => setConditions(prev => [...prev, { id: sgGenId(), query: null, target: 'strip', styleBg: '', styleText: '' }]);
   const updateCondition = (id: string, changes: Partial<SGCondition>) => setConditions(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
   const removeCondition = (id: string) => setConditions(prev => prev.filter(c => c.id !== id));
 
@@ -24576,32 +24601,36 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
               </>
             )}
             {activeTab === 'conditions' && (
-              <div style={{ flex: 1, padding: '16px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ flex: 1, padding: '16px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '14px', direction: 'rtl' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: '#93c5fd', fontWeight: 'bold' }}>כללי פורמט מותנה</span>
-                  <button onClick={addCondition} style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ הוסף כלל</button>
+                  <span style={{ fontSize: '13px', color: '#93c5fd', fontWeight: 'bold' }}>כללי עיצוב מותנה</span>
+                  <button onClick={() => { addCondition(); setDirty(true); }} style={{ padding: '5px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>+ הוסף כלל</button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', background: '#0f172a', borderRadius: '6px', padding: '8px 10px' }}>
+                  כל כלל בונה שאילתת תנאים מלאה. כאשר הפ"מ עונה על כל התנאים — העיצוב שנקבע מוחל על הכרטיס או על תא ספציפי.
                 </div>
                 {conditions.length === 0 && <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '20px' }}>אין כללים. לחץ "הוסף כלל" כדי להוסיף.</div>}
                 {conditions.map(c => {
                   const allCells = sgGetAllCells(tree);
                   return (
-                    <div key={c.id} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <select value={c.checkField} onChange={e => { updateCondition(c.id, { checkField: e.target.value }); setDirty(true); }}
-                          style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                          {FIELDS.filter(f => f.key).map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-                        </select>
-                        <select value={c.operator} onChange={e => { updateCondition(c.id, { operator: e.target.value as any }); setDirty(true); }}
-                          style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px' }}>
-                          {OPERATORS.map(op => <option key={op.key} value={op.key}>{op.label}</option>)}
-                        </select>
-                        {!['empty','notEmpty'].includes(c.operator) && (
-                          <input value={c.value} onChange={e => { updateCondition(c.id, { value: e.target.value }); setDirty(true); }}
-                            placeholder="ערך" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', width: '80px' }} />
-                        )}
-                        <button onClick={() => { removeCondition(c.id); setDirty(true); }} style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                    <div key={c.id} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {/* Header row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 'bold' }}>כלל עיצוב</span>
+                        <button onClick={() => { removeCondition(c.id); setDirty(true); }} style={{ padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕ מחק</button>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      {/* Query Builder */}
+                      <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '-4px' }}>תנאי השאילתה:</div>
+                      <QBuilderCtx.Provider value={{ presetNames: [] }}>
+                        <QGroupEditor
+                          group={c.query || emptyQGroup()}
+                          isRoot
+                          onUpdate={g => { updateCondition(c.id, { query: hasConditions(g) ? g : null }); setDirty(true); }}
+                        />
+                      </QBuilderCtx.Provider>
+                      {/* Target + Style */}
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid #1e293b', paddingTop: '8px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>החל על:</span>
                         <select value={c.target} onChange={e => { updateCondition(c.id, { target: e.target.value as any, targetCellId: undefined }); setDirty(true); }}
                           style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                           <option value="strip">כל הכרטיס</option>
