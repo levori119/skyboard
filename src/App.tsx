@@ -14528,10 +14528,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     // Dedup: check if strip already has an outgoing transfer
     const existingT = outgoingTransfersRef.current.find((t: any) => String(t.strip_id) === String(stripId));
     if (existingT) {
-      if (Number(existingT.to_sector_id) === Number(toSectorId) && !toWorkstationId) return; // same dest — skip
-      // Different dest: move the transfer instead of creating a new one
+      const sameSector = Number(existingT.to_sector_id) === Number(toSectorId);
+      const hasEta = etaMinutes != null && etaMinutes > 0;
+      if (sameSector && !toWorkstationId && !hasEta) return; // exact same dest, no ETA to update — skip
+      // Same dest but we have ETA to update, or different dest — update/move the transfer
       try {
-        await fetch(`${API_URL}/transfers/${existingT.id}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to_sector_id: toSectorId }) });
+        await fetch(`${API_URL}/transfers/${existingT.id}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to_sector_id: toSectorId, etaMinutes: etaMinutes || null })
+        });
         loadData();
       } catch {}
       return;

@@ -2266,7 +2266,7 @@ app.post('/api/transfers/:id/reject', async (req, res) => {
 app.post('/api/transfers/:id/move', async (req, res) => {
   try {
     const transferId = req.params.id;
-    const { to_sector_id, to_preset_id } = req.body || {};
+    const { to_sector_id, to_preset_id, etaMinutes } = req.body || {};
     if (!to_sector_id && !to_preset_id) {
       return res.status(400).json({ error: 'Must specify to_sector_id or to_preset_id' });
     }
@@ -2275,22 +2275,31 @@ app.post('/api/transfers/:id/move', async (req, res) => {
       return res.status(404).json({ error: 'Transfer not found or not pending' });
     }
     const t = existing.rows[0];
+    const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
     if (to_preset_id) {
-      // No-op if already targeting this preset.
       if (Number(t.to_preset_id) === Number(to_preset_id)) {
+        if (etaMinutes != null) {
+          await pool.query(
+            "UPDATE strip_transfers SET eta_minutes=$1, eta_set_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3",
+            [etaMinutes || null, etaSetAt, transferId]
+          );
+        }
         return res.json({ success: true, noop: true });
       }
       await pool.query(
-        "UPDATE strip_transfers SET to_preset_id = $1, to_sector_id = NULL, to_workstation_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-        [Number(to_preset_id), transferId]
+        "UPDATE strip_transfers SET to_preset_id=$1, to_sector_id=NULL, to_workstation_id=$1, eta_minutes=$2, eta_set_at=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4",
+        [Number(to_preset_id), etaMinutes || null, etaSetAt, transferId]
       );
     } else {
-      // No-op if already targeting this sector (and not via preset).
       if (!t.to_preset_id && Number(t.to_sector_id) === Number(to_sector_id)) {
+        if (etaMinutes != null) {
+          await pool.query(
+            "UPDATE strip_transfers SET eta_minutes=$1, eta_set_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3",
+            [etaMinutes || null, etaSetAt, transferId]
+          );
+        }
         return res.json({ success: true, noop: true });
       }
-      // Recompute to_workstation_id from the new sector — same logic used at transfer creation
-      // (find a preset whose relevant_sectors contains the sector, excluding the sender).
       let resolvedToWorkstationId = null;
       const presetsResult = await pool.query('SELECT * FROM workstation_presets ORDER BY name');
       const presetsWithSector = presetsResult.rows
@@ -2304,14 +2313,29 @@ app.post('/api/transfers/:id/move', async (req, res) => {
         resolvedToWorkstationId = presetsWithSector[0].id;
       }
       await pool.query(
-        "UPDATE strip_transfers SET to_sector_id = $1, to_preset_id = NULL, to_workstation_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
-        [Number(to_sector_id), resolvedToWorkstationId, transferId]
+        "UPDATE strip_transfers SET to_sector_id=$1, to_preset_id=NULL, to_workstation_id=$2, eta_minutes=$3, eta_set_at=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5",
+        [Number(to_sector_id), resolvedToWorkstationId, etaMinutes || null, etaSetAt, transferId]
       );
     }
     res.json({ success: true });
   } catch (err) {
     console.error('Error moving transfer:', err);
     res.status(500).json({ error: 'Failed to move transfer' });
+  }
+});
+
+app.post('/api/transfers/:id/set-eta', async (req, res) => {
+  try {
+    const { etaMinutes } = req.body || {};
+    const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
+    await pool.query(
+      "UPDATE strip_transfers SET eta_minutes=$1, eta_set_at=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND status='pending'",
+      [etaMinutes || null, etaSetAt, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error setting ETA:', err);
+    res.status(500).json({ error: 'Failed to set ETA' });
   }
 });
 
