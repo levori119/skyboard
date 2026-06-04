@@ -25163,9 +25163,9 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
         <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: T.text }}>🪟 חלונות סטריפים</div>
         <div style={{ display: 'flex', gap: '4px' }}>
           <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="שם חדש..."
-            onKeyDown={async e => { if (e.key === 'Enter' && newName.trim()) { const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); setNewName(''); await load(); if (res.ok) { const created = await res.json().catch(() => null); if (created?.id) { const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } } }}
+            onKeyDown={async e => { if (e.key === 'Enter' && newName.trim()) { const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); if (res.status === 409) { alert((await res.json()).error || 'שם כבר קיים'); return; } setNewName(''); await load(); if (res.ok) { const created = await res.json().catch(() => null); if (created?.id) { const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } } }}
             style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: '4px 6px', borderRadius: '4px', fontSize: '12px' }} />
-          <button onClick={async () => { if (!newName.trim()) return; const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); setNewName(''); if (res.ok) { const created = await res.json().catch(() => null); const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); if (created?.id) { const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } }}
+          <button onClick={async () => { if (!newName.trim()) return; const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); if (res.status === 409) { alert((await res.json()).error || 'שם כבר קיים'); return; } setNewName(''); if (res.ok) { const created = await res.json().catch(() => null); const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); if (created?.id) { const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } }}
             style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '14px' }}>+</button>
         </div>
         {/* Template picker */}
@@ -28665,10 +28665,28 @@ CHARLIE,1,301,`}
                     const isCivil = ct.mode === 'civil';
                     const isSelected = editingClassicTable?.id === ct.id || sgEditorTableId === ct.id;
                     return (
-                      <div key={ct.id} onClick={() => { if (isCivil) { setEditingClassicTable(null); setSgEditorTableId(ct.id); } else { startEdit(ct); setSgEditorTableId(null); } }}
-                        style={{ padding: '6px 8px', marginBottom: '4px', borderRadius: '6px', background: isSelected ? '#1e3a5f' : '#0f172a', border: `1px solid ${isSelected ? '#3b82f6' : '#1e293b'}`, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                        <span title={isCivil ? 'מוד אזרחי' : '3 שורות'} style={{ fontSize: '13px', flexShrink: 0 }}>{isCivil ? '📐' : '🗂'}</span>
-                        <span style={{ flex: 1, color: isSelected ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name}</span>
+                      <div key={ct.id} style={{ marginBottom: '4px', borderRadius: '6px', background: isSelected ? '#1e3a5f' : '#0f172a', border: `1px solid ${isSelected ? '#3b82f6' : '#1e293b'}`, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                        {/* Main clickable area */}
+                        <div onClick={() => { if (isCivil) { setEditingClassicTable(null); setSgEditorTableId(ct.id); } else { startEdit(ct); setSgEditorTableId(null); } }}
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', cursor: 'pointer', minWidth: 0 }}>
+                          <span title={isCivil ? 'מוד אזרחי' : '3 שורות'} style={{ fontSize: '13px', flexShrink: 0 }}>{isCivil ? '📐' : '🗂'}</span>
+                          <span style={{ flex: 1, color: isSelected ? '#93c5fd' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ct.name}</span>
+                        </div>
+                        {/* Rename button (civil only — 3-row form already has name field) */}
+                        {isCivil && (
+                          <button title="שנה שם" onClick={async e => {
+                            e.stopPropagation();
+                            const newName = window.prompt('שם חדש לתבנית:', ct.name);
+                            if (!newName?.trim() || newName.trim() === ct.name) return;
+                            const r = await fetch(`${API_URL}/classic-strip-tables/${ct.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) });
+                            if (r.status === 409) { alert('שם תבנית כבר קיים'); return; }
+                            const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []);
+                            setClassicTables(updated);
+                          }} style={{ padding: '3px 5px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>✎</button>
+                        )}
+                        {/* Delete button */}
+                        <button title="מחק תבנית" onClick={e => { e.stopPropagation(); deleteTable(ct.id); }}
+                          style={{ padding: '3px 5px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '12px', flexShrink: 0, marginLeft: '2px' }}>🗑</button>
                       </div>
                     );
                   })}
@@ -29013,6 +29031,7 @@ CHARLIE,1,301,`}
             const method = editingAirfield ? 'PUT' : 'POST';
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
+            if (res.status === 409) { alert((await res.json()).error || 'שם שדה תעופה כבר קיים'); return; }
             if (res.ok) {
               const savedAirfield = await res.json();
               setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' });
@@ -29139,6 +29158,7 @@ CHARLIE,1,301,`}
                                 const imageData = ev.target?.result as string;
                                 const mapName = airfieldForm.name.trim() || file.name.replace(/\.[^.]+$/, '');
                                 const res = await fetch(`${API_URL}/maps`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: mapName, image_data: imageData }) });
+                                if (res.status === 409) { alert((await res.json()).error || 'שם מפה כבר קיים'); return; }
                                 if (res.ok) { const newMap = await res.json(); const mapsRes = await fetch(`${API_URL}/maps`); if (mapsRes.ok) setMaps(await mapsRes.json()); setAirfieldForm(p => ({ ...p, map_id: String(newMap.id) })); setAdminSelMapSrc(imageData); }
                               };
                               reader.readAsDataURL(file);

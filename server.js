@@ -2388,6 +2388,8 @@ app.get('/api/maps/:id', async (req, res) => {
 app.post('/api/maps', async (req, res) => {
   try {
     const { name, image_data } = req.body;
+    const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
     const result = await pool.query(
       'INSERT INTO maps (name, image_data) VALUES ($1, $2) RETURNING id, name, created_at',
       [name, image_data]
@@ -3065,6 +3067,8 @@ app.get('/api/workstation-presets/:id/config', async (req, res) => {
 app.post('/api/workstation-presets', async (req, res) => {
   try {
     const { name, map_id, relevant_sectors, table_mode_id, partial_load, full_load, filter_query, conflict_alt_delta, relevant_control_stations, vertical_time_based, display_mode, classic_strip_table_id, classic_strip_table_id_night, classic_receive_points, classic_transfer_points, preset_type, airfield_id, classic_partner_preset_ids, classic_incoming_partner_preset_ids, classic_outgoing_partner_preset_ids, show_serials, allow_view_switching, show_base_statuses, base_status_ids, preset_role, parent_base_id, can_update_pressure, datk_show_minutes, show_dashboard, can_update_mazaa, civilian_columns, use_map_zones, civilian_board_bg, dual_map_mode, map2_id, dual_map_layout, dual_map_split, suggest_alt_range, show_full_picture } = req.body;
+    const dup = await pool.query('SELECT id FROM workstation_presets WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length) return res.status(409).json({ error: 'שם עמדה כבר קיים' });
     // Backward-compat: if only legacy single list provided, treat as both directions
     const incomingIds = Array.isArray(classic_incoming_partner_preset_ids) ? classic_incoming_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
     const outgoingIds = Array.isArray(classic_outgoing_partner_preset_ids) ? classic_outgoing_partner_preset_ids : (Array.isArray(classic_partner_preset_ids) ? classic_partner_preset_ids : []);
@@ -3196,6 +3200,8 @@ app.get('/api/classic-strip-tables', async (req, res) => {
 app.post('/api/classic-strip-tables', async (req, res) => {
   try {
     const { name, mode } = req.body;
+    const dup = await pool.query('SELECT id FROM classic_strip_tables WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length) return res.status(409).json({ error: 'שם תבנית כבר קיים' });
     const tableMode = mode || '3rows';
     const result = await pool.query('INSERT INTO classic_strip_tables (name, mode) VALUES ($1, $2) RETURNING *', [name, tableMode]);
     const t = result.rows[0];
@@ -3296,6 +3302,8 @@ app.get('/api/airfields', async (req, res) => {
 app.post('/api/airfields', async (req, res) => {
   try {
     const { name, notes, map_id, sids, stars } = req.body;
+    const dup = await pool.query('SELECT id FROM airfields WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length) return res.status(409).json({ error: 'שם שדה תעופה כבר קיים' });
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
     const result = await pool.query(
@@ -5536,6 +5544,8 @@ app.post('/api/strip-window-layouts', async (req, res) => {
   try {
     const { name, layout_json } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
+    const dup = await pool.query('SELECT id FROM strip_window_layouts WHERE LOWER(name) = LOWER($1)', [name]);
+    if (dup.rows.length) return res.status(409).json({ error: 'שם חלון סטריפים כבר קיים' });
     const r = await pool.query(
       'INSERT INTO strip_window_layouts (name, layout_json) VALUES ($1, $2) RETURNING *',
       [name, layout_json != null ? JSON.stringify(layout_json) : null]
