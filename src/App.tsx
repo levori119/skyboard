@@ -25703,7 +25703,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showPolygonForm, setShowPolygonForm] = useState(false);
   // Sector drawing state (airfield sectors, different from transfer sectors)
   const [drawingSectorId, setDrawingSectorId] = useState<number|null>(null);
-  const [sectorDragStart, setSectorDragStart] = useState<{x:number;y:number}|null>(null);
+  const sectorDragStartRef = React.useRef<{x:number;y:number}|null>(null);
   const [sectorDraftRect, setSectorDraftRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
   const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
   const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
@@ -29775,7 +29775,7 @@ CHARLIE,1,301,`}
                                   const saved = await res.json();
                                   setShowAirfieldSectorForm(false); setEditingAirfieldSector(null); setAirfieldSectorForm({ name: '', notes: '' });
                                   await loadAirfieldSectors(selectedAdminAirfieldId!);
-                                  if (hasMap) { setDrawingSectorId(saved.id); setSectorDragStart(null); }
+                                  if (hasMap) { setDrawingSectorId(saved.id); sectorDragStartRef.current = null; }
                                 }
                               }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
                               <button onClick={() => { setShowAirfieldSectorForm(false); setEditingAirfieldSector(null); }} style={{ padding: '4px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
@@ -29799,7 +29799,7 @@ CHARLIE,1,301,`}
                                 </div>
                                 {sec.notes && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{sec.notes}</div>}
                                 <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
-                                  <button onClick={() => { setDrawingSectorId(sec.id); setSectorDragStart(null); }}
+                                  <button onClick={() => { setDrawingSectorId(sec.id); sectorDragStartRef.current = null; }}
                                     style={{ flex: 1, padding: '2px', background: '#064e3b', color: '#6ee7b7', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⬛ שרטט מחדש</button>
                                   <button onClick={() => { setEditingAirfieldSector(sec); setAirfieldSectorForm({ name: sec.name, notes: sec.notes || '' }); setShowAirfieldSectorForm(true); }}
                                     style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>ערוך</button>
@@ -29923,7 +29923,7 @@ CHARLIE,1,301,`}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); setSectorDragStart(null); } }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -29936,44 +29936,51 @@ CHARLIE,1,301,`}
                     }}
                     onMouseDown={e => {
                       if (!drawingSectorId) return;
+                      e.preventDefault();
                       const container = e.currentTarget as HTMLElement;
-                      const rect = container.getBoundingClientRect();
-                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      const cr = container.getBoundingClientRect();
+                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
                       let x: number, y: number;
                       if (adminMapImgBounds) { x = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x = (relX / container.clientWidth) * 100; y = (relY / container.clientHeight) * 100; }
                       const clampedX = Math.max(0, Math.min(100, x)); const clampedY = Math.max(0, Math.min(100, y));
-                      setSectorDragStart({ x: clampedX, y: clampedY }); setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
+                      sectorDragStartRef.current = { x: clampedX, y: clampedY };
+                      setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
                     }}
                     onMouseMove={e => {
-                      if (!drawingSectorId || !sectorDragStart) return;
+                      if (!drawingSectorId || !sectorDragStartRef.current) return;
                       const container = e.currentTarget as HTMLElement;
-                      const rect = container.getBoundingClientRect();
-                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      const cr = container.getBoundingClientRect();
+                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
                       let x2: number, y2: number;
                       if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
                       x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
-                      setSectorDraftRect({ x: Math.min(sectorDragStart.x, x2), y: Math.min(sectorDragStart.y, y2), w: Math.abs(x2 - sectorDragStart.x), h: Math.abs(y2 - sectorDragStart.y) });
+                      const ds = sectorDragStartRef.current;
+                      setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
                     }}
                     onMouseUp={async e => {
-                      if (!drawingSectorId || !sectorDragStart) return;
+                      const ds = sectorDragStartRef.current;
+                      if (!drawingSectorId || !ds) return;
                       const container = e.currentTarget as HTMLElement;
-                      const rect = container.getBoundingClientRect();
-                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      const cr = container.getBoundingClientRect();
+                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
                       let x2: number, y2: number;
                       if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
                       x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
-                      const rx = Math.min(sectorDragStart.x, x2), ry = Math.min(sectorDragStart.y, y2);
-                      const rw = Math.abs(x2 - sectorDragStart.x), rh = Math.abs(y2 - sectorDragStart.y);
+                      const rx = Math.min(ds.x, x2), ry = Math.min(ds.y, y2);
+                      const rw = Math.abs(x2 - ds.x), rh = Math.abs(y2 - ds.y);
+                      sectorDragStartRef.current = null;
                       setSectorDraftRect(null);
                       if (rw > 1 && rh > 1) {
                         const sec = adminAirfieldSectors.find(s => s.id === drawingSectorId);
-                        if (sec) await fetch(`${API_URL}/airfield-sectors/${drawingSectorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: sec.name, notes: sec.notes || '', rect: { x: rx, y: ry, w: rw, h: rh } }) });
+                        const secName = sec?.name || '';
+                        const secNotes = sec?.notes || '';
+                        await fetch(`${API_URL}/airfield-sectors/${drawingSectorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: secName, notes: secNotes, rect: { x: rx, y: ry, w: rw, h: rh } }) });
                         await loadAirfieldSectors(selectedAdminAirfieldId!);
                       }
-                      setDrawingSectorId(null); setSectorDragStart(null);
+                      setDrawingSectorId(null);
                     }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
