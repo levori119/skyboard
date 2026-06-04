@@ -26041,6 +26041,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [elementForm, setElementForm] = useState({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' });
   const [editingElement, setEditingElement] = useState<any | null>(null);
   const [showElementForm, setShowElementForm] = useState(false);
+  const [adminElemFocusField, setAdminElemFocusField] = useState<'name'|'category'|'type'|'status'|'note'|null>(null);
   const [showElementsSection, setShowElementsSection] = useState(false);
   const [placingElementMode, setPlacingElementMode] = useState(false);
   const [placingElementId, setPlacingElementId] = useState<number | null>(null);
@@ -29795,33 +29796,170 @@ CHARLIE,1,301,`}
                               </div>
                             ));
                           })()}
-                          {showElementForm && (
-                            <div style={{ padding: '6px', background: '#0f172a', borderRadius: '4px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <input value={elementForm.name} onChange={e => setElementForm(p => ({ ...p, name: e.target.value }))} placeholder="שם האלמנט" style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
-                              <input value={elementForm.category} onChange={e => setElementForm(p => ({ ...p, category: e.target.value }))} placeholder="קטגוריה (לדוגמה: תאורה, דלק, כביש)" style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
-                              <select value={elementForm.element_type_id} onChange={e => setElementForm(p => ({ ...p, element_type_id: e.target.value }))} style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                <option value="">-- סוג --</option>
-                                {adminElementTypes.map(et => <option key={et.id} value={et.id}>{et.icon} {et.name}</option>)}
-                              </select>
-                              <select value={elementForm.status} onChange={e => setElementForm(p => ({ ...p, status: e.target.value }))} style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
-                                <option>תקין</option><option>שמיש</option><option>חלקי</option><option>לא תקין</option><option>תקול</option>
-                              </select>
-                              <textarea value={elementForm.note} onChange={e => setElementForm(p => ({ ...p, note: e.target.value }))} placeholder="הערה (אופציונלי)" rows={2} style={{ padding: '4px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none' }} />
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <button onClick={async () => {
-                                  const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category };
-                                  if (editingElement) {
-                                    await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
-                                  } else {
-                                    await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
-                                  }
-                                  setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' });
-                                  loadAirfieldElements(selectedAdminAirfieldId!);
-                                }} style={{ flex: 1, padding: '5px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>שמור</button>
-                                <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); }} style={{ padding: '5px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                          {showElementForm && (() => {
+                            const ELEM_STATUS_OPTIONS = [
+                              { val: 'תקין', color: '#22c55e', bg: '#14532d' },
+                              { val: 'שמיש', color: '#86efac', bg: '#166534' },
+                              { val: 'חלקי', color: '#fb923c', bg: '#431407' },
+                              { val: 'לא תקין', color: '#f87171', bg: '#7f1d1d' },
+                              { val: 'תקול', color: '#fca5a5', bg: '#450a0a' },
+                            ];
+                            const selType = adminElementTypes.find(et => String(et.id) === elementForm.element_type_id);
+                            const selStatus = ELEM_STATUS_OPTIONS.find(s => s.val === elementForm.status) || ELEM_STATUS_OPTIONS[0];
+                            const doSave = async () => {
+                              if (!elementForm.name.trim()) { setAdminElemFocusField('name'); return; }
+                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category };
+                              if (editingElement) {
+                                await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
+                              } else {
+                                await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
+                              }
+                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null);
+                              loadAirfieldElements(selectedAdminAirfieldId!);
+                            };
+                            return (
+                              <div style={{ background: '#0c1a2e', borderRadius: '8px', border: '2px solid #ec4899', overflow: 'hidden', direction: 'rtl' }}>
+                                {/* Header */}
+                                <div style={{ background: '#831843', padding: '7px 10px', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                  <span style={{ fontSize: '14px' }}>{selType?.icon || '🔧'}</span>
+                                  <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: '#fce7f3' }}>
+                                    {editingElement ? `עריכה: ${editingElement.name}` : 'אלמנט חדש'}
+                                  </span>
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null); }}
+                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#f9a8d4', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                                </div>
+
+                                {/* Fields */}
+                                <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+
+                                  {/* Name */}
+                                  <div style={{ borderRadius: '5px', border: `1px solid ${adminElemFocusField === 'name' ? '#ec4899' : '#1e3a5f'}`, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: '#0f172a', cursor: 'pointer' }}
+                                      onClick={() => setAdminElemFocusField(adminElemFocusField === 'name' ? null : 'name')}>
+                                      <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>✏ שם</span>
+                                      <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: elementForm.name ? '#e2e8f0' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {elementForm.name || 'לחץ לעריכה...'}
+                                      </span>
+                                      <span style={{ fontSize: '9px', color: '#475569' }}>{adminElemFocusField === 'name' ? '▲' : '▼'}</span>
+                                    </div>
+                                    {adminElemFocusField === 'name' && (
+                                      <div style={{ padding: '6px 8px', background: '#1e293b', borderTop: '1px solid #1e3a5f' }}>
+                                        <input autoFocus value={elementForm.name}
+                                          onChange={e => setElementForm(p => ({ ...p, name: e.target.value }))}
+                                          onKeyDown={e => { if (e.key === 'Enter') setAdminElemFocusField(null); if (e.key === 'Escape') setAdminElemFocusField(null); }}
+                                          placeholder="שם האלמנט"
+                                          style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #ec4899', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Category */}
+                                  <div style={{ borderRadius: '5px', border: `1px solid ${adminElemFocusField === 'category' ? '#a855f7' : '#1e3a5f'}`, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: '#0f172a', cursor: 'pointer' }}
+                                      onClick={() => setAdminElemFocusField(adminElemFocusField === 'category' ? null : 'category')}>
+                                      <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>🏷 קטגוריה</span>
+                                      <span style={{ flex: 1, fontSize: '12px', color: elementForm.category ? '#c4b5fd' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {elementForm.category || 'כללי'}
+                                      </span>
+                                      <span style={{ fontSize: '9px', color: '#475569' }}>{adminElemFocusField === 'category' ? '▲' : '▼'}</span>
+                                    </div>
+                                    {adminElemFocusField === 'category' && (
+                                      <div style={{ padding: '6px 8px', background: '#1e293b', borderTop: '1px solid #1e3a5f' }}>
+                                        <input autoFocus value={elementForm.category}
+                                          onChange={e => setElementForm(p => ({ ...p, category: e.target.value }))}
+                                          onKeyDown={e => { if (e.key === 'Enter') setAdminElemFocusField(null); if (e.key === 'Escape') setAdminElemFocusField(null); }}
+                                          placeholder="לדוגמה: תאורה, דלק, כביש"
+                                          list="admin-elem-cat-list"
+                                          style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #a855f7', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' }} />
+                                        <datalist id="admin-elem-cat-list">
+                                          {Array.from(new Set(adminAirfieldElements.map((e: any) => e.category).filter(Boolean))).map(c => <option key={c} value={c} />)}
+                                        </datalist>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Type */}
+                                  <div style={{ borderRadius: '5px', border: `1px solid ${adminElemFocusField === 'type' ? '#f59e0b' : '#1e3a5f'}`, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: '#0f172a', cursor: 'pointer' }}
+                                      onClick={() => setAdminElemFocusField(adminElemFocusField === 'type' ? null : 'type')}>
+                                      <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>🔧 סוג</span>
+                                      {selType ? (
+                                        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                                          <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: selType.color || '#f59e0b', flexShrink: 0, display: 'inline-block' }} />
+                                          <span style={{ fontSize: '12px', color: '#fbbf24', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selType.icon} {selType.name}</span>
+                                        </span>
+                                      ) : (
+                                        <span style={{ flex: 1, fontSize: '12px', color: '#475569' }}>ללא סוג</span>
+                                      )}
+                                      <span style={{ fontSize: '9px', color: '#475569' }}>{adminElemFocusField === 'type' ? '▲' : '▼'}</span>
+                                    </div>
+                                    {adminElemFocusField === 'type' && (
+                                      <div style={{ padding: '6px 8px', background: '#1e293b', borderTop: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                        <button onClick={() => setElementForm(p => ({ ...p, element_type_id: '' }))}
+                                          style={{ padding: '4px 8px', background: elementForm.element_type_id === '' ? '#292524' : 'transparent', border: `1px solid ${elementForm.element_type_id === '' ? '#f59e0b' : '#334155'}`, borderRadius: '4px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', textAlign: 'right', direction: 'rtl' }}>
+                                          ללא סוג
+                                        </button>
+                                        {adminElementTypes.map(et => (
+                                          <button key={et.id} onClick={() => { setElementForm(p => ({ ...p, element_type_id: String(et.id) })); setAdminElemFocusField(null); }}
+                                            style={{ padding: '4px 8px', background: String(et.id) === elementForm.element_type_id ? '#1c1917' : 'transparent', border: `1px solid ${String(et.id) === elementForm.element_type_id ? et.color || '#f59e0b' : '#334155'}`, borderRadius: '4px', color: et.color || '#f59e0b', fontSize: '11px', cursor: 'pointer', textAlign: 'right', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: et.color || '#f59e0b', flexShrink: 0 }} />
+                                            {et.icon} {et.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Status — always visible as quick-pick buttons */}
+                                  <div style={{ borderRadius: '5px', border: `1px solid ${selStatus.color}44`, background: '#0f172a', padding: '5px 8px' }}>
+                                    <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '5px' }}>🔵 סטטוס</div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                      {ELEM_STATUS_OPTIONS.map(s => (
+                                        <button key={s.val} onClick={() => setElementForm(p => ({ ...p, status: s.val }))}
+                                          style={{ padding: '3px 9px', borderRadius: '4px', border: `2px solid ${elementForm.status === s.val ? s.color : 'transparent'}`, background: elementForm.status === s.val ? s.bg : '#1e293b', color: s.color, fontSize: '11px', fontWeight: elementForm.status === s.val ? 'bold' : 'normal', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                          {s.val}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Note */}
+                                  <div style={{ borderRadius: '5px', border: `1px solid ${adminElemFocusField === 'note' ? '#64748b' : '#1e3a5f'}`, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: '#0f172a', cursor: 'pointer' }}
+                                      onClick={() => setAdminElemFocusField(adminElemFocusField === 'note' ? null : 'note')}>
+                                      <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>📝 הערה</span>
+                                      <span style={{ flex: 1, fontSize: '11px', color: elementForm.note ? '#94a3b8' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {elementForm.note || 'אין הערה'}
+                                      </span>
+                                      <span style={{ fontSize: '9px', color: '#475569' }}>{adminElemFocusField === 'note' ? '▲' : '▼'}</span>
+                                    </div>
+                                    {adminElemFocusField === 'note' && (
+                                      <div style={{ padding: '6px 8px', background: '#1e293b', borderTop: '1px solid #1e3a5f' }}>
+                                        <textarea autoFocus value={elementForm.note}
+                                          onChange={e => setElementForm(p => ({ ...p, note: e.target.value }))}
+                                          onKeyDown={e => { if (e.key === 'Escape') setAdminElemFocusField(null); }}
+                                          placeholder="הערה (אופציונלי)"
+                                          rows={2}
+                                          style={{ width: '100%', padding: '5px 8px', background: '#0f172a', border: '1px solid #475569', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Save/Cancel */}
+                                <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
+                                  <button onClick={doSave}
+                                    style={{ flex: 1, padding: '6px', background: elementForm.name.trim() ? '#be185d' : '#374151', color: elementForm.name.trim() ? 'white' : '#6b7280', border: 'none', borderRadius: '5px', cursor: elementForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>
+                                    ✓ שמור
+                                  </button>
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null); }}
+                                    style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
+                                    ביטול
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                           {!showElementForm && adminAirfieldElements.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '10px 0', color: '#64748b', fontSize: '11px' }}>
                               אין אלמנטים עדיין — לחץ <span style={{ color: '#ec4899', fontWeight: 'bold' }}>+ הוסף</span> להוספה

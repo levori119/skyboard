@@ -1,0 +1,1 @@
+- [Admin element form focus-mode](admin-element-form.md) — element edit in admin airfield tab uses card/focus pattern, not all-fields-at-once
