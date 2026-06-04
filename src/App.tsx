@@ -2457,25 +2457,8 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
   const [showHw, setShowHw] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [editBuffer, setEditBuffer] = useState('');
-  const [countdown, setCountdown] = useState<string | null>(null);
-  const [countdownOver, setCountdownOver] = useState(false);
   const sq = getTransferSq(t);
 
-  useEffect(() => {
-    if (!t.eta_minutes || !t.eta_set_at) { setCountdown(null); return; }
-    const update = () => {
-      const end = new Date(t.eta_set_at).getTime() + Number(t.eta_minutes) * 60000;
-      const rem = end - Date.now();
-      if (rem <= 0) { setCountdown('00:00'); setCountdownOver(true); return; }
-      setCountdownOver(false);
-      const m = Math.floor(rem / 60000);
-      const s = Math.floor((rem % 60000) / 1000);
-      setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    };
-    update();
-    const iv = setInterval(update, 1000);
-    return () => clearInterval(iv);
-  }, [t.eta_minutes, t.eta_set_at]);
   const hasExternalNote = !!t.note && String(t.note_by_preset_id) !== String(presetId);
   const openNote = () => { setEditBuffer(t.note || ''); setNoteOpen(true); };
   return (
@@ -2497,7 +2480,7 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
           </div>
           {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
         </div>
-        {/* שורה 2: alt + countdown */}
+        {/* שורה 2: alt */}
         <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
           <span
             ref={altRef}
@@ -2507,11 +2490,6 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
           >
             {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
           </span>
-          {countdown !== null && (
-            <span title="זמן עד לנקודת העברה" style={{ fontSize: '11px', fontWeight: 'bold', color: countdownOver ? '#ef4444' : '#10b981', background: countdownOver ? '#450a0a' : '#052e16', border: `1px solid ${countdownOver ? '#dc2626' : '#16a34a'}`, borderRadius: '4px', padding: '1px 5px', letterSpacing: '0.5px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-              ⏱{countdown}
-            </span>
-          )}
         </div>
         {t.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#93c5fd', background: hasExternalNote ? '#2d0505' : '#0c1e35', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#1e3a5f'}`, direction: 'rtl' }}>
@@ -17082,6 +17060,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 >◀</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {/* General incoming transfers — shown for ALL directed transfers to this workstation */}
+                {incomingTransfers.length > 0 && (
+                  <div style={{ padding: '6px 8px', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, background: lightMode ? '#eff6ff' : '#0a1628' }}>
+                    <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center', direction: 'rtl' }}>
+                      📥 ממתינים לקבלה ({incomingTransfers.length})
+                    </div>
+                    {incomingTransfers.map((t: any) => (
+                      <DraggableIncomingTransferMini
+                        key={t.id}
+                        transfer={t}
+                        onAccept={handleAcceptTransfer}
+                        onReject={handleRejectTransfer}
+                        onAcceptToMap={handleAcceptToMap}
+                        isConflict={crossSectorConflictIds.has(String(t.id))}
+                        onUpdateStripField={handleUpdateStripField}
+                        zoom={mapZoom}
+                        pan={mapPan}
+                        presetId={session.presetId}
+                        onUpdateNote={handleUpdateTransferNote}
+                      />
+                    ))}
+                  </div>
+                )}
                 {allSectors.map(n => (
                   <DraggableNeighborPanel
                     key={n.id}
@@ -17119,14 +17120,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 title="פתח נקודות העברה"
                 style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px 4px', borderRadius: '0 4px 4px 0', fontSize: '12px', lineHeight: 1 }}
               >▶</button>
-              {(() => {
-                const pendingCount = incomingTransfers.filter(t => allSectors.some(n => n.id === t.to_sector_id)).length;
-                return pendingCount > 0 ? (
-                  <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
-                    {pendingCount} ממתין
-                  </div>
-                ) : null;
-              })()}
+              {incomingTransfers.length > 0 && (
+                <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: '10px', color: '#f87171', fontWeight: 'bold', background: '#450a0a', borderRadius: '4px', padding: '4px 2px', cursor: 'pointer' }} onClick={() => setNeighborPanelOpen(true)}>
+                  {incomingTransfers.length} ממתין
+                </div>
+              )}
             </div>
           )
         )}
