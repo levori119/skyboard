@@ -3191,7 +3191,7 @@ const DraggableIncomingTransferMini = ({
             {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
           </span>
           {etaCountdown !== null && (
-            <span title="זמן עד להגעה" style={{ fontSize: '11px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '4px', padding: '1px 5px', letterSpacing: '0.5px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+            <span title="זמן עד להגעה" style={{ fontSize: '9px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '3px', padding: '1px 3px', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
               ⏱{etaCountdown}
             </span>
           )}
