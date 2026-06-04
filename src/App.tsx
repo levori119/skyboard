@@ -24967,6 +24967,43 @@ interface SWSplit { id: string; type: 'split'; direction: 'h' | 'v'; sizes: numb
 type SWNode = SWLeaf | SWSplit;
 const swGenId = () => Math.random().toString(36).slice(2, 9);
 const swDefaultLeaf = (): SWLeaf => ({ id: swGenId(), type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' });
+function swRemapIds(node: SWNode): SWNode {
+  if (node.type === 'leaf') return { ...node, id: swGenId() };
+  return { ...node, id: swGenId(), children: (node as SWSplit).children.map(swRemapIds) } as SWSplit;
+}
+const SW_TEMPLATES: { id: string; label: string; desc: string; build: () => SWNode }[] = [
+  { id: 'tpl_blank', label: 'ריק', desc: 'תא אחד ריק', build: () => swDefaultLeaf() },
+  { id: 'tpl_2col', label: '2 טורים', desc: 'שני טורים זה לצד זה', build: () => swRemapIds({ id: 'r', type: 'split', direction: 'v', sizes: [50, 50], children: [{ id: 'a', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' }, { id: 'b', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' }] }) },
+  { id: 'tpl_3col', label: '3 טורים', desc: 'שלושה טורים שווים', build: () => swRemapIds({ id: 'r', type: 'split', direction: 'v', sizes: [33.3, 33.4, 33.3], children: [{ id: 'a', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' }, { id: 'b', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' }, { id: 'c', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' }] }) },
+  { id: 'tpl_civil_terminal', label: 'אזרחי — מסוף', desc: '2 תאים צרים + 2×3 רשת (כמו בתמונה)', build: () => swRemapIds({ id: 'r', type: 'split', direction: 'v', sizes: [22, 22, 56], children: [
+    { id: 'l1', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#2d3e6b', header_color: '#1e2d52' },
+    { id: 'l2', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#2d3e6b', header_color: '#1e2d52' },
+    { id: 'rs', type: 'split', direction: 'h', sizes: [50, 50], children: [
+      { id: 'r1', type: 'split', direction: 'v', sizes: [33.3, 33.4, 33.3], children: [
+        { id: 'r1a', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+        { id: 'r1b', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+        { id: 'r1c', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+      ] },
+      { id: 'r2', type: 'split', direction: 'v', sizes: [33.3, 33.4, 33.3], children: [
+        { id: 'r2a', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+        { id: 'r2b', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+        { id: 'r2c', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#1a5c5c', header_color: '#124040' },
+      ] },
+    ] },
+  ] }) },
+  { id: 'tpl_2row_3col', label: '2 שורות × 3 טורים', desc: 'רשת 2 שורות, 3 טורים', build: () => swRemapIds({ id: 'r', type: 'split', direction: 'h', sizes: [50, 50], children: [
+    { id: 'row1', type: 'split', direction: 'v', sizes: [33.3, 33.4, 33.3], children: [
+      { id: 'a', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+      { id: 'b', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+      { id: 'c', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+    ] },
+    { id: 'row2', type: 'split', direction: 'v', sizes: [33.3, 33.4, 33.3], children: [
+      { id: 'd', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+      { id: 'e', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+      { id: 'f', type: 'leaf', waypoint: '', label: '', query: null, bg_color: '#0f172a', header_color: '#1e3a5f' },
+    ] },
+  ] }) },
+];
 function swUpdate(node: SWNode, id: string, fn: (n: any) => any): SWNode {
   if (node.id === id) return fn(node);
   if (node.type === 'split') return { ...node, children: node.children.map(c => swUpdate(c, id, fn)) };
@@ -25000,6 +25037,8 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [tree, setTree] = useState<SWNode | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newTplId, setNewTplId] = useState('tpl_blank');
+  const [showTplPicker, setShowTplPicker] = useState(false);
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [selLeafId, setSelLeafId] = useState<string | null>(null);
@@ -25124,10 +25163,30 @@ const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
         <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '8px', color: T.text }}>🪟 חלונות סטריפים</div>
         <div style={{ display: 'flex', gap: '4px' }}>
           <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="שם חדש..."
-            onKeyDown={async e => { if (e.key === 'Enter' && newName.trim()) { await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) }); setNewName(''); load(); } }}
+            onKeyDown={async e => { if (e.key === 'Enter' && newName.trim()) { const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); setNewName(''); await load(); if (res.ok) { const created = await res.json().catch(() => null); if (created?.id) { const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } } }}
             style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, color: T.text, padding: '4px 6px', borderRadius: '4px', fontSize: '12px' }} />
-          <button onClick={async () => { if (!newName.trim()) return; await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim() }) }); setNewName(''); load(); }}
+          <button onClick={async () => { if (!newName.trim()) return; const tpl = SW_TEMPLATES.find(t => t.id === newTplId) || SW_TEMPLATES[0]; const layout_json = tpl.build(); const res = await fetch(`${apiUrl}/strip-window-layouts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), layout_json }) }); setNewName(''); if (res.ok) { const created = await res.json().catch(() => null); const r2 = await fetch(`${apiUrl}/strip-window-layouts`); if (r2.ok) { const list = await r2.json(); setLayouts(list); if (created?.id) { const lay = list.find((l: any) => l.id === created.id); if (lay) { setSelId(lay.id); setTree(lay.layout_json || swDefaultLeaf()); setSelLeafId(null); setDirty(false); } } } } }}
             style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '14px' }}>+</button>
+        </div>
+        {/* Template picker */}
+        <div style={{ marginTop: '6px' }}>
+          <button type="button" onClick={() => setShowTplPicker(p => !p)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 7px', background: T.bg, border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', color: T.muted, fontSize: '11px' }}>
+            <span>📋 תבנית: <strong style={{ color: T.text }}>{SW_TEMPLATES.find(t => t.id === newTplId)?.label || 'ריק'}</strong></span>
+            <span>{showTplPicker ? '▲' : '▼'}</span>
+          </button>
+          {showTplPicker && (
+            <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {SW_TEMPLATES.map(tpl => (
+                <button key={tpl.id} type="button"
+                  onClick={() => { setNewTplId(tpl.id); setShowTplPicker(false); }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px', padding: '5px 8px', background: newTplId === tpl.id ? '#1e3a5f' : T.bg, border: `1px solid ${newTplId === tpl.id ? '#3b82f6' : T.border}`, borderRadius: '5px', cursor: 'pointer', width: '100%' }}>
+                  <span style={{ fontSize: '11px', color: newTplId === tpl.id ? '#7dd3fc' : T.text, fontWeight: newTplId === tpl.id ? 'bold' : 'normal' }}>{tpl.label}</span>
+                  <span style={{ fontSize: '10px', color: T.muted }}>{tpl.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
@@ -26102,68 +26161,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   const civCols: CivCol[] = presetForm.civilian_columns || [];
                   const setCivCols = (cols: CivCol[]) => setPresetForm(p => ({ ...p, civilian_columns: cols }));
                   const DEFAULT_COLORS = ['#1a5fa8','#0d7a3e','#c8a800','#7b2d8b','#c0392b','#1a6b6b','#e67e22','#2c3e50'];
-                  const CIV_TEMPLATES: { id: string; label: string; desc: string; bg: string; columns: CivCol[] }[] = [
-                    {
-                      id: 'tpl_2basic', label: '2 עמודות — בסיסי', desc: 'ממתין / פעיל', bg: '#07090c',
-                      columns: [
-                        { key: 'col_tpl_1', label: 'ממתין', sub_cols: [], color: '#1a5fa8' },
-                        { key: 'col_tpl_2', label: 'פעיל',  sub_cols: [], color: '#0d7a3e' },
-                      ],
-                    },
-                    {
-                      id: 'tpl_3terminal', label: '3 עמודות — מסוף', desc: 'כניסה / מגרש / מסלול', bg: '#07090c',
-                      columns: [
-                        { key: 'col_tpl_1', label: 'כניסה',  sub_cols: [],         color: '#4a5fa0' },
-                        { key: 'col_tpl_2', label: 'מגרש',   sub_cols: [],         color: '#4a5fa0' },
-                        { key: 'col_tpl_3', label: 'מסלול',  sub_cols: [],         color: '#1a6b6b' },
-                      ],
-                    },
-                    {
-                      id: 'tpl_3ctrl', label: '3 עמודות — בקרה', desc: 'ממתין / פעיל (עם ביה"ש) / יצא', bg: '#07090c',
-                      columns: [
-                        { key: 'col_tpl_1', label: 'ממתין', sub_cols: [],                    color: '#1a5fa8' },
-                        { key: 'col_tpl_2', label: 'פעיל',  sub_cols: ['01','02','03','04'], color: '#0d7a3e' },
-                        { key: 'col_tpl_3', label: 'יצא',   sub_cols: [],                    color: '#7b2d8b' },
-                      ],
-                    },
-                    {
-                      id: 'tpl_3atc', label: '3 עמודות — יב"א', desc: 'פוש / מסלול / מגדל', bg: '#060d10',
-                      columns: [
-                        { key: 'col_tpl_1', label: 'פוש',   sub_cols: [],         color: '#1a6b6b' },
-                        { key: 'col_tpl_2', label: 'מסלול', sub_cols: [],         color: '#1a6b6b' },
-                        { key: 'col_tpl_3', label: 'מגדל',  sub_cols: [],         color: '#4a5fa0' },
-                      ],
-                    },
-                  ];
                   return (
                     <div style={{ marginTop: '18px', padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>✈ עמודות לוח אזרחי</div>
-
-                      {/* Template picker */}
-                      <div style={{ marginBottom: '14px', padding: '10px 12px', background: '#060e1a', borderRadius: '7px', border: '1px solid #1e3a5f' }}>
-                        <div style={{ fontSize: '11px', color: '#7dd3fc', marginBottom: '8px', fontWeight: 'bold' }}>📋 טען תבנית</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                          {CIV_TEMPLATES.map(tpl => (
-                            <button key={tpl.id} type="button"
-                              onClick={() => {
-                                const freshCols = tpl.columns.map((c, i) => ({ ...c, key: `col_${Date.now()}_${i}` }));
-                                setCivCols(freshCols);
-                                setPresetForm(p => ({ ...p, civilian_board_bg: tpl.bg }));
-                              }}
-                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px', padding: '7px 10px', background: '#0f1e30', border: '1px solid #1e3a5f', borderRadius: '6px', cursor: 'pointer', minWidth: '130px' }}>
-                              <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
-                                {tpl.columns.map((c, i) => (
-                                  <div key={i} style={{ width: '14px', height: '22px', borderRadius: '2px', background: c.color, opacity: 0.85 }} />
-                                ))}
-                              </div>
-                              <span style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', textAlign: 'right' }}>{tpl.label}</span>
-                              <span style={{ fontSize: '10px', color: '#475569', textAlign: 'right' }}>{tpl.desc}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <p style={{ margin: '7px 0 0 0', fontSize: '10px', color: '#334155' }}>טעינת תבנית מחליפה את העמודות הנוכחיות — ניתן לערוך לאחר מכן.</p>
-                      </div>
-
+                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>✈ עמודות לוח אזרחי</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                         <p style={{ margin: 0, fontSize: '11px', color: '#475569' }}>גרור כרטיסיות לשינוי סדר. לחץ על שם לעריכה. עד 3 עמודות.</p>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', marginRight: 'auto', flexShrink: 0 }}>

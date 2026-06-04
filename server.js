@@ -5534,9 +5534,12 @@ app.get('/api/strip-window-layouts', async (req, res) => {
 
 app.post('/api/strip-window-layouts', async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, layout_json } = req.body;
     if (!name) return res.status(400).json({ error: 'name required' });
-    const r = await pool.query('INSERT INTO strip_window_layouts (name) VALUES ($1) RETURNING *', [name]);
+    const r = await pool.query(
+      'INSERT INTO strip_window_layouts (name, layout_json) VALUES ($1, $2) RETURNING *',
+      [name, layout_json != null ? JSON.stringify(layout_json) : null]
+    );
     res.json({ ...r.rows[0], columns: [] });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed' }); }
 });
