@@ -2552,6 +2552,90 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
   );
 };
 
+// --- כרטיס קבלה בנקודת העברה (עם ספירה לאחור) ---
+const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField }: {
+  t: any;
+  isConflict: boolean;
+  onAccept: (id: string) => void;
+  onReject: (id: string) => void;
+  onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+}) => {
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [countdownOver, setCountdownOver] = useState(false);
+  const sq = getTransferSq(t);
+
+  useEffect(() => {
+    if (!t.eta_minutes || !t.eta_set_at) { setCountdown(null); return; }
+    const update = () => {
+      const end = new Date(t.eta_set_at).getTime() + Number(t.eta_minutes) * 60000;
+      const rem = end - Date.now();
+      if (rem <= 0) { setCountdown('00:00'); setCountdownOver(true); return; }
+      setCountdownOver(false);
+      const m = Math.floor(rem / 60000);
+      const s = Math.floor((rem % 60000) / 1000);
+      setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
+  }, [t.eta_minutes, t.eta_set_at]);
+
+  const [editingAlt, setEditingAlt] = useState(false);
+  const [altAnchor, setAltAnchor] = useState<DOMRect | null>(null);
+  const altSpanRef = useRef<HTMLSpanElement>(null);
+
+  return (
+    <div className={isConflict ? 'alt-conflict-flash' : ''} style={{
+      background: isConflict ? '#7f1d1d' : '#dcfce7',
+      border: `1px solid ${isConflict ? '#ef4444' : '#22c55e'}`,
+      borderRadius: '4px',
+      padding: '5px',
+      marginBottom: '4px',
+      direction: 'rtl'
+    }}>
+      {/* שורה 1: callsign + גובה */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
+            {isConflict && '⚠ '}{getTransferLabel(t)}
+          </div>
+          {sq && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
+        </div>
+        <span
+          ref={altSpanRef}
+          title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+          onPointerDown={e => { if (onUpdateStripField && altSpanRef.current) { e.stopPropagation(); setAltAnchor(altSpanRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
+          style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#450a0a' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+        >
+          {t.alt ? normalizeAlt(t.alt) : '—'}
+        </span>
+      </div>
+      {/* שורה 2: ספירה לאחור (אם קיימת) */}
+      {countdown !== null && (
+        <div style={{ textAlign: 'center', marginBottom: '3px' }}>
+          <span title="זמן עד להגעה לנקודת העברה" style={{ fontSize: '12px', fontWeight: 'bold', color: countdownOver ? '#ef4444' : '#15803d', background: countdownOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${countdownOver ? '#dc2626' : '#22c55e'}`, borderRadius: '4px', padding: '1px 8px', fontVariantNumeric: 'tabular-nums', letterSpacing: '0.5px' }}>
+            ⏱ {countdown}
+          </span>
+        </div>
+      )}
+      {/* כפתורי קבל/דחה */}
+      <div style={{ display: 'flex', gap: '2px' }}>
+        <button onClick={(e) => { e.stopPropagation(); onAccept(t.id); }}
+          style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>קבל</button>
+        <button onClick={(e) => { e.stopPropagation(); onReject(t.id); }}
+          style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>דחה</button>
+      </div>
+      {editingAlt && altAnchor && (
+        <HandwritingOverlay
+          onCancel={() => setEditingAlt(false)}
+          onComplete={(val: string) => { const n = normalizeAlt(val); setEditingAlt(false); if (onUpdateStripField) onUpdateStripField(String(t.strip_id), 'alt', n); }}
+          anchorRect={altAnchor}
+        />
+      )}
+    </div>
+  );
+};
+
 // --- פאנל נקודת העברה עם עמודות העברה/קבלה ---
 const DraggableNeighborPanel = ({ 
   neighbor, 
@@ -3006,6 +3090,23 @@ const DraggableIncomingTransferMini = ({
   const altRef = useRef<HTMLSpanElement>(null);
   const hasExternalNote = !!transfer.note && String(transfer.note_by_preset_id) !== String(presetId);
   const openNote = () => { setEditBuffer(transfer.note || ''); setNoteOpen(true); };
+  const [etaCountdown, setEtaCountdown] = useState<string | null>(null);
+  const [etaOver, setEtaOver] = useState(false);
+  useEffect(() => {
+    if (!transfer.eta_minutes || !transfer.eta_set_at) { setEtaCountdown(null); return; }
+    const update = () => {
+      const end = new Date(transfer.eta_set_at).getTime() + Number(transfer.eta_minutes) * 60000;
+      const rem = end - Date.now();
+      if (rem <= 0) { setEtaCountdown('00:00'); setEtaOver(true); return; }
+      setEtaOver(false);
+      const m = Math.floor(rem / 60000);
+      const s = Math.floor((rem % 60000) / 1000);
+      setEtaCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
+  }, [transfer.eta_minutes, transfer.eta_set_at]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -3101,15 +3202,22 @@ const DraggableIncomingTransferMini = ({
           </div>
           {getTransferSq(transfer) && <span style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', flexShrink: 0, opacity: 0.9 }}>{getTransferSq(transfer)}</span>}
         </div>
-        {/* שורה 2: alt רוחב מלא */}
-        <span
-          ref={altRef}
-          title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-          onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
-          style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
-        >
-          {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
-        </span>
+        {/* שורה 2: alt + ספירה לאחור */}
+        <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+          <span
+            ref={altRef}
+            title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
+            onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
+            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+          >
+            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
+          </span>
+          {etaCountdown !== null && (
+            <span title="זמן עד להגעה" style={{ fontSize: '11px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '4px', padding: '1px 5px', letterSpacing: '0.5px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+              ⏱{etaCountdown}
+            </span>
+          )}
+        </div>
         {transfer.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#6ee7b7', background: hasExternalNote ? '#2d0505' : '#052e16', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#166534'}`, direction: 'rtl' }}>
             {transfer.note}
@@ -3630,45 +3738,16 @@ const DraggableMapMarker = ({
           <div style={{ fontSize: '10px', color: lightMode ? '#15803d' : '#22c55e', fontWeight: 'bold', marginBottom: '4px', textAlign: 'center' }}>
             קבלה ({markerIncoming.length})
           </div>
-          {markerIncoming.map((t: any) => {
-            const isConflict = markerConflictIds.has(String(t.id));
-            const sq = getTransferSq(t);
-            return (
-            <div key={t.id} className={isConflict ? 'alt-conflict-flash' : ''} style={{ 
-              background: isConflict ? '#7f1d1d' : '#dcfce7', 
-              border: `1px solid ${isConflict ? '#ef4444' : '#22c55e'}`,
-              borderRadius: '4px',
-              padding: '5px',
-              marginBottom: '4px',
-              direction: 'rtl'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '4px', marginBottom: '3px' }}>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>
-                    {isConflict && '⚠ '}{getTransferLabel(t)}
-                  </div>
-                  {sq && <div style={{ fontSize: '9px', color: isConflict ? '#fca5a5' : '#15803d', marginTop: '1px', opacity: 0.85 }}>{sq}</div>}
-                </div>
-                <span
-                  title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
-                  onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); setEditingAltVal(t.alt || ''); setEditingAltId(String(t.id)); setEditingAltAnchor(e.currentTarget.getBoundingClientRect()); } }}
-                  style={{ fontSize: '14px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#450a0a' : '#bbf7d0', padding: '1px 6px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', flexShrink: 0, letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
-                >
-                  {t.alt ? normalizeAlt(t.alt) : '—'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onAcceptTransfer(t.id); }}
-                  style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-                >קבל</button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRejectTransfer(t.id); }}
-                  style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}
-                >דחה</button>
-              </div>
-            </div>
-          ); })}
+          {markerIncoming.map((t: any) => (
+            <IncomingTransferCard
+              key={t.id}
+              t={t}
+              isConflict={markerConflictIds.has(String(t.id))}
+              onAccept={onAcceptTransfer}
+              onReject={onRejectTransfer}
+              onUpdateStripField={onUpdateStripField}
+            />
+          ))}
         </div>
       </div>
       
