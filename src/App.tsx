@@ -5569,10 +5569,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdatePreset?: (fields: Record<string, any>) => void;
   stripsPinned?: boolean;
   onTogglePin?: () => void;
+  airfieldPolygons?: any[];
+  airfieldSectors?: any[];
+  airfieldStatusTypes?: any[];
+  airfieldPolygonStatuses?: any[];
+  onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string) => Promise<void>;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
-  const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true });
+  const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true, polygons: true, sectors: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -5580,6 +5585,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string } | null>(null);
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
+  const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
+  const [polygonPickerNote, setPolygonPickerNote] = useState('');
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
@@ -5623,6 +5630,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     }
   }); // minimum datk to highlight; null = no filter
   const isFirstDatkMount = React.useRef(true);
+  React.useEffect(() => {
+    setPolygonPickerNote(polygonStatusPicker?.currentStatus?.note || '');
+  }, [polygonStatusPicker]);
+
   React.useEffect(() => {
     if (isFirstDatkMount.current) { isFirstDatkMount.current = false; return; }
     try {
@@ -7080,7 +7091,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </button>
             {showLayerPanel && (
               <div style={{ marginTop: '4px', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${border}`, borderRadius: '6px', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}>
-                {[{ key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
+                {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
@@ -7089,6 +7100,73 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               </div>
             )}
           </div>
+
+          {/* Airfield Polygons overlay */}
+          {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, zIndex: 3 }}>
+              {(airfieldPolygons || []).map((pg: any) => {
+                const pts: { x: number; y: number }[] = Array.isArray(pg.polygon) ? pg.polygon : [];
+                if (pts.length < 3) return null;
+                const pointsStr = pts.map(p => `${p.x},${p.y}`).join(' ');
+                const assignment = (airfieldPolygonStatuses || []).find((s: any) => Number(s.polygon_id) === Number(pg.id));
+                const fillColor = assignment?.status_color || pg.color || '#3b82f6';
+                const label = assignment ? `${pg.name}: ${assignment.status_name}` : pg.name;
+                const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+                const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+                return (
+                  <g key={pg.id} style={{ cursor: onUpdatePolygonStatus ? 'pointer' : 'default' }}
+                    onClick={onUpdatePolygonStatus ? (e: React.MouseEvent<SVGGElement>) => {
+                      e.stopPropagation();
+                      setPolygonStatusPicker({ polygon: pg, x: e.clientX, y: e.clientY, currentStatus: assignment || null });
+                    } : undefined}>
+                    <polygon points={pointsStr} fill={fillColor} fillOpacity={assignment ? 0.55 : 0.2} stroke={fillColor} strokeWidth="0.5" strokeOpacity="0.9" />
+                    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="2.2" fontWeight="bold"
+                      style={{ userSelect: 'none', textShadow: '0 1px 2px #0008', pointerEvents: 'none' }}>
+                      {pg.name}
+                    </text>
+                    {assignment && (
+                      <text x={cx} y={cy + 2.8} textAnchor="middle" dominantBaseline="middle" fill={fillColor} fontSize="1.9" fontWeight="bold"
+                        style={{ userSelect: 'none', pointerEvents: 'none' }}>
+                        {assignment.status_name}
+                      </text>
+                    )}
+                    <title>{label}{assignment?.note ? `\n${assignment.note}` : ''}</title>
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+
+          {/* Airfield Sectors overlay */}
+          {mapLayers.sectors && imgBounds && (airfieldSectors || []).length > 0 && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
+              {(airfieldSectors || []).map((sec: any) => {
+                const x = Math.min(sec.x1_pct, sec.x2_pct);
+                const y = Math.min(sec.y1_pct, sec.y2_pct);
+                const w = Math.abs(sec.x2_pct - sec.x1_pct);
+                const h = Math.abs(sec.y2_pct - sec.y1_pct);
+                if (w < 0.5 || h < 0.5) return null;
+                const col = sec.color || '#f59e0b';
+                return (
+                  <g key={sec.id}>
+                    <rect x={x} y={y} width={w} height={h} fill={col} fillOpacity="0.08" stroke={col} strokeWidth="0.6" strokeDasharray="2,1.2" />
+                    <text x={x + w / 2} y={y + 1.6} textAnchor="middle" dominantBaseline="hanging" fill={col} fontSize="2.4" fontWeight="bold"
+                      style={{ userSelect: 'none' }}>
+                      {sec.name}
+                    </text>
+                    {sec.description && (
+                      <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="1.7" fillOpacity="0.8"
+                        style={{ userSelect: 'none' }}>
+                        {sec.description}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
 
           {/* Route lines overlay */}
           {mapLayers.routes && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
@@ -7806,6 +7884,58 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       })()}
 
       {/* Element quick status picker — for can_change_status elements */}
+      {/* Polygon status picker */}
+      {polygonStatusPicker && (() => {
+        const { polygon, x, y, currentStatus } = polygonStatusPicker;
+        const px = Math.min(x + 8, window.innerWidth - 230);
+        const py = Math.min(y + 8, window.innerHeight - 320);
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setPolygonStatusPicker(null)}>
+            <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: 'bold' }}>
+                🔷 {polygon.name}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '8px' }}>
+                {(airfieldStatusTypes || []).map((st: any) => {
+                  const isSelected = currentStatus?.status_type_id === st.id;
+                  return (
+                    <button key={st.id} onClick={() => {
+                      if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, st.id, polygonPickerNote);
+                      setPolygonStatusPicker(null);
+                    }}
+                      style={{ padding: '7px 12px', background: isSelected ? (st.color || '#888') + '33' : 'transparent', border: `1px solid ${isSelected ? (st.color || '#888') : '#334155'}`, borderRadius: '7px', color: isSelected ? (st.color || '#e2e8f0') : '#cbd5e1', cursor: 'pointer', fontSize: '13px', fontWeight: isSelected ? 'bold' : 'normal', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: st.color || '#888', display: 'inline-block', flexShrink: 0 }} />
+                      {st.name}
+                      {isSelected && <span style={{ marginRight: 'auto', fontSize: '11px' }}>✓</span>}
+                    </button>
+                  );
+                })}
+                {currentStatus && (
+                  <button onClick={() => {
+                    if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, null, '');
+                    setPolygonStatusPicker(null);
+                  }}
+                    style={{ padding: '5px 12px', background: 'transparent', border: '1px solid #475569', borderRadius: '7px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', textAlign: 'right' }}>
+                    🗑 נקה סטטוס
+                  </button>
+                )}
+              </div>
+              <input value={polygonPickerNote} onChange={e => setPolygonPickerNote(e.target.value)} placeholder="הערה (אופציונלי)"
+                style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#e2e8f0', fontSize: '12px', padding: '5px 8px', boxSizing: 'border-box' }} />
+              {polygonPickerNote !== (currentStatus?.note || '') && currentStatus && (
+                <button onClick={() => {
+                  if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote);
+                  setPolygonStatusPicker(null);
+                }} style={{ marginTop: '6px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>
+                  שמור הערה
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {elemStatusPicker && (() => {
         const el = elemStatusPicker.el;
         const rawAllowed = el.type_allowed_statuses;
@@ -12038,6 +12168,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
   const [aviationBases, setAviationBases] = useState<any[]>([]);
   const [airfieldRoutes, setAirfieldRoutes] = useState<any[]>([]);
+  const [groundAirfieldPolygons, setGroundAirfieldPolygons] = useState<any[]>([]);
+  const [groundAirfieldSectors, setGroundAirfieldSectors] = useState<any[]>([]);
+  const [groundAirfieldStatusTypes, setGroundAirfieldStatusTypes] = useState<any[]>([]);
+  const [groundPolygonStatuses, setGroundPolygonStatuses] = useState<any[]>([]);
   const [groundStripAircraft, setGroundStripAircraft] = useState<Record<string, GroundAircraftRow[]>>({});
   const [groundSingleTransfers, setGroundSingleTransfers] = useState<{ sectorId: number; callSign: string; aircraftIdx: number; totalCount: number }[]>([]);
   const neighbors = allSectors.slice(1);
@@ -13520,6 +13654,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       setAirfieldElements([]);
     }
   }, [activeAirfield?.id, isTowerMode, allWorkGroups, workstationPresets, session?.presetId]);
+
+  // Load ground airfield polygons, sectors, status types and polygon statuses (poll every 10s)
+  React.useEffect(() => {
+    const afId = activeAirfield?.id;
+    if (!afId) {
+      setGroundAirfieldPolygons([]); setGroundAirfieldSectors([]);
+      setGroundAirfieldStatusTypes([]); setGroundPolygonStatuses([]);
+      return;
+    }
+    const load = () => {
+      fetch(`${API_URL}/airfield-polygons?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setGroundAirfieldPolygons(d.map((p: any) => ({ ...p, polygon: Array.isArray(p.polygon) ? p.polygon : (typeof p.polygon === 'string' ? JSON.parse(p.polygon) : []) })))).catch(() => {});
+      fetch(`${API_URL}/airfield-sectors?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setGroundAirfieldSectors).catch(() => {});
+      fetch(`${API_URL}/airfield-status-types?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setGroundAirfieldStatusTypes).catch(() => {});
+      fetch(`${API_URL}/airfield-polygon-statuses?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setGroundPolygonStatuses).catch(() => {});
+    };
+    load();
+    const iv = setInterval(load, 10000);
+    return () => clearInterval(iv);
+  }, [activeAirfield?.id]);
 
   const adminFilterQuery: QGroup | null = myPresetConfig?.filter_query || null;
   // Block spaces relevant to this workstation — only those that have block tables assigned to this preset
@@ -15160,6 +15313,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         });
       } catch (e) { console.error(e); }
     }, 600);
+  };
+
+  const handleUpdatePolygonStatus = async (polygonId: number, statusTypeId: number | null, note: string) => {
+    if (statusTypeId === null) {
+      setGroundPolygonStatuses(prev => prev.filter((s: any) => Number(s.polygon_id) !== Number(polygonId)));
+      try {
+        await fetch(`${API_URL}/airfield-polygon-statuses/${polygonId}`, { method: 'DELETE' });
+      } catch (e) { console.error(e); }
+    } else {
+      const statusType = groundAirfieldStatusTypes.find((st: any) => st.id === statusTypeId);
+      setGroundPolygonStatuses(prev => {
+        const filtered = prev.filter((s: any) => Number(s.polygon_id) !== Number(polygonId));
+        return [...filtered, { polygon_id: polygonId, status_type_id: statusTypeId, note, status_name: statusType?.name, status_color: statusType?.color }];
+      });
+      try {
+        await fetch(`${API_URL}/airfield-polygon-statuses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polygon_id: polygonId, status_type_id: statusTypeId, note }) });
+      } catch (e) { console.error(e); }
+    }
   };
 
   const handleUpdateElementStatus = async (elementId: number, status: string) => {
@@ -17205,6 +17376,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdateElement={handleUpdateElement}
                 onMergePartial={handleMergePartial}
                 onSplitPartial={handleSplitPartial}
+                airfieldPolygons={groundAirfieldPolygons}
+                airfieldSectors={groundAirfieldSectors}
+                airfieldStatusTypes={groundAirfieldStatusTypes}
+                airfieldPolygonStatuses={groundPolygonStatuses}
+                onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>

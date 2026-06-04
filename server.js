@@ -5907,6 +5907,44 @@ app.delete('/api/airfield-status-types/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete status type' }); }
 });
 
+// ── Airfield Polygon Statuses (operational) ───────────────────────────────────
+app.get('/api/airfield-polygon-statuses', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const result = await pool.query(
+      `SELECT ps.*, st.name AS status_name, st.color AS status_color
+       FROM airfield_polygon_statuses ps
+       JOIN airfield_polygons pg ON pg.id = ps.polygon_id
+       LEFT JOIN airfield_status_types st ON st.id = ps.status_type_id
+       WHERE pg.airfield_id = $1`,
+      [airfield_id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch polygon statuses' }); }
+});
+
+app.post('/api/airfield-polygon-statuses', async (req, res) => {
+  try {
+    const { polygon_id, status_type_id, note } = req.body;
+    const result = await pool.query(
+      `INSERT INTO airfield_polygon_statuses (polygon_id, status_type_id, note, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (polygon_id) DO UPDATE SET status_type_id=$2, note=$3, updated_at=NOW()
+       RETURNING *`,
+      [polygon_id, status_type_id || null, note || null]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to set polygon status' }); }
+});
+
+app.delete('/api/airfield-polygon-statuses/:polygon_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_polygon_statuses WHERE polygon_id=$1', [req.params.polygon_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to clear polygon status' }); }
+});
+
 // ── Workstation Contacts ─────────────────────────────────────────────────────
 app.get('/api/workstation-contacts', async (req, res) => {
   try {
