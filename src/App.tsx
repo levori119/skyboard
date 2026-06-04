@@ -2697,7 +2697,7 @@ const DraggableNeighborPanel = ({
   };
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
-  const sectorIncoming = incomingTransfers.filter(t => Number(t.from_sector_id) === Number(neighbor.id));
+  const sectorIncoming = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
 
   const parseAlt = (alt: string | null | undefined): number | null => {
     if (!alt) return null;
@@ -17060,29 +17060,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 >◀</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                {/* General incoming transfers — shown for ALL directed transfers to this workstation */}
-                {incomingTransfers.length > 0 && (
-                  <div style={{ padding: '6px 8px', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, background: lightMode ? '#eff6ff' : '#0a1628' }}>
-                    <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center', direction: 'rtl' }}>
-                      📥 ממתינים לקבלה ({incomingTransfers.length})
-                    </div>
-                    {incomingTransfers.map((t: any) => (
-                      <DraggableIncomingTransferMini
-                        key={t.id}
-                        transfer={t}
-                        onAccept={handleAcceptTransfer}
-                        onReject={handleRejectTransfer}
-                        onAcceptToMap={handleAcceptToMap}
-                        isConflict={crossSectorConflictIds.has(String(t.id))}
-                        onUpdateStripField={handleUpdateStripField}
-                        zoom={mapZoom}
-                        pan={mapPan}
-                        presetId={session.presetId}
-                        onUpdateNote={handleUpdateTransferNote}
-                      />
-                    ))}
-                  </div>
-                )}
                 {allSectors.map(n => (
                   <DraggableNeighborPanel
                     key={n.id}
