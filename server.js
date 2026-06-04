@@ -5771,6 +5771,142 @@ app.delete('/api/airfield-routes/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
 });
 
+// ── Airfield Polygons ─────────────────────────────────────────────────────────
+app.get('/api/airfield-polygons', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const result = await pool.query(
+      'SELECT * FROM airfield_polygons WHERE airfield_id=$1 ORDER BY sort_order, id',
+      [airfield_id]
+    );
+    res.json(result.rows.map(r => ({
+      ...r,
+      polygon: Array.isArray(r.polygon) ? r.polygon : (r.polygon ? (() => { try { return JSON.parse(r.polygon); } catch { return []; } })() : [])
+    })));
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch polygons' }); }
+});
+
+app.post('/api/airfield-polygons', async (req, res) => {
+  try {
+    const { airfield_id, parent_id, name, color, notes, polygon } = req.body;
+    const result = await pool.query(
+      'INSERT INTO airfield_polygons (airfield_id, parent_id, name, color, notes, polygon) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [airfield_id, parent_id || null, name, color || '#3b82f6', notes || null, JSON.stringify(polygon || [])]
+    );
+    const r = result.rows[0];
+    res.json({ ...r, polygon: Array.isArray(r.polygon) ? r.polygon : (r.polygon ? JSON.parse(r.polygon) : []) });
+  } catch (err) { res.status(500).json({ error: 'Failed to create polygon' }); }
+});
+
+app.put('/api/airfield-polygons/:id', async (req, res) => {
+  try {
+    const { name, color, notes, polygon } = req.body;
+    const result = await pool.query(
+      'UPDATE airfield_polygons SET name=$1, color=$2, notes=$3, polygon=$4 WHERE id=$5 RETURNING *',
+      [name, color || '#3b82f6', notes || null, JSON.stringify(polygon || []), req.params.id]
+    );
+    const r = result.rows[0];
+    res.json({ ...r, polygon: Array.isArray(r.polygon) ? r.polygon : (r.polygon ? JSON.parse(r.polygon) : []) });
+  } catch (err) { res.status(500).json({ error: 'Failed to update polygon' }); }
+});
+
+app.delete('/api/airfield-polygons/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_polygons WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete polygon' }); }
+});
+
+// ── Airfield Sectors ──────────────────────────────────────────────────────────
+app.get('/api/airfield-sectors', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const result = await pool.query(
+      'SELECT * FROM airfield_sectors WHERE airfield_id=$1 ORDER BY sort_order, id',
+      [airfield_id]
+    );
+    res.json(result.rows.map(r => ({
+      ...r,
+      rect: typeof r.rect === 'object' ? r.rect : (r.rect ? JSON.parse(r.rect) : { x: 10, y: 10, w: 30, h: 20 })
+    })));
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch sectors' }); }
+});
+
+app.post('/api/airfield-sectors', async (req, res) => {
+  try {
+    const { airfield_id, name, notes, rect } = req.body;
+    const result = await pool.query(
+      'INSERT INTO airfield_sectors (airfield_id, name, notes, rect) VALUES ($1,$2,$3,$4) RETURNING *',
+      [airfield_id, name, notes || null, JSON.stringify(rect || { x: 10, y: 10, w: 30, h: 20 })]
+    );
+    const r = result.rows[0];
+    res.json({ ...r, rect: typeof r.rect === 'object' ? r.rect : JSON.parse(r.rect) });
+  } catch (err) { res.status(500).json({ error: 'Failed to create sector' }); }
+});
+
+app.put('/api/airfield-sectors/:id', async (req, res) => {
+  try {
+    const { name, notes, rect } = req.body;
+    const result = await pool.query(
+      'UPDATE airfield_sectors SET name=$1, notes=$2, rect=$3 WHERE id=$4 RETURNING *',
+      [name, notes || null, JSON.stringify(rect || { x: 10, y: 10, w: 30, h: 20 }), req.params.id]
+    );
+    const r = result.rows[0];
+    res.json({ ...r, rect: typeof r.rect === 'object' ? r.rect : JSON.parse(r.rect) });
+  } catch (err) { res.status(500).json({ error: 'Failed to update sector' }); }
+});
+
+app.delete('/api/airfield-sectors/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_sectors WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete sector' }); }
+});
+
+// ── Airfield Status Types ─────────────────────────────────────────────────────
+app.get('/api/airfield-status-types', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const result = await pool.query(
+      'SELECT * FROM airfield_status_types WHERE airfield_id=$1 ORDER BY sort_order, id',
+      [airfield_id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch status types' }); }
+});
+
+app.post('/api/airfield-status-types', async (req, res) => {
+  try {
+    const { airfield_id, name, color } = req.body;
+    const result = await pool.query(
+      'INSERT INTO airfield_status_types (airfield_id, name, color) VALUES ($1,$2,$3) RETURNING *',
+      [airfield_id, name, color || '#6b7280']
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create status type' }); }
+});
+
+app.put('/api/airfield-status-types/:id', async (req, res) => {
+  try {
+    const { name, color } = req.body;
+    const result = await pool.query(
+      'UPDATE airfield_status_types SET name=$1, color=$2 WHERE id=$3 RETURNING *',
+      [name, color || '#6b7280', req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update status type' }); }
+});
+
+app.delete('/api/airfield-status-types/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_status_types WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete status type' }); }
+});
+
 // ── Workstation Contacts ─────────────────────────────────────────────────────
 app.get('/api/workstation-contacts', async (req, res) => {
   try {

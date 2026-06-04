@@ -25690,6 +25690,29 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [placingElementMode, setPlacingElementMode] = useState(false);
   const [placingElementId, setPlacingElementId] = useState<number | null>(null);
 
+  // Airfield Polygons / Sectors / Status Types admin state
+  const [adminAirfieldPolygons, setAdminAirfieldPolygons] = useState<any[]>([]);
+  const [adminAirfieldSectors, setAdminAirfieldSectors] = useState<any[]>([]);
+  const [adminAirfieldStatusTypes, setAdminAirfieldStatusTypes] = useState<any[]>([]);
+  const [airfieldActiveSubTab, setAirfieldActiveSubTab] = useState<'points'|'routes'|'elements'|'polygons'|'sectors'|'statustypes'>('points');
+  // Polygon drawing state
+  const [drawingPolygonId, setDrawingPolygonId] = useState<number|null>(null);
+  const [polygonDraftPoints, setPolygonDraftPoints] = useState<{x:number;y:number}[]>([]);
+  const [editingPolygon, setEditingPolygon] = useState<any|null>(null);
+  const [polygonForm, setPolygonForm] = useState({ name: '', color: '#3b82f6', notes: '', parent_id: '' });
+  const [showPolygonForm, setShowPolygonForm] = useState(false);
+  // Sector drawing state (airfield sectors, different from transfer sectors)
+  const [drawingSectorId, setDrawingSectorId] = useState<number|null>(null);
+  const [sectorDragStart, setSectorDragStart] = useState<{x:number;y:number}|null>(null);
+  const [sectorDraftRect, setSectorDraftRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
+  const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
+  const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
+  const [showAirfieldSectorForm, setShowAirfieldSectorForm] = useState(false);
+  // Status types state
+  const [editingStatusType, setEditingStatusType] = useState<any|null>(null);
+  const [statusTypeForm, setStatusTypeForm] = useState({ name: '', color: '#6b7280' });
+  const [showStatusTypeForm, setShowStatusTypeForm] = useState(false);
+
   // Base Statuses admin state
   const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
   const [editingBaseStatus, setEditingBaseStatus] = useState<any | null>(null);
@@ -29125,6 +29148,21 @@ CHARLIE,1,301,`}
 
         {/* Airfields Tab */}
         {activeTab === 'airfields' && (() => {
+          const loadAirfieldPolygons = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-polygons?airfield_id=${airfieldId}`);
+            if (r.ok) setAdminAirfieldPolygons(await r.json());
+            else setAdminAirfieldPolygons([]);
+          };
+          const loadAirfieldSectors = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-sectors?airfield_id=${airfieldId}`);
+            if (r.ok) setAdminAirfieldSectors(await r.json());
+            else setAdminAirfieldSectors([]);
+          };
+          const loadAirfieldStatusTypes = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-status-types?airfield_id=${airfieldId}`);
+            if (r.ok) setAdminAirfieldStatusTypes(await r.json());
+            else setAdminAirfieldStatusTypes([]);
+          };
           const loadAirfieldElements = async (airfieldId: number) => {
             const r = await fetch(`${API_URL}/airfield-elements?airfield_id=${airfieldId}`);
             if (r.ok) setAdminAirfieldElements(await r.json());
@@ -29146,6 +29184,9 @@ CHARLIE,1,301,`}
               }
             }
             await loadAirfieldElements(airfieldId);
+            await loadAirfieldPolygons(airfieldId);
+            await loadAirfieldSectors(airfieldId);
+            await loadAirfieldStatusTypes(airfieldId);
           };
           const saveAirfield = async () => {
             if (!airfieldForm.name.trim()) return;
@@ -29571,6 +29612,207 @@ CHARLIE,1,301,`}
                       </div>
                     )}
 
+                    {/* ── Airfield Status Types ── */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <div style={{ color: '#fb923c', fontSize: '11px', fontWeight: 'bold' }}>🏷️ סוגי סטטוס מבצעי</div>
+                          <button onClick={() => { setEditingStatusType(null); setStatusTypeForm({ name: '', color: '#6b7280' }); setShowStatusTypeForm(true); }}
+                            style={{ padding: '2px 8px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>
+                        </div>
+                        {showStatusTypeForm && (
+                          <div style={{ background: '#0f172a', borderRadius: '6px', border: '1px solid #c2410c', padding: '8px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <input value={statusTypeForm.name} onChange={e => setStatusTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם סטטוס (לדוג׳: שמיש, סגור, שיפוצים)"
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b' }}>צבע:</label>
+                              <input type="color" value={statusTypeForm.color} onChange={e => setStatusTypeForm(p => ({ ...p, color: e.target.value }))}
+                                style={{ width: '32px', height: '24px', border: 'none', background: 'transparent', cursor: 'pointer' }} />
+                              <span style={{ width: '16px', height: '16px', borderRadius: '4px', background: statusTypeForm.color, display: 'inline-block', border: '1px solid #475569' }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={async () => {
+                                if (!statusTypeForm.name.trim()) return;
+                                const url = editingStatusType ? `${API_URL}/airfield-status-types/${editingStatusType.id}` : `${API_URL}/airfield-status-types`;
+                                const method = editingStatusType ? 'PUT' : 'POST';
+                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: statusTypeForm.name, color: statusTypeForm.color }) });
+                                if (res.ok) { setShowStatusTypeForm(false); setEditingStatusType(null); setStatusTypeForm({ name: '', color: '#6b7280' }); loadAirfieldStatusTypes(selectedAdminAirfieldId!); }
+                              }} style={{ flex: 1, padding: '4px', background: '#c2410c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              <button onClick={() => { setShowStatusTypeForm(false); setEditingStatusType(null); }} style={{ padding: '4px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {adminAirfieldStatusTypes.length === 0
+                            ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px' }}>אין סטטוסים — הוסף ראשון</div>
+                            : adminAirfieldStatusTypes.map(st => (
+                              <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', borderRadius: '4px', padding: '4px 7px', border: `1px solid ${st.color}44` }}>
+                                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: st.color, flexShrink: 0 }} />
+                                <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{st.name}</span>
+                                <button onClick={() => { setEditingStatusType(st); setStatusTypeForm({ name: st.name, color: st.color }); setShowStatusTypeForm(true); }}
+                                  style={{ padding: '1px 6px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏️</button>
+                                <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-status-types/${st.id}`, { method: 'DELETE' }); loadAirfieldStatusTypes(selectedAdminAirfieldId!); }}
+                                  style={{ padding: '1px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Airfield Polygons (runways, aprons, etc) ── */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <div style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 'bold' }}>🔷 אזורים ומסלולים (פוליגונים)</div>
+                          <button onClick={() => { setEditingPolygon(null); setPolygonForm({ name: '', color: '#a78bfa', notes: '', parent_id: '' }); setShowPolygonForm(true); }}
+                            style={{ padding: '2px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>
+                        </div>
+                        {showPolygonForm && (
+                          <div style={{ background: '#0f172a', borderRadius: '6px', border: '1px solid #7c3aed', padding: '8px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <input value={polygonForm.name} onChange={e => setPolygonForm(p => ({ ...p, name: e.target.value }))} placeholder="שם האזור (לדוג׳: מסלול 28R)"
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                            <textarea value={polygonForm.notes} onChange={e => setPolygonForm(p => ({ ...p, notes: e.target.value }))} placeholder="הערה (אופציונלי)" rows={2}
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <label style={{ fontSize: '10px', color: '#64748b' }}>צבע:</label>
+                              <input type="color" value={polygonForm.color} onChange={e => setPolygonForm(p => ({ ...p, color: e.target.value }))}
+                                style={{ width: '32px', height: '24px', border: 'none', background: 'transparent', cursor: 'pointer' }} />
+                            </div>
+                            <select value={polygonForm.parent_id} onChange={e => setPolygonForm(p => ({ ...p, parent_id: e.target.value }))}
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl' }}>
+                              <option value="">— פוליגון ראשי (ללא הורה) —</option>
+                              {adminAirfieldPolygons.filter(p => !p.parent_id).map(p => (
+                                <option key={p.id} value={p.id}>{p.name} (תת-פוליגון)</option>
+                              ))}
+                            </select>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              {hasMap && (
+                                <button onClick={async () => {
+                                  if (!polygonForm.name.trim()) return;
+                                  const res = await fetch(`${API_URL}/airfield-polygons`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: polygonForm.name, color: polygonForm.color, notes: polygonForm.notes, parent_id: polygonForm.parent_id ? Number(polygonForm.parent_id) : null, polygon: [] }) });
+                                  if (res.ok) {
+                                    const created = await res.json();
+                                    setShowPolygonForm(false); setPolygonForm({ name: '', color: '#a78bfa', notes: '', parent_id: '' });
+                                    await loadAirfieldPolygons(selectedAdminAirfieldId!);
+                                    setDrawingPolygonId(created.id); setPolygonDraftPoints([]);
+                                  }
+                                }} style={{ flex: 1, padding: '4px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✏️ צייר על מפה</button>
+                              )}
+                              <button onClick={async () => {
+                                if (!polygonForm.name.trim()) return;
+                                const url = editingPolygon ? `${API_URL}/airfield-polygons/${editingPolygon.id}` : `${API_URL}/airfield-polygons`;
+                                const method = editingPolygon ? 'PUT' : 'POST';
+                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: polygonForm.name, color: polygonForm.color, notes: polygonForm.notes, parent_id: polygonForm.parent_id ? Number(polygonForm.parent_id) : null, polygon: editingPolygon?.polygon || [] }) });
+                                if (res.ok) { setShowPolygonForm(false); setEditingPolygon(null); loadAirfieldPolygons(selectedAdminAirfieldId!); }
+                              }} style={{ padding: '4px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              <button onClick={() => { setShowPolygonForm(false); setEditingPolygon(null); }} style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                            </div>
+                          </div>
+                        )}
+                        {drawingPolygonId && (
+                          <div style={{ background: '#2d1657', border: '1px solid #7c3aed', borderRadius: '5px', padding: '5px 8px', marginBottom: '5px', fontSize: '11px', color: '#c4b5fd' }}>
+                            ✏️ ציור פוליגון — {polygonDraftPoints.length} נקודות — לחץ לחיצה כפולה לסיום — ESC לביטול
+                            {polygonDraftPoints.length >= 3 && (
+                              <button onClick={async () => {
+                                await fetch(`${API_URL}/airfield-polygons/${drawingPolygonId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: adminAirfieldPolygons.find(p => p.id === drawingPolygonId)?.name, color: adminAirfieldPolygons.find(p => p.id === drawingPolygonId)?.color || '#a78bfa', polygon: polygonDraftPoints }) });
+                                setDrawingPolygonId(null); setPolygonDraftPoints([]);
+                                loadAirfieldPolygons(selectedAdminAirfieldId!);
+                              }} style={{ marginRight: '8px', padding: '2px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>✓ שמור</button>
+                            )}
+                            <button onClick={() => { setDrawingPolygonId(null); setPolygonDraftPoints([]); }} style={{ marginRight: '4px', padding: '2px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {adminAirfieldPolygons.length === 0
+                            ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px' }}>אין פוליגונים עדיין</div>
+                            : adminAirfieldPolygons.map(pg => (
+                              <div key={pg.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${pg.color}55`, padding: '4px 7px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span style={{ width: '10px', height: '10px', background: pg.color + '66', border: `2px solid ${pg.color}`, borderRadius: '2px', flexShrink: 0 }} />
+                                  <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}>{pg.parent_id ? '  └ ' : ''}{pg.name}</span>
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>{(pg.polygon || []).length} נק׳</span>
+                                </div>
+                                {pg.notes && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pg.notes}</div>}
+                                <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
+                                  <button onClick={() => { setDrawingPolygonId(pg.id); setPolygonDraftPoints(Array.isArray(pg.polygon) ? [...pg.polygon] : []); }}
+                                    style={{ flex: 1, padding: '2px', background: '#4c1d95', color: '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✏️ צייר</button>
+                                  <button onClick={() => { setEditingPolygon(pg); setPolygonForm({ name: pg.name, color: pg.color || '#a78bfa', notes: pg.notes || '', parent_id: pg.parent_id ? String(pg.parent_id) : '' }); setShowPolygonForm(true); }}
+                                    style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>ערוך</button>
+                                  <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-polygons/${pg.id}`, { method: 'DELETE' }); loadAirfieldPolygons(selectedAdminAirfieldId!); }}
+                                    style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                                </div>
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Airfield Sectors (rectangular zoom areas) ── */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 'bold' }}>⬛ סקטורי מפה (אזורי זום)</div>
+                          <button onClick={() => { setEditingAirfieldSector(null); setAirfieldSectorForm({ name: '', notes: '' }); setShowAirfieldSectorForm(true); }}
+                            style={{ padding: '2px 8px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>
+                        </div>
+                        {showAirfieldSectorForm && (
+                          <div style={{ background: '#0f172a', borderRadius: '6px', border: '1px solid #059669', padding: '8px', marginBottom: '6px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <input value={airfieldSectorForm.name} onChange={e => setAirfieldSectorForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הסקטור (לדוג׳: צפון מערבי)"
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }} />
+                            <textarea value={airfieldSectorForm.notes} onChange={e => setAirfieldSectorForm(p => ({ ...p, notes: e.target.value }))} placeholder="הערה (אופציונלי)" rows={2}
+                              style={{ padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', resize: 'none' }} />
+                            {hasMap && <div style={{ fontSize: '10px', color: '#34d399', background: '#064e3b', border: '1px solid #059669', borderRadius: '4px', padding: '4px 8px' }}>💡 אחרי שמירה — גרור ריבוע על המפה לקביעת גבולות הסקטור</div>}
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              <button onClick={async () => {
+                                if (!airfieldSectorForm.name.trim()) return;
+                                const url = editingAirfieldSector ? `${API_URL}/airfield-sectors/${editingAirfieldSector.id}` : `${API_URL}/airfield-sectors`;
+                                const method = editingAirfieldSector ? 'PUT' : 'POST';
+                                const defaultRect = { x: 10, y: 10, w: 30, h: 20 };
+                                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: airfieldSectorForm.name, notes: airfieldSectorForm.notes, rect: editingAirfieldSector?.rect || defaultRect }) });
+                                if (res.ok) {
+                                  const saved = await res.json();
+                                  setShowAirfieldSectorForm(false); setEditingAirfieldSector(null); setAirfieldSectorForm({ name: '', notes: '' });
+                                  await loadAirfieldSectors(selectedAdminAirfieldId!);
+                                  if (hasMap) { setDrawingSectorId(saved.id); setSectorDragStart(null); }
+                                }
+                              }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                              <button onClick={() => { setShowAirfieldSectorForm(false); setEditingAirfieldSector(null); }} style={{ padding: '4px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                            </div>
+                          </div>
+                        )}
+                        {drawingSectorId && (
+                          <div style={{ background: '#064e3b', border: '1px solid #059669', borderRadius: '5px', padding: '5px 8px', marginBottom: '5px', fontSize: '11px', color: '#6ee7b7' }}>
+                            ⬛ גרור על המפה לציור הסקטור — ESC לביטול
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {adminAirfieldSectors.length === 0
+                            ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px' }}>אין סקטורים עדיין</div>
+                            : adminAirfieldSectors.map(sec => (
+                              <div key={sec.id} style={{ background: '#0f172a', borderRadius: '4px', border: '1px solid #05966955', padding: '4px 7px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  <span style={{ fontSize: '11px' }}>⬛</span>
+                                  <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px', fontWeight: 'bold' }}>{sec.name}</span>
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>{sec.rect ? `${Math.round(sec.rect.w)}×${Math.round(sec.rect.h)}%` : '—'}</span>
+                                </div>
+                                {sec.notes && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>{sec.notes}</div>}
+                                <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
+                                  <button onClick={() => { setDrawingSectorId(sec.id); setSectorDragStart(null); }}
+                                    style={{ flex: 1, padding: '2px', background: '#064e3b', color: '#6ee7b7', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>⬛ שרטט מחדש</button>
+                                  <button onClick={() => { setEditingAirfieldSector(sec); setAirfieldSectorForm({ name: sec.name, notes: sec.notes || '' }); setShowAirfieldSectorForm(true); }}
+                                    style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>ערוך</button>
+                                  <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-sectors/${sec.id}`, { method: 'DELETE' }); loadAirfieldSectors(selectedAdminAirfieldId!); }}
+                                    style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                                </div>
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
+
                     {/* Airfield Routes — shown under selected airfield */}
                     {selectedAdminAirfieldId && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
@@ -29680,8 +29922,59 @@ CHARLIE,1,301,`}
               {hasMap && showAirfieldForm && (
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode) ? 'crosshair' : 'default' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); setSectorDragStart(null); } }}
+                    onDoubleClick={async e => {
+                      if (!drawingPolygonId) return;
+                      e.preventDefault();
+                      if (polygonDraftPoints.length >= 3) {
+                        const pg = adminAirfieldPolygons.find(p => p.id === drawingPolygonId);
+                        if (pg) await fetch(`${API_URL}/airfield-polygons/${drawingPolygonId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pg.name, color: pg.color || '#a78bfa', notes: pg.notes || '', polygon: polygonDraftPoints }) });
+                        setDrawingPolygonId(null); setPolygonDraftPoints([]);
+                        loadAirfieldPolygons(selectedAdminAirfieldId!);
+                      }
+                    }}
+                    onMouseDown={e => {
+                      if (!drawingSectorId) return;
+                      const container = e.currentTarget as HTMLElement;
+                      const rect = container.getBoundingClientRect();
+                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      let x: number, y: number;
+                      if (adminMapImgBounds) { x = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
+                      else { x = (relX / container.clientWidth) * 100; y = (relY / container.clientHeight) * 100; }
+                      const clampedX = Math.max(0, Math.min(100, x)); const clampedY = Math.max(0, Math.min(100, y));
+                      setSectorDragStart({ x: clampedX, y: clampedY }); setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
+                    }}
+                    onMouseMove={e => {
+                      if (!drawingSectorId || !sectorDragStart) return;
+                      const container = e.currentTarget as HTMLElement;
+                      const rect = container.getBoundingClientRect();
+                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      let x2: number, y2: number;
+                      if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
+                      else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
+                      x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
+                      setSectorDraftRect({ x: Math.min(sectorDragStart.x, x2), y: Math.min(sectorDragStart.y, y2), w: Math.abs(x2 - sectorDragStart.x), h: Math.abs(y2 - sectorDragStart.y) });
+                    }}
+                    onMouseUp={async e => {
+                      if (!drawingSectorId || !sectorDragStart) return;
+                      const container = e.currentTarget as HTMLElement;
+                      const rect = container.getBoundingClientRect();
+                      const relX = e.clientX - rect.left; const relY = e.clientY - rect.top;
+                      let x2: number, y2: number;
+                      if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
+                      else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
+                      x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
+                      const rx = Math.min(sectorDragStart.x, x2), ry = Math.min(sectorDragStart.y, y2);
+                      const rw = Math.abs(x2 - sectorDragStart.x), rh = Math.abs(y2 - sectorDragStart.y);
+                      setSectorDraftRect(null);
+                      if (rw > 1 && rh > 1) {
+                        const sec = adminAirfieldSectors.find(s => s.id === drawingSectorId);
+                        if (sec) await fetch(`${API_URL}/airfield-sectors/${drawingSectorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: sec.name, notes: sec.notes || '', rect: { x: rx, y: ry, w: rw, h: rh } }) });
+                        await loadAirfieldSectors(selectedAdminAirfieldId!);
+                      }
+                      setDrawingSectorId(null); setSectorDragStart(null);
+                    }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
@@ -29697,7 +29990,9 @@ CHARLIE,1,301,`}
                       }
                       x_pct = Math.max(0, Math.min(100, x_pct));
                       y_pct = Math.max(0, Math.min(100, y_pct));
-                      if (drawingRouteId) {
+                      if (drawingPolygonId) {
+                        setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
+                      } else if (drawingRouteId) {
                         setRouteDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (placingElementMode && placingElementId) {
                         const el = adminAirfieldElements.find((e: any) => e.id === placingElementId);
@@ -29780,6 +30075,64 @@ CHARLIE,1,301,`}
                         <div style={{ background: '#000000dd', color: '#f59e0b', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #f59e0b' }}>✏️ ציור מסלול — {routeDraftPoints.length} נקודות — ESC לביטול</div>
                       </div>
                     )}
+                    {/* Polygon + sector SVG overlay */}
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+                      style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 4 }}>
+                      {/* Saved polygons */}
+                      {adminAirfieldPolygons.map(pg => {
+                        const pts: {x:number;y:number}[] = Array.isArray(pg.polygon) ? pg.polygon : [];
+                        if (pts.length < 3) return null;
+                        const col = pg.color || '#a78bfa';
+                        const cx = pts.reduce((s,p) => s+p.x, 0)/pts.length;
+                        const cy = pts.reduce((s,p) => s+p.y, 0)/pts.length;
+                        return (
+                          <g key={pg.id}>
+                            <polygon points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill={col+'33'} stroke={col} strokeWidth="0.4" />
+                            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="1.4" fontWeight="bold" style={{ userSelect: 'none' }}>{pg.name}</text>
+                          </g>
+                        );
+                      })}
+                      {/* Draft polygon while drawing */}
+                      {drawingPolygonId && polygonDraftPoints.length >= 2 && (() => {
+                        const pg = adminAirfieldPolygons.find(p => p.id === drawingPolygonId);
+                        const col = pg?.color || '#a78bfa';
+                        return (
+                          <g>
+                            <polygon points={polygonDraftPoints.map(p => `${p.x},${p.y}`).join(' ')} fill={col+'22'} stroke={col} strokeWidth="0.5" strokeDasharray="2,1" />
+                            {polygonDraftPoints.map((p,i) => <circle key={i} cx={p.x} cy={p.y} r="0.8" fill={col} />)}
+                          </g>
+                        );
+                      })()}
+                      {/* Saved sectors */}
+                      {adminAirfieldSectors.map(sec => {
+                        if (!sec.rect) return null;
+                        const { x, y, w, h } = sec.rect;
+                        return (
+                          <g key={sec.id}>
+                            <rect x={x} y={y} width={w} height={h} fill="#34d39922" stroke="#34d399" strokeWidth="0.4" strokeDasharray="2,1" />
+                            <text x={x+w/2} y={y+h/2} textAnchor="middle" dominantBaseline="middle" fill="#34d399" fontSize="1.6" fontWeight="bold" style={{ userSelect: 'none' }}>{sec.name}</text>
+                          </g>
+                        );
+                      })}
+                      {/* Draft sector while drawing */}
+                      {drawingSectorId && sectorDraftRect && sectorDraftRect.w > 0 && (
+                        <rect x={sectorDraftRect.x} y={sectorDraftRect.y} width={sectorDraftRect.w} height={sectorDraftRect.h} fill="#34d39922" stroke="#34d399" strokeWidth="0.6" strokeDasharray="2,1" />
+                      )}
+                    </svg>
+
+                    {/* Polygon drawing mode overlay */}
+                    {drawingPolygonId && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(124,58,237,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
+                        <div style={{ background: '#000000dd', color: '#c4b5fd', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #7c3aed' }}>✏️ ציור פוליגון — {polygonDraftPoints.length} נקודות — לחץ פעמיים לסיום — ESC לביטול</div>
+                      </div>
+                    )}
+                    {/* Sector drawing mode overlay */}
+                    {drawingSectorId && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(5,150,105,0.04)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
+                        <div style={{ background: '#000000dd', color: '#6ee7b7', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #059669' }}>⬛ גרור על המפה לציור הסקטור — ESC לביטול</div>
+                      </div>
+                    )}
+
                     {airfieldPoints.map(pt => {
                       const apos = adminPtPos(pt.x_pct, pt.y_pct);
                       return (
