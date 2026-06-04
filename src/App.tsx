@@ -5584,6 +5584,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string } | null>(null);
+  const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
+  const [catMapHighlight, setCatMapHighlight] = useState<Set<string>>(new Set());
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
   const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
   const [polygonPickerNote, setPolygonPickerNote] = useState('');
@@ -6726,6 +6728,69 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
         </div>
 
+        {/* Element panel (collapsible) — inside right panel, below strips list */}
+        {stripsPinned && airfieldElements && airfieldElements.length > 0 && (() => {
+          const elCats = Array.from(new Set(airfieldElements.map((el: any) => el.category || 'כללי').filter(Boolean))).sort();
+          const elByCat: Record<string, any[]> = {};
+          airfieldElements.forEach((el: any) => { const c = el.category || 'כללי'; if (!elByCat[c]) elByCat[c] = []; elByCat[c].push(el); });
+          const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+          return (
+            <div style={{ flexShrink: 0, maxHeight: elemPanelOpen ? '42%' : 'auto', display: 'flex', flexDirection: 'column', borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, overflow: 'hidden' }}>
+              {/* Panel toggle header */}
+              <div style={{ background: lightMode ? '#1e3a5f' : '#0a1628', color: '#93c5fd', padding: '5px 8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}
+                onClick={() => setElemPanelOpen(v => !v)}>
+                <span style={{ transform: elemPanelOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block', fontSize: '10px' }}>▶</span>
+                🔧 אלמנטים <span style={{ fontWeight: 'normal', opacity: 0.7, fontSize: '11px' }}>({airfieldElements.length})</span>
+              </div>
+              {elemPanelOpen && (
+                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl' }}>
+                  {elCats.map(cat => {
+                    const catEls = elByCat[cat] || [];
+                    const isCatCollapsed = collapsedElemCats.has(cat);
+                    const isCatOnMap = catMapHighlight.has(cat);
+                    return (
+                      <div key={cat}>
+                        {/* Category header */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}` }}>
+                          <span onClick={() => setCollapsedElemCats(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
+                            style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
+                            <span style={{ fontSize: '9px', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                            {cat}
+                            <span style={{ fontWeight: 'normal', opacity: 0.6, fontSize: '10px' }}>({catEls.length})</span>
+                          </span>
+                          <button
+                            onClick={() => setCatMapHighlight(prev => { const n = new Set(prev); isCatOnMap ? n.delete(cat) : n.add(cat); return n; })}
+                            title={isCatOnMap ? 'הסתר הדגשה על מפה' : 'הדגש קטגוריה על המפה'}
+                            style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: isCatOnMap ? '#1d4ed8' : 'transparent', color: isCatOnMap ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
+                            👁 מפה
+                          </button>
+                        </div>
+                        {/* Elements in category */}
+                        {!isCatCollapsed && catEls.map((el: any) => {
+                          const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
+                          return (
+                            <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
+                              <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.type_icon || '🔧'}</span>
+                              <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
+                              <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
+                              {onUpdateElement && (
+                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '' }); setEditingElemField(null); }}
+                                  title="ערוך אלמנט"
+                                  style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
+                                  ✏
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
 
@@ -7202,29 +7267,49 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const isShamish = el.status === 'שמיש';
             const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
             const isSvgIcon = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
+            const elCatKey = el.category || 'כללי';
+            const isCatHighlighted = catMapHighlight.has(elCatKey);
+            const isBeingEdited = elemEditModal?.el?.id === el.id;
             const pos = imgBounds
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
-            // Status indicator ring colors for operational statuses
             const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
             return (
               <div key={el.id}
-                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: canChangeStatus ? 'all' : 'none', zIndex: 12, textAlign: 'center', cursor: canChangeStatus ? 'pointer' : 'default' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}`}
-                onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
-                {isSvgIcon ? (
-                  <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))`, outline: canChangeStatus ? `2px solid ${opColor}` : 'none', borderRadius: '4px', background: canChangeStatus ? opColor + '22' : 'transparent' }}>
-                    {renderGroundSvgIcon(el.type_icon, 26, el.status)}
-                  </div>
-                ) : (
-                  <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isTakul ? '#ef4444' : elColor, border: isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto' }}>
-                    {!isTakul && (el.type_icon || '🔧')}
-                  </div>
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}`}>
+                {/* Category highlight ring */}
+                {isCatHighlighted && (
+                  <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
                 )}
-                <div style={{ background: '#000000cc', color: isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
-                {canChangeStatus && el.status && (
-                  <div style={{ background: opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.status}</div>
+                {/* Being-edited ring */}
+                {isBeingEdited && (
+                  <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
+                )}
+                <div onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                  {isSvgIcon ? (
+                    <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))`, outline: canChangeStatus ? `2px solid ${opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? opColor + '22' : 'transparent' }}>
+                      {renderGroundSvgIcon(el.type_icon, 26, el.status)}
+                    </div>
+                  ) : (
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s' }}>
+                      {!isTakul && (el.type_icon || '🔧')}
+                    </div>
+                  )}
+                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
+                  {canChangeStatus && el.status && (
+                    <div style={{ background: opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.status}</div>
+                  )}
+                </div>
+                {/* Edit button — shown on hover or when this element's category is highlighted */}
+                {onUpdateElement && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '' }); setEditingElemField(null); }}
+                    style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff', fontSize: '8px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
+                    title="ערוך אלמנט">
+                    ✏
+                  </button>
                 )}
               </div>
             );
@@ -7817,7 +7902,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         );
       })()}
 
-      {/* Element edit modal */}
+      {/* Element edit drawer — side panel with focus-mode field editing */}
       {elemEditModal && (() => {
         const ELEM_STATUS_OPTS = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
@@ -7825,59 +7910,153 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const save = async () => {
           if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note });
           setElemEditModal(null);
+          setEditingElemField(null);
         };
+        const D_BG = lightMode ? '#ffffff' : '#0f172a';
+        const D_BORDER = lightMode ? '#e2e8f0' : '#1e3a5f';
+        const D_HDR = lightMode ? '#1e3a5f' : '#0a1628';
+        const D_LABEL = lightMode ? '#64748b' : '#94a3b8';
+        const D_INPUT_BG = lightMode ? '#f8fafc' : '#0c1824';
+        const D_TEXT = lightMode ? '#1e293b' : '#e2e8f0';
+        type ElemField = 'name' | 'category' | 'status' | 'note';
+        const FIELDS: { key: ElemField; label: string; icon: string }[] = [
+          { key: 'name', label: 'שם', icon: '✏' },
+          { key: 'category', label: 'קטגוריה', icon: '🏷' },
+          { key: 'status', label: 'סטטוס', icon: '🔵' },
+          { key: 'note', label: 'הערה', icon: '📝' },
+        ];
+        const activeField = editingElemField;
+        const elCat = elemEditModal.category || 'כללי';
+        const isCatOnMap = catMapHighlight.has(elCat);
         return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setElemEditModal(null)}>
-            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', maxWidth: '320px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
-              onClick={e => e.stopPropagation()}>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#e2e8f0', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: el.type_color || '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', flexShrink: 0 }}>{el.type_icon || '🔧'}</span>
-                עריכת אלמנט
+          <div style={{ position: 'absolute', top: 0, right: 0, height: '100%', width: '260px', background: D_BG, borderRight: `2px solid #3b82f6`, boxShadow: '-6px 0 28px rgba(0,0,0,0.45)', zIndex: 4500, display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+            {/* Drawer header */}
+            <div style={{ background: D_HDR, padding: '10px 12px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${D_BORDER}` }}>
+              <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: el.type_color || '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0, border: `2px solid ${ELEM_STATUS_COLOR[elemEditModal.status] || '#94a3b8'}` }}>
+                {el.type_icon || '🔧'}
+              </span>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{elemEditModal.name || el.name}</div>
+                <div style={{ fontSize: '10px', color: '#64748b' }}>{elemEditModal.category || '—'}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>שם</label>
-                  <input value={elemEditModal.name} onChange={e => setElemEditModal(p => p ? { ...p, name: e.target.value } : p)}
-                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>קטגוריה</label>
-                  <input value={elemEditModal.category} onChange={e => setElemEditModal(p => p ? { ...p, category: e.target.value } : p)}
-                    placeholder="לדוגמה: תאורה, דלק, כביש"
-                    style={{ width: '100%', padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>סטטוס</label>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {ELEM_STATUS_OPTS.map(s => (
-                      <button key={s} onClick={() => setElemEditModal(p => p ? { ...p, status: s } : p)}
-                        style={{ flex: 1, padding: '6px', borderRadius: '6px', border: `1px solid ${elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : '#334155'}`, background: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] + '22' : 'transparent', color: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: elemEditModal.status === s ? 'bold' : 'normal' }}>
-                        {s}
-                      </button>
-                    ))}
+              <button onClick={() => { setElemEditModal(null); setEditingElemField(null); }}
+                style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px', padding: '2px', flexShrink: 0 }}>✕</button>
+            </div>
+
+            {/* Category map-highlight toggle */}
+            <div style={{ padding: '7px 12px', background: lightMode ? '#f1f5f9' : '#0a1020', borderBottom: `1px solid ${D_BORDER}`, flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: D_LABEL, flex: 1 }}>קטגוריה: <strong style={{ color: D_TEXT }}>{elCat}</strong></span>
+              <button
+                onClick={() => setCatMapHighlight(prev => { const n = new Set(prev); isCatOnMap ? n.delete(elCat) : n.add(elCat); return n; })}
+                style={{ padding: '3px 8px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : D_BORDER}`, background: isCatOnMap ? '#1d4ed8' : 'transparent', color: isCatOnMap ? '#bfdbfe' : D_LABEL, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                {isCatOnMap ? '👁 מוצג' : '👁 הצג על מפה'}
+              </button>
+            </div>
+
+            {/* Fields — focus mode: active field expanded, others collapsed */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {FIELDS.map(f => {
+                const isActive = activeField === f.key;
+                const isOtherActive = activeField !== null && activeField !== f.key;
+                if (isOtherActive) return null; // hide other fields when one is being edited
+
+                let currentVal: string = '';
+                if (f.key === 'name') currentVal = elemEditModal.name;
+                else if (f.key === 'category') currentVal = elemEditModal.category;
+                else if (f.key === 'status') currentVal = elemEditModal.status;
+                else if (f.key === 'note') currentVal = elemEditModal.note;
+
+                const statusColor = f.key === 'status' ? (ELEM_STATUS_COLOR[elemEditModal.status] || '#94a3b8') : undefined;
+
+                return (
+                  <div key={f.key}
+                    style={{ margin: '4px 10px', borderRadius: '8px', border: `1px solid ${isActive ? '#3b82f6' : D_BORDER}`, background: isActive ? (lightMode ? '#eff6ff' : '#0c1828') : D_BG, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+                    {/* Field header / collapsed view — click to activate */}
+                    <div
+                      onClick={() => setEditingElemField(isActive ? null : f.key)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', cursor: 'pointer', userSelect: 'none' }}>
+                      <span style={{ fontSize: '13px', flexShrink: 0 }}>{f.icon}</span>
+                      <span style={{ fontSize: '11px', color: D_LABEL, flexShrink: 0, minWidth: '48px' }}>{f.label}</span>
+                      {!isActive && (
+                        <span style={{ flex: 1, fontSize: '12px', color: f.key === 'status' ? statusColor : D_TEXT, fontWeight: f.key === 'status' ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'right' }}>
+                          {currentVal || <span style={{ color: '#475569', fontStyle: 'italic' }}>—</span>}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '10px', color: '#475569', flexShrink: 0, transform: isActive ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                    </div>
+                    {/* Expanded / active input */}
+                    {isActive && (
+                      <div style={{ padding: '0 10px 10px' }}>
+                        {f.key === 'name' && (
+                          <input
+                            autoFocus
+                            value={elemEditModal.name}
+                            onChange={e => setElemEditModal(p => p ? { ...p, name: e.target.value } : p)}
+                            onKeyDown={e => { if (e.key === 'Enter') setEditingElemField(null); if (e.key === 'Escape') setEditingElemField(null); }}
+                            style={{ width: '100%', padding: '7px 10px', background: D_INPUT_BG, border: `1px solid #3b82f6`, borderRadius: '6px', color: D_TEXT, fontSize: '13px', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }} />
+                        )}
+                        {f.key === 'category' && (
+                          <input
+                            autoFocus
+                            value={elemEditModal.category}
+                            onChange={e => setElemEditModal(p => p ? { ...p, category: e.target.value } : p)}
+                            onKeyDown={e => { if (e.key === 'Enter') setEditingElemField(null); if (e.key === 'Escape') setEditingElemField(null); }}
+                            placeholder="לדוגמה: תאורה, דלק, כביש"
+                            style={{ width: '100%', padding: '7px 10px', background: D_INPUT_BG, border: `1px solid #3b82f6`, borderRadius: '6px', color: D_TEXT, fontSize: '13px', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }} />
+                        )}
+                        {f.key === 'status' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            {ELEM_STATUS_OPTS.map(s => (
+                              <button key={s}
+                                onClick={() => { setElemEditModal(p => p ? { ...p, status: s } : p); setEditingElemField(null); }}
+                                style={{ padding: '8px 12px', borderRadius: '6px', border: `1px solid ${elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : D_BORDER}`, background: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] + '22' : D_INPUT_BG, color: elemEditModal.status === s ? ELEM_STATUS_COLOR[s] : D_LABEL, cursor: 'pointer', fontSize: '13px', fontWeight: elemEditModal.status === s ? 'bold' : 'normal', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl' }}>
+                                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: ELEM_STATUS_COLOR[s] || '#888', display: 'inline-block', flexShrink: 0 }} />
+                                {s}
+                                {elemEditModal.status === s && <span style={{ marginRight: 'auto', fontSize: '12px' }}>✓</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {f.key === 'note' && (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+                            <textarea
+                              autoFocus
+                              value={elemEditModal.note}
+                              onChange={e => setElemEditModal(p => p ? { ...p, note: e.target.value } : p)}
+                              rows={3}
+                              placeholder="הערה אופציונלית..."
+                              style={{ flex: 1, padding: '7px 10px', background: D_INPUT_BG, border: `1px solid #3b82f6`, borderRadius: '6px', color: D_TEXT, fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box', outline: 'none' }} />
+                            <VKTrigger value={elemEditModal.note || ''} onChange={v => setElemEditModal(p => p ? { ...p, note: v } : p)} mode="full" label="הערה" size={16} />
+                          </div>
+                        )}
+                        <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button onClick={() => setEditingElemField(null)}
+                            style={{ padding: '4px 10px', fontSize: '11px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>סגור שדה</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                );
+              })}
+
+              {/* When no field is active — show hint */}
+              {activeField === null && (
+                <div style={{ padding: '10px 14px', fontSize: '11px', color: '#475569', direction: 'rtl', fontStyle: 'italic' }}>
+                  לחץ על שדה כדי לערוך אותו
                 </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>הערה</label>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
-                    <textarea value={elemEditModal.note} onChange={e => setElemEditModal(p => p ? { ...p, note: e.target.value } : p)}
-                      rows={2} placeholder="הערה אופציונלית..."
-                      style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
-                    <VKTrigger value={elemEditModal.note || ''} onChange={v => setElemEditModal(p => p ? { ...p, note: v } : p)} mode="full" label="הערה" size={16} />
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={save}
-                  style={{ flex: 2, padding: '9px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                  שמור
-                </button>
-                <button onClick={() => setElemEditModal(null)}
-                  style={{ flex: 1, padding: '9px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                  ביטול
-                </button>
-              </div>
+              )}
+            </div>
+
+            {/* Footer — Save / Cancel */}
+            <div style={{ padding: '10px 12px', borderTop: `1px solid ${D_BORDER}`, flexShrink: 0, display: 'flex', gap: '8px' }}>
+              <button onClick={save}
+                style={{ flex: 2, padding: '9px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                שמור
+              </button>
+              <button onClick={() => { setElemEditModal(null); setEditingElemField(null); }}
+                style={{ flex: 1, padding: '9px', background: lightMode ? '#e2e8f0' : '#1e293b', color: D_LABEL, border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
             </div>
           </div>
         );
