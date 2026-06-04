@@ -10761,7 +10761,7 @@ const getFormationDisplayName = (strip: any): string => {
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
   const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
   if (!indices) return base;
-  return `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
+  return `${base}/${[...indices].sort((a, b) => a - b).join('+')}`;
 };
 
 const getTransferLabel = (t: any): string => {
@@ -10770,7 +10770,7 @@ const getTransferLabel = (t: any): string => {
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
   const indices: number[] | null = Array.isArray(raw) && raw.length > 0 ? raw : null;
   if (indices) {
-    return `${base}${[...indices].sort((a, b) => a - b).join('+')}`;
+    return `${base}/${[...indices].sort((a, b) => a - b).join('+')}`;
   }
   const count = t.numberOfFormation || t.number_of_formation || '';
   return count ? `${base}/${count}` : base;
