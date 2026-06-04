@@ -1837,7 +1837,7 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
   try {
     const stripId = parseInt(String(req.params.id).replace(/^s/, ''));
     if (isNaN(stripId)) return res.status(400).json({ error: 'Invalid strip id' });
-    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId } = req.body;
+    const { toSectorId, workstationId, targetX, targetY, subSectorLabel, fromWorkstationId, toWorkstationId, etaMinutes } = req.body;
     
     const strip = await pool.query('SELECT * FROM strips WHERE id = $1', [stripId]);
     if (strip.rows.length === 0) {
@@ -1887,10 +1887,11 @@ app.post('/api/strips/:id/transfer', async (req, res) => {
       ['pending_transfer', resolvedToWorkstationId || null, stripId]
     );
     
+    const etaSetAt = (etaMinutes != null && etaMinutes > 0) ? new Date() : null;
     const result = await pool.query(
-      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id) 
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9) RETURNING *`,
-      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null]
+      `INSERT INTO strip_transfers (strip_id, from_sector_id, to_sector_id, initiated_by, status, target_x, target_y, sub_sector_label, from_workstation_id, to_workstation_id, eta_minutes, eta_set_at) 
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [stripId, fromSectorId, toSectorId, workstationId, targetX || 0, targetY || 0, subSectorLabel || null, fromWorkstationId || null, resolvedToWorkstationId || null, etaMinutes || null, etaSetAt]
     );
     
     res.json({ transfer: result.rows[0] });

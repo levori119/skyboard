@@ -2457,7 +2457,25 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
   const [showHw, setShowHw] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [editBuffer, setEditBuffer] = useState('');
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [countdownOver, setCountdownOver] = useState(false);
   const sq = getTransferSq(t);
+
+  useEffect(() => {
+    if (!t.eta_minutes || !t.eta_set_at) { setCountdown(null); return; }
+    const update = () => {
+      const end = new Date(t.eta_set_at).getTime() + Number(t.eta_minutes) * 60000;
+      const rem = end - Date.now();
+      if (rem <= 0) { setCountdown('00:00'); setCountdownOver(true); return; }
+      setCountdownOver(false);
+      const m = Math.floor(rem / 60000);
+      const s = Math.floor((rem % 60000) / 1000);
+      setCountdown(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
+  }, [t.eta_minutes, t.eta_set_at]);
   const hasExternalNote = !!t.note && String(t.note_by_preset_id) !== String(presetId);
   const openNote = () => { setEditBuffer(t.note || ''); setNoteOpen(true); };
   return (
@@ -2479,15 +2497,22 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
           </div>
           {sq && <span style={{ fontSize: '9px', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#a16207' : '#b45309'), flexShrink: 0, opacity: 0.9 }}>{sq}</span>}
         </div>
-        {/* שורה 2: alt רוחב מלא */}
-        <span
-          ref={altRef}
-          title="לחץ לעדכון גובה"
-          onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-          style={{ display: 'block', textAlign: 'center', marginBottom: '2px', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
-        >
-          {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
-        </span>
+        {/* שורה 2: alt + countdown */}
+        <div style={{ display: 'flex', gap: '3px', marginBottom: '2px', alignItems: 'center' }}>
+          <span
+            ref={altRef}
+            title="לחץ לעדכון גובה"
+            onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
+            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
+          >
+            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
+          </span>
+          {countdown !== null && (
+            <span title="זמן עד לנקודת העברה" style={{ fontSize: '11px', fontWeight: 'bold', color: countdownOver ? '#ef4444' : '#10b981', background: countdownOver ? '#450a0a' : '#052e16', border: `1px solid ${countdownOver ? '#dc2626' : '#16a34a'}`, borderRadius: '4px', padding: '1px 5px', letterSpacing: '0.5px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+              ⏱{countdown}
+            </span>
+          )}
+        </div>
         {t.note && !noteOpen && (
           <div style={{ fontSize: '9px', color: hasExternalNote ? '#fca5a5' : '#93c5fd', background: hasExternalNote ? '#2d0505' : '#0c1e35', borderRadius: '3px', padding: '2px 5px', marginBottom: '3px', whiteSpace: 'pre-wrap', lineHeight: 1.4, border: `1px solid ${hasExternalNote ? '#7f1d1d' : '#1e3a5f'}`, direction: 'rtl' }}>
             {t.note}
@@ -11073,15 +11098,18 @@ const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: any; bl
 };
 
 // --- Partial Transfer Modal ---
-const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit }: {
+const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange }: {
   strip: any;
   selectedIndices: number[];
   onToggleIndex: (idx: number) => void;
   onCancel: () => void;
   onTransferAll: () => void;
   onSubmit: () => void;
+  etaMinutes: number;
+  onEtaChange: (val: number) => void;
 }) => {
   const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
+  const isFormation = totalCount > 1;
   const availableIndices: number[] = Array.isArray(strip?.aircraft_indices)
     ? [...(strip.aircraft_indices as number[])].sort((a, b) => a - b)
     : Array.from({ length: totalCount }, (_, i) => i + 1);
@@ -11089,47 +11117,75 @@ const PartialTransferModal = ({ strip, selectedIndices, onToggleIndex, onCancel,
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '28px 24px', minWidth: '320px', maxWidth: '440px', direction: 'rtl', color: 'white', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
-        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה חלקית</div>
-        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
-          {getFormationDisplayName(strip)} — הדלק את המטוסים שרוצים להעביר
-        </div>
-        <div style={{ fontSize: '11px', color: '#475569', marginBottom: '16px', display: 'flex', gap: '12px', direction: 'rtl' }}>
-          <span>🔵 = מועבר לנקודת העברה</span>
-          <span>⬜ = נשאר בטבלה (מפוצל)</span>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה לנקודת העברה</div>
+        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '18px' }}>
+          {getFormationDisplayName(strip)}
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '18px' }}>
-          {availableIndices.map(idx => {
-            const sel = selectedIndices.includes(idx);
-            return (
-              <button key={idx} onClick={() => onToggleIndex(idx)} style={{
-                width: '52px', height: '52px', borderRadius: '8px',
-                border: `2px solid ${sel ? '#3b82f6' : '#334155'}`,
-                background: sel ? '#1d4ed8' : '#0f172a',
-                color: sel ? 'white' : '#475569',
-                cursor: 'pointer', fontWeight: 'bold', fontSize: '18px',
-                transition: 'all 0.15s',
-                boxShadow: sel ? '0 0 8px rgba(59,130,246,0.5)' : 'none'
-              }}>{idx}</button>
-            );
-          })}
+        {/* שדה זמן — תמיד מוצג */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ fontSize: '12px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '8px' }}>⏱ זמן עד לנקודת העברה (דקות)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <input
+              type="number"
+              min={0}
+              max={120}
+              value={etaMinutes === 0 ? '' : etaMinutes}
+              onChange={e => onEtaChange(Math.max(0, parseInt(e.target.value) || 0))}
+              placeholder="0"
+              autoFocus={!isFormation}
+              style={{ width: '80px', padding: '8px 10px', background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', color: 'white', fontSize: '18px', textAlign: 'center', outline: 'none' }}
+            />
+            <span style={{ fontSize: '13px', color: '#64748b' }}>דקות</span>
+            {etaMinutes > 0 && <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 'bold' }}>✓ ספירה לאחור תוצג</span>}
+          </div>
         </div>
 
-        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '20px', textAlign: 'center' }}>
-          {selectedIndices.length} מטוסים להעברה · {availableIndices.length - selectedIndices.length} נשארים
-        </div>
+        {/* בחירת מטוסים — רק אם יש יותר מ-1 */}
+        {isFormation && (
+          <>
+            <div style={{ width: '100%', height: '1px', background: '#334155', marginBottom: '16px' }} />
+            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+              בחר מטוסים להעברה — או לחץ "העבר הכל"
+            </div>
+            <div style={{ fontSize: '11px', color: '#475569', marginBottom: '12px', display: 'flex', gap: '12px', direction: 'rtl' }}>
+              <span>🔵 = מועבר לנקודת העברה</span>
+              <span>⬜ = נשאר בטבלה (מפוצל)</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+              {availableIndices.map(idx => {
+                const sel = selectedIndices.includes(idx);
+                return (
+                  <button key={idx} onClick={() => onToggleIndex(idx)} style={{
+                    width: '52px', height: '52px', borderRadius: '8px',
+                    border: `2px solid ${sel ? '#3b82f6' : '#334155'}`,
+                    background: sel ? '#1d4ed8' : '#0f172a',
+                    color: sel ? 'white' : '#475569',
+                    cursor: 'pointer', fontWeight: 'bold', fontSize: '18px',
+                    transition: 'all 0.15s',
+                    boxShadow: sel ? '0 0 8px rgba(59,130,246,0.5)' : 'none'
+                  }}>{idx}</button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', textAlign: 'center' }}>
+              {selectedIndices.length > 0
+                ? `${selectedIndices.length} מטוסים נבחרו · ${availableIndices.length - selectedIndices.length} נשארים`
+                : 'לא נבחרו — "העבר הכל" יעביר את כולם'}
+            </div>
+          </>
+        )}
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ background: '#334155', border: 'none', color: '#94a3b8', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
-          <button onClick={onTransferAll} style={{ background: '#475569', border: 'none', color: 'white', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>העבר הכל</button>
-          <button onClick={onSubmit} disabled={selectedIndices.length === 0} style={{
-            background: selectedIndices.length === 0 ? '#1e293b' : '#1d4ed8',
-            border: 'none', color: selectedIndices.length === 0 ? '#475569' : 'white',
-            padding: '9px 18px', borderRadius: '7px',
-            cursor: selectedIndices.length === 0 ? 'default' : 'pointer',
-            fontSize: '13px', fontWeight: 'bold'
-          }}>
-            העבר {selectedIndices.length > 0 ? `(${selectedIndices.length})` : ''}
+          {isFormation && (
+            <button onClick={onTransferAll} style={{ background: '#475569', border: 'none', color: 'white', padding: '9px 16px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>העבר הכל</button>
+          )}
+          <button
+            onClick={!isFormation || selectedIndices.length === 0 ? onTransferAll : onSubmit}
+            style={{ background: '#1d4ed8', border: 'none', color: 'white', padding: '9px 18px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+          >
+            {isFormation && selectedIndices.length > 0 ? `העבר (${selectedIndices.length})` : 'העבר'}
           </button>
         </div>
       </div>
@@ -12026,6 +12082,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [allPendingTransfers, setAllPendingTransfers] = useState<any[]>([]);
   const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
+  const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
   const [neighborMarkers, setNeighborMarkers] = useState<{sectorId: number; x: number; y: number; subLabel?: string; label: string}[]>([]);
   const [neighborPins, setNeighborPins] = useState<{sectorId: number; x: number; y: number; label: string; subLabel?: string}[]>([]);
@@ -14410,7 +14467,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }).catch(() => {});
   }, [session?.presetId, session?.workstationName, session?.crewMember?.id, session?.crewMember?.name]);
 
-  const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number) => {
+  const handleTransfer = async (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subSectorLabel?: string, toWorkstationId?: number, etaMinutes?: number) => {
     // Dedup: check if strip already has an outgoing transfer
     const existingT = outgoingTransfersRef.current.find((t: any) => String(t.strip_id) === String(stripId));
     if (existingT) {
@@ -14433,7 +14490,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           targetY: targetY || 0,
           subSectorLabel,
           fromWorkstationId: session.presetId,
-          toWorkstationId: toWorkstationId || null
+          toWorkstationId: toWorkstationId || null,
+          etaMinutes: etaMinutes || null
         })
       });
       // Optimistic update: immediately mark the strip as pending_transfer in local state
@@ -14478,13 +14536,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const strip = strips.find((s: any) => String(s.id) === String(stripId));
-    const count = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
-    if (count > 1) {
-      setPartialSelectedIndices([]);
-      setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
-    } else {
-      handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
-    }
+    setPartialSelectedIndices([]);
+    setTransferEtaMinutes(0);
+    setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
   };
 
   // Workstation picker: if the target sector is served by multiple presets, ask the user which one.
@@ -14506,8 +14560,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handlePartialTransferAll = async () => {
     if (!partialTransferModal) return;
     const { stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId } = partialTransferModal;
+    const eta = transferEtaMinutes;
     setPartialTransferModal(null);
-    await handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId);
+    setTransferEtaMinutes(0);
+    await handleTransfer(stripId, toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
   };
 
   const handlePartialTransferSubmit = async () => {
@@ -14531,7 +14587,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (!res.ok) throw new Error(await res.text());
       const { newStripId } = await res.json();
       await loadData();
-      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId);
+      const eta = transferEtaMinutes;
+      setTransferEtaMinutes(0);
+      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
     } catch (err) {
       console.error('Partial create failed:', err);
     }
@@ -19105,7 +19163,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     m === marker ? { ...m, subLabel: newLabel } : m
                   ));
                 }}
-                onTransfer={handleTransfer}
+                onTransfer={handleTransferWithWorkstationPick}
                 onCancelTransfer={handleCancelTransfer}
                 onAcceptTransfer={handleAcceptTransfer}
                 onRejectTransfer={handleRejectTransfer}
@@ -21082,15 +21140,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         {/* Partial Transfer Modal — בחירת מטוסים להעברה חלקית */}
         {partialTransferModal && (
-          <PartialTransferModal
+          <TransferFormModal
             strip={partialTransferModal.strip}
             selectedIndices={partialSelectedIndices}
             onToggleIndex={(idx) => setPartialSelectedIndices(prev =>
               prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
             )}
-            onCancel={() => setPartialTransferModal(null)}
+            onCancel={() => { setPartialTransferModal(null); setTransferEtaMinutes(0); }}
             onTransferAll={handlePartialTransferAll}
             onSubmit={handlePartialTransferSubmit}
+            etaMinutes={transferEtaMinutes}
+            onEtaChange={setTransferEtaMinutes}
           />
         )}
 
