@@ -28624,9 +28624,35 @@ CHARLIE,1,301,`}
                             <span style={{ fontSize: '14px', fontWeight: 'bold' }}>מוד אזרחי</span>
                             <span style={{ fontSize: '11px', color: '#64748b', textAlign: 'center' }}>גריד חופשי עם עורך ויזואלי</span>
                             <input value={newCivilTableName} onChange={e => setNewCivilTableName(e.target.value)}
-                              placeholder="שם התבנית..." onKeyDown={async e => { if (e.key === 'Enter' && newCivilTableName.trim()) { e.preventDefault(); const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) }); const created = await r.json(); const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []); setClassicTables(updated); setShowNewModePicker(false); setSgEditorTableId(created.id); } }}
+                              placeholder="שם התבנית..."
+                              onKeyDown={async e => {
+                                if (e.key === 'Enter' && newCivilTableName.trim()) {
+                                  e.preventDefault();
+                                  try {
+                                    const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) });
+                                    if (!r.ok) { alert('שגיאה ביצירת תבנית: ' + r.status); return; }
+                                    const created = await r.json();
+                                    const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []);
+                                    setClassicTables(updated);
+                                    setShowNewModePicker(false);
+                                    if (created?.id) setSgEditorTableId(created.id);
+                                  } catch (err) { alert('שגיאה: ' + String(err)); }
+                                }
+                              }}
                               style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box' as const }} />
-                            <button disabled={!newCivilTableName.trim()} onClick={async () => { const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) }); const created = await r.json(); const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []); setClassicTables(updated); setShowNewModePicker(false); setSgEditorTableId(created.id); }}
+                            <button disabled={!newCivilTableName.trim()}
+                              onClick={async () => {
+                                if (!newCivilTableName.trim()) return;
+                                try {
+                                  const r = await fetch(`${API_URL}/classic-strip-tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCivilTableName.trim(), mode: 'civil' }) });
+                                  if (!r.ok) { alert('שגיאה ביצירת תבנית: ' + r.status); return; }
+                                  const created = await r.json();
+                                  const updated = await fetch(`${API_URL}/classic-strip-tables`).then(r2 => r2.ok ? r2.json() : []);
+                                  setClassicTables(updated);
+                                  setShowNewModePicker(false);
+                                  if (created?.id) setSgEditorTableId(created.id);
+                                } catch (err) { alert('שגיאה: ' + String(err)); }
+                              }}
                               style={{ width: '100%', padding: '5px 8px', background: newCivilTableName.trim() ? '#1d4ed8' : '#1e293b', border: 'none', borderRadius: '6px', color: newCivilTableName.trim() ? 'white' : '#475569', cursor: newCivilTableName.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>צור ופתח עורך</button>
                           </div>
                         </div>
