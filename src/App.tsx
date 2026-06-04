@@ -26102,9 +26102,68 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   const civCols: CivCol[] = presetForm.civilian_columns || [];
                   const setCivCols = (cols: CivCol[]) => setPresetForm(p => ({ ...p, civilian_columns: cols }));
                   const DEFAULT_COLORS = ['#1a5fa8','#0d7a3e','#c8a800','#7b2d8b','#c0392b','#1a6b6b','#e67e22','#2c3e50'];
+                  const CIV_TEMPLATES: { id: string; label: string; desc: string; bg: string; columns: CivCol[] }[] = [
+                    {
+                      id: 'tpl_2basic', label: '2 עמודות — בסיסי', desc: 'ממתין / פעיל', bg: '#07090c',
+                      columns: [
+                        { key: 'col_tpl_1', label: 'ממתין', sub_cols: [], color: '#1a5fa8' },
+                        { key: 'col_tpl_2', label: 'פעיל',  sub_cols: [], color: '#0d7a3e' },
+                      ],
+                    },
+                    {
+                      id: 'tpl_3terminal', label: '3 עמודות — מסוף', desc: 'כניסה / מגרש / מסלול', bg: '#07090c',
+                      columns: [
+                        { key: 'col_tpl_1', label: 'כניסה',  sub_cols: [],         color: '#4a5fa0' },
+                        { key: 'col_tpl_2', label: 'מגרש',   sub_cols: [],         color: '#4a5fa0' },
+                        { key: 'col_tpl_3', label: 'מסלול',  sub_cols: [],         color: '#1a6b6b' },
+                      ],
+                    },
+                    {
+                      id: 'tpl_3ctrl', label: '3 עמודות — בקרה', desc: 'ממתין / פעיל (עם ביה"ש) / יצא', bg: '#07090c',
+                      columns: [
+                        { key: 'col_tpl_1', label: 'ממתין', sub_cols: [],                    color: '#1a5fa8' },
+                        { key: 'col_tpl_2', label: 'פעיל',  sub_cols: ['01','02','03','04'], color: '#0d7a3e' },
+                        { key: 'col_tpl_3', label: 'יצא',   sub_cols: [],                    color: '#7b2d8b' },
+                      ],
+                    },
+                    {
+                      id: 'tpl_3atc', label: '3 עמודות — יב"א', desc: 'פוש / מסלול / מגדל', bg: '#060d10',
+                      columns: [
+                        { key: 'col_tpl_1', label: 'פוש',   sub_cols: [],         color: '#1a6b6b' },
+                        { key: 'col_tpl_2', label: 'מסלול', sub_cols: [],         color: '#1a6b6b' },
+                        { key: 'col_tpl_3', label: 'מגדל',  sub_cols: [],         color: '#4a5fa0' },
+                      ],
+                    },
+                  ];
                   return (
                     <div style={{ marginTop: '18px', padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '6px' }}>✈ עמודות לוח אזרחי</div>
+                      <div style={{ color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold', marginBottom: '10px' }}>✈ עמודות לוח אזרחי</div>
+
+                      {/* Template picker */}
+                      <div style={{ marginBottom: '14px', padding: '10px 12px', background: '#060e1a', borderRadius: '7px', border: '1px solid #1e3a5f' }}>
+                        <div style={{ fontSize: '11px', color: '#7dd3fc', marginBottom: '8px', fontWeight: 'bold' }}>📋 טען תבנית</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {CIV_TEMPLATES.map(tpl => (
+                            <button key={tpl.id} type="button"
+                              onClick={() => {
+                                const freshCols = tpl.columns.map((c, i) => ({ ...c, key: `col_${Date.now()}_${i}` }));
+                                setCivCols(freshCols);
+                                setPresetForm(p => ({ ...p, civilian_board_bg: tpl.bg }));
+                              }}
+                              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '2px', padding: '7px 10px', background: '#0f1e30', border: '1px solid #1e3a5f', borderRadius: '6px', cursor: 'pointer', minWidth: '130px' }}>
+                              <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
+                                {tpl.columns.map((c, i) => (
+                                  <div key={i} style={{ width: '14px', height: '22px', borderRadius: '2px', background: c.color, opacity: 0.85 }} />
+                                ))}
+                              </div>
+                              <span style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', textAlign: 'right' }}>{tpl.label}</span>
+                              <span style={{ fontSize: '10px', color: '#475569', textAlign: 'right' }}>{tpl.desc}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <p style={{ margin: '7px 0 0 0', fontSize: '10px', color: '#334155' }}>טעינת תבנית מחליפה את העמודות הנוכחיות — ניתן לערוך לאחר מכן.</p>
+                      </div>
+
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                         <p style={{ margin: 0, fontSize: '11px', color: '#475569' }}>גרור כרטיסיות לשינוי סדר. לחץ על שם לעריכה. עד 3 עמודות.</p>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', marginRight: 'auto', flexShrink: 0 }}>
