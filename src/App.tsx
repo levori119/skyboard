@@ -14648,11 +14648,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         body: JSON.stringify({ sourceStripId: stripId, aircraftIndices: partialSelectedIndices, in_table: false })
       });
       if (!res.ok) throw new Error(await res.text());
-      const { newStripId } = await res.json();
+      const data = await res.json();
+      const partialId = data.partialStripId || data.newStripId;
       await loadData();
       const eta = transferEtaMinutes;
       setTransferEtaMinutes(0);
-      await handleTransfer(String(newStripId), toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
+      await handleTransfer(String(partialId), toSectorId, targetX, targetY, subLabel, toWorkstationId, eta || undefined);
     } catch (err) {
       console.error('Partial create failed:', err);
     }
