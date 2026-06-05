@@ -883,6 +883,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS open_icon VARCHAR(200) DEFAULT NULL`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS close_icon VARCHAR(200) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_element_types ALTER COLUMN icon TYPE VARCHAR(200)`);
   // Airfield element display states (blink/open/close) + blink config
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS display_state VARCHAR(20) DEFAULT 'normal'`);
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_rate FLOAT DEFAULT 1.0`);
