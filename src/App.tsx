@@ -5334,14 +5334,18 @@ const GroundMarkerSVG = ({ marker, color, size = 16, opacity = 1 }: { marker: st
 
 // ---- Ground SVG Icons for element types ----
 const GROUND_SVG_ICON_KEYS: { key: string; label: string }[] = [
-  { key: 'MAP:barrier',        label: 'מחסום' },
-  { key: 'MAP:traffic-red',    label: 'רמזור אדום' },
-  { key: 'MAP:traffic-orange', label: 'רמזור כתום' },
-  { key: 'MAP:traffic-green',  label: 'רמזור ירוק' },
-  { key: 'MAP:sweeper',        label: 'מנקה מסלולים' },
-  { key: 'MAP:firetruck',      label: 'כבאית' },
-  { key: 'MAP:birdcar',        label: 'רכב ציפורים' },
-  { key: 'MAP:opsvehicle',     label: 'רכב מבצעי ירוק' },
+  { key: 'MAP:barrier',              label: 'מחסום' },
+  { key: 'MAP:barrier-open',         label: 'מחסום פתוח' },
+  { key: 'MAP:traffic-red',          label: 'רמזור אדום' },
+  { key: 'MAP:traffic-orange',       label: 'רמזור כתום' },
+  { key: 'MAP:traffic-green',        label: 'רמזור ירוק' },
+  { key: 'MAP:traffic-red-single',   label: 'רמזור אדום נורה אחת' },
+  { key: 'MAP:traffic-orange-single',label: 'רמזור כתום נורה אחת' },
+  { key: 'MAP:stopbar',              label: 'STOP BAR' },
+  { key: 'MAP:sweeper',              label: 'מנקה מסלולים' },
+  { key: 'MAP:firetruck',            label: 'כבאית' },
+  { key: 'MAP:birdcar',              label: 'רכב ציפורים' },
+  { key: 'MAP:opsvehicle',           label: 'רכב מבצעי ירוק' },
 ];
 
 const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string): JSX.Element | null => {
@@ -5353,16 +5357,13 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
       if (isOpen) {
         return (
           <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-            {/* Left pole */}
             <rect x="1" y="5" width="2.5" height="15" rx="1" fill="#555"/>
-            {/* Arm raised ~70° from horizontal, pivot bottom-left of arm */}
             <g transform="rotate(-70, 2.25, 12.5)">
               <rect x="2.25" y="10.5" width="19" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
               <rect x="2.25" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
               <rect x="9"    y="10.5" width="3.5"  height="4" fill="#22c55e"/>
               <rect x="15.7" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
             </g>
-            {/* Right base stub */}
             <rect x="20.5" y="17" width="2.5" height="4" rx="1" fill="#444"/>
           </svg>
         );
@@ -5375,6 +5376,47 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
           <rect x="16" y="10.5" width="3.5" height="4" fill="#ef4444"/>
           <rect x="1"  y="7" width="2.5" height="10" rx="1" fill="#555"/>
           <rect x="20.5" y="7" width="2.5" height="10" rx="1" fill="#555"/>
+        </svg>
+      );
+    case 'MAP:barrier-open':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
+          <rect x="1" y="5" width="2.5" height="15" rx="1" fill="#555"/>
+          <g transform="rotate(-70, 2.25, 12.5)">
+            <rect x="2.25" y="10.5" width="19" height="4" rx="1" fill="white" stroke="#888" strokeWidth="0.4"/>
+            <rect x="2.25" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+            <rect x="9"    y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+            <rect x="15.7" y="10.5" width="3.5"  height="4" fill="#22c55e"/>
+          </g>
+          <rect x="20.5" y="17" width="2.5" height="4" rx="1" fill="#444"/>
+        </svg>
+      );
+    case 'MAP:traffic-red-single':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
+          <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
+          <circle cx="12" cy="11.5" r="4" fill={isBlinking ? '#ef4444' : '#5a1a1a'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <rect x="11" y="18" width="2" height="4" fill="#555"/>
+        </svg>
+      );
+    case 'MAP:traffic-orange-single':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
+          <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
+          <circle cx="12" cy="11.5" r="4" fill={isBlinking ? '#f97316' : '#4a2a0a'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <rect x="11" y="18" width="2" height="4" fill="#555"/>
+        </svg>
+      );
+    case 'MAP:stopbar':
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
+          <text x="12" y="8" textAnchor="middle" fontSize="4.5" fill="#ef4444" fontFamily="monospace" fontWeight="bold">STOP BAR</text>
+          <rect x="1" y="11" width="22" height="5" rx="1" fill="#1e293b" stroke="#555" strokeWidth="0.4"/>
+          <circle cx="3.2"  cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="7.4"  cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="11.6" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="15.8" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="20.0" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
         </svg>
       );
     case 'MAP:traffic-red':
