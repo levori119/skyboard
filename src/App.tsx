@@ -26310,6 +26310,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
   const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '' });
   const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '' });
+  elementTypeFormRef.current = elementTypeForm;
   const setElementTypeFormAndRef = React.useCallback((updater: any) => {
     setElementTypeForm(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -26317,6 +26318,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       return next;
     });
   }, []);
+  const [etPreviewMode, setEtPreviewMode] = React.useState<'normal'|'blink'|'open'|'close'>('normal');
   const [editingElementType, setEditingElementType] = useState<any | null>(null);
   const [showElementTypeSection, setShowElementTypeSection] = useState(false);
   // Airfield elements (per-airfield)
@@ -31274,41 +31276,71 @@ CHARLIE,1,301,`}
               {/* Live animated preview */}
               {elementTypeForm.icon && (() => {
                 const isSvgPrev = typeof elementTypeForm.icon === 'string' && elementTypeForm.icon.startsWith('MAP:');
+                const prevModes: { key: typeof etPreviewMode; label: string; color: string }[] = [
+                  { key: 'normal', label: 'רגיל', color: '#94a3b8' },
+                  { key: 'blink',  label: 'מנצנץ', color: '#f59e0b' },
+                  { key: 'open',   label: 'פתוח',  color: '#22c55e' },
+                  { key: 'close',  label: 'סגור',  color: '#ef4444' },
+                ];
+                const activeIconForMode = etPreviewMode === 'open' ? (elementTypeForm.open_icon || elementTypeForm.icon)
+                  : etPreviewMode === 'close' ? (elementTypeForm.close_icon || elementTypeForm.icon)
+                  : elementTypeForm.icon;
+                const borderForMode: Record<typeof etPreviewMode, string> = {
+                  normal: '#334155', blink: '#f59e0b', open: '#22c55e', close: '#ef4444'
+                };
                 return (
-                  <div style={{ padding: '10px 12px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', textAlign: 'center' }}>תצוגה מקדימה:</div>
-                    <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', alignItems: 'flex-end' }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '8px', margin: '0 auto' }}>
-                          {isSvgPrev ? renderGroundSvgIcon(elementTypeForm.icon, 44) : <span style={{ fontSize: '34px' }}>{elementTypeForm.icon}</span>}
-                        </div>
-                        <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '4px' }}>רגיל</div>
-                      </div>
-                      {isSvgPrev && (
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '8px', margin: '0 auto' }}>
-                            {renderGroundSvgIcon(elementTypeForm.icon, 44, 'מנצנץ')}
-                          </div>
-                          <div style={{ fontSize: '9px', color: '#f59e0b', marginTop: '4px' }}>מנצנץ</div>
-                        </div>
-                      )}
-                      {isSvgPrev && elementTypeForm.open_icon && (
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '8px', margin: '0 auto', outline: '2px solid #22c55e', borderRadius: '8px' }}>
-                            {renderGroundSvgIcon(elementTypeForm.open_icon, 44)}
-                          </div>
-                          <div style={{ fontSize: '9px', color: '#22c55e', marginTop: '4px' }}>פתוח</div>
-                        </div>
-                      )}
-                      {isSvgPrev && elementTypeForm.close_icon && (
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ width: '52px', height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '8px', margin: '0 auto', outline: '2px solid #ef4444' }}>
-                            {renderGroundSvgIcon(elementTypeForm.close_icon, 44)}
-                          </div>
-                          <div style={{ fontSize: '9px', color: '#ef4444', marginTop: '4px' }}>סגור</div>
-                        </div>
-                      )}
+                  <div style={{ padding: '10px 12px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>👁 תצוגה מקדימה — בחר מצב:</div>
+                    {/* Mode selector */}
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                      {prevModes.map(m => (
+                        <button type="button" key={m.key} onClick={() => setEtPreviewMode(m.key)}
+                          style={{ padding: '4px 12px', background: etPreviewMode === m.key ? m.color + '33' : 'transparent', border: `1px solid ${etPreviewMode === m.key ? m.color : '#334155'}`, borderRadius: '6px', color: etPreviewMode === m.key ? m.color : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: etPreviewMode === m.key ? 'bold' : 'normal' }}>
+                          {m.label}
+                        </button>
+                      ))}
                     </div>
+                    {/* Large preview */}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '10px', margin: '0 auto', border: `2px solid ${borderForMode[etPreviewMode]}`, boxShadow: `0 0 12px ${borderForMode[etPreviewMode]}66`, transition: 'border-color 0.2s, box-shadow 0.2s' }}>
+                          {isSvgPrev
+                            ? renderGroundSvgIcon(activeIconForMode, 52, etPreviewMode === 'blink' ? 'מנצנץ' : undefined)
+                            : <span style={{ fontSize: '42px', animation: etPreviewMode === 'blink' ? 'af-elem-blink 0.8s step-end infinite' : 'none' }}>{elementTypeForm.icon}</span>}
+                        </div>
+                        <div style={{ fontSize: '10px', color: borderForMode[etPreviewMode], marginTop: '5px', fontWeight: 'bold' }}>
+                          {etPreviewMode === 'normal' ? 'מצב רגיל' : etPreviewMode === 'blink' ? '⚡ מנצנץ' : etPreviewMode === 'open' ? '✓ פתוח' : '✕ סגור'}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Open / Close icon pickers inline in preview */}
+                    {(etPreviewMode === 'open' || etPreviewMode === 'close') && isSvgPrev && (
+                      <div style={{ borderTop: '1px solid #1e293b', paddingTop: '8px' }}>
+                        <div style={{ fontSize: '10px', color: etPreviewMode === 'open' ? '#22c55e' : '#ef4444', marginBottom: '5px', fontWeight: 'bold' }}>
+                          {etPreviewMode === 'open' ? '✓ בחר אייקון מצב פתוח:' : '✕ בחר אייקון מצב סגור:'}
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          <button type="button" title="ברירת מחדל (אייקון ראשי)" onClick={() => setElementTypeFormAndRef(p => ({ ...p, [etPreviewMode === 'open' ? 'open_icon' : 'close_icon']: '' }))}
+                            style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: !(etPreviewMode === 'open' ? elementTypeForm.open_icon : elementTypeForm.close_icon) ? (etPreviewMode === 'open' ? '#14532d' : '#7f1d1d') : '#0f172a', border: `2px solid ${!(etPreviewMode === 'open' ? elementTypeForm.open_icon : elementTypeForm.close_icon) ? (etPreviewMode === 'open' ? '#22c55e' : '#ef4444') : '#334155'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '12px', color: '#94a3b8' }}>—</button>
+                          {GROUND_SVG_ICON_KEYS.map(({ key, label }) => {
+                            const currentVal = etPreviewMode === 'open' ? elementTypeForm.open_icon : elementTypeForm.close_icon;
+                            const borderC = etPreviewMode === 'open' ? '#22c55e' : '#ef4444';
+                            const bgC = etPreviewMode === 'open' ? '#14532d' : '#7f1d1d';
+                            return (
+                              <button type="button" key={key} title={label} onClick={() => setElementTypeFormAndRef(p => ({ ...p, [etPreviewMode === 'open' ? 'open_icon' : 'close_icon']: key }))}
+                                style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: currentVal === key ? bgC : '#0f172a', border: `2px solid ${currentVal === key ? borderC : '#334155'}`, borderRadius: '5px', cursor: 'pointer', padding: '2px' }}>
+                                {renderGroundSvgIcon(key, 22)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {etPreviewMode === 'blink' && (
+                      <div style={{ borderTop: '1px solid #1e293b', paddingTop: '6px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b' }}>ההבהוב מוגדר ע"י אנימציית CSS של האייקון</div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -31337,40 +31369,9 @@ CHARLIE,1,301,`}
                       );
                     })}
                   </div>
-                  {/* Open / Close icon pickers */}
                   {(elementTypeForm.allowed_statuses.includes('פתוח') || elementTypeForm.allowed_statuses.includes('סגור')) && (
-                    <div style={{ marginTop: '12px', borderTop: '1px solid #1e293b', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>🔄 אייקון לכל מצב (אופציונלי):</div>
-                      {elementTypeForm.allowed_statuses.includes('פתוח') && (
-                        <div>
-                          <div style={{ fontSize: '10px', color: '#22c55e', marginBottom: '5px', fontWeight: 'bold' }}>✓ אייקון מצב פתוח:</div>
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <button type="button" title="ללא (השתמש באייקון הראשי)" onClick={() => setElementTypeFormAndRef(p => ({ ...p, open_icon: '' }))}
-                              style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: !elementTypeForm.open_icon ? '#14532d' : '#0f172a', border: `2px solid ${!elementTypeForm.open_icon ? '#22c55e' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>—</button>
-                            {GROUND_SVG_ICON_KEYS.map(({ key, label }) => (
-                              <button type="button" key={key} title={label} onClick={() => setElementTypeFormAndRef(p => ({ ...p, open_icon: key }))}
-                                style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: elementTypeForm.open_icon === key ? '#14532d' : '#0f172a', border: `2px solid ${elementTypeForm.open_icon === key ? '#22c55e' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }}>
-                                {renderGroundSvgIcon(key, 24)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {elementTypeForm.allowed_statuses.includes('סגור') && (
-                        <div>
-                          <div style={{ fontSize: '10px', color: '#ef4444', marginBottom: '5px', fontWeight: 'bold' }}>✕ אייקון מצב סגור:</div>
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            <button type="button" title="ללא (השתמש באייקון הראשי)" onClick={() => setElementTypeFormAndRef(p => ({ ...p, close_icon: '' }))}
-                              style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: !elementTypeForm.close_icon ? '#7f1d1d' : '#0f172a', border: `2px solid ${!elementTypeForm.close_icon ? '#ef4444' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>—</button>
-                            {GROUND_SVG_ICON_KEYS.map(({ key, label }) => (
-                              <button type="button" key={key} title={label} onClick={() => setElementTypeFormAndRef(p => ({ ...p, close_icon: key }))}
-                                style={{ width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: elementTypeForm.close_icon === key ? '#7f1d1d' : '#0f172a', border: `2px solid ${elementTypeForm.close_icon === key ? '#ef4444' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }}>
-                                {renderGroundSvgIcon(key, 24)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    <div style={{ marginTop: '8px', padding: '6px 8px', background: '#0a1628', borderRadius: '6px', border: '1px dashed #1e3a5f' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>💡 כדי להגדיר אייקון לפתוח/סגור — לחץ על "פתוח" או "סגור" בתצוגה המקדימה למטה</div>
                     </div>
                   )}
                 </div>
