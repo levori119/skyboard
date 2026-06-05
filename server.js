@@ -881,6 +881,15 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_change_status BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
+  // Airfield element display states (blink/open/close) + blink config
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS display_state VARCHAR(20) DEFAULT 'normal'`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_rate FLOAT DEFAULT 1.0`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_colors VARCHAR(200) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS open_icon_key VARCHAR(200) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS close_icon_key VARCHAR(200) DEFAULT NULL`);
+  // Polygon GRF wetness + RVR visibility status
+  await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS rvr_meters INTEGER DEFAULT NULL`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workstation_session_roles (
     id SERIAL PRIMARY KEY,
     preset_id INTEGER UNIQUE REFERENCES workstation_presets(id) ON DELETE CASCADE,
@@ -3473,10 +3482,15 @@ app.post('/api/airfield-elements', async (req, res) => {
 });
 app.put('/api/airfield-elements/:id', async (req, res) => {
   try {
-    const { element_type_id, name, status, note, x_pct, y_pct, category } = req.body;
+    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key } = req.body;
     const r = await pool.query(
-      'UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=$7 WHERE id=$8 RETURNING *',
-      [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '', req.params.id]
+      `UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=$7,
+       display_state=COALESCE($8,display_state),blink_rate=COALESCE($9,blink_rate),blink_colors=COALESCE($10,blink_colors),
+       open_icon_key=COALESCE($11,open_icon_key),close_icon_key=COALESCE($12,close_icon_key)
+       WHERE id=$13 RETURNING *`,
+      [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '',
+       display_state ?? null, blink_rate ?? null, blink_colors ?? null, open_icon_key ?? null, close_icon_key ?? null,
+       req.params.id]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
@@ -5926,13 +5940,13 @@ app.get('/api/airfield-polygon-statuses', async (req, res) => {
 
 app.post('/api/airfield-polygon-statuses', async (req, res) => {
   try {
-    const { polygon_id, status_type_id, note } = req.body;
+    const { polygon_id, status_type_id, note, grf_status, rvr_meters } = req.body;
     const result = await pool.query(
-      `INSERT INTO airfield_polygon_statuses (polygon_id, status_type_id, note, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (polygon_id) DO UPDATE SET status_type_id=$2, note=$3, updated_at=NOW()
+      `INSERT INTO airfield_polygon_statuses (polygon_id, status_type_id, note, grf_status, rvr_meters, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (polygon_id) DO UPDATE SET status_type_id=$2, note=$3, grf_status=$4, rvr_meters=$5, updated_at=NOW()
        RETURNING *`,
-      [polygon_id, status_type_id || null, note || null]
+      [polygon_id, status_type_id || null, note || null, grf_status || null, rvr_meters != null ? Number(rvr_meters) : null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to set polygon status' }); }

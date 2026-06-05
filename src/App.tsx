@@ -5561,7 +5561,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
-  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string }) => Promise<void>;
+  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string }) => Promise<void>;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => Promise<void>;
   headerButtons?: React.ReactNode;
@@ -5573,7 +5573,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldSectors?: any[];
   airfieldStatusTypes?: any[];
   airfieldPolygonStatuses?: any[];
-  onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string) => Promise<void>;
+  onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
+  onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
@@ -5583,12 +5584,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
-  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string } | null>(null);
+  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string } | null>(null);
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
   const [catMapHighlight, setCatMapHighlight] = useState<Set<string>>(new Set());
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
   const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
   const [polygonPickerNote, setPolygonPickerNote] = useState('');
+  const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
+  const [polygonPickerRvr, setPolygonPickerRvr] = useState<string>('');
+  const [focusedSectorId, setFocusedSectorId] = useState<number | null>(null);
   const [draggingTransferId, setDraggingTransferId] = useState<string | null>(null);
   const [pendingPointAssign, setPendingPointAssign] = React.useState<{ stripId: string; pointId: number } | null>(null);
   const [leftDragOver, setLeftDragOver] = useState<number | null>(null); // sector_id
@@ -5634,6 +5638,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const isFirstDatkMount = React.useRef(true);
   React.useEffect(() => {
     setPolygonPickerNote(polygonStatusPicker?.currentStatus?.note || '');
+    setPolygonPickerGrf(polygonStatusPicker?.currentStatus?.grf_status || null);
+    setPolygonPickerRvr(polygonStatusPicker?.currentStatus?.rvr_meters != null ? String(polygonStatusPicker.currentStatus.rvr_meters) : '');
   }, [polygonStatusPicker]);
 
   React.useEffect(() => {
@@ -6247,6 +6253,39 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const mapRef = React.useRef<HTMLDivElement>(null);
 
+  // Sector zoom: when a sector is focused, smoothly zoom + pan the map to that sector
+  React.useEffect(() => {
+    const el = mapRef.current;
+    if (!el || !imgBounds) return;
+    if (!focusedSectorId) {
+      el.style.transform = '';
+      el.style.transformOrigin = '';
+      el.style.transition = '';
+      return;
+    }
+    const sec = (airfieldSectors || []).find((s: any) => s.id === focusedSectorId);
+    if (!sec) { el.style.transform = ''; return; }
+    const cW = el.offsetWidth;
+    const cH = el.offsetHeight;
+    const x = Math.min(sec.x1_pct, sec.x2_pct) / 100;
+    const y = Math.min(sec.y1_pct, sec.y2_pct) / 100;
+    const w = Math.abs(sec.x2_pct - sec.x1_pct) / 100;
+    const h = Math.abs(sec.y2_pct - sec.y1_pct) / 100;
+    const secLeft = imgBounds.left + x * imgBounds.width;
+    const secTop = imgBounds.top + y * imgBounds.height;
+    const secW = w * imgBounds.width;
+    const secH = h * imgBounds.height;
+    if (secW < 1 || secH < 1) return;
+    const scale = Math.min(cW / secW, cH / secH) * 0.88;
+    const secCx = secLeft + secW / 2;
+    const secCy = secTop + secH / 2;
+    const tx = cW / 2 - secCx * scale;
+    const ty = cH / 2 - secCy * scale;
+    el.style.transformOrigin = '0 0';
+    el.style.transition = 'transform 0.4s ease';
+    el.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+  }, [focusedSectorId, imgBounds, airfieldSectors]);
+
   const PANEL: React.CSSProperties = { display: 'flex', flexDirection: 'column', overflow: 'hidden', background: panelBg };
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
 
@@ -6774,7 +6813,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
                               <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
                               {onUpdateElement && (
-                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '' }); setEditingElemField(null); }}
+                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '' }); setEditingElemField(null); }}
                                   title="ערוך אלמנט"
                                   style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
                                   ✏
@@ -7148,6 +7187,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
+          {/* Sector zoom reset button */}
+          {focusedSectorId && (
+            <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31 }}>
+              <button onClick={() => setFocusedSectorId(null)}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008' }}>
+                🔍 חזרה למפה מלאה
+              </button>
+            </div>
+          )}
+
           {/* Layer toggle panel */}
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl' }}>
             <button onClick={() => setShowLayerPanel(p => !p)}
@@ -7170,6 +7219,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, zIndex: 3 }}>
+              <defs>
+                <style>{`@keyframes af-elem-blink { 0%,49%{opacity:1} 50%,100%{opacity:0.2} }`}</style>
+              </defs>
               {(airfieldPolygons || []).map((pg: any) => {
                 const pts: { x: number; y: number }[] = Array.isArray(pg.polygon) ? pg.polygon : [];
                 if (pts.length < 3) return null;
@@ -7179,6 +7231,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const label = assignment ? `${pg.name}: ${assignment.status_name}` : pg.name;
                 const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
                 const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+                // GRF water drops
+                const grf = assignment?.grf_status;
+                const grfDrops = grf === 'רטוב' ? 3 : grf === 'חלקי' ? 1 : 0;
+                // RVR visibility overlay opacity
+                const rvr = assignment?.rvr_meters;
+                const rvrOpacity = rvr == null ? 0 : rvr <= 200 ? 0.55 : rvr <= 600 ? 0.38 : rvr <= 1500 ? 0.22 : rvr <= 5000 ? 0.1 : 0;
+                // RVR label
+                const rvrLabel = rvr != null && rvr > 0 ? (rvr >= 1000 ? `${(rvr/1000).toFixed(1)}km` : `${rvr}m`) : null;
+                const dropOffsets = grfDrops === 3 ? [-3, 0, 3] : grfDrops === 1 ? [0] : [];
                 return (
                   <g key={pg.id} style={{ cursor: onUpdatePolygonStatus ? 'pointer' : 'default' }}
                     onClick={onUpdatePolygonStatus ? (e: React.MouseEvent<SVGGElement>) => {
@@ -7186,6 +7247,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       setPolygonStatusPicker({ polygon: pg, x: e.clientX, y: e.clientY, currentStatus: assignment || null });
                     } : undefined}>
                     <polygon points={pointsStr} fill={fillColor} fillOpacity={assignment ? 0.55 : 0.2} stroke={fillColor} strokeWidth="0.5" strokeOpacity="0.9" />
+                    {/* RVR visibility gray overlay */}
+                    {rvrOpacity > 0 && (
+                      <polygon points={pointsStr} fill="#94a3b8" fillOpacity={rvrOpacity} style={{ pointerEvents: 'none' }} />
+                    )}
                     <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="2.2" fontWeight="bold"
                       style={{ userSelect: 'none', textShadow: '0 1px 2px #0008', pointerEvents: 'none' }}>
                       {pg.name}
@@ -7196,7 +7261,25 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {assignment.status_name}
                       </text>
                     )}
-                    <title>{label}{assignment?.note ? `\n${assignment.note}` : ''}</title>
+                    {/* GRF status label + drops */}
+                    {grf && grf !== 'יבש' && (
+                      <text x={cx} y={cy + (assignment ? 5.8 : 2.8)} textAnchor="middle" dominantBaseline="middle" fill="#60a5fa" fontSize="1.7" fontWeight="bold"
+                        style={{ userSelect: 'none', pointerEvents: 'none' }}>
+                        💧 {grf}
+                      </text>
+                    )}
+                    {/* Water drops for GRF wet state */}
+                    {dropOffsets.map((dx, di) => (
+                      <ellipse key={di} cx={cx + dx} cy={cy - 3} rx="0.7" ry="1.1" fill="#60a5fa" fillOpacity="0.85" style={{ pointerEvents: 'none' }} />
+                    ))}
+                    {/* RVR label */}
+                    {rvrLabel && (
+                      <text x={cx} y={cy + (assignment ? (grf && grf !== 'יבש' ? 8.5 : 5.8) : (grf && grf !== 'יבש' ? 5.8 : 2.8))} textAnchor="middle" dominantBaseline="middle"
+                        fill="#94a3b8" fontSize="1.6" style={{ userSelect: 'none', pointerEvents: 'none' }}>
+                        👁 {rvrLabel}
+                      </text>
+                    )}
+                    <title>{label}{assignment?.note ? `\n${assignment.note}` : ''}{grf ? `\nGRF: ${grf}` : ''}{rvr ? `\nRVR: ${rvr}m` : ''}</title>
                   </g>
                 );
               })}
@@ -7206,7 +7289,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* Airfield Sectors overlay */}
           {mapLayers.sectors && imgBounds && (airfieldSectors || []).length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'all', zIndex: 4 }}>
               {(airfieldSectors || []).map((sec: any) => {
                 const x = Math.min(sec.x1_pct, sec.x2_pct);
                 const y = Math.min(sec.y1_pct, sec.y2_pct);
@@ -7214,18 +7297,26 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const h = Math.abs(sec.y2_pct - sec.y1_pct);
                 if (w < 0.5 || h < 0.5) return null;
                 const col = sec.color || '#f59e0b';
+                const isFocused = focusedSectorId === sec.id;
                 return (
-                  <g key={sec.id}>
-                    <rect x={x} y={y} width={w} height={h} fill={col} fillOpacity="0.08" stroke={col} strokeWidth="0.6" strokeDasharray="2,1.2" />
-                    <text x={x + w / 2} y={y + 1.6} textAnchor="middle" dominantBaseline="hanging" fill={col} fontSize="2.4" fontWeight="bold"
-                      style={{ userSelect: 'none' }}>
+                  <g key={sec.id} style={{ cursor: 'pointer' }} onClick={() => setFocusedSectorId(isFocused ? null : sec.id)}>
+                    <rect x={x} y={y} width={w} height={h} fill={col} fillOpacity={isFocused ? 0.15 : 0.08}
+                      stroke={isFocused ? '#22c55e' : col} strokeWidth={isFocused ? 1.2 : 0.6}
+                      strokeDasharray={isFocused ? undefined : '2,1.2'}
+                      style={isFocused ? { filter: 'drop-shadow(0 0 3px #22c55e)' } : undefined} />
+                    <text x={x + w / 2} y={y + 1.6} textAnchor="middle" dominantBaseline="hanging" fill={isFocused ? '#22c55e' : col} fontSize="2.4" fontWeight="bold"
+                      style={{ userSelect: 'none', pointerEvents: 'none' }}>
                       {sec.name}
                     </text>
                     {sec.description && (
                       <text x={x + w / 2} y={y + h / 2} textAnchor="middle" dominantBaseline="middle" fill={col} fontSize="1.7" fillOpacity="0.8"
-                        style={{ userSelect: 'none' }}>
+                        style={{ userSelect: 'none', pointerEvents: 'none' }}>
                         {sec.description}
                       </text>
+                    )}
+                    {isFocused && (
+                      <text x={x + w - 0.4} y={y + 0.4} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="2" fontWeight="bold"
+                        style={{ userSelect: 'none', pointerEvents: 'none' }}>✕</text>
                     )}
                   </g>
                 );
@@ -7275,10 +7366,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
+            // Display state: normal / blink / open / close
+            const dState = el.display_state || 'normal';
+            const isBlinking = dState === 'blink';
+            const isClosed = dState === 'close';
+            const isOpen = dState === 'open';
+            const blinkRate = el.blink_rate || 1.0;
+            const blinkAnimStyle: React.CSSProperties = isBlinking
+              ? { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
+              : {};
             return (
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}`}>
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}`}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
                   <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
@@ -7287,25 +7387,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isBeingEdited && (
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
-                <div onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                <div style={blinkAnimStyle} onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                   {isSvgIcon ? (
-                    <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))`, outline: canChangeStatus ? `2px solid ${opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? opColor + '22' : 'transparent' }}>
-                      {renderGroundSvgIcon(el.type_icon, 26, el.status)}
+                    <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))${isClosed ? ' grayscale(1)' : ''}`, outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent' }}>
+                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_icon) : isOpen ? (el.open_icon_key || el.type_icon) : el.type_icon, 26, el.status)}
                     </div>
                   ) : (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s' }}>
-                      {!isTakul && (el.type_icon || '🔧')}
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed ? 0.6 : 1 }}>
+                      {isClosed ? '✕' : !isTakul && (el.type_icon || '🔧')}
                     </div>
                   )}
-                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
-                  {canChangeStatus && el.status && (
-                    <div style={{ background: opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.status}</div>
+                  {/* Closed X overlay for SVG icons */}
+                  {isClosed && isSvgIcon && (
+                    <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 6px #000' }}>✕</div>
+                  )}
+                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isClosed ? '#fca5a5' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
+                  {(canChangeStatus && el.status || dState !== 'normal') && (
+                    <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                      {isClosed ? 'סגור' : isBlinking ? 'מהבהב' : isOpen ? 'פתוח' : el.status}
+                    </div>
                   )}
                 </div>
                 {/* Edit button — shown on hover or when this element's category is highlighted */}
                 {onUpdateElement && (
                   <button
-                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '' }); setEditingElemField(null); }}
+                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '' }); setEditingElemField(null); }}
                     style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff', fontSize: '8px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
                     title="ערוך אלמנט">
                     ✏
@@ -7908,7 +8014,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const el = elemEditModal.el;
         const save = async () => {
-          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note });
+          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey });
           setElemEditModal(null);
           setEditingElemField(null);
         };
@@ -8045,6 +8151,57 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   לחץ על שדה כדי לערוך אותו
                 </div>
               )}
+
+              {/* Display state section — visible when no field editing */}
+              {activeField === null && (
+                <div style={{ padding: '10px 12px', borderTop: `1px solid ${D_BORDER}` }}>
+                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: D_LABEL, marginBottom: '7px' }}>⚡ מצב תצוגה</div>
+                  {/* display_state buttons */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
+                    {[
+                      { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
+                      { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
+                      { key: 'open', label: '🟢 פתוח', color: '#22c55e' },
+                      { key: 'close', label: '🔴 סגור', color: '#ef4444' },
+                    ].map(opt => (
+                      <button key={opt.key}
+                        onClick={() => setElemEditModal(p => p ? { ...p, displayState: opt.key } : p)}
+                        style={{ padding: '5px 4px', background: elemEditModal.displayState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${elemEditModal.displayState === opt.key ? opt.color : D_BORDER}`, borderRadius: '5px', color: elemEditModal.displayState === opt.key ? opt.color : D_LABEL, cursor: 'pointer', fontSize: '11px', fontWeight: elemEditModal.displayState === opt.key ? 'bold' : 'normal', textAlign: 'center' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Blink rate — only when blink selected */}
+                  {elemEditModal.displayState === 'blink' && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '10px', color: D_LABEL, marginBottom: '4px' }}>קצב הבהוב (שניות)</div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {[0.5, 1.0, 1.5, 2.0].map(r => (
+                          <button key={r}
+                            onClick={() => setElemEditModal(p => p ? { ...p, blinkRate: r } : p)}
+                            style={{ flex: 1, padding: '4px 0', background: elemEditModal.blinkRate === r ? '#f59e0b33' : 'transparent', border: `1px solid ${elemEditModal.blinkRate === r ? '#f59e0b' : D_BORDER}`, borderRadius: '4px', color: elemEditModal.blinkRate === r ? '#fbbf24' : D_LABEL, cursor: 'pointer', fontSize: '11px', fontWeight: elemEditModal.blinkRate === r ? 'bold' : 'normal' }}>
+                            {r}s
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Open icon key */}
+                  <div style={{ marginBottom: '6px' }}>
+                    <div style={{ fontSize: '10px', color: D_LABEL, marginBottom: '3px' }}>מפתח אייקון פתוח (open_icon_key)</div>
+                    <input value={elemEditModal.openIconKey} onChange={e => setElemEditModal(p => p ? { ...p, openIconKey: e.target.value } : p)}
+                      placeholder="לדוגמה: MAP:RUNWAY_OPEN"
+                      style={{ width: '100%', padding: '5px 8px', background: D_INPUT_BG, border: `1px solid ${D_BORDER}`, borderRadius: '5px', color: D_TEXT, fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                  </div>
+                  {/* Close icon key */}
+                  <div>
+                    <div style={{ fontSize: '10px', color: D_LABEL, marginBottom: '3px' }}>מפתח אייקון סגור (close_icon_key)</div>
+                    <input value={elemEditModal.closeIconKey} onChange={e => setElemEditModal(p => p ? { ...p, closeIconKey: e.target.value } : p)}
+                      placeholder="לדוגמה: MAP:RUNWAY_CLOSED"
+                      style={{ width: '100%', padding: '5px 8px', background: D_INPUT_BG, border: `1px solid ${D_BORDER}`, borderRadius: '5px', color: D_TEXT, fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer — Save / Cancel */}
@@ -8080,7 +8237,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   const isSelected = currentStatus?.status_type_id === st.id;
                   return (
                     <button key={st.id} onClick={() => {
-                      if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, st.id, polygonPickerNote);
+                      if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, st.id, polygonPickerNote, polygonPickerGrf || null, polygonPickerRvr ? Number(polygonPickerRvr) : null);
                       setPolygonStatusPicker(null);
                     }}
                       style={{ padding: '7px 12px', background: isSelected ? (st.color || '#888') + '33' : 'transparent', border: `1px solid ${isSelected ? (st.color || '#888') : '#334155'}`, borderRadius: '7px', color: isSelected ? (st.color || '#e2e8f0') : '#cbd5e1', cursor: 'pointer', fontSize: '13px', fontWeight: isSelected ? 'bold' : 'normal', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -8100,13 +8257,47 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </button>
                 )}
               </div>
+              {/* GRF — wetness status */}
+              <div style={{ marginTop: '10px', marginBottom: '6px' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>💧 GRF (מצב מסלול)</div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {['יבש', 'חלקי', 'רטוב'].map(g => (
+                    <button key={g} onClick={() => setPolygonPickerGrf(polygonPickerGrf === g ? null : g)}
+                      style={{ flex: 1, padding: '4px 6px', borderRadius: '5px', border: `1px solid ${polygonPickerGrf === g ? '#60a5fa' : '#334155'}`, background: polygonPickerGrf === g ? '#1e40af55' : 'transparent', color: polygonPickerGrf === g ? '#93c5fd' : '#94a3b8', fontSize: '11px', cursor: 'pointer', fontWeight: polygonPickerGrf === g ? 'bold' : 'normal' }}>
+                      {g === 'יבש' ? '☀' : g === 'חלקי' ? '💧' : '🌊'} {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* RVR — visibility */}
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '4px', fontWeight: 'bold' }}>👁 ראות RVR (מטרים)</div>
+                <input type="number" value={polygonPickerRvr} onChange={e => setPolygonPickerRvr(e.target.value)}
+                  placeholder="0 = ללא הגבלה"
+                  min="0" max="9999"
+                  style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#e2e8f0', fontSize: '12px', padding: '5px 8px', boxSizing: 'border-box' }} />
+                {polygonPickerRvr && (
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
+                    {Number(polygonPickerRvr) <= 200 ? '🔴 ≤200m — נמוך מאוד' : Number(polygonPickerRvr) <= 600 ? '🟠 ≤600m — נמוך' : Number(polygonPickerRvr) <= 1500 ? '🟡 ≤1500m — בינוני' : Number(polygonPickerRvr) <= 5000 ? '🟢 ≤5000m — טוב' : '✅ >5000m — ללא הגבלה'}
+                  </div>
+                )}
+              </div>
               <input value={polygonPickerNote} onChange={e => setPolygonPickerNote(e.target.value)} placeholder="הערה (אופציונלי)"
                 style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#e2e8f0', fontSize: '12px', padding: '5px 8px', boxSizing: 'border-box' }} />
+              {/* Apply GRF/RVR button when something changed */}
+              {currentStatus && (polygonPickerGrf !== (currentStatus?.grf_status || null) || polygonPickerRvr !== (currentStatus?.rvr_meters != null ? String(currentStatus.rvr_meters) : '')) && (
+                <button onClick={() => {
+                  if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote, polygonPickerGrf || null, polygonPickerRvr ? Number(polygonPickerRvr) : null);
+                  setPolygonStatusPicker(null);
+                }} style={{ marginTop: '6px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                  💾 שמור GRF / ראות
+                </button>
+              )}
               {polygonPickerNote !== (currentStatus?.note || '') && currentStatus && (
                 <button onClick={() => {
-                  if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote);
+                  if (onUpdatePolygonStatus) onUpdatePolygonStatus(polygon.id, currentStatus.status_type_id, polygonPickerNote, polygonPickerGrf || null, polygonPickerRvr ? Number(polygonPickerRvr) : null);
                   setPolygonStatusPicker(null);
-                }} style={{ marginTop: '6px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>
+                }} style={{ marginTop: '4px', width: '100%', padding: '5px', background: '#1d4ed8', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>
                   שמור הערה
                 </button>
               )}
@@ -8122,18 +8313,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד', 'פתוח', 'סגור'];
         const statuses = allowedStatuses.length > 0 ? allowedStatuses : STATUS_OPTS;
         const statusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
-        const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 190);
-        const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 260);
+        const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 210);
+        const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 380);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
+        const curDState = el.display_state || 'normal';
+        const dStateOpts = [
+          { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
+          { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
+          { key: 'open', label: '🟢 פתוח', color: '#22c55e' },
+          { key: 'close', label: '🔴 סגור', color: '#ef4444' },
+        ];
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setElemStatusPicker(null)}>
-            <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '170px' }}
+            <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {isSvg ? <span style={{ display: 'inline-flex' }}>{renderGroundSvgIcon(el.type_icon, 18)}</span> : <span>{el.type_icon || '🔧'}</span>}
                 <span>{el.name}</span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              {/* Operational status */}
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>סטטוס תפעולי</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
                 {statuses.map(s => (
                   <button key={s} onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, s); setElemStatusPicker(null); }}
                     style={{ padding: '7px 12px', background: el.status === s ? (statusColors[s] || '#888') + '33' : 'transparent', border: `1px solid ${el.status === s ? (statusColors[s] || '#888') : '#334155'}`, borderRadius: '7px', color: el.status === s ? (statusColors[s] || '#e2e8f0') : '#cbd5e1', cursor: 'pointer', fontSize: '13px', fontWeight: el.status === s ? 'bold' : 'normal', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '9px' }}>
@@ -8142,6 +8342,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     {el.status === s && <span style={{ marginRight: 'auto', fontSize: '11px' }}>✓</span>}
                   </button>
                 ))}
+              </div>
+              {/* Display state */}
+              <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>מצב תצוגה</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                  {dStateOpts.map(opt => (
+                    <button key={opt.key} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, opt.key); setElemStatusPicker(null); }}
+                      style={{ padding: '6px 4px', background: curDState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${curDState === opt.key ? opt.color : '#334155'}`, borderRadius: '6px', color: curDState === opt.key ? opt.color : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: curDState === opt.key ? 'bold' : 'normal', textAlign: 'center' }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {/* Blink rate when blink is selected */}
+                {curDState === 'blink' && (
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>קצב (שניות):</span>
+                    {[0.5, 1.0, 1.5, 2.0].map(r => (
+                      <button key={r} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, 'blink', r); setElemStatusPicker(null); }}
+                        style={{ padding: '3px 6px', background: (el.blink_rate || 1.0) === r ? '#f59e0b33' : 'transparent', border: `1px solid ${(el.blink_rate || 1.0) === r ? '#f59e0b' : '#334155'}`, borderRadius: '4px', color: (el.blink_rate || 1.0) === r ? '#fbbf24' : '#94a3b8', cursor: 'pointer', fontSize: '10px' }}>
+                        {r}s
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -15494,7 +15718,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 600);
   };
 
-  const handleUpdatePolygonStatus = async (polygonId: number, statusTypeId: number | null, note: string) => {
+  const handleUpdatePolygonStatus = async (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => {
     if (statusTypeId === null) {
       setGroundPolygonStatuses(prev => prev.filter((s: any) => Number(s.polygon_id) !== Number(polygonId)));
       try {
@@ -15504,12 +15728,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const statusType = groundAirfieldStatusTypes.find((st: any) => st.id === statusTypeId);
       setGroundPolygonStatuses(prev => {
         const filtered = prev.filter((s: any) => Number(s.polygon_id) !== Number(polygonId));
-        return [...filtered, { polygon_id: polygonId, status_type_id: statusTypeId, note, status_name: statusType?.name, status_color: statusType?.color }];
+        return [...filtered, { polygon_id: polygonId, status_type_id: statusTypeId, note, status_name: statusType?.name, status_color: statusType?.color, grf_status: grfStatus ?? null, rvr_meters: rvrMeters ?? null }];
       });
       try {
-        await fetch(`${API_URL}/airfield-polygon-statuses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polygon_id: polygonId, status_type_id: statusTypeId, note }) });
+        await fetch(`${API_URL}/airfield-polygon-statuses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ polygon_id: polygonId, status_type_id: statusTypeId, note, grf_status: grfStatus ?? null, rvr_meters: rvrMeters ?? null }) });
       } catch (e) { console.error(e); }
     }
+  };
+
+  const handleUpdateElementDisplayState = async (elementId: number, displayState: string, blinkRate?: number) => {
+    setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, display_state: displayState, ...(blinkRate != null ? { blink_rate: blinkRate } : {}) } : el));
+    try {
+      const el = airfieldElements.find(e => e.id === elementId);
+      if (!el) return;
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: el.x_pct, y_pct: el.y_pct, display_state: displayState, blink_rate: blinkRate ?? el.blink_rate ?? 1.0 }) });
+    } catch (e) { console.error(e); }
   };
 
   const handleUpdateElementStatus = async (elementId: number, status: string) => {
@@ -15521,12 +15754,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string }) => {
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string }) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key }) });
     } catch (e) { console.error(e); }
   };
 
@@ -17560,6 +17793,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldStatusTypes={groundAirfieldStatusTypes}
                 airfieldPolygonStatuses={groundPolygonStatuses}
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
+                onUpdateElementDisplayState={handleUpdateElementDisplayState}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>

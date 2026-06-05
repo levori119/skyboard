@@ -601,3 +601,11 @@ tr.block-deviation-flash > td {
 .elem-blink {
   animation: elemBlink 0.75s ease-in-out infinite;
 }
+
+@keyframes af-elem-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.18; }
+}
+.af-elem-blink {
+  animation: af-elem-blink 1s step-end infinite;
+}
