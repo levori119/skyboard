@@ -31292,7 +31292,7 @@ CHARLIE,1,301,`}
                         style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
                         <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
-                        <IconPicker />
+                        {IconPicker()}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
@@ -31300,7 +31300,7 @@ CHARLIE,1,301,`}
                           style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
-                      <CanChangeStatusSection />
+                      {CanChangeStatusSection()}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button onClick={async () => { await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
                           style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
@@ -31315,7 +31315,7 @@ CHARLIE,1,301,`}
                         style={{ padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
                         <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
-                        <IconPicker />
+                        {IconPicker()}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
@@ -31323,7 +31323,7 @@ CHARLIE,1,301,`}
                           style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
-                      <CanChangeStatusSection />
+                      {CanChangeStatusSection()}
                       <button onClick={async () => { if (!elementTypeForm.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
                         disabled={!elementTypeForm.name.trim()}
                         style={{ padding: '8px', background: elementTypeForm.name.trim() ? '#059669' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: elementTypeForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: elementTypeForm.name.trim() ? 1 : 0.5 }}>+ הוסף סוג</button>
