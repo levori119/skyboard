@@ -5571,7 +5571,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, hideStrips }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, hideStrips, externalCatHighlight }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5618,6 +5618,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
   onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
   hideStrips?: boolean;
+  externalCatHighlight?: Set<string>;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
@@ -7402,7 +7403,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
             const isSvgIcon = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
             const elCatKey = el.category || 'כללי';
-            const isCatHighlighted = catMapHighlight.has(elCatKey);
+            const isCatHighlighted = catMapHighlight.has(elCatKey) || (externalCatHighlight?.has(elCatKey) ?? false);
             const isBeingEdited = elemEditModal?.el?.id === el.id;
             const pos = imgBounds
               ? { left: `${imgBounds.left + (el.x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (el.y_pct / 100) * imgBounds.height}px` }
@@ -8076,7 +8077,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         ];
         const activeField = editingElemField;
         const elCat = elemEditModal.category || 'כללי';
-        const isCatOnMap = catMapHighlight.has(elCat);
+        const isCatOnMap = catMapHighlight.has(elCat) || (externalCatHighlight?.has(elCat) ?? false);
         return (
           <div style={{ position: 'absolute', top: 0, right: 0, height: '100%', width: '260px', background: D_BG, borderRight: `2px solid #3b82f6`, boxShadow: '-6px 0 28px rgba(0,0,0,0.45)', zIndex: 4500, display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
             {/* Drawer header */}
@@ -12996,6 +12997,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
+  const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
+  const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [aidExpandedIds, setAidExpandedIds] = useState<Set<string>>(new Set());
   // Whether the table is being drag-hovered from sidebar
@@ -17839,6 +17842,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 onUpdateElementDisplayState={handleUpdateElementDisplayState}
                 hideStrips={isGroundMgmtMode}
+                externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
@@ -21017,6 +21021,99 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         </div>
 
+        {/* Elements Panel — ground_mgmt dedicated column */}
+        {isGroundMgmtMode && airfieldElements && airfieldElements.length > 0 && (() => {
+          const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
+          const ESTATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'שמיש': '#14532d', 'לא תקין': '#7f1d1d', 'תקול': '#7f1d1d', 'חלקי': '#431407' };
+          const ESTATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+          const catMap: Record<string, any[]> = {};
+          for (const el of airfieldElements) {
+            const cat = el.category?.trim() || 'כללי';
+            if (!catMap[cat]) catMap[cat] = [];
+            catMap[cat].push(el);
+          }
+          const cats = Object.keys(catMap).sort();
+          const panelOpen = !aidExpandedIds.has('__mgmt_elem_panel_closed__');
+          return (
+            <div style={{ width: panelOpen ? 200 : 28, background: lightMode ? '#f1f5f9' : '#0f172a', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: 'rtl' }}>
+              {/* Header */}
+              <div style={{ padding: '5px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: panelOpen ? `1px solid ${T.border}` : 'none', background: lightMode ? '#e2e8f0' : '#0a1628', flexShrink: 0 }}>
+                {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text, whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>}
+                <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__mgmt_elem_panel_closed__') ? s.delete('__mgmt_elem_panel_closed__') : s.add('__mgmt_elem_panel_closed__'); return s; })}
+                  title={panelOpen ? 'סגור' : 'פתח אלמנטים'}
+                  style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px', color: T.muted, flexShrink: 0 }}>
+                  {panelOpen ? '◀' : '▶'}
+                </button>
+              </div>
+              {/* Collapsed label */}
+              {!panelOpen && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>אלמנטים</span>
+                </div>
+              )}
+              {/* Elements list */}
+              {panelOpen && (
+                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '4px' }}>
+                  {cats.map(cat => {
+                    const els = catMap[cat];
+                    const isCatHighlighted = sdCatHighlight.has(cat);
+                    const isCatCollapsed = sdElemCollapsed.has(cat);
+                    return (
+                      <div key={cat} style={{ marginBottom: '4px', border: `1px solid ${isCatHighlighted ? '#3b82f6' : T.border}`, borderRadius: '5px', overflow: 'hidden' }}>
+                        {/* Category header */}
+                        <div style={{ display: 'flex', alignItems: 'center', background: isCatHighlighted ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#e2e8f0' : '#0f172a'), borderBottom: isCatCollapsed ? 'none' : `1px solid ${T.border}` }}>
+                          <button onClick={() => setSdElemCollapsed(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>
+                            <span style={{ fontSize: '8px', flexShrink: 0, transition: 'transform 0.15s', display: 'inline-block', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)' }}>▶</span>
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+                            <span style={{ fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569' }}>({els.length})</span>
+                          </button>
+                          <button onClick={() => setSdCatHighlight(prev => { const n = new Set(prev); isCatHighlighted ? n.delete(cat) : n.add(cat); return n; })}
+                            title={isCatHighlighted ? 'בטל הדגשה על מפה' : 'הדגש קטגוריה על המפה'}
+                            style={{ padding: '3px 5px', fontSize: '9px', background: isCatHighlighted ? '#1d4ed8' : 'transparent', border: `1px solid ${isCatHighlighted ? '#3b82f6' : T.borderLight}`, borderRadius: '3px', color: isCatHighlighted ? '#bfdbfe' : T.muted, cursor: 'pointer', margin: '2px 4px 2px 0', flexShrink: 0 }}>
+                            👁
+                          </button>
+                        </div>
+                        {/* Elements in category */}
+                        {!isCatCollapsed && (
+                          <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {els.map((el: any, idx: number) => {
+                              const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
+                              const sbg = ESTATUS_BG[el.status] || (lightMode ? '#e2e8f0' : '#334155');
+                              const nextStatus = ESTATUS_CYCLE[(ESTATUS_CYCLE.indexOf(el.status) + 1) % ESTATUS_CYCLE.length] || 'תקין';
+                              const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
+                              return (
+                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                                  {/* Row number */}
+                                  <span style={{ fontSize: '8px', color: T.muted, flexShrink: 0, minWidth: '10px', textAlign: 'center' }}>{idx + 1}</span>
+                                  {/* Icon */}
+                                  <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
+                                    {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || '🔧')}
+                                  </div>
+                                  {/* Name */}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
+                                  </div>
+                                  {/* Status badge — click to cycle */}
+                                  <button onClick={() => handleUpdateElementStatus && handleUpdateElementStatus(el.id, nextStatus)}
+                                    title={`לחץ → ${nextStatus}`}
+                                    style={{ padding: '1px 5px', borderRadius: '3px', border: 'none', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', background: sbg, color: sc, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                    {el.status || '?'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Aids Panel */}
         {(() => {
           const currentPreset = session.presetId ? workstationPresets.find(p => Number(p.id) === Number(session.presetId)) : null;
@@ -21028,7 +21125,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           );
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0) return null;
+          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode) return null;
           return (
             <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', position: 'relative' }}>
               {/* Pin toggle */}
@@ -21469,8 +21566,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {!aidGroup && aidBlockTables.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && workstationBdhDocs.length === 0 && !isGroundMode && <div style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '11px', textAlign: 'center', padding: '12px 0' }}>אין עזרים</div>}
                 </div>
 
-                {/* Airfield elements — bottom third, only in ground mode */}
-                {isGroundMode && airfieldElements && airfieldElements.length > 0 && (() => {
+                {/* Airfield elements — bottom third, only in ground mode (not ground_mgmt which has its own dedicated column) */}
+                {isGroundMode && !isGroundMgmtMode && airfieldElements && airfieldElements.length > 0 && (() => {
                   const ELEM_STATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
                   const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
                   const ELEM_STATUS_BG: Record<string, string> = { 'תקין': '#14532d', 'שמיש': '#14532d', 'לא תקין': '#7f1d1d', 'תקול': '#7f1d1d', 'חלקי': '#431407' };
