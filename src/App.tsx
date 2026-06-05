@@ -5395,7 +5395,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill={isBlinking ? '#ef4444' : '#5a1a1a'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="11.5" r="4" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
           <rect x="11" y="18" width="2" height="4" fill="#555"/>
         </svg>
       );
@@ -5403,7 +5403,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill={isBlinking ? '#f97316' : '#4a2a0a'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="11.5" r="4" fill="#f97316" className={isBlinking ? 'elem-blink' : undefined}/>
           <rect x="11" y="18" width="2" height="4" fill="#555"/>
         </svg>
       );
@@ -5412,11 +5412,11 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <text x="12" y="8" textAnchor="middle" fontSize="4.5" fill="#ef4444" fontFamily="monospace" fontWeight="bold">STOP BAR</text>
           <rect x="1" y="11" width="22" height="5" rx="1" fill="#1e293b" stroke="#555" strokeWidth="0.4"/>
-          <circle cx="3.2"  cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="7.4"  cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="11.6" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="15.8" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="20.0" cy="13.5" r="1.6" fill={isBlinking ? '#ef4444' : '#7f1d1d'} className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="3.2"  cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="7.4"  cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="11.6" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="15.8" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="20.0" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
         </svg>
       );
     case 'MAP:traffic-red':
@@ -26309,6 +26309,14 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
   const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[] });
+  const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[] });
+  const setElementTypeFormAndRef = React.useCallback((updater: any) => {
+    setElementTypeForm(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      elementTypeFormRef.current = next;
+      return next;
+    });
+  }, []);
   const [editingElementType, setEditingElementType] = useState<any | null>(null);
   const [showElementTypeSection, setShowElementTypeSection] = useState(false);
   // Airfield elements (per-airfield)
@@ -31245,7 +31253,7 @@ CHARLIE,1,301,`}
                 <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '4px' }}>אמוג׳י:</div>
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                   {ELEM_EMOJIS.map(({ icon, label }) => (
-                    <button key={icon} title={label} onClick={() => setElementTypeForm(p => ({ ...p, icon }))}
+                    <button type="button" key={icon} title={label} onClick={() => setElementTypeFormAndRef(p => ({ ...p, icon }))}
                       style={{ width: '32px', height: '32px', fontSize: '16px', background: elementTypeForm.icon === icon ? '#4c1d95' : '#0f172a', border: `2px solid ${elementTypeForm.icon === icon ? '#7c3aed' : '#334155'}`, borderRadius: '6px', cursor: 'pointer', padding: 0 }}>
                       {icon}
                     </button>
@@ -31256,7 +31264,7 @@ CHARLIE,1,301,`}
                 <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '4px' }}>אייקוני מפה:</div>
                 <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                   {GROUND_SVG_ICON_KEYS.map(({ key, label }) => (
-                    <button key={key} title={label} onClick={() => setElementTypeForm(p => ({ ...p, icon: key }))}
+                    <button type="button" key={key} title={label} onClick={() => setElementTypeFormAndRef(p => ({ ...p, icon: key }))}
                       style={{ width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: elementTypeForm.icon === key ? '#1e3a5f' : '#0f172a', border: `2px solid ${elementTypeForm.icon === key ? '#3b82f6' : '#334155'}`, borderRadius: '7px', cursor: 'pointer', padding: '3px' }}>
                       {renderGroundSvgIcon(key, 28)}
                     </button>
@@ -31268,9 +31276,9 @@ CHARLIE,1,301,`}
           const CanChangeStatusSection = () => (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: '#0f172a', borderRadius: '6px', border: '1px solid #334155' }}>
-                <input type="checkbox" checked={elementTypeForm.can_change_status} onChange={e => setElementTypeForm(p => ({ ...p, can_change_status: e.target.checked, allowed_statuses: e.target.checked ? p.allowed_statuses : [] }))}
+                <input type="checkbox" checked={elementTypeForm.can_change_status} onChange={e => setElementTypeFormAndRef(p => ({ ...p, can_change_status: e.target.checked, allowed_statuses: e.target.checked ? p.allowed_statuses : [] }))}
                   style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#3b82f6' }} />
-                <span style={{ fontSize: '13px', color: '#e2e8f0', cursor: 'pointer' }} onClick={() => setElementTypeForm(p => ({ ...p, can_change_status: !p.can_change_status }))}>ניתן לשינוי סטטוס בלחיצה בעמדה</span>
+                <span style={{ fontSize: '13px', color: '#e2e8f0', cursor: 'pointer' }} onClick={() => setElementTypeFormAndRef(p => ({ ...p, can_change_status: !p.can_change_status }))}>ניתן לשינוי סטטוס בלחיצה בעמדה</span>
               </div>
               {elementTypeForm.can_change_status && (
                 <div style={{ padding: '10px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1d4ed8' }}>
@@ -31280,7 +31288,7 @@ CHARLIE,1,301,`}
                       const isOn = elementTypeForm.allowed_statuses.includes(s);
                       const scol: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
                       return (
-                        <button key={s} onClick={() => setElementTypeForm(p => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter(x => x !== s) : [...p.allowed_statuses, s] }))}
+                        <button type="button" key={s} onClick={() => setElementTypeFormAndRef(p => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter(x => x !== s) : [...p.allowed_statuses, s] }))}
                           style={{ padding: '5px 12px', background: isOn ? (scol[s] || '#888') + '22' : 'transparent', border: `1px solid ${isOn ? (scol[s] || '#888') : '#334155'}`, borderRadius: '6px', color: isOn ? (scol[s] || '#e2e8f0') : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: isOn ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: scol[s] || '#888', display: 'inline-block' }} />
                           {s}
@@ -31321,7 +31329,7 @@ CHARLIE,1,301,`}
                             🔄 {aStatuses.length > 0 ? aStatuses.join('/') : 'כל הסטטוסים'}
                           </span>
                         )}
-                        <button onClick={() => { setElementTypeForm({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
+                        <button type="button" onClick={() => { setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
                         <button onClick={async () => { if (!await customConfirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
                       </div>
                     );
@@ -31330,7 +31338,7 @@ CHARLIE,1,301,`}
                   {editingElementType ? (
                     <div style={{ padding: '14px', background: '#1e1040', borderRadius: '8px', border: '2px solid #7c3aed', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
                       <div style={{ color: '#c4b5fd', fontSize: '13px', fontWeight: 'bold' }}>עריכת סוג: {editingElementType.name}</div>
-                      <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג"
+                      <input value={elementTypeForm.name} onChange={e => setElementTypeFormAndRef(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג"
                         style={{ padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
                         <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
@@ -31338,22 +31346,22 @@ CHARLIE,1,301,`}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
-                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))}
+                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeFormAndRef(p => ({ ...p, color: e.target.value }))}
                           style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
                       {CanChangeStatusSection()}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={async () => { await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
+                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
                           style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
-                        <button onClick={() => { setEditingElementType(null); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
+                        <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
                           style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                       </div>
                     </div>
                   ) : (
                     <div style={{ padding: '14px', background: '#0a1628', borderRadius: '8px', border: '1px dashed #334155', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
                       <div style={{ color: '#94a3b8', fontSize: '13px', fontWeight: 'bold' }}>+ הוסף סוג חדש</div>
-                      <input value={elementTypeForm.name} onChange={e => setElementTypeForm(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג (לדוגמה: כבאית, מחסום...)"
+                      <input value={elementTypeForm.name} onChange={e => setElementTypeFormAndRef(p => ({ ...p, name: e.target.value }))} placeholder="שם הסוג (לדוגמה: כבאית, מחסום...)"
                         style={{ padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }} />
                       <div>
                         <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '6px' }}>בחר אייקון:</div>
@@ -31361,12 +31369,12 @@ CHARLIE,1,301,`}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>צבע:</span>
-                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeForm(p => ({ ...p, color: e.target.value }))}
+                        <input type="color" value={elementTypeForm.color} onChange={e => setElementTypeFormAndRef(p => ({ ...p, color: e.target.value }))}
                           style={{ width: '40px', height: '30px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent' }} />
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
                       {CanChangeStatusSection()}
-                      <button onClick={async () => { if (!elementTypeForm.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(elementTypeForm) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeForm({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
+                      <button type="button" onClick={async () => { const form = elementTypeFormRef.current; if (!form.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] }); }}
                         disabled={!elementTypeForm.name.trim()}
                         style={{ padding: '8px', background: elementTypeForm.name.trim() ? '#059669' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: elementTypeForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: elementTypeForm.name.trim() ? 1 : 0.5 }}>+ הוסף סוג</button>
                     </div>
