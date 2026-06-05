@@ -29618,27 +29618,44 @@ CHARLIE,1,301,`}
           };
           const hasMap = !!(airfieldForm.map_id || adminSelMapSrc);
           return (
-            <div style={{ display: 'flex', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
-              {/* LEFT panel: list + editor controls */}
-              <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
+              {/* RIGHT panel: list + editor controls */}
+              <div style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
 
-                {/* Airfield list */}
-                <div>
-                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
-                    style={{ width: '100%', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', padding: '7px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>+ שדה חדש</button>
-                  {adminAirfields.length === 0
-                    ? <div style={{ color: '#475569', fontSize: '12px', textAlign: 'center', padding: '12px 0' }}>אין שדות תעופה</div>
-                    : adminAirfields.map(af => (
-                      <div key={af.id} onClick={() => { setEditingAirfield(af); const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []); const afSids = rawSids.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null }); const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []); setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newStar: '' }); setSelectedAdminAirfieldId(af.id); loadAirfieldPoints(af.id); setShowAirfieldForm(true); setShowElementsSection(true); setAdminAFExpanded(new Set()); }}
-                        style={{ padding: '7px 10px', background: selectedAdminAirfieldId === af.id ? '#1e3a5f' : '#0f172a', border: `1px solid ${selectedAdminAirfieldId === af.id ? '#3b82f6' : '#1e293b'}`, borderRadius: '5px', marginBottom: '3px', cursor: 'pointer' }}>
-                        <div style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>🛬 {af.name}</div>
-                        <div style={{ color: '#64748b', fontSize: '10px' }}>{af.map_id ? 'מפה מוגדרת' : 'ללא מפה'}</div>
-                        <button onClick={e => { e.stopPropagation(); deleteAirfield(af.id); }}
-                          style={{ marginTop: '4px', padding: '2px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>מחק</button>
-                      </div>
-                    ))
-                  }
+                {/* Airfield selector */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <select
+                    value={selectedAdminAirfieldId ?? ''}
+                    onChange={e => {
+                      const id = Number(e.target.value);
+                      if (!id) { setShowAirfieldForm(false); setSelectedAdminAirfieldId(null); setEditingAirfield(null); return; }
+                      const af = adminAirfields.find((a: any) => a.id === id);
+                      if (!af) return;
+                      const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []);
+                      const afSids = rawSids.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
+                      const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []);
+                      setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newStar: '' });
+                      setSelectedAdminAirfieldId(af.id);
+                      loadAirfieldPoints(af.id);
+                      setShowAirfieldForm(true);
+                      setShowElementsSection(true);
+                      setAdminAFExpanded(new Set());
+                      setEditingAirfield(af);
+                      loadMapById(af.map_id?.toString() || '');
+                    }}
+                    style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: selectedAdminAirfieldId ? 'white' : '#475569', fontSize: '12px', direction: 'rtl' }}>
+                    <option value="">— בחר שדה תעופה —</option>
+                    {adminAirfields.map((af: any) => (
+                      <option key={af.id} value={af.id}>{af.name}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
+                    style={{ padding: '6px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>+ חדש</button>
+                  {selectedAdminAirfieldId && (
+                    <button onClick={async () => { if (await customConfirm('למחוק את השדה?')) deleteAirfield(selectedAdminAirfieldId); }}
+                      style={{ padding: '6px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>מחק</button>
+                  )}
                 </div>
 
 
@@ -29696,12 +29713,12 @@ CHARLIE,1,301,`}
                     </div>
 
                     {/* SIDs management */}
-                    <div style={{ border: '1px solid #1e3a5f', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ padding: '6px 10px', background: '#0f2140', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold' }}>✈️ SIDs ({airfieldForm.sids.length})</span>
-                        <button onClick={() => toggleAFSec('sids')} style={{ background:'transparent', border:'1px solid #1e3a5f', borderRadius:'3px', cursor:'pointer', color: adminAFExpanded.has('sids') ? '#7dd3fc' : '#475569', fontSize:'10px', padding:'1px 6px', lineHeight:1, flexShrink:0 }}>{adminAFExpanded.has('sids') ? '▲' : '▼'}</button>
+                    <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('sids') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('sids')}>
+                        <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈️ SIDs ({airfieldForm.sids.length})</div>
+                        <span style={{ color: adminAFExpanded.has('sids') ? '#7dd3fc' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('sids') ? '▲' : '▼'}</span>
                       </div>
-                      <div style={{ padding: '6px 8px', background: '#0a0f1a', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: adminAFExpanded.has('sids') ? '800px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: adminAFExpanded.has('sids') ? '800px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
                         {airfieldForm.sids.map((sid, i) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{ flex: 1, color: '#93c5fd', fontSize: '12px', fontFamily: 'monospace' }}>{sid.label}</span>
@@ -29730,12 +29747,12 @@ CHARLIE,1,301,`}
                     </div>
 
                     {/* STARs management */}
-                    <div style={{ border: '1px solid #1a2e1a', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ padding: '6px 10px', background: '#0f2a10', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: '#86efac', fontSize: '12px', fontWeight: 'bold' }}>🛬 STARs ({airfieldForm.stars.length})</span>
-                        <button onClick={() => toggleAFSec('stars')} style={{ background:'transparent', border:'1px solid #1a2e1a', borderRadius:'3px', cursor:'pointer', color: adminAFExpanded.has('stars') ? '#86efac' : '#475569', fontSize:'10px', padding:'1px 6px', lineHeight:1, flexShrink:0 }}>{adminAFExpanded.has('stars') ? '▲' : '▼'}</button>
+                    <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('stars') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('stars')}>
+                        <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🛬 STARs ({airfieldForm.stars.length})</div>
+                        <span style={{ color: adminAFExpanded.has('stars') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('stars') ? '▲' : '▼'}</span>
                       </div>
-                      <div style={{ padding: '6px 8px', background: '#0a0f1a', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: adminAFExpanded.has('stars') ? '800px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: adminAFExpanded.has('stars') ? '800px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
                         {airfieldForm.stars.map((star, i) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{ flex: 1, color: '#86efac', fontSize: '12px', fontFamily: 'monospace' }}>{star}</span>
@@ -29755,13 +29772,13 @@ CHARLIE,1,301,`}
 
                     {/* Airfield Elements */}
                     {editingAirfield && (
-                      <div style={{ border: '2px solid #be185d', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '8px 10px', background: '#831843', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: '#fce7f3', fontSize: '12px', fontWeight: 'bold' }}>🔧 אלמנטים בשדה — {adminAirfieldElements.length}</span>
-                          <button onClick={() => toggleAFSec('elements')} style={{ background:'transparent', border:'1px solid #be185d44', borderRadius:'3px', cursor:'pointer', color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize:'10px', padding:'1px 6px', lineHeight:1, flexShrink:0 }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</button>
-                          {!showElementForm && adminAFExpanded.has('elements') && <button onClick={() => { setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setShowElementForm(true); }} style={{ padding: '3px 10px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>+ הוסף</button>}
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
+                          <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
+                          {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
+                          <span style={{ color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</span>
                         </div>
-                        <div style={{ padding: '8px', background: '#0a1628', display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('elements') ? '2000px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('elements') ? '2000px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
                           {(() => {
                             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
                             const catMap: Record<string, any[]> = {};
@@ -30430,9 +30447,9 @@ CHARLIE,1,301,`}
                 )}
               </div>
 
-              {/* LEFT area: map (large, fills remaining space) */}
+              {/* MAP area (large, fills remaining space) */}
               {hasMap && showAirfieldForm && (
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: 1, minWidth: 0, overflow: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
                   <div
                     style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default' }}
                     tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); } }}
