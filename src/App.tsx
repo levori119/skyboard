@@ -5571,7 +5571,7 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, hideStrips }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5617,6 +5617,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldPolygonStatuses?: any[];
   onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
   onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
+  hideStrips?: boolean;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
@@ -6334,7 +6335,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   return (
     <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list (collapsible like aids) */}
-      <div style={{ ...PANEL, width: stripsPinned ? `${rightPanelW}px` : 32, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1, transition: 'width 0.2s', overflow: 'hidden' }}>
+      <div style={{ ...PANEL, width: stripsPinned ? `${rightPanelW}px` : 32, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1, transition: 'width 0.2s', overflow: 'hidden', ...(hideStrips && { display: 'none' }) }}>
         {/* Header */}
         <div style={{ background: headerBg, borderBottom: stripsPinned ? `1px solid ${border}` : 'none', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '4px 6px', gap: '4px', direction: 'rtl' }}>
           <button onClick={onTogglePin} title={stripsPinned ? 'כווץ פאנל' : 'פתח פאנל פמ"מים'}
@@ -6987,13 +6988,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
 
       {/* Resize handle: right panel ↔ center */}
-      <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />
+      {!hideStrips && <div onMouseDown={startPanelResize('right')} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', order: 2, zIndex: 10, transition: 'background 0.15s' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
       {/* CENTER — Airfield map */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', order: 3 }}>
         <div style={HDR}>{airfield ? `🛬 ${airfield.name}` : '🛬 שדה תעופה'}</div>
 
         {/* datk filter bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
+        {!hideStrips && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
           {/* Auto-show control */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '8px', paddingLeft: '8px', borderLeft: `1px solid ${border}` }}>
             <span style={{ fontSize: '11px', color: datkShowMinutes ? '#34d399' : headerColor, fontWeight: 'bold', flexShrink: 0, whiteSpace: 'nowrap' }}>⏰ הצג ליד דת"ק:</span>
@@ -7133,10 +7134,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               </button>
             );
           })}
-        </div>
+        </div>}
 
         {/* status filter bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#dde4ed' : '#0a0f1a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
+        {!hideStrips && <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: lightMode ? '#dde4ed' : '#0a0f1a', borderBottom: `1px solid ${border}`, flexShrink: 0, flexWrap: 'wrap', direction: 'rtl' }}>
           <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>סינון סטטוס:</span>
           <button
             onClick={() => setStatusFilter([])}
@@ -7187,10 +7188,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               — מדגיש סטטוס: {statusFilter.map(k => GROUND_STATUSES.find(s => s.key === k)?.label.split('—')[0].trim()).join(', ')}
             </span>
           )}
-        </div>
+        </div>}
 
         {/* AND / OR combination toggle — only shown when both filters are active */}
-        {datkFilter !== null && statusFilter.length > 0 && (
+        {!hideStrips && datkFilter !== null && statusFilter.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: lightMode ? '#f0f4f8' : '#060d18', borderBottom: `1px solid ${border}`, flexShrink: 0, direction: 'rtl' }}>
             <span style={{ fontSize: '11px', color: headerColor, fontWeight: 'bold', flexShrink: 0 }}>שילוב סינונים:</span>
             {(['AND', 'OR'] as const).map(mode => {
@@ -9102,7 +9103,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
   const recvPts: any[] = presetForm.classic_receive_points || [];
   const xferPts: any[] = presetForm.classic_transfer_points || [];
 
-  const otherClassic = presets.filter((wp: any) => wp.id !== editingPresetId && wp.preset_type !== 'ground');
+  const otherClassic = presets.filter((wp: any) => wp.id !== editingPresetId && wp.preset_type !== 'ground' && wp.preset_type !== 'ground_mgmt');
   const presetById = (id: number) => presets.find((p: any) => Number(p.id) === Number(id));
   const sectorById = (id: number) => sectors.find((s: any) => Number(s.id) === Number(id));
 
@@ -13361,7 +13362,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setRefreshing(false);
   }, [session.presetId]);
   const isClassicMode = myPresetConfig?.preset_type === 'classic' || myPresetConfig?.display_mode === 'classic';
-  const isGroundMode = myPresetConfig?.preset_type === 'ground';
+  const isGroundMode = myPresetConfig?.preset_type === 'ground' || myPresetConfig?.preset_type === 'ground_mgmt';
+  const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
@@ -17836,6 +17838,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldPolygonStatuses={groundPolygonStatuses}
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 onUpdateElementDisplayState={handleUpdateElementDisplayState}
+                hideStrips={isGroundMgmtMode}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
@@ -26846,7 +26849,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <div>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>סוג עמדה:</label>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה' }, { val: 'civilian', label: '✈ אזרחי' }].map(opt => (
+                      {[{ val: 'normal', label: '🗺 רגיל' }, { val: 'classic', label: '📋 סטריפים' }, { val: 'ground', label: '🛬 שדה' }, { val: 'ground_mgmt', label: '🏗 ניהול קרקעי' }, { val: 'civilian', label: '✈ אזרחי' }].map(opt => (
                         <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_type: opt.val }))}
                           style={{ flex: 1, padding: '10px 8px', borderRadius: '6px', border: `2px solid ${presetForm.preset_type === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_type === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_type === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_type === opt.val ? 'bold' : 'normal' }}>
                           {opt.label}
@@ -26877,7 +26880,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 ) : null}
 
                 {/* Row 2: Conditional based on preset type */}
-                {presetForm.preset_type === 'ground' ? (
+                {(presetForm.preset_type === 'ground' || presetForm.preset_type === 'ground_mgmt') ? (
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שדה תעופה:</label>
                     <select value={presetForm.airfield_id}
@@ -26887,7 +26890,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
-                    <div style={{ marginTop: '12px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '12px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                       <label style={{ display: 'block', marginBottom: '6px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>⏰ הצגת מטוס ליד דת"ק לפני המראה:</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <input
@@ -26905,7 +26908,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                         מטוס עם דת"ק שמספרו תואם שם נקודה בשדה יוצג אוטומטית ליד הנקודה כשמספר הדקות לפני המראה ≤ ערך זה.<br/>
                         ניתן לשנות ערך זה גם ישירות מעמדת המגרש.
                       </p>
-                    </div>
+                    </div>}
                   </div>
                 ) : presetForm.preset_type === 'classic' ? (
                   <div style={{ marginBottom: '15px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
