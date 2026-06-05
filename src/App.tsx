@@ -21511,7 +21511,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       const nextStatus = ELEM_STATUS_CYCLE[(ELEM_STATUS_CYCLE.indexOf(el.status) + 1) % ELEM_STATUS_CYCLE.length] || 'תקין';
                                       return (
                                         <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                                          <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', flexShrink: 0 }}>{el.type_icon || '🔧'}</div>
+                                          <div style={{ width: '16px', height: '16px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '3px' : '50%', background: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', flexShrink: 0 }}>
+                                            {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 12) : (el.type_icon || '🔧')}
+                                          </div>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '10px', fontWeight: 'bold', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
                                           </div>
@@ -30093,7 +30095,9 @@ CHARLIE,1,301,`}
                               return (
                                 <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>
+                                    {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:')
+                                      ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', flexShrink: 0 }}>{renderGroundSvgIcon(el.type_icon, 16)}</span>
+                                      : <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>}
                                     <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
                                     <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
                                   </div>
@@ -30222,8 +30226,10 @@ CHARLIE,1,301,`}
                                         {adminElementTypes.map(et => (
                                           <button key={et.id} onClick={() => { setElementForm(p => ({ ...p, element_type_id: String(et.id) })); setAdminElemFocusField(null); }}
                                             style={{ padding: '4px 8px', background: String(et.id) === elementForm.element_type_id ? '#1c1917' : 'transparent', border: `1px solid ${String(et.id) === elementForm.element_type_id ? et.color || '#f59e0b' : '#334155'}`, borderRadius: '4px', color: et.color || '#f59e0b', fontSize: '11px', cursor: 'pointer', textAlign: 'right', direction: 'rtl', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: et.color || '#f59e0b', flexShrink: 0 }} />
-                                            {et.icon} {et.name}
+                                            {typeof et.icon === 'string' && et.icon.startsWith('MAP:')
+                                              ? <span style={{ display: 'flex', alignItems: 'center', width: '14px', height: '14px', flexShrink: 0 }}>{renderGroundSvgIcon(et.icon, 12)}</span>
+                                              : <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: et.color || '#f59e0b', flexShrink: 0, display: 'inline-block' }} />}
+                                            {typeof et.icon === 'string' && !et.icon.startsWith('MAP:') ? `${et.icon} ` : ''}{et.name}
                                           </button>
                                         ))}
                                       </div>
@@ -30889,7 +30895,9 @@ CHARLIE,1,301,`}
                       const isTakul = el.status === 'תקול'; const isShamish = el.status === 'שמיש';
                       return (
                         <div key={el.id} style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 8, textAlign: 'center' }}>
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: isTakul ? '#ef4444' : el.type_color || '#f59e0b', border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>{!isTakul && (el.type_icon || '🔧')}</div>
+                          <div style={{ width: '22px', height: '22px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '4px' : '50%', background: isTakul ? '#ef4444' : typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>
+                            {!isTakul && (typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 18) : (el.type_icon || '🔧'))}
+                          </div>
                           <div style={{ background: '#000000cc', color: el.type_color || '#f59e0b', fontSize: '7px', fontWeight: 'bold', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.name}</div>
                         </div>
                       );
