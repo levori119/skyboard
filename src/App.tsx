@@ -26318,7 +26318,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       return next;
     });
   }, []);
-  const [etPreviewMode, setEtPreviewMode] = React.useState<'normal'|'blink'|'open'|'close'>('normal');
+  const [etPreviewMode, setEtPreviewMode] = React.useState<'normal'|'blink'|'open'|'close'|'cycle'>('normal');
+  const [etCyclePhase, setEtCyclePhase] = React.useState<'open'|'close'>('open');
+  const [etCycleFading, setEtCycleFading] = React.useState(false);
+  React.useEffect(() => {
+    if (etPreviewMode !== 'cycle') return;
+    const tick = () => {
+      setEtCycleFading(true);
+      setTimeout(() => {
+        setEtCyclePhase(p => p === 'open' ? 'close' : 'open');
+        setEtCycleFading(false);
+      }, 350);
+    };
+    const id = setInterval(tick, 1800);
+    return () => clearInterval(id);
+  }, [etPreviewMode]);
   const [editingElementType, setEditingElementType] = useState<any | null>(null);
   const [showElementTypeSection, setShowElementTypeSection] = useState(false);
   // Airfield elements (per-airfield)
@@ -31276,26 +31290,30 @@ CHARLIE,1,301,`}
               {/* Live animated preview */}
               {elementTypeForm.icon && (() => {
                 const isSvgPrev = typeof elementTypeForm.icon === 'string' && elementTypeForm.icon.startsWith('MAP:');
-                const prevModes: { key: typeof etPreviewMode; label: string; color: string }[] = [
-                  { key: 'normal', label: 'רגיל', color: '#94a3b8' },
-                  { key: 'blink',  label: 'מנצנץ', color: '#f59e0b' },
-                  { key: 'open',   label: 'פתוח',  color: '#22c55e' },
-                  { key: 'close',  label: 'סגור',  color: '#ef4444' },
+                const hasBothIcons = !!(elementTypeForm.open_icon && elementTypeForm.close_icon);
+                const prevModes: { key: typeof etPreviewMode; label: string; color: string; hidden?: boolean }[] = [
+                  { key: 'normal', label: 'רגיל',    color: '#94a3b8' },
+                  { key: 'blink',  label: 'מנצנץ',   color: '#f59e0b' },
+                  { key: 'open',   label: 'פתוח',    color: '#22c55e' },
+                  { key: 'close',  label: 'סגור',    color: '#ef4444' },
+                  { key: 'cycle',  label: '⟳ מחזורי', color: '#a78bfa', hidden: !hasBothIcons },
                 ];
-                const activeIconForMode = etPreviewMode === 'open' ? (elementTypeForm.open_icon || elementTypeForm.icon)
+                const cycleIcon = etCyclePhase === 'open' ? (elementTypeForm.open_icon || elementTypeForm.icon) : (elementTypeForm.close_icon || elementTypeForm.icon);
+                const activeIconForMode = etPreviewMode === 'cycle' ? cycleIcon
+                  : etPreviewMode === 'open' ? (elementTypeForm.open_icon || elementTypeForm.icon)
                   : etPreviewMode === 'close' ? (elementTypeForm.close_icon || elementTypeForm.icon)
                   : elementTypeForm.icon;
                 const borderForMode: Record<typeof etPreviewMode, string> = {
-                  normal: '#334155', blink: '#f59e0b', open: '#22c55e', close: '#ef4444'
+                  normal: '#334155', blink: '#f59e0b', open: '#22c55e', close: '#ef4444', cycle: etCyclePhase === 'open' ? '#22c55e' : '#ef4444'
                 };
                 return (
                   <div style={{ padding: '10px 12px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>👁 תצוגה מקדימה — בחר מצב:</div>
                     {/* Mode selector */}
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                      {prevModes.map(m => (
-                        <button type="button" key={m.key} onClick={() => setEtPreviewMode(m.key)}
-                          style={{ padding: '4px 12px', background: etPreviewMode === m.key ? m.color + '33' : 'transparent', border: `1px solid ${etPreviewMode === m.key ? m.color : '#334155'}`, borderRadius: '6px', color: etPreviewMode === m.key ? m.color : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: etPreviewMode === m.key ? 'bold' : 'normal' }}>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                      {prevModes.filter(m => !m.hidden).map(m => (
+                        <button type="button" key={m.key} onClick={() => { setEtPreviewMode(m.key); if (m.key === 'cycle') { setEtCyclePhase('open'); setEtCycleFading(false); } }}
+                          style={{ padding: '4px 12px', background: etPreviewMode === m.key ? m.color + '33' : 'transparent', border: `1px solid ${etPreviewMode === m.key ? m.color : '#334155'}`, borderRadius: '6px', color: etPreviewMode === m.key ? m.color : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: etPreviewMode === m.key ? 'bold' : 'normal', transition: 'all 0.15s' }}>
                           {m.label}
                         </button>
                       ))}
@@ -31303,13 +31321,15 @@ CHARLIE,1,301,`}
                     {/* Large preview */}
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
                       <div style={{ textAlign: 'center' }}>
-                        <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '10px', margin: '0 auto', border: `2px solid ${borderForMode[etPreviewMode]}`, boxShadow: `0 0 12px ${borderForMode[etPreviewMode]}66`, transition: 'border-color 0.2s, box-shadow 0.2s' }}>
-                          {isSvgPrev
-                            ? renderGroundSvgIcon(activeIconForMode, 52, etPreviewMode === 'blink' ? 'מנצנץ' : undefined)
-                            : <span style={{ fontSize: '42px', animation: etPreviewMode === 'blink' ? 'af-elem-blink 0.8s step-end infinite' : 'none' }}>{elementTypeForm.icon}</span>}
+                        <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e293b', borderRadius: '10px', margin: '0 auto', border: `2px solid ${borderForMode[etPreviewMode]}`, boxShadow: `0 0 12px ${borderForMode[etPreviewMode]}66`, transition: 'border-color 0.4s, box-shadow 0.4s' }}>
+                          <div style={{ opacity: etPreviewMode === 'cycle' ? (etCycleFading ? 0 : 1) : 1, transform: etPreviewMode === 'cycle' ? (etCycleFading ? 'scale(0.7)' : 'scale(1)') : 'scale(1)', transition: etPreviewMode === 'cycle' ? 'opacity 0.35s ease, transform 0.35s ease' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isSvgPrev
+                              ? renderGroundSvgIcon(activeIconForMode, 52, etPreviewMode === 'blink' ? 'מנצנץ' : undefined)
+                              : <span style={{ fontSize: '42px', animation: etPreviewMode === 'blink' ? 'af-elem-blink 0.8s step-end infinite' : 'none' }}>{elementTypeForm.icon}</span>}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '10px', color: borderForMode[etPreviewMode], marginTop: '5px', fontWeight: 'bold' }}>
-                          {etPreviewMode === 'normal' ? 'מצב רגיל' : etPreviewMode === 'blink' ? '⚡ מנצנץ' : etPreviewMode === 'open' ? '✓ פתוח' : '✕ סגור'}
+                        <div style={{ fontSize: '10px', color: borderForMode[etPreviewMode], marginTop: '5px', fontWeight: 'bold', transition: 'color 0.4s' }}>
+                          {etPreviewMode === 'normal' ? 'מצב רגיל' : etPreviewMode === 'blink' ? '⚡ מנצנץ' : etPreviewMode === 'open' ? '✓ פתוח' : etPreviewMode === 'close' ? '✕ סגור' : etCyclePhase === 'open' ? '⟳ פתוח ↔ סגור' : '⟳ סגור ↔ פתוח'}
                         </div>
                       </div>
                     </div>
