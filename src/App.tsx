@@ -7447,7 +7447,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isClosed ? '#fca5a5' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
                   {(canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
-                      {isClosed ? 'סגור' : isBlinking ? 'מהבהב' : isOpen ? 'פתוח' : el.status}
+                      {isClosed ? 'תקול' : isBlinking ? 'מהבהב' : isOpen ? 'שמיש' : el.status}
                     </div>
                   )}
                 </div>
@@ -8204,8 +8204,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     {[
                       { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
                       { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
-                      { key: 'open', label: '🟢 פתוח', color: '#22c55e' },
-                      { key: 'close', label: '🔴 סגור', color: '#ef4444' },
+                      { key: 'open', label: '🟢 שמיש', color: '#22c55e' },
+                      { key: 'close', label: '🔴 תקול', color: '#ef4444' },
                     ].map(opt => (
                       <button key={opt.key}
                         onClick={() => setElemEditModal(p => p ? { ...p, displayState: opt.key } : p)}
@@ -8363,8 +8363,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const dStateOpts = [
           { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
           { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
-          { key: 'open', label: '🟢 פתוח', color: '#22c55e' },
-          { key: 'close', label: '🔴 סגור', color: '#ef4444' },
+          { key: 'open', label: '🟢 שמיש', color: '#22c55e' },
+          { key: 'close', label: '🔴 תקול', color: '#ef4444' },
         ];
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setElemStatusPicker(null)}>
