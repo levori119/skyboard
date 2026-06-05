@@ -881,6 +881,8 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT ''`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS can_change_status BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS allowed_statuses JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS open_icon VARCHAR(200) DEFAULT NULL`);
+  await pool.query(`ALTER TABLE airfield_element_types ADD COLUMN IF NOT EXISTS close_icon VARCHAR(200) DEFAULT NULL`);
   // Airfield element display states (blink/open/close) + blink config
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS display_state VARCHAR(20) DEFAULT 'normal'`);
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blink_rate FLOAT DEFAULT 1.0`);
@@ -3437,20 +3439,20 @@ app.get('/api/airfield-element-types', async (req, res) => {
 });
 app.post('/api/airfield-element-types', async (req, res) => {
   try {
-    const { name, color, icon, can_change_status, allowed_statuses } = req.body;
+    const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon } = req.body;
     const r = await pool.query(
-      'INSERT INTO airfield_element_types (name,color,icon,can_change_status,allowed_statuses) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || [])]
+      'INSERT INTO airfield_element_types (name,color,icon,can_change_status,allowed_statuses,open_icon,close_icon) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
 });
 app.put('/api/airfield-element-types/:id', async (req, res) => {
   try {
-    const { name, color, icon, can_change_status, allowed_statuses } = req.body;
+    const { name, color, icon, can_change_status, allowed_statuses, open_icon, close_icon } = req.body;
     const r = await pool.query(
-      'UPDATE airfield_element_types SET name=$1,color=$2,icon=$3,can_change_status=$4,allowed_statuses=$5 WHERE id=$6 RETURNING *',
-      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), req.params.id]
+      'UPDATE airfield_element_types SET name=$1,color=$2,icon=$3,can_change_status=$4,allowed_statuses=$5,open_icon=$6,close_icon=$7 WHERE id=$8 RETURNING *',
+      [name, color || '#f59e0b', icon || '🔧', can_change_status === true, JSON.stringify(allowed_statuses || []), open_icon || null, close_icon || null, req.params.id]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
@@ -3464,8 +3466,8 @@ app.delete('/api/airfield-element-types/:id', async (req, res) => {
 app.get('/api/airfield-elements', async (req, res) => {
   try {
     const q = req.query.airfield_id
-      ? 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon, aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id WHERE ae.airfield_id=$1 ORDER BY ae.id'
-      : 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon, aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id ORDER BY ae.airfield_id, ae.id';
+      ? 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon, aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses, aet.open_icon as type_open_icon, aet.close_icon as type_close_icon FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id WHERE ae.airfield_id=$1 ORDER BY ae.id'
+      : 'SELECT ae.*, aet.name as type_name, aet.color as type_color, aet.icon as type_icon, aet.can_change_status as type_can_change_status, aet.allowed_statuses as type_allowed_statuses, aet.open_icon as type_open_icon, aet.close_icon as type_close_icon FROM airfield_elements ae LEFT JOIN airfield_element_types aet ON ae.element_type_id=aet.id ORDER BY ae.airfield_id, ae.id';
     const params = req.query.airfield_id ? [req.query.airfield_id] : [];
     res.json((await pool.query(q, params)).rows);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }
