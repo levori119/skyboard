@@ -5649,6 +5649,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldPolygonStatuses?: any[];
   onUpdatePolygonStatus?: (polygonId: number, statusTypeId: number | null, note: string, grfStatus?: string | null, rvrMeters?: number | null) => Promise<void>;
   onUpdateElementDisplayState?: (elementId: number, displayState: string, blinkRate?: number) => Promise<void>;
+  onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
+  onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   externalCatHighlight?: Set<string>;
 }) => {
@@ -5667,6 +5669,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
   const [elemNavModal, setElemNavModal] = useState<{ el: any; fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] } | null>(null);
   const [elemNavData, setElemNavData] = useState<Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }>>({});
+  // Vehicle placement
+  const [addVehicleMode, setAddVehicleMode] = useState(false);
+  const [vehiclePlaceModal, setVehiclePlaceModal] = useState<{ x_pct: number; y_pct: number } | null>(null);
+  const [vehicleForm, setVehicleForm] = useState({ name: '', element_type_id: '' });
+  const [vehicleSaving, setVehicleSaving] = useState(false);
   const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
   const [polygonPickerNote, setPolygonPickerNote] = useState('');
   const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
@@ -7421,6 +7428,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
           </div>
+          {/* Add vehicle button */}
+          {onCreateElement && (
+            <button
+              onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); }}
+              style={{ display: 'block', width: '100%', padding: '5px 8px', background: addVehicleMode ? '#854d0e' : 'transparent', border: 'none', borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', textAlign: 'center', direction: 'rtl' }}
+              title="לחץ על המפה להוספת רכב">
+              🚗 {addVehicleMode ? '← לחץ על המפה' : '+ הוסף רכב'}
+            </button>
+          )}
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
@@ -7668,6 +7684,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff', fontSize: '8px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
                     title="ערוך אלמנט">
                     ✏
+                  </button>
+                )}
+                {/* Delete button — visible when onDeleteElement is provided */}
+                {onDeleteElement && (
+                  <button
+                    onClick={e => { e.stopPropagation(); if (window.confirm(`מחק את "${el.name}"?`)) onDeleteElement(el.id); }}
+                    style={{ position: 'absolute', top: '-10px', left: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#7f1d1d', border: '1px solid #ef4444', color: '#fff', fontSize: '9px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted || addVehicleMode ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
+                    title="מחק אלמנט">
+                    ✕
                   </button>
                 )}
               </div>
@@ -8260,7 +8285,74 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
         );
       })()}
+          {/* Vehicle placement click overlay */}
+          {addVehicleMode && imgBounds && (
+            <div
+              style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair' }}
+              onClick={e => {
+                const cr = mapInnerRef.current!.getBoundingClientRect();
+                const relX = e.clientX - cr.left;
+                const relY = e.clientY - cr.top;
+                const x_pct = Math.max(0, Math.min(100, ((relX - imgBounds.left) / imgBounds.width) * 100));
+                const y_pct = Math.max(0, Math.min(100, ((relY - imgBounds.top) / imgBounds.height) * 100));
+                setVehiclePlaceModal({ x_pct, y_pct });
+                setVehicleForm({ name: '', element_type_id: '' });
+              }}
+            />
+          )}
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
+
+      {/* Vehicle placement modal */}
+      {vehiclePlaceModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
+          onClick={e => { if (e.target === e.currentTarget) { setVehiclePlaceModal(null); setAddVehicleMode(false); } }}>
+          <div style={{ background: lightMode ? '#fff' : '#0f172a', border: `2px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '12px', padding: '18px', width: '280px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontWeight: 'bold', color: lightMode ? '#1e293b' : 'white', marginBottom: '12px', fontSize: '14px' }}>🚗 הוסף רכב למפה</div>
+            <input
+              autoFocus
+              placeholder="שם הרכב *"
+              value={vehicleForm.name}
+              onChange={e => setVehicleForm(p => ({ ...p, name: e.target.value }))}
+              onKeyDown={async e => { if (e.key === 'Enter' && vehicleForm.name.trim()) { e.preventDefault(); setVehicleSaving(true); try { await onCreateElement!({ name: vehicleForm.name.trim(), element_type_id: vehicleForm.element_type_id ? Number(vehicleForm.element_type_id) : null, x_pct: vehiclePlaceModal.x_pct, y_pct: vehiclePlaceModal.y_pct }); } finally { setVehicleSaving(false); } setVehiclePlaceModal(null); setAddVehicleMode(false); } }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: '6px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f8fafc' : '#0c1824', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '13px', marginBottom: '8px', direction: 'rtl' }}
+            />
+            {elementTypes && (elementTypes.filter((t: any) => t.category === 'vehicle' || t.category === 'כלי רכב').length > 0 ? elementTypes.filter((t: any) => t.category === 'vehicle' || t.category === 'כלי רכב') : elementTypes).length > 0 && (
+              <select
+                value={vehicleForm.element_type_id}
+                onChange={e => setVehicleForm(p => ({ ...p, element_type_id: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f8fafc' : '#0c1824', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', marginBottom: '10px', direction: 'rtl' }}>
+                <option value="">— סוג רכב (אופציונלי) —</option>
+                {(elementTypes.filter((t: any) => t.category === 'vehicle' || t.category === 'כלי רכב').length > 0
+                  ? elementTypes.filter((t: any) => t.category === 'vehicle' || t.category === 'כלי רכב')
+                  : elementTypes
+                ).map((t: any) => (
+                  <option key={t.id} value={String(t.id)}>{t.name}</option>
+                ))}
+              </select>
+            )}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setVehiclePlaceModal(null); setAddVehicleMode(false); }}
+                style={{ padding: '6px 14px', borderRadius: '6px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: 'transparent', color: lightMode ? '#475569' : '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
+                ביטול
+              </button>
+              <button
+                disabled={!vehicleForm.name.trim() || vehicleSaving}
+                onClick={async () => {
+                  if (!vehicleForm.name.trim() || !onCreateElement) return;
+                  setVehicleSaving(true);
+                  try { await onCreateElement({ name: vehicleForm.name.trim(), element_type_id: vehicleForm.element_type_id ? Number(vehicleForm.element_type_id) : null, x_pct: vehiclePlaceModal.x_pct, y_pct: vehiclePlaceModal.y_pct }); }
+                  finally { setVehicleSaving(false); }
+                  setVehiclePlaceModal(null);
+                  setAddVehicleMode(false);
+                }}
+                style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: vehicleForm.name.trim() ? '#1d4ed8' : '#334155', color: vehicleForm.name.trim() ? 'white' : '#64748b', fontSize: '12px', cursor: vehicleForm.name.trim() ? 'pointer' : 'default', fontWeight: 'bold' }}>
+                {vehicleSaving ? '...' : '➕ הוסף'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Element edit drawer — side panel with focus-mode field editing */}
       {elemEditModal && (() => {
@@ -16136,15 +16228,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleCreateElement = async (fields: { name: string; category: string; status: string; note: string; element_type_id?: number | null }) => {
+  const handleCreateElement = async (fields: { name: string; category?: string; status?: string; note?: string; element_type_id?: number | null; x_pct?: number | null; y_pct?: number | null }) => {
     const airfieldId = (myPresetConfig as any)?.airfield_id ?? airfieldElements[0]?.airfield_id ?? null;
     if (!airfieldId) return;
     try {
-      const res = await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: airfieldId, name: fields.name, category: fields.category || '', status: fields.status || 'תקין', note: fields.note || '', element_type_id: fields.element_type_id ?? null, x_pct: null, y_pct: null }) });
+      const res = await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: airfieldId, name: fields.name, category: fields.category || 'כלי רכב', status: fields.status || 'תקין', note: fields.note || '', element_type_id: fields.element_type_id ?? null, x_pct: fields.x_pct ?? null, y_pct: fields.y_pct ?? null }) });
       if (res.ok) {
         const created = await res.json();
         if (created?.id) setAirfieldElements(prev => [...prev, created]);
       }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteElement = async (elementId: number) => {
+    try {
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'DELETE' });
+      setAirfieldElements(prev => prev.filter(e => e.id !== elementId));
     } catch (e) { console.error(e); }
   };
 
@@ -18167,6 +18266,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldPolygonStatuses={groundPolygonStatuses}
                 onUpdatePolygonStatus={handleUpdatePolygonStatus}
                 onUpdateElementDisplayState={handleUpdateElementDisplayState}
+                onCreateElement={handleCreateElement}
+                onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 stripsPinned={sidebarPinned}
