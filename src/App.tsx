@@ -32112,7 +32112,7 @@ CHARLIE,1,301,`}
                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{popEl.name}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <button onClick={() => {
-                              setElementForm({ name: popEl.name, element_type_id: String(popEl.element_type_id || ''), status: popEl.status, note: popEl.note || '', category: popEl.category || '' });
+                              setElementForm({ name: popEl.name, element_type_id: String(popEl.element_type_id || ''), status: popEl.status, note: popEl.note || '', category: popEl.category || '', relevant_routes: Array.isArray(popEl.relevant_routes) ? popEl.relevant_routes : [], blocking_statuses: Array.isArray(popEl.blocking_statuses) ? popEl.blocking_statuses : [] });
                               setEditingElement(popEl);
                               setShowElementForm(true);
                               if (!adminAFExpanded.has('elements')) toggleAFSec('elements');
