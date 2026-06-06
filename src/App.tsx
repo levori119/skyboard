@@ -6930,9 +6930,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     return (
                       <div key={cat}>
                         {/* Category header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0f172a', borderBottom: `1px solid ${border}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', background: lightMode ? '#1e3a5f' : '#0f2a4a', borderBottom: `1px solid ${lightMode ? '#2d5986' : '#1e3a5f'}` }}>
                           <span onClick={() => setCollapsedElemCats(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
-                            style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
+                            style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
                             <span style={{ fontSize: '9px', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                             {cat}
                             <span style={{ fontWeight: 'normal', opacity: 0.6, fontSize: '10px' }}>({catEls.length})</span>
