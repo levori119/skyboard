@@ -1008,6 +1008,18 @@ async function initDb() {
 
   await pool.query(`ALTER TABLE workstation_presets ADD COLUMN IF NOT EXISTS civilian_board_bg VARCHAR(20) DEFAULT ''`);
 
+  // Element navigation routing: route_category on routes + element_nav_routes table
+  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS route_category VARCHAR(20) DEFAULT 'general'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS element_nav_routes (
+      element_id INTEGER PRIMARY KEY REFERENCES airfield_elements(id) ON DELETE CASCADE,
+      from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
+      to_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
+      via_route_ids JSONB DEFAULT '[]',
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -5763,10 +5775,10 @@ app.get('/api/airfield-routes', async (req, res) => {
 
 app.post('/api/airfield-routes', async (req, res) => {
   try {
-    const { airfield_id, name, color, route_path, notes } = req.body;
+    const { airfield_id, name, color, route_path, notes, route_category } = req.body;
     const result = await pool.query(
-      `INSERT INTO airfield_routes (airfield_id, name, color, route_path, notes) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null]
+      `INSERT INTO airfield_routes (airfield_id, name, color, route_path, notes, route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general']
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
@@ -5774,10 +5786,10 @@ app.post('/api/airfield-routes', async (req, res) => {
 
 app.put('/api/airfield-routes/:id', async (req, res) => {
   try {
-    const { name, color, route_path, notes } = req.body;
+    const { name, color, route_path, notes, route_category } = req.body;
     const result = await pool.query(
-      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4 WHERE id=$5 RETURNING *`,
-      [name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, req.params.id]
+      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4, route_category=$5 WHERE id=$6 RETURNING *`,
+      [name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general', req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update airfield route' }); }
@@ -5788,6 +5800,42 @@ app.delete('/api/airfield-routes/:id', async (req, res) => {
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
+});
+
+// ── Element Nav Routes ────────────────────────────────────────────────────────
+app.get('/api/element-nav', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const result = await pool.query(
+      `SELECT enr.* FROM element_nav_routes enr
+       JOIN airfield_elements ae ON ae.id = enr.element_id
+       WHERE ae.airfield_id = $1`,
+      [airfield_id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch element nav routes' }); }
+});
+
+app.put('/api/element-nav/:element_id', async (req, res) => {
+  try {
+    const { from_point_id, to_point_id, via_route_ids } = req.body;
+    const result = await pool.query(
+      `INSERT INTO element_nav_routes (element_id, from_point_id, to_point_id, via_route_ids, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (element_id) DO UPDATE SET from_point_id=$2, to_point_id=$3, via_route_ids=$4, updated_at=NOW()
+       RETURNING *`,
+      [req.params.element_id, from_point_id || null, to_point_id || null, JSON.stringify(via_route_ids || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to save element nav route' }); }
+});
+
+app.delete('/api/element-nav/:element_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM element_nav_routes WHERE element_id=$1', [req.params.element_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete element nav route' }); }
 });
 
 // ── Airfield Polygons ─────────────────────────────────────────────────────────

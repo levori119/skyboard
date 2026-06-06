@@ -5665,6 +5665,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
   const [catMapHighlight, setCatMapHighlight] = useState<Set<string>>(new Set());
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
+  const [elemNavModal, setElemNavModal] = useState<{ el: any; fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] } | null>(null);
+  const [elemNavData, setElemNavData] = useState<Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }>>({});
   const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
   const [polygonPickerNote, setPolygonPickerNote] = useState('');
   const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
@@ -6166,6 +6168,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     onUpdateAircraft(String(strip.id), updated);
     setPendingPointAssign(null);
   }, [strips, pendingPointAssign]);
+
+  // Load element nav routing data for this airfield
+  React.useEffect(() => {
+    const afId = airfield?.id;
+    if (!afId) { setElemNavData({}); return; }
+    fetch(`${API_URL}/element-nav?airfield_id=${afId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const d: Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }> = {};
+        rows.forEach((r: any) => { d[r.element_id] = { fromPointId: r.from_point_id ?? null, toPointId: r.to_point_id ?? null, viaRouteIds: Array.isArray(r.via_route_ids) ? r.via_route_ids : [] }; });
+        setElemNavData(d);
+      }).catch(() => {});
+  }, [airfield?.id]);
 
   // Convert % coordinates to absolute px within the rendered image area
   const ptPos = (x_pct: number, y_pct: number) => imgBounds
@@ -7535,6 +7550,32 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </svg>
           )}
 
+          {/* Nav route highlights — blue dashed overlay for elements with active routing */}
+          {imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
+            if (!nav.viaRouteIds.length && !nav.fromPointId && !nav.toPointId) return null;
+            const el = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
+            if (!el || el.x_pct == null) return null;
+            const routePaths = nav.viaRouteIds.map((rid: number) => {
+              const route = (airfieldRoutes || []).find((r: any) => r.id === rid);
+              if (!route) return null;
+              const pts: {x:number;y:number}[] = Array.isArray(route.route_path) ? route.route_path : (typeof route.route_path === 'string' ? (() => { try { return JSON.parse(route.route_path); } catch { return []; } })() : []);
+              return pts.length >= 2 ? { id: rid, pts, color: route.color || '#3b82f6' } : null;
+            }).filter(Boolean);
+            const fromPt = nav.fromPointId ? points.find((p: any) => p.id === nav.fromPointId) : null;
+            const toPt = nav.toPointId ? points.find((p: any) => p.id === nav.toPointId) : null;
+            if (!routePaths.length && !fromPt && !toPt) return null;
+            return (
+              <svg key={elIdStr} viewBox="0 0 100 100" preserveAspectRatio="none"
+                style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
+                {routePaths.map((rp: any) => (
+                  <polyline key={rp.id} points={rp.pts.map((p:any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#60a5fa" strokeWidth="1.0" strokeDasharray="2.5,1.5" opacity="0.92" strokeLinecap="round" />
+                ))}
+                {fromPt && <><circle cx={fromPt.x_pct} cy={fromPt.y_pct} r="2.2" fill="#22c55e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={fromPt.x_pct} y={fromPt.y_pct - 3} textAnchor="middle" fill="#22c55e" fontSize="2.5" fontWeight="bold">מ</text></>}
+                {toPt && <><circle cx={toPt.x_pct} cy={toPt.y_pct} r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={toPt.x_pct} y={toPt.y_pct - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text></>}
+              </svg>
+            );
+          })}
+
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
             const elColor = el.type_color || '#f59e0b';
@@ -7570,10 +7611,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const blinkAnimStyle: React.CSSProperties = isBlinking
               ? { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
               : {};
+            const isNavOsea = el.status === 'נוסע';
             return (
               <div key={el.id}
-                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}`}>
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: isNavOsea ? 'context-menu' : 'pointer' }}
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${isNavOsea ? '\nלחיצה ימנית: הגדר ניווט מסלול' : ''}`}
+                onContextMenu={isNavOsea ? (e) => { e.preventDefault(); e.stopPropagation(); const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } : undefined}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
                   <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
@@ -8565,6 +8608,119 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Element nav routing modal — right-click on 'נוסע' element */}
+      {elemNavModal && (() => {
+        const { el, fromPointId, toPointId, viaRouteIds } = elemNavModal;
+        const airfieldRoutesLocal: any[] = airfieldRoutes || [];
+        // Intersection helpers
+        const cross2d = (ax: number, ay: number, bx: number, by: number) => ax * by - ay * bx;
+        const segIntersect = (p1: {x:number;y:number}, p2: {x:number;y:number}, p3: {x:number;y:number}, p4: {x:number;y:number}) => {
+          const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+          const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+          const denom = cross2d(d1x, d1y, d2x, d2y);
+          if (Math.abs(denom) < 1e-10) return false;
+          const t = cross2d(p3.x - p1.x, p3.y - p1.y, d2x, d2y) / denom;
+          const u = cross2d(p3.x - p1.x, p3.y - p1.y, d1x, d1y) / denom;
+          return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+        };
+        const routesIntersect = (r1: any, r2: any) => {
+          const p1: {x:number;y:number}[] = Array.isArray(r1.route_path) ? r1.route_path : (typeof r1.route_path === 'string' ? (() => { try { return JSON.parse(r1.route_path); } catch { return []; } })() : []);
+          const p2: {x:number;y:number}[] = Array.isArray(r2.route_path) ? r2.route_path : (typeof r2.route_path === 'string' ? (() => { try { return JSON.parse(r2.route_path); } catch { return []; } })() : []);
+          if (p1.length < 2 || p2.length < 2) return false;
+          for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
+          return false;
+        };
+        const catLabel: Record<string, string> = { general: 'כללי', aircraft: 'מטוסים', vehicle: 'כלי רכב' };
+        const routesByCategory = ['aircraft', 'vehicle', 'general'].reduce<Record<string, any[]>>((acc, cat) => {
+          acc[cat] = airfieldRoutesLocal.filter((r: any) => (r.route_category || 'general') === cat);
+          return acc;
+        }, {});
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setElemNavModal(null)}>
+            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '20px', minWidth: '400px', maxWidth: '520px', color: 'white', direction: 'rtl', maxHeight: '85vh', overflowY: 'auto' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 'bold', fontSize: '15px', marginBottom: '16px', color: '#60a5fa' }}>🧭 ניווט מסלול — {el.name}</div>
+
+              {/* From / To points */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: '#22c55e', marginBottom: '4px', fontWeight: 'bold' }}>📍 מ (מוצא)</div>
+                  <select value={fromPointId ?? ''} onChange={e => setElemNavModal(m => m ? { ...m, fromPointId: e.target.value ? Number(e.target.value) : null } : null)}
+                    style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #22c55e44', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                    <option value="">— ללא —</option>
+                    {points.map((p: any) => <option key={p.id} value={p.id}>{p.name || `דת"ק ${p.id}`}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: '#f43f5e', marginBottom: '4px', fontWeight: 'bold' }}>🏁 ל (יעד)</div>
+                  <select value={toPointId ?? ''} onChange={e => setElemNavModal(m => m ? { ...m, toPointId: e.target.value ? Number(e.target.value) : null } : null)}
+                    style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #f43f5e44', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                    <option value="">— ללא —</option>
+                    {points.map((p: any) => <option key={p.id} value={p.id}>{p.name || `דת"ק ${p.id}`}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Via routes — by category */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: 'bold' }}>🛤️ מסלולים (Via)</div>
+                {(['aircraft', 'vehicle', 'general'] as const).map(cat => {
+                  const catRoutes = routesByCategory[cat] || [];
+                  if (catRoutes.length === 0) return null;
+                  const selectedInCat = catRoutes.filter((r: any) => viaRouteIds.includes(r.id));
+                  const selectedFirst = [...selectedInCat, ...catRoutes.filter((r: any) => !viaRouteIds.includes(r.id))];
+                  return (
+                    <div key={cat} style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '10px', color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{catLabel[cat]}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                        {selectedFirst.map((r: any) => {
+                          const isSelected = viaRouteIds.includes(r.id);
+                          // Check intersections with other selected routes
+                          const hasConflict = isSelected && viaRouteIds.some(rid => rid !== r.id && routesIntersect(r, airfieldRoutesLocal.find((x: any) => x.id === rid) || {}));
+                          return (
+                            <button key={r.id} onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: m.viaRouteIds.includes(r.id) ? m.viaRouteIds.filter(id => id !== r.id) : [...m.viaRouteIds, r.id] } : null)}
+                              style={{ padding: '4px 10px', background: isSelected ? (r.color || '#3b82f6') + '33' : '#1e293b', border: `1.5px solid ${isSelected ? (r.color || '#3b82f6') : '#334155'}`, borderRadius: '6px', color: isSelected ? (r.color || '#60a5fa') : '#94a3b8', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', display: 'inline-block', flexShrink: 0 }} />
+                              {r.name}
+                              {hasConflict && <span title="מסלול זה מצטלב עם מסלול אחר שנבחר" style={{ color: '#f59e0b', fontSize: '10px' }}>⚠️</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {airfieldRoutesLocal.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>לא הוגדרו מסלולים עבור שדה זה</div>}
+              </div>
+
+              {/* Summary preview */}
+              {viaRouteIds.length > 0 && (
+                <div style={{ background: '#0c1a2e', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '8px 12px', marginBottom: '14px', fontSize: '11px' }}>
+                  <span style={{ color: '#7dd3fc' }}>מסלולים שנבחרו: </span>
+                  {viaRouteIds.map(rid => { const r = airfieldRoutesLocal.find((x: any) => x.id === rid); return r ? <span key={rid} style={{ color: r.color || '#60a5fa', marginLeft: '6px' }}>● {r.name}</span> : null; })}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
+                <button onClick={async () => {
+                  await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from_point_id: fromPointId, to_point_id: toPointId, via_route_ids: viaRouteIds }) });
+                  setElemNavData(prev => ({ ...prev, [el.id]: { fromPointId, toPointId, viaRouteIds } }));
+                  setElemNavModal(null);
+                }} style={{ padding: '7px 18px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>💾 שמור ניווט</button>
+                <button onClick={async () => {
+                  await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'DELETE' });
+                  setElemNavData(prev => { const n = { ...prev }; delete n[el.id]; return n; });
+                  setElemNavModal(null);
+                }} style={{ padding: '7px 14px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 נקה</button>
+                <button onClick={() => setElemNavModal(null)} style={{ padding: '7px 14px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
               </div>
             </div>
           </div>
@@ -26552,12 +26708,12 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
   const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
-  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '' });
+  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '', category: 'general' });
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
-  const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string}|null>(null);
+  const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string}|null>(null);
   // Airfield element types (global list)
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
@@ -30942,7 +31098,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('routes') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('routes')}>
                           <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🛤️ מסלולי הסעה</div>
-                          {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '' }); setShowAirfieldRouteForm(true); }}
+                          {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general' }); setShowAirfieldRouteForm(true); }}
                             style={{ padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>}
                           <span style={{ color: adminAFExpanded.has('routes') ? '#7dd3fc' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('routes') ? '▲' : '▼'}</span>
                         </div>
@@ -30963,11 +31119,18 @@ CHARLIE,1,301,`}
                               onChange={e => setAirfieldRouteForm(p => ({ ...p, notes: e.target.value }))}
                               rows={2}
                               style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', boxSizing: 'border-box', resize: 'none', marginBottom: '5px' }} />
+                            <select value={airfieldRouteForm.category}
+                              onChange={e => setAirfieldRouteForm(p => ({ ...p, category: e.target.value }))}
+                              style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'rtl', marginBottom: '5px' }}>
+                              <option value="general">כללי</option>
+                              <option value="aircraft">מטוסים</option>
+                              <option value="vehicle">כלי רכב</option>
+                            </select>
                             <div style={{ display: 'flex', gap: '5px' }}>
                               {!editingAirfieldRoute && hasMap ? (
                                 <button onClick={() => {
                                   if (!airfieldRouteForm.name.trim()) return;
-                                  setPendingNewRoute({ name: airfieldRouteForm.name, color: airfieldRouteForm.color, notes: airfieldRouteForm.notes });
+                                  setPendingNewRoute({ name: airfieldRouteForm.name, color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, category: airfieldRouteForm.category });
                                   setDrawingRouteId(-1);
                                   setRouteDraftPoints([]);
                                   setShowAirfieldRouteForm(false);
@@ -30980,9 +31143,9 @@ CHARLIE,1,301,`}
                                   const existingPath = editingAirfieldRoute
                                     ? (adminAirfieldRoutes.find((x: any) => x.id === editingAirfieldRoute.id)?.route_path || [])
                                     : [];
-                                  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_path: existingPath }) });
+                                  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_category: airfieldRouteForm.category, route_path: existingPath }) });
                                   if (res.ok) {
-                                    setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '' });
+                                    setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general' });
                                     fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                   }
                                 }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
@@ -31000,7 +31163,7 @@ CHARLIE,1,301,`}
                               <button onClick={async () => {
                                 if (routeDraftPoints.length < 2) { alert('יש לסמן לפחות 2 נקודות'); return; }
                                 if (drawingRouteId === -1 && pendingNewRoute) {
-                                  await fetch(`${API_URL}/airfield-routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingNewRoute.name, airfield_id: Number(selectedAdminAirfieldId), color: pendingNewRoute.color, notes: pendingNewRoute.notes, route_path: routeDraftPoints }) });
+                                  await fetch(`${API_URL}/airfield-routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingNewRoute.name, airfield_id: Number(selectedAdminAirfieldId), color: pendingNewRoute.color, notes: pendingNewRoute.notes, route_category: pendingNewRoute.category || 'general', route_path: routeDraftPoints }) });
                                   setPendingNewRoute(null);
                                 } else {
                                   const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
@@ -31030,7 +31193,7 @@ CHARLIE,1,301,`}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
                                 {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [] }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#451a03', color: '#fb923c', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>}
-                                <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '' }); setShowAirfieldRouteForm(true); }}
+                                <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '', category: r.route_category || 'general' }); setShowAirfieldRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
