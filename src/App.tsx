@@ -5657,7 +5657,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [elemPanelOpen, setElemPanelOpen] = useState(true);
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
-  const [mapLayers, setMapLayers] = useState({ elements: true, routes: true, points: true, polygons: true, sectors: true });
+  const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: true, routes_vehicle: true, points: true, polygons: true, sectors: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -7415,7 +7415,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗂 שכבות</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
+              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes_aircraft', label: '✈ מסלולי מטוסים' }, { key: 'routes_vehicle', label: '🚗 מסלולי רכבים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                   <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
                   {label}
@@ -7564,17 +7564,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
 
           {/* Route lines overlay */}
-          {mapLayers.routes && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
+                const cat = r.route_category || 'general';
+                const isVehicle = cat === 'vehicle';
+                if (isVehicle && !mapLayers.routes_vehicle) return null;
+                if (!isVehicle && !mapLayers.routes_aircraft) return null;
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
                 const col = r.color || '#3b82f6';
                 const labelPts = [pts[0], pts[pts.length - 1]];
                 return (
                   <g key={r.id}>
-                    <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                    {isVehicle
+                      ? <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.55" strokeDasharray="1.8,1.1" strokeLinecap="round" />
+                      : <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                    }
                     {labelPts.map((lp: any, li: number) => (
                       <g key={li}>
                         <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
@@ -31305,6 +31312,7 @@ CHARLIE,1,301,`}
                             return (
                               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : '#1e293b'}` }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
+                                <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : '✈'}</span>
                                 <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{r.name}</span>
                                 {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}נק)</span>}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
@@ -31449,10 +31457,14 @@ CHARLIE,1,301,`}
                         const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                         if (pts.length < 2) return null;
                         const col = r.color || '#3b82f6';
+                        const isVehicle = (r.route_category || 'general') === 'vehicle';
                         const labelPts = [pts[0], pts[pts.length - 1]];
                         return (
                           <g key={r.id}>
-                            <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                            {isVehicle
+                              ? <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.55" strokeDasharray="1.8,1.1" strokeLinecap="round" />
+                              : <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                            }
                             {labelPts.map((lp, li) => (
                               <g key={li}>
                                 <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
