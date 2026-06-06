@@ -5685,6 +5685,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string } | null>(null);
   const [cameraPanels, setCameraPanels] = useState<{ id: number; url: string; name: string; dragPos: { x: number; y: number }; expanded: boolean }[]>([]);
   const nextCamId = useRef(0);
+  // Route animation — vehicle moving along its path
+  const [routeAnimProgress, setRouteAnimProgress] = useState<Record<number, number>>({});
+  const routeAnimRaf = React.useRef<Record<number, number>>({});
+
+  const startRouteAnim = React.useCallback((elId: number, endFrac: number) => {
+    if (routeAnimRaf.current[elId]) cancelAnimationFrame(routeAnimRaf.current[elId]);
+    setRouteAnimProgress(prev => ({ ...prev, [elId]: 0 }));
+    const DURATION = 4000;
+    const startTime = performance.now();
+    const ease = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOut
+    const tick = (now: number) => {
+      const raw = Math.min(1, (now - startTime) / DURATION);
+      const t = ease(raw) * endFrac;
+      setRouteAnimProgress(prev => ({ ...prev, [elId]: t }));
+      if (raw < 1) { routeAnimRaf.current[elId] = requestAnimationFrame(tick); }
+      else { delete routeAnimRaf.current[elId]; }
+    };
+    routeAnimRaf.current[elId] = requestAnimationFrame(tick);
+  }, []);
+
+  const stopRouteAnim = React.useCallback((elId: number) => {
+    if (routeAnimRaf.current[elId]) { cancelAnimationFrame(routeAnimRaf.current[elId]); delete routeAnimRaf.current[elId]; }
+    setRouteAnimProgress(prev => { const n = { ...prev }; delete n[elId]; return n; });
+  }, []);
+
   const [cameraWall, setCameraWall] = useState(false);
   const [cameraPicker, setCameraPicker] = useState<{ el: any; url: string } | null>(null);
   const [cameraPickerPos, setCameraPickerPos] = useState<'right'|'left'|'top'|'bottom'|'full'>('right');
@@ -7034,6 +7059,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                     🛣
                                   </button>
                                 )}
+                                {(el.category === 'כלי רכב' || el.category === 'מטוס') && elemNavData[el.id]?.viaRouteIds?.length > 0 && (
+                                  routeAnimProgress[el.id] !== undefined
+                                    ? <button onClick={() => stopRouteAnim(el.id)}
+                                        title="עצור אנימציה"
+                                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #ef4444', background: '#450a0a', color: '#fca5a5', cursor: 'pointer', flexShrink: 0 }}>
+                                        ■
+                                      </button>
+                                    : <button onClick={() => startRouteAnim(el.id, 1.0)}
+                                        title="הפעל אנימציית נסיעה"
+                                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #22c55e', background: '#052e16', color: '#86efac', cursor: 'pointer', flexShrink: 0 }}>
+                                        ▶
+                                      </button>
+                                )}
                                 {onUpdateElement && (
                                   <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
                                     title="ערוך אלמנט"
@@ -7924,6 +7962,74 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         );
                       })()}
                     </>
+                  );
+                })()}
+                {/* Moving vehicle dot animation */}
+                {(() => {
+                  const rawProgress = routeAnimProgress[Number(elIdStr)];
+                  if (rawProgress === undefined) return null;
+                  // Build full path by chaining all trimmed paths
+                  const fullPts: {x:number;y:number}[] = [];
+                  trimmedPaths.forEach((rp: any) => { if (rp && rp.pts.length >= 2) { if (fullPts.length > 0) fullPts.push(...rp.pts.slice(1)); else fullPts.push(...rp.pts); } });
+                  if (fullPts.length < 2) return null;
+                  // Path length helpers
+                  const segLens: number[] = [];
+                  let totalLen = 0;
+                  for (let i = 0; i < fullPts.length - 1; i++) { const dx=fullPts[i+1].x-fullPts[i].x, dy=fullPts[i+1].y-fullPts[i].y; const l=Math.sqrt(dx*dx+dy*dy); segLens.push(l); totalLen += l; }
+                  if (totalLen < 1e-6) return null;
+                  // Find blocking fraction — closest conflict element on path
+                  const myConflicts = routeConflicts.filter((c: any) => c.vehicleId === Number(elIdStr));
+                  let blockFrac = 1.0;
+                  myConflicts.forEach((c: any) => {
+                    const bel = (airfieldElements || []).find((e: any) => e.id === c.elementId);
+                    if (!bel || bel.x_pct == null) return;
+                    let acc2 = 0, bestFrac2 = 1.0, bestD2 = Infinity;
+                    for (let i = 0; i < fullPts.length - 1; i++) {
+                      const ax=fullPts[i].x, ay=fullPts[i].y, bx=fullPts[i+1].x, by=fullPts[i+1].y;
+                      const dx=bx-ax, dy=by-ay, lenSq=dx*dx+dy*dy;
+                      if (lenSq < 1e-10) { acc2 += segLens[i]; continue; }
+                      const t2 = Math.max(0, Math.min(1, ((bel.x_pct-ax)*dx+(bel.y_pct-ay)*dy)/lenSq));
+                      const cx2=ax+t2*dx, cy2=ay+t2*dy;
+                      const d2=(bel.x_pct-cx2)*(bel.x_pct-cx2)+(bel.y_pct-cy2)*(bel.y_pct-cy2);
+                      if (d2 < bestD2) { bestD2=d2; bestFrac2=(acc2+t2*segLens[i])/totalLen; }
+                      acc2 += segLens[i];
+                    }
+                    if (bestFrac2 < blockFrac) blockFrac = bestFrac2;
+                  });
+                  // Cap progress at blocking fraction
+                  const t = Math.min(rawProgress, blockFrac);
+                  const isBlocked = blockFrac < 1.0 && rawProgress >= blockFrac - 0.01;
+                  // Interpolate point along path
+                  const target = t * totalLen;
+                  let acc3 = 0, dotX = fullPts[0].x, dotY = fullPts[0].y, dirAngle = 0;
+                  for (let i = 0; i < fullPts.length - 1; i++) {
+                    const ax=fullPts[i].x, ay=fullPts[i].y, bx=fullPts[i+1].x, by=fullPts[i+1].y;
+                    if (acc3 + segLens[i] >= target || i === fullPts.length - 2) {
+                      const localT = segLens[i] > 1e-10 ? (target - acc3) / segLens[i] : 0;
+                      dotX = ax + localT * (bx - ax); dotY = ay + localT * (by - ay);
+                      dirAngle = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+                      break;
+                    }
+                    acc3 += segLens[i];
+                  }
+                  return (
+                    <g transform={`translate(${dotX},${dotY})`}>
+                      {/* Glow halo */}
+                      <circle r="3.5" fill={isBlocked ? '#ef4444' : '#f97316'} opacity="0.25" />
+                      {/* Vehicle body */}
+                      <circle r="2.0" fill={isBlocked ? '#ef4444' : '#f97316'} stroke="white" strokeWidth="0.6" />
+                      {/* Direction arrow */}
+                      <polygon points="0,-1.1 0.7,0.5 -0.7,0.5"
+                        fill="white" opacity="0.9"
+                        transform={`rotate(${dirAngle + 90})`} />
+                      {/* Blocked X mark */}
+                      {isBlocked && (
+                        <>
+                          <line x1="-1.4" y1="-1.4" x2="1.4" y2="1.4" stroke="white" strokeWidth="0.8" />
+                          <line x1="1.4" y1="-1.4" x2="-1.4" y2="1.4" stroke="white" strokeWidth="0.8" />
+                        </>
+                      )}
+                    </g>
                   );
                 })()}
               </svg>
