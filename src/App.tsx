@@ -6120,6 +6120,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   // Track actual rendered image bounds (objectFit:contain letterboxing compensation)
   const airfieldImgRef = React.useRef<HTMLImageElement>(null);
   const [imgBounds, setImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // User-controlled map zoom & pan (= / - keys, wheel, drag)
+  const [groundMapZoom, setGroundMapZoom] = React.useState(1.0);
+  const [groundMapPan, setGroundMapPan] = React.useState({ x: 0, y: 0 });
+  const groundMapDragRef = React.useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
+
+  // Keyboard zoom handler
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === '=' || e.key === '+') { e.preventDefault(); setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8)); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2)); }
+      else if (e.key === '0' && !e.ctrlKey && !e.metaKey) { setGroundMapZoom(1); setGroundMapPan({ x: 0, y: 0 }); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const updateImgBounds = React.useCallback(() => {
     const img = airfieldImgRef.current;
     if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
@@ -6326,16 +6344,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const mapRef = React.useRef<HTMLDivElement>(null);
 
-  // Sector zoom: when a sector is focused, smoothly zoom + pan the map to that sector
+  // Sector zoom: when a sector is focused, smoothly zoom + pan the map to that sector.
+  // When no sector focused, apply user-controlled zoom+pan instead.
   React.useEffect(() => {
     const el = mapRef.current;
-    if (!el || !imgBounds) return;
+    if (!el) return;
     if (!focusedSectorId) {
-      el.style.transform = '';
-      el.style.transformOrigin = '';
-      el.style.transition = '';
+      if (groundMapZoom === 1 && groundMapPan.x === 0 && groundMapPan.y === 0) {
+        el.style.transform = '';
+        el.style.transformOrigin = '';
+        el.style.transition = '';
+      } else {
+        el.style.transformOrigin = '50% 50%';
+        el.style.transition = 'transform 0.1s ease';
+        el.style.transform = `translate(${groundMapPan.x}px,${groundMapPan.y}px) scale(${groundMapZoom})`;
+      }
       return;
     }
+    if (!imgBounds) return;
     const sec = (airfieldSectors || []).find((s: any) => s.id === focusedSectorId);
     if (!sec) { el.style.transform = ''; return; }
     const cW = el.offsetWidth;
@@ -6358,7 +6384,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     el.style.transformOrigin = '0 0';
     el.style.transition = 'transform 0.4s ease';
     el.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
-  }, [focusedSectorId, imgBounds, airfieldSectors]);
+  }, [focusedSectorId, imgBounds, airfieldSectors, groundMapZoom, groundMapPan]);
 
   const PANEL: React.CSSProperties = { display: 'flex', flexDirection: 'column', overflow: 'hidden', background: panelBg };
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
@@ -7255,9 +7281,47 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
         )}
 
-        <div ref={mapRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a') }}>
+        <div ref={mapRef}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: groundMapDragRef.current ? 'grabbing' : (groundMapZoom !== 1 ? 'grab' : 'default') }}
+          onWheel={e => {
+            if (focusedSectorId) return;
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+            setGroundMapZoom(z => {
+              const next = Math.min(Math.max(+(z * factor).toFixed(3), 0.2), 8);
+              // zoom toward mouse position
+              const el = mapRef.current;
+              if (el) {
+                const rect = el.getBoundingClientRect();
+                const mx = e.clientX - rect.left - rect.width / 2;
+                const my = e.clientY - rect.top - rect.height / 2;
+                setGroundMapPan(p => ({
+                  x: p.x - mx * (next / z - 1) / next,
+                  y: p.y - my * (next / z - 1) / next,
+                }));
+              }
+              return next;
+            });
+          }}
+          onMouseDown={e => {
+            if (focusedSectorId) return;
+            if (e.button !== 0) return;
+            // Only start pan drag if not clicking on an overlay button/interactive element
+            const target = e.target as HTMLElement;
+            if (target.closest('button,input,select,label,a,[data-nopan]')) return;
+            groundMapDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: groundMapPan.x, startPanY: groundMapPan.y };
+            const onMove = (ev: MouseEvent) => {
+              const d = groundMapDragRef.current;
+              if (!d) return;
+              setGroundMapPan({ x: d.startPanX + (ev.clientX - d.startX), y: d.startPanY + (ev.clientY - d.startY) });
+            };
+            const onUp = () => { groundMapDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+        >
           {airfieldMapSrc
-            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
@@ -7302,8 +7366,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
           )}
 
-          {/* Layers panel — always visible, top-left */}
-          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }}>
+          {/* Layers panel + zoom controls — always visible, top-left */}
+          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }} data-nopan>
             <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗂 שכבות</div>
             <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
@@ -7313,6 +7377,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </label>
               ))}
             </div>
+            {/* Zoom controls */}
+            <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'space-between' }}>
+              <button onClick={() => setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8))}
+                style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>+</button>
+              <button onClick={() => { setGroundMapZoom(1); setGroundMapPan({ x: 0, y: 0 }); }}
+                title="איפוס זום (מקש 0)"
+                style={{ flex: 1, padding: '2px 4px', borderRadius: '4px', border: `1px solid ${groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f1' : (lightMode ? '#cbd5e1' : '#334155')}`, background: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#6366f122' : (lightMode ? '#f1f5f9' : '#1e293b'), color: groundMapZoom !== 1 || groundMapPan.x !== 0 || groundMapPan.y !== 0 ? '#818cf8' : headerColor, cursor: 'pointer', fontSize: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {Math.round(groundMapZoom * 100)}%
+              </button>
+              <button onClick={() => setGroundMapZoom(z => Math.max(+(z / 1.25).toFixed(3), 0.2))}
+                style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
+            </div>
+            <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
           </div>
 
           {/* Airfield Polygons overlay */}
