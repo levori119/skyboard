@@ -26798,7 +26798,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     const c = imgEl.parentElement; if (!c) { setAdminMapImgBounds(null); return; }
     const cr = c.getBoundingClientRect();
     const ir = imgEl.getBoundingClientRect();
-    setAdminMapImgBounds({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height });
+    const z = adminMapZoom || 1;
+    setAdminMapImgBounds({ left: (ir.left - cr.left) / z, top: (ir.top - cr.top) / z, width: ir.width / z, height: ir.height / z });
   };
   React.useEffect(() => {
     const img = adminMapImgElRef.current;
@@ -26924,17 +26925,18 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       }
       if (!sectorDragStartRef.current || !adminMapInnerRef.current) return;
       const ir = adminMapInnerRef.current.getBoundingClientRect();
-      const relX = e.clientX - ir.left; const relY = e.clientY - ir.top;
+      const z = adminMapZoom || 1;
+      const relX = (e.clientX - ir.left) / z; const relY = (e.clientY - ir.top) / z;
       const imb = adminMapImgBounds;
-      let x2 = imb ? ((relX - imb.left) / imb.width) * 100 : (relX / ir.width) * 100;
-      let y2 = imb ? ((relY - imb.top) / imb.height) * 100 : (relY / ir.height) * 100;
+      let x2 = imb ? ((relX - imb.left) / imb.width) * 100 : (relX / (ir.width / z)) * 100;
+      let y2 = imb ? ((relY - imb.top) / imb.height) * 100 : (relY / (ir.height / z)) * 100;
       x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
       const ds = sectorDragStartRef.current;
       setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
     };
     window.addEventListener('mousemove', handler);
     return () => window.removeEventListener('mousemove', handler);
-  }, [drawingSectorId, adminMapImgBounds]);
+  }, [drawingSectorId, adminMapImgBounds, adminMapZoom]);
   const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
   const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
   const [showAirfieldSectorForm, setShowAirfieldSectorForm] = useState(false);
@@ -31401,7 +31403,8 @@ CHARLIE,1,301,`}
                       e.preventDefault();
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
-                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
+                      const z = adminMapZoom || 1;
+                      const relX = (e.clientX - cr.left) / z; const relY = (e.clientY - cr.top) / z;
                       let x: number, y: number;
                       if (adminMapImgBounds) { x = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x = (relX / container.clientWidth) * 100; y = (relY / container.clientHeight) * 100; }
@@ -31413,7 +31416,8 @@ CHARLIE,1,301,`}
                       if (!drawingSectorId || !sectorDragStartRef.current) return;
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
-                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
+                      const z = adminMapZoom || 1;
+                      const relX = (e.clientX - cr.left) / z; const relY = (e.clientY - cr.top) / z;
                       let x2: number, y2: number;
                       if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
@@ -31426,7 +31430,8 @@ CHARLIE,1,301,`}
                       if (!drawingSectorId || !ds) return;
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
-                      const relX = e.clientX - cr.left; const relY = e.clientY - cr.top;
+                      const z = adminMapZoom || 1;
+                      const relX = (e.clientX - cr.left) / z; const relY = (e.clientY - cr.top) / z;
                       let x2: number, y2: number;
                       if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
                       else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
@@ -31447,8 +31452,9 @@ CHARLIE,1,301,`}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
-                      const relX = e.clientX - rect.left - el.clientLeft;
-                      const relY = e.clientY - rect.top - el.clientTop;
+                      const z = adminMapZoom || 1;
+                      const relX = (e.clientX - rect.left - el.clientLeft) / z;
+                      const relY = (e.clientY - rect.top - el.clientTop) / z;
                       let x_pct: number, y_pct: number;
                       if (adminMapImgBounds) {
                         x_pct = Math.round(((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100);
