@@ -6303,6 +6303,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const [showMalfunctionPanel, setShowMalfunctionPanel] = React.useState(false);
 
+  // Red conflicts suppressed when the blocking element already has a yellow malfunction warning
+  const malfunctionElementIds = React.useMemo(() => new Set(malfunctionWarnings.map(w => w.id)), [malfunctionWarnings]);
+  const visibleConflicts = React.useMemo(
+    () => routeConflicts.filter((c: any) => !malfunctionElementIds.has(c.elementId)),
+    [routeConflicts, malfunctionElementIds]
+  );
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -7060,7 +7067,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                   <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
                                 )}
                                 {el.category === 'camera' && el.camera_url && (
-                                  <button onClick={() => { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); }}
+                                  <button onClick={() => { if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); }}
                                     title="פתח תצוגת מצלמה"
                                     style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #3b82f6', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', flexShrink: 0 }}>
                                     📷
@@ -7636,7 +7643,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}`}</style>
 
           {/* Route conflict warning panel — prominent burst alert */}
-          {routeConflicts.length > 0 && (
+          {visibleConflicts.length > 0 && (
             <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
               {/* Header — always visible, flashing */}
               <div className="conflict-alert-flash"
@@ -7648,7 +7655,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     ⚠ התראת תפעול
                   </div>
                   <div style={{ fontSize: '11px', color: '#fca5a5' }}>
-                    {routeConflicts.length} קונפליקט{routeConflicts.length !== 1 ? 'ים' : ''} פעיל{routeConflicts.length !== 1 ? 'ים' : ''}
+                    {visibleConflicts.length} קונפליקט{visibleConflicts.length !== 1 ? 'ים' : ''} פעיל{visibleConflicts.length !== 1 ? 'ים' : ''}
                   </div>
                 </div>
                 <span style={{ fontSize: '11px', color: '#fca5a5', opacity: 0.8 }}>{showConflictPanel ? '▲' : '▼'}</span>
@@ -7656,7 +7663,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               {/* Expanded details */}
               {showConflictPanel && (
                 <div style={{ background: '#1a0000', border: '2px solid #ef4444', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 8px 24px rgba(239,68,68,0.35)' }}>
-                  {routeConflicts.map((c, i) => (
+                  {visibleConflicts.map((c, i) => (
                     <div key={i} style={{ background: '#2a0000', borderRadius: '7px', padding: '8px 10px', border: '1px solid #ef444466', borderRight: '4px solid #ef4444' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '13px' }}>🚗</span>
@@ -8137,7 +8144,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/groundMapZoom})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
-                onClick={el.camera_url ? (e) => { e.stopPropagation(); const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
+                onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Conflict alert ring — pulsing red */}
                 {conflictElementIds.has(el.id) && (
@@ -8151,7 +8158,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isBeingEdited && (
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
-                <div style={blinkAnimStyle} onClick={el.camera_url ? (e) => { e.stopPropagation(); const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                <div style={blinkAnimStyle} onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                   {el.category === 'camera' ? (
                     <div style={{ width: '26px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.7))' }}>
                       <svg width="26" height="20" viewBox="0 0 26 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8705,7 +8712,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => { if (cameraPicker.url) { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: cameraPicker.url, name: cameraPicker.el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); setCameraPicker(null); } }}
+                onClick={() => { if (cameraPicker.url) { if (!cameraPanels.some(p => p.url === cameraPicker.url)) { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: cameraPicker.url, name: cameraPicker.el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } setCameraPicker(null); } }}
                 disabled={!cameraPicker.url}
                 style={{ flex: 2, padding: '10px', background: cameraPicker.url ? '#1d4ed8' : '#1e293b', color: cameraPicker.url ? 'white' : '#64748b', border: 'none', borderRadius: '8px', cursor: cameraPicker.url ? 'pointer' : 'default', fontSize: '13px', fontWeight: 'bold' }}>
                 פתח מצלמה
@@ -8767,7 +8774,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
               style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none', direction: 'rtl' }}>
               <span style={{ fontSize: '14px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.name}</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mapDisplaySettings.showNames !== false ? panel.name : '📷'}</span>
               <button onClick={() => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, expanded: !p.expanded } : p))}
                 title={panel.expanded ? 'כווץ' : 'הגדל'}
                 style={{ padding: '2px 7px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
