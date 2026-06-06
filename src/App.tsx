@@ -26673,6 +26673,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [placingPointMode, setPlacingPointMode] = useState(false);
   const [editingPoint, setEditingPoint] = useState<{ id: number; name: string; color: string; marker: string; density_warn: number; point_type: string } | null>(null);
   const [adminMapImgBounds, setAdminMapImgBounds] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [adminMapZoom, setAdminMapZoom] = React.useState(1.0);
+  const adminMapScrollRef = React.useRef<HTMLDivElement>(null);
+  const adminMapInnerRef = React.useRef<HTMLDivElement>(null);
+  const adminMapImgElRef = React.useRef<HTMLImageElement>(null);
   const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setAdminMapImgBounds(null); return; }
     const c = imgEl.parentElement; if (!c) { setAdminMapImgBounds(null); return; }
@@ -26680,6 +26684,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     const ir = imgEl.getBoundingClientRect();
     setAdminMapImgBounds({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height });
   };
+  React.useEffect(() => {
+    const img = adminMapImgElRef.current;
+    if (img) setTimeout(() => computeAdminMapBounds(img), 30);
+  }, [adminMapZoom]);
+  React.useEffect(() => {
+    const el = adminMapScrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setAdminMapZoom(z => Math.max(0.25, Math.min(5, e.deltaY < 0 ? +(z * 1.15).toFixed(3) : +(z / 1.15).toFixed(3))));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
   const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
     ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
@@ -26772,6 +26791,34 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [drawingSectorId, setDrawingSectorId] = useState<number|null>(null);
   const sectorDragStartRef = React.useRef<{x:number;y:number}|null>(null);
   const [sectorDraftRect, setSectorDraftRect] = useState<{x:number;y:number;w:number;h:number}|null>(null);
+  // Global mousemove during sector rect drawing: auto-scroll + track mouse outside div
+  React.useEffect(() => {
+    if (!drawingSectorId) return;
+    const EDGE = 60, SPEED = 10;
+    const handler = (e: MouseEvent) => {
+      const sc = adminMapScrollRef.current;
+      if (sc) {
+        const sr = sc.getBoundingClientRect();
+        let dx = 0, dy = 0;
+        if (e.clientX < sr.left + EDGE) dx = -SPEED * Math.max(0, (EDGE - (e.clientX - sr.left)) / EDGE);
+        else if (e.clientX > sr.right - EDGE) dx = SPEED * Math.max(0, (EDGE - (sr.right - e.clientX)) / EDGE);
+        if (e.clientY < sr.top + EDGE) dy = -SPEED * Math.max(0, (EDGE - (e.clientY - sr.top)) / EDGE);
+        else if (e.clientY > sr.bottom - EDGE) dy = SPEED * Math.max(0, (EDGE - (sr.bottom - e.clientY)) / EDGE);
+        if (dx || dy) { sc.scrollLeft += dx; sc.scrollTop += dy; }
+      }
+      if (!sectorDragStartRef.current || !adminMapInnerRef.current) return;
+      const ir = adminMapInnerRef.current.getBoundingClientRect();
+      const relX = e.clientX - ir.left; const relY = e.clientY - ir.top;
+      const imb = adminMapImgBounds;
+      let x2 = imb ? ((relX - imb.left) / imb.width) * 100 : (relX / ir.width) * 100;
+      let y2 = imb ? ((relY - imb.top) / imb.height) * 100 : (relY / ir.height) * 100;
+      x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
+      const ds = sectorDragStartRef.current;
+      setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
+    };
+    window.addEventListener('mousemove', handler);
+    return () => window.removeEventListener('mousemove', handler);
+  }, [drawingSectorId, adminMapImgBounds]);
   const [editingAirfieldSector, setEditingAirfieldSector] = useState<any|null>(null);
   const [airfieldSectorForm, setAirfieldSectorForm] = useState({ name: '', notes: '' });
   const [showAirfieldSectorForm, setShowAirfieldSectorForm] = useState(false);
@@ -31210,9 +31257,18 @@ CHARLIE,1,301,`}
 
               {/* MAP area (large, fills remaining space) */}
               {hasMap && showAirfieldForm && (
-                <div style={{ flex: 1, minWidth: 0, overflow: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 160px)' }}>
+                  {/* Zoom toolbar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
+                    <button onClick={() => setAdminMapZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>−</button>
+                    <button onClick={() => setAdminMapZoom(1.0)} style={{ padding: '0 7px', height: '22px', background: '#1e293b', color: '#93c5fd', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', minWidth: '44px' }}>{Math.round(adminMapZoom * 100)}%</button>
+                    <button onClick={() => setAdminMapZoom(z => Math.min(5, +(z * 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
+                    <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>Ctrl+גלגל לזום</span>
+                  </div>
+                  <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto' }}>
                   <div
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default' }}
+                    ref={adminMapInnerRef}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
                     tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
@@ -31304,7 +31360,7 @@ CHARLIE,1,301,`}
                     }}
                   >
                     {adminSelMapSrc ? (
-                      <img src={adminSelMapSrc} alt="airfield map" onLoad={e => computeAdminMapBounds(e.currentTarget)}
+                      <img ref={adminMapImgElRef} src={adminSelMapSrc} alt="airfield map" onLoad={e => { (adminMapImgElRef as React.MutableRefObject<HTMLImageElement|null>).current = e.currentTarget; computeAdminMapBounds(e.currentTarget); }}
                         style={{ width: '100%', objectFit: 'contain', display: 'block' }} />
                     ) : null}
 
@@ -31443,6 +31499,7 @@ CHARLIE,1,301,`}
                     })}
                   </div>
                 </div>
+              </div>
               )}
 
             </div>
