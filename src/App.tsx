@@ -7707,7 +7707,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {/* Camera button — for elements with camera_url */}
                 {el.camera_url && (
                   <button
-                    onClick={e => { e.stopPropagation(); setCameraPicker({ el, url: el.camera_url }); setCameraPickerPos('right'); }}
+                    onClick={e => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, position: cameraPickerPos, name: el.name }); }}
                     style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
                     title="פתח מצלמה">
                     📷
@@ -8214,11 +8214,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         return (
           <div style={panelStyle}>
             {/* Header bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, flexWrap: 'wrap' }}>
               <span style={{ fontSize: '13px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1 }}>{cameraPanel.name}</span>
-              <button onClick={() => { setCameraPanel(null); setCameraPickerPos('right'); }}
-                style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕ סגור</button>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, minWidth: '60px' }}>{cameraPanel.name}</span>
+              {/* Position buttons */}
+              {(['right','left','top','bottom','full'] as const).map(p => (
+                <button key={p} onClick={() => setCameraPanel(cp => cp ? { ...cp, position: p } : cp)}
+                  style={{ padding: '2px 7px', background: cameraPanel.position === p ? '#1d4ed8' : 'transparent', border: `1px solid ${cameraPanel.position === p ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: cameraPanel.position === p ? '#bfdbfe' : '#64748b', cursor: 'pointer', fontSize: '10px' }}>
+                  {p === 'right' ? '◧ ימין' : p === 'left' ? '◨ שמאל' : p === 'top' ? '⬒ מעלה' : p === 'bottom' ? '⬓ מטה' : '⛶ מלא'}
+                </button>
+              ))}
+              <button onClick={() => setCameraPanel(null)}
+                style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
             </div>
             <iframe src={cameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
           </div>
