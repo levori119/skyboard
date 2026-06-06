@@ -6255,11 +6255,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         if (!blockStatuses.includes(effectiveStatus) && !blockStatuses.includes(el.status)) return;
         const reportedStatus = blockStatuses.includes(effectiveStatus) ? effectiveStatus : el.status;
         const routeNames = overlapping.map(rid => (airfieldRoutes as any[]).find((r: any) => r.id === rid)?.name).filter(Boolean);
-        conflicts.push({ vehicleName: vehicle.name, elementName: el.name, routeNames, status: reportedStatus });
+        conflicts.push({ vehicleName: vehicle.name, vehicleId: Number(elIdStr), elementName: el.name, elementId: el.id, routeNames, status: reportedStatus });
       });
     });
     return conflicts;
   }, [elemNavData, airfieldElements, airfieldRoutes]);
+
+  const conflictElementIds = React.useMemo(() => new Set(routeConflicts.map(c => c.elementId)), [routeConflicts]);
+  const conflictVehicleIds  = React.useMemo(() => new Set(routeConflicts.map(c => c.vehicleId)),  [routeConflicts]);
 
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
@@ -7580,7 +7583,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
           <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}`}</style>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}`}</style>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
@@ -7726,29 +7729,40 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </svg>
           )}
 
-          {/* Route conflict warning panel */}
+          {/* Route conflict warning panel — prominent burst alert */}
           {routeConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl' }}>
-              <button onClick={() => setShowConflictPanel(p => !p)}
-                style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: '8px', padding: '5px 10px', color: '#fca5a5', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(239,68,68,0.4)' }}>
-                <span style={{ animation: 'pulse 1s infinite' }}>⚠</span>
-                <span>{routeConflicts.length} התראת{routeConflicts.length !== 1 ? 'ות' : ''} תפעול</span>
-                <span style={{ fontSize: '9px', opacity: 0.7 }}>{showConflictPanel ? '▲' : '▼'}</span>
-              </button>
+            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }}>
+              {/* Header — always visible, flashing */}
+              <div className="conflict-alert-flash"
+                style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onClick={() => setShowConflictPanel(p => !p)}>
+                <span style={{ fontSize: '20px', animation: 'conflict-ring 0.7s ease-in-out infinite', display: 'inline-block' }}>🚨</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fef2f2', letterSpacing: '0.5px' }}>
+                    ⚠ התראת תפעול
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#fca5a5' }}>
+                    {routeConflicts.length} קונפליקט{routeConflicts.length !== 1 ? 'ים' : ''} פעיל{routeConflicts.length !== 1 ? 'ים' : ''}
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#fca5a5', opacity: 0.8 }}>{showConflictPanel ? '▲' : '▼'}</span>
+              </div>
+              {/* Expanded details */}
               {showConflictPanel && (
-                <div style={{ background: '#1a0000', border: '1px solid #ef4444', borderRadius: '6px', marginTop: '4px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', minWidth: '260px', maxWidth: '340px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                <div style={{ background: '#1a0000', border: '2px solid #ef4444', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 8px 24px rgba(239,68,68,0.35)' }}>
                   {routeConflicts.map((c, i) => (
-                    <div key={i} style={{ background: '#2a0000', borderRadius: '5px', padding: '6px 8px', borderRight: '3px solid #ef4444' }}>
-                      <div style={{ color: '#fca5a5', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>
-                        🚗 {c.vehicleName}
+                    <div key={i} style={{ background: '#2a0000', borderRadius: '7px', padding: '8px 10px', border: '1px solid #ef444466', borderRight: '4px solid #ef4444' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '13px' }}>🚗</span>
+                        <span style={{ color: '#fef2f2', fontSize: '12px', fontWeight: 'bold' }}>{c.vehicleName}</span>
                       </div>
-                      <div style={{ color: '#fecaca', fontSize: '11px' }}>
-                        מסלול עובר דרך <span style={{ color: '#f87171', fontWeight: 'bold' }}>{c.elementName}</span> — סטטוס: <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{c.status}</span>
+                      <div style={{ color: '#fecaca', fontSize: '11px', lineHeight: 1.5 }}>
+                        מסלולו חוצה <span style={{ color: '#f87171', fontWeight: 'bold', textDecoration: 'underline' }}>{c.elementName}</span>
+                        {' '}שמצבו <span style={{ background: '#450a0a', color: '#fca5a5', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{c.status}</span>
                       </div>
                       {c.routeNames.length > 0 && (
-                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>({c.routeNames.join(', ')})</div>
+                        <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>מסלולים: {c.routeNames.join(', ')}</div>
                       )}
-                      <div style={{ color: '#f87171', fontSize: '10px', fontWeight: 'bold', marginTop: '3px' }}>⚠ יש לתקן את המצב</div>
                     </div>
                   ))}
                 </div>
@@ -7970,6 +7984,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
                 onClick={el.camera_url ? (e) => { e.stopPropagation(); const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
+                {/* Conflict alert ring — pulsing red */}
+                {conflictElementIds.has(el.id) && (
+                  <div className="conflict-ring" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: '3px solid #ef4444', pointerEvents: 'none', zIndex: 25 }} />
+                )}
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
                   <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
