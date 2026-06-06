@@ -6953,7 +6953,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     return (
                       <div key={cat}>
                         {/* Category header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', background: lightMode ? '#1e3a5f' : '#0f2a4a', borderBottom: `1px solid ${lightMode ? '#2d5986' : '#1e3a5f'}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', background: lightMode ? '#1e3a5f' : '#0d1f3c', border: `1px solid ${lightMode ? '#3b82f6' : '#1e40af'}`, borderRadius: '0', marginTop: '2px' }}>
                           <span onClick={() => setCollapsedElemCats(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
                             style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
                             <span style={{ fontSize: '9px', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
@@ -6963,8 +6963,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           <button
                             onClick={() => setCatMapHighlight(prev => { const n = new Set(prev); isCatOnMap ? n.delete(cat) : n.add(cat); return n; })}
                             title={isCatOnMap ? 'הסתר הדגשה על מפה' : 'הדגש קטגוריה על המפה'}
-                            style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: isCatOnMap ? '#1d4ed8' : 'transparent', color: isCatOnMap ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
-                            👁 מפה
+                            style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : '#334155'}`, background: isCatOnMap ? '#1d4ed8' : '#0f172a', color: isCatOnMap ? '#bfdbfe' : '#475569', cursor: 'pointer', flexShrink: 0 }}>
+                            👁
                           </button>
                         </div>
                         {/* Elements in category */}
