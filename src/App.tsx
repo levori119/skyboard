@@ -7632,10 +7632,86 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             )}
           </div>
 
+          {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}`}</style>
+
+          {/* Route conflict warning panel — prominent burst alert */}
+          {routeConflicts.length > 0 && (
+            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
+              {/* Header — always visible, flashing */}
+              <div className="conflict-alert-flash"
+                style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                onClick={() => setShowConflictPanel(p => !p)}>
+                <span style={{ fontSize: '20px', animation: 'conflict-ring 0.7s ease-in-out infinite', display: 'inline-block' }}>🚨</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fef2f2', letterSpacing: '0.5px' }}>
+                    ⚠ התראת תפעול
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#fca5a5' }}>
+                    {routeConflicts.length} קונפליקט{routeConflicts.length !== 1 ? 'ים' : ''} פעיל{routeConflicts.length !== 1 ? 'ים' : ''}
+                  </div>
+                </div>
+                <span style={{ fontSize: '11px', color: '#fca5a5', opacity: 0.8 }}>{showConflictPanel ? '▲' : '▼'}</span>
+              </div>
+              {/* Expanded details */}
+              {showConflictPanel && (
+                <div style={{ background: '#1a0000', border: '2px solid #ef4444', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 8px 24px rgba(239,68,68,0.35)' }}>
+                  {routeConflicts.map((c, i) => (
+                    <div key={i} style={{ background: '#2a0000', borderRadius: '7px', padding: '8px 10px', border: '1px solid #ef444466', borderRight: '4px solid #ef4444' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '13px' }}>🚗</span>
+                        <span style={{ color: '#fef2f2', fontSize: '12px', fontWeight: 'bold' }}>{c.vehicleName}</span>
+                      </div>
+                      <div style={{ color: '#fecaca', fontSize: '11px', lineHeight: 1.5 }}>
+                        מסלולו חוצה <span style={{ color: '#f87171', fontWeight: 'bold', textDecoration: 'underline' }}>{c.elementName}</span>
+                        {' '}שמצבו <span style={{ background: '#450a0a', color: '#fca5a5', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{c.status}</span>
+                      </div>
+                      {c.routeNames.length > 0 && (
+                        <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>מסלולים: {c.routeNames.join(', ')}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Yellow caution panel — blocking elements that are non-operational */}
+          {malfunctionWarnings.length > 0 && (
+            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', left: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }} data-nopan>
+              <div style={{ background: '#713f12', border: '2px solid #eab308', borderRadius: showMalfunctionPanel ? '10px 10px 0 0' : '10px', padding: '7px 11px', color: '#fef08a', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 0 12px rgba(234,179,8,0.35)' }}
+                onClick={() => setShowMalfunctionPanel(p => !p)}>
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fefce8' }}>שים לב — אלמנט חוסם לא שמיש</div>
+                  <div style={{ fontSize: '10px', color: '#fde047' }}>
+                    {malfunctionWarnings.length} אלמנט{malfunctionWarnings.length !== 1 ? 'ים' : ''} דור{malfunctionWarnings.length !== 1 ? 'שים' : 'ש'} תשומת לב
+                  </div>
+                </div>
+                <span style={{ fontSize: '10px', color: '#fde047', opacity: 0.8 }}>{showMalfunctionPanel ? '▲' : '▼'}</span>
+              </div>
+              {showMalfunctionPanel && (
+                <div style={{ background: '#1c1400', border: '2px solid #eab308', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', boxShadow: '0 8px 20px rgba(234,179,8,0.2)' }}>
+                  {malfunctionWarnings.map((w, i) => (
+                    <div key={i} style={{ background: '#2a1f00', borderRadius: '7px', padding: '7px 9px', border: '1px solid #eab30866', borderRight: '4px solid #eab308' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+                        <span style={{ fontSize: '13px' }}>🔧</span>
+                        <span style={{ color: '#fefce8', fontSize: '12px', fontWeight: 'bold' }}>{w.name}</span>
+                      </div>
+                      <div style={{ color: '#fde047', fontSize: '11px' }}>
+                        מצב: <span style={{ background: '#422006', color: '#fbbf24', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{w.status}</span>
+                        {' '}— אלמנט זה עשוי לחסום מסלולים
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
           <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}`}</style>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
@@ -7779,80 +7855,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 );
               })}
             </svg>
-          )}
-
-          {/* Route conflict warning panel — prominent burst alert */}
-          {routeConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }}>
-              {/* Header — always visible, flashing */}
-              <div className="conflict-alert-flash"
-                style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                onClick={() => setShowConflictPanel(p => !p)}>
-                <span style={{ fontSize: '20px', animation: 'conflict-ring 0.7s ease-in-out infinite', display: 'inline-block' }}>🚨</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fef2f2', letterSpacing: '0.5px' }}>
-                    ⚠ התראת תפעול
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#fca5a5' }}>
-                    {routeConflicts.length} קונפליקט{routeConflicts.length !== 1 ? 'ים' : ''} פעיל{routeConflicts.length !== 1 ? 'ים' : ''}
-                  </div>
-                </div>
-                <span style={{ fontSize: '11px', color: '#fca5a5', opacity: 0.8 }}>{showConflictPanel ? '▲' : '▼'}</span>
-              </div>
-              {/* Expanded details */}
-              {showConflictPanel && (
-                <div style={{ background: '#1a0000', border: '2px solid #ef4444', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: '0 8px 24px rgba(239,68,68,0.35)' }}>
-                  {routeConflicts.map((c, i) => (
-                    <div key={i} style={{ background: '#2a0000', borderRadius: '7px', padding: '8px 10px', border: '1px solid #ef444466', borderRight: '4px solid #ef4444' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '13px' }}>🚗</span>
-                        <span style={{ color: '#fef2f2', fontSize: '12px', fontWeight: 'bold' }}>{c.vehicleName}</span>
-                      </div>
-                      <div style={{ color: '#fecaca', fontSize: '11px', lineHeight: 1.5 }}>
-                        מסלולו חוצה <span style={{ color: '#f87171', fontWeight: 'bold', textDecoration: 'underline' }}>{c.elementName}</span>
-                        {' '}שמצבו <span style={{ background: '#450a0a', color: '#fca5a5', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{c.status}</span>
-                      </div>
-                      {c.routeNames.length > 0 && (
-                        <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>מסלולים: {c.routeNames.join(', ')}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Yellow caution panel — blocking elements that are non-operational */}
-          {malfunctionWarnings.length > 0 && (
-            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', left: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }}>
-              <div style={{ background: '#713f12', border: '2px solid #eab308', borderRadius: showMalfunctionPanel ? '10px 10px 0 0' : '10px', padding: '7px 11px', color: '#fef08a', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 0 12px rgba(234,179,8,0.35)' }}
-                onClick={() => setShowMalfunctionPanel(p => !p)}>
-                <span style={{ fontSize: '18px' }}>⚠️</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fefce8' }}>שים לב — אלמנט חוסם לא שמיש</div>
-                  <div style={{ fontSize: '10px', color: '#fde047' }}>
-                    {malfunctionWarnings.length} אלמנט{malfunctionWarnings.length !== 1 ? 'ים' : ''} דור{malfunctionWarnings.length !== 1 ? 'שים' : 'ש'} תשומת לב
-                  </div>
-                </div>
-                <span style={{ fontSize: '10px', color: '#fde047', opacity: 0.8 }}>{showMalfunctionPanel ? '▲' : '▼'}</span>
-              </div>
-              {showMalfunctionPanel && (
-                <div style={{ background: '#1c1400', border: '2px solid #eab308', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', boxShadow: '0 8px 20px rgba(234,179,8,0.2)' }}>
-                  {malfunctionWarnings.map((w, i) => (
-                    <div key={i} style={{ background: '#2a1f00', borderRadius: '7px', padding: '7px 9px', border: '1px solid #eab30866', borderRight: '4px solid #eab308' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
-                        <span style={{ fontSize: '13px' }}>🔧</span>
-                        <span style={{ color: '#fefce8', fontSize: '12px', fontWeight: 'bold' }}>{w.name}</span>
-                      </div>
-                      <div style={{ color: '#fde047', fontSize: '11px' }}>
-                        מצב: <span style={{ background: '#422006', color: '#fbbf24', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{w.status}</span>
-                        {' '}— אלמנט זה עשוי לחסום מסלולים
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           )}
 
           {/* Nav route highlights — trimmed at intersection points */}
