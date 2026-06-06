@@ -7678,21 +7678,48 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               intersections.push(r1 && r2 ? polylineIntersect(r1.pts, r2.pts) : null);
             }
 
+            // Foot-of-perpendicular helper: returns {foot, segIdx} for closest point on polyline
+            const footOnPoly = (pts: {x:number;y:number}[], px: number, py: number): {foot:{x:number;y:number};segIdx:number} => {
+              let best = pts[0], bestD = Infinity, bestSeg = 0;
+              for (let i = 0; i < pts.length - 1; i++) {
+                const ax=pts[i].x, ay=pts[i].y, bx=pts[i+1].x, by=pts[i+1].y;
+                const dx=bx-ax, dy=by-ay, lenSq=dx*dx+dy*dy;
+                if (lenSq < 1e-10) continue;
+                const t = Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/lenSq));
+                const cx=ax+t*dx, cy=ay+t*dy;
+                const d=(px-cx)*(px-cx)+(py-cy)*(py-cy);
+                if (d < bestD) { bestD=d; best={x:cx,y:cy}; bestSeg=i; }
+              }
+              return { foot: best, segIdx: bestSeg };
+            };
+
+            const fromPt = nav.fromPointId ? points.find((p: any) => p.id === nav.fromPointId) : null;
+            const toPt   = nav.toPointId   ? points.find((p: any) => p.id === nav.toPointId)   : null;
+
             // Trim each route: keep only the portion between its adjacent intersection points
             const trimmedPaths = routeObjs.map((ro: any, i: number) => {
               if (!ro) return null;
               const startIntersect = i > 0 ? intersections[i-1] : null;
               const endIntersect   = i < intersections.length ? intersections[i] : null;
-              const startIdx = startIntersect ? startIntersect.sj + 1 : 0;
-              const startPts = startIntersect ? [startIntersect.pt] : [];
-              const endIdx   = endIntersect   ? endIntersect.si + 1  : ro.pts.length;
-              const endPts   = endIntersect   ? [endIntersect.pt]    : [];
+              let startIdx = startIntersect ? startIntersect.sj + 1 : 0;
+              let startPts: {x:number;y:number}[] = startIntersect ? [startIntersect.pt] : [];
+              let endIdx   = endIntersect   ? endIntersect.si + 1  : ro.pts.length;
+              let endPts: {x:number;y:number}[]   = endIntersect   ? [endIntersect.pt]    : [];
+              // Trim first route to start from fromPt foot
+              if (i === 0 && fromPt && !startIntersect) {
+                const { foot, segIdx } = footOnPoly(ro.pts, fromPt.x_pct, fromPt.y_pct);
+                startIdx = segIdx + 1;
+                startPts = [foot];
+              }
+              // Trim last route to end at toPt foot
+              if (i === routeObjs.length - 1 && toPt && !endIntersect) {
+                const { foot, segIdx } = footOnPoly(ro.pts, toPt.x_pct, toPt.y_pct);
+                endIdx = segIdx + 1;
+                endPts = [foot];
+              }
               const pts = [...startPts, ...ro.pts.slice(startIdx, endIdx), ...endPts];
               return pts.length >= 2 ? { ...ro, pts } : null;
             });
-
-            const fromPt = nav.fromPointId ? points.find((p: any) => p.id === nav.fromPointId) : null;
-            const toPt   = nav.toPointId   ? points.find((p: any) => p.id === nav.toPointId)   : null;
             if (trimmedPaths.every((r: any) => !r) && !fromPt && !toPt) return null;
 
             return (
