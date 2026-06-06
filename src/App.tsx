@@ -7595,28 +7595,93 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </svg>
           )}
 
-          {/* Nav route highlights — blue dashed overlay for elements with active routing */}
+          {/* Nav route highlights — trimmed at intersection points */}
           {imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
             if (!nav.viaRouteIds.length && !nav.fromPointId && !nav.toPointId) return null;
             const el = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
             if (!el || el.x_pct == null) return null;
-            const routePaths = nav.viaRouteIds.map((rid: number) => {
+
+            // Helpers
+            const parsePts = (route: any): {x:number;y:number}[] =>
+              Array.isArray(route.route_path) ? route.route_path
+              : (typeof route.route_path === 'string' ? (() => { try { return JSON.parse(route.route_path); } catch { return []; } })() : []);
+
+            const segCross = (p1:{x:number;y:number}, p2:{x:number;y:number}, p3:{x:number;y:number}, p4:{x:number;y:number}): {x:number;y:number}|null => {
+              const d1x=p2.x-p1.x, d1y=p2.y-p1.y, d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+              const denom = d1x*d2y - d1y*d2x;
+              if (Math.abs(denom) < 1e-10) return null;
+              const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / denom;
+              const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / denom;
+              if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: p1.x+t*d1x, y: p1.y+t*d1y };
+              return null;
+            };
+
+            const polylineIntersect = (pts1:{x:number;y:number}[], pts2:{x:number;y:number}[]): {pt:{x:number;y:number};si:number;sj:number}|null => {
+              for (let i=0; i<pts1.length-1; i++)
+                for (let j=0; j<pts2.length-1; j++) {
+                  const pt = segCross(pts1[i], pts1[i+1], pts2[j], pts2[j+1]);
+                  if (pt) return { pt, si: i, sj: j };
+                }
+              return null;
+            };
+
+            // Build route objects
+            const routeObjs = nav.viaRouteIds.map((rid: number) => {
               const route = (airfieldRoutes || []).find((r: any) => r.id === rid);
               if (!route) return null;
-              const pts: {x:number;y:number}[] = Array.isArray(route.route_path) ? route.route_path : (typeof route.route_path === 'string' ? (() => { try { return JSON.parse(route.route_path); } catch { return []; } })() : []);
-              return pts.length >= 2 ? { id: rid, pts, color: route.color || '#3b82f6' } : null;
-            }).filter(Boolean);
+              const pts = parsePts(route);
+              return pts.length >= 2 ? { id: rid, pts, color: route.color || '#3b82f6', category: route.route_category || 'general' } : null;
+            });
+
+            // Compute intersection between each consecutive pair
+            const intersections: ({pt:{x:number;y:number};si:number;sj:number}|null)[] = [];
+            for (let i=0; i<routeObjs.length-1; i++) {
+              const r1 = routeObjs[i], r2 = routeObjs[i+1];
+              intersections.push(r1 && r2 ? polylineIntersect(r1.pts, r2.pts) : null);
+            }
+
+            // Trim each route: keep only the portion between its adjacent intersection points
+            const trimmedPaths = routeObjs.map((ro: any, i: number) => {
+              if (!ro) return null;
+              const startIntersect = i > 0 ? intersections[i-1] : null;
+              const endIntersect   = i < intersections.length ? intersections[i] : null;
+              const startIdx = startIntersect ? startIntersect.sj + 1 : 0;
+              const startPts = startIntersect ? [startIntersect.pt] : [];
+              const endIdx   = endIntersect   ? endIntersect.si + 1  : ro.pts.length;
+              const endPts   = endIntersect   ? [endIntersect.pt]    : [];
+              const pts = [...startPts, ...ro.pts.slice(startIdx, endIdx), ...endPts];
+              return pts.length >= 2 ? { ...ro, pts } : null;
+            });
+
             const fromPt = nav.fromPointId ? points.find((p: any) => p.id === nav.fromPointId) : null;
-            const toPt = nav.toPointId ? points.find((p: any) => p.id === nav.toPointId) : null;
-            if (!routePaths.length && !fromPt && !toPt) return null;
+            const toPt   = nav.toPointId   ? points.find((p: any) => p.id === nav.toPointId)   : null;
+            if (trimmedPaths.every((r: any) => !r) && !fromPt && !toPt) return null;
+
             return (
               <svg key={elIdStr} viewBox="0 0 100 100" preserveAspectRatio="none"
                 style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
-                {routePaths.map((rp: any) => (
-                  <polyline key={rp.id} points={rp.pts.map((p:any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#60a5fa" strokeWidth="1.0" strokeDasharray="2.5,1.5" opacity="0.92" strokeLinecap="round" />
-                ))}
+                {trimmedPaths.map((rp: any, i: number) => {
+                  if (!rp) return null;
+                  const isVehicle = rp.category === 'vehicle';
+                  const stroke = isVehicle ? '#f97316' : '#60a5fa';
+                  return (
+                    <React.Fragment key={`${rp.id}-${i}`}>
+                      <polyline
+                        points={rp.pts.map((p:any) => `${p.x},${p.y}`).join(' ')}
+                        fill="none" stroke={stroke}
+                        strokeWidth={isVehicle ? "1.4" : "1.0"}
+                        strokeDasharray={isVehicle ? "3,1.5" : "2.5,1.5"}
+                        opacity="0.95" strokeLinecap="round" />
+                      {/* Red dot at intersection with next route */}
+                      {intersections[i] && (
+                        <circle cx={intersections[i]!.pt.x} cy={intersections[i]!.pt.y}
+                          r="1.5" fill="#ef4444" stroke="white" strokeWidth="0.5" opacity="0.95" />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 {fromPt && <><circle cx={fromPt.x_pct} cy={fromPt.y_pct} r="2.2" fill="#22c55e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={fromPt.x_pct} y={fromPt.y_pct - 3} textAnchor="middle" fill="#22c55e" fontSize="2.5" fontWeight="bold">מ</text></>}
-                {toPt && <><circle cx={toPt.x_pct} cy={toPt.y_pct} r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={toPt.x_pct} y={toPt.y_pct - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text></>}
+                {toPt   && <><circle cx={toPt.x_pct}   cy={toPt.y_pct}   r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={toPt.x_pct}   y={toPt.y_pct   - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text></>}
               </svg>
             );
           })}
