@@ -5676,6 +5676,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false });
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -7501,6 +7502,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </label>
               ))}
             </div>
+            <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
+              <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>הגדרות תצוגה</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
+                {[{ key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                    <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
             {/* Zoom controls */}
             <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 8px', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'space-between' }}>
               <button onClick={() => setGroundMapZoom(z => Math.min(+(z * 1.25).toFixed(3), 8))}
@@ -7655,7 +7667,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     {labelPts.map((lp: any, li: number) => (
                       <g key={li}>
                         <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
-                        <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
+                        {mapDisplaySettings.showNames && <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>}
                       </g>
                     ))}
                     {r.notes && <title>{r.notes}</title>}
@@ -8006,16 +8018,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <div style={{ position: 'absolute', inset: '-6px', borderRadius: '50%', border: '2px solid #f59e0b', boxShadow: '0 0 8px 2px #f59e0b88', pointerEvents: 'none', animation: 'groundTakeoffFlash 1s ease-in-out infinite' }} />
                       )}
                       <GroundMarkerSVG marker={pt.marker || 'circle'} color={ptColor} size={22} />
-                      {ptCount > 0 && (
+                      {mapDisplaySettings.showStatus && ptCount > 0 && (
                         <div style={{ position: 'absolute', top: '-6px', right: '-8px', background: isDense ? '#f59e0b' : ptColor, color: '#000', fontSize: '9px', fontWeight: 'bold', borderRadius: '50%', width: '14px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #000' }}>
                           {ptCount}
                         </div>
                       )}
                     </div>
                 }
-                <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', background: '#000000cc', color: isDense ? '#f59e0b' : ptColor, fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none', border: `1px solid ${isDense ? '#f59e0b' : ptColor}55` }}>
-                  {isDense && '⚠️ '}{pt.name}
-                </div>
+                {mapDisplaySettings.showNames && (
+                  <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', background: '#000000cc', color: isDense ? '#f59e0b' : ptColor, fontSize: '10px', fontWeight: 'bold', padding: '1px 5px', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none', border: `1px solid ${isDense ? '#f59e0b' : ptColor}55` }}>
+                    {isDense && '⚠️ '}{pt.name}
+                  </div>
+                )}
                 {/* Density warning popup — shown on hover */}
                 {isHovered && isDense && (
                   <div style={{ position: 'absolute', bottom: '38px', left: '50%', transform: 'translateX(-50%)', zIndex: 100, pointerEvents: 'none', minWidth: '150px', maxWidth: '200px', direction: 'rtl' }}>
