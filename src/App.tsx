@@ -7690,12 +7690,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     ✏
                   </button>
                 )}
-                {/* Delete button — visible when onDeleteElement is provided */}
-                {onDeleteElement && (
+                {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
+                {onDeleteElement && el.category === 'כלי רכב' && (
                   <button
                     onClick={e => { e.stopPropagation(); if (window.confirm(`מחק את "${el.name}"?`)) onDeleteElement(el.id); }}
                     style={{ position: 'absolute', top: '-10px', left: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#7f1d1d', border: '1px solid #ef4444', color: '#fff', fontSize: '9px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted || addVehicleMode ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
-                    title="מחק אלמנט">
+                    title="מחק רכב">
                     ✕
                   </button>
                 )}
