@@ -7651,6 +7651,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 : { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
               : {};
             const hasNav = !!(elemNavData[el.id]?.viaRouteIds?.length || elemNavData[el.id]?.fromPointId || elemNavData[el.id]?.toPointId);
+            const isMoving = el.status === 'נוסע';
+            const navForEl = elemNavData[el.id];
+            const navFromPt = navForEl?.fromPointId ? points.find((p: any) => p.id === navForEl.fromPointId) : null;
+            const navToPt = navForEl?.toPointId ? points.find((p: any) => p.id === navForEl.toPointId) : null;
+            const navRouteNames = (navForEl?.viaRouteIds || []).map((rid: number) => (airfieldRoutes || []).find((r: any) => r.id === rid)?.name).filter(Boolean);
             return (
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
@@ -7679,10 +7684,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 6px #000' }}>✕</div>
                   )}
                   <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isClosed ? '#fca5a5' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
-                  {hasNav && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
+                  {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {(canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
                       {isClosed ? 'תקול' : isBlinking ? 'מהבהב' : isOff ? 'כבוי' : isStop ? 'עצור' : isGo ? 'עבור' : isOpen ? 'שמיש' : el.status}
+                    </div>
+                  )}
+                  {/* Route tooltip — shown only when status = נוסע and a route is defined */}
+                  {isMoving && hasNav && (navFromPt || navRouteNames.length > 0 || navToPt) && (
+                    <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '3px', background: '#0c1a2edd', border: '1px solid #3b82f688', borderRadius: '5px', padding: '4px 7px', fontSize: '8px', color: '#93c5fd', whiteSpace: 'nowrap', zIndex: 30, pointerEvents: 'none', direction: 'rtl', display: 'flex', flexDirection: 'column', gap: '2px', boxShadow: '0 2px 8px #0008' }}>
+                      {navFromPt && <span style={{ color: '#86efac' }}>📍 {navFromPt.name}</span>}
+                      {navRouteNames.map((n: string, i: number) => (
+                        <span key={i} style={{ color: '#93c5fd' }}>↓ 🛣 {n}</span>
+                      ))}
+                      {navToPt && <span style={{ color: '#fca5a5' }}>🏁 {navToPt.name}</span>}
                     </div>
                   )}
                 </div>
