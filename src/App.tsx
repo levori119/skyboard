@@ -6951,21 +6951,49 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         {!isCatCollapsed && catEls.map((el: any) => {
                           const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
                           return (
-                            <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
-                              <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.type_icon || '🔧'}</span>
-                              <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
-                              <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
-                              <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
-                                title="הגדר מסלול לאלמנט"
-                                style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
-                                🛣
-                              </button>
+                            <div key={el.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
+                              {/* Main row */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px' }}>
+                                <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.category === 'camera' ? '📷' : (el.type_icon || '🔧')}</span>
+                                <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
+                                {/* Status badge — clickable to cycle תקין/לא תקין */}
+                                {onUpdateElement ? (
+                                  <button onClick={async () => {
+                                    const nextStatus = el.status === 'תקין' ? 'לא תקין' : 'תקין';
+                                    await onUpdateElement(el.id, { name: el.name, category: el.category, status: nextStatus, note: el.note, display_state: el.display_state, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url });
+                                  }} title="לחץ לשינוי סטטוס: תקין ↔ לא תקין"
+                                    style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 5px', borderRadius: '3px', border: `1px solid ${sc}44`, cursor: 'pointer', flexShrink: 0 }}>
+                                    {el.status || '?'}
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
+                                )}
+                                {(el.category === 'כלי רכב' || el.category === 'מטוס') && (
+                                  <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
+                                    title="הגדר מסלול לאלמנט"
+                                    style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
+                                    🛣
+                                  </button>
+                                )}
+                                {onUpdateElement && (
+                                  <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
+                                    title="ערוך אלמנט"
+                                    style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
+                                    ✏
+                                  </button>
+                                )}
+                              </div>
+                              {/* Display state quick selector row */}
                               {onUpdateElement && (
-                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
-                                  title="ערוך אלמנט"
-                                  style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
-                                  ✏
-                                </button>
+                                <div style={{ display: 'flex', gap: '3px', padding: '0 12px 4px 12px', flexWrap: 'wrap' }}>
+                                  {([['normal','רגיל','#475569'],['blink','מהבהב','#f59e0b'],['close','סגור','#ef4444'],['open','פתוח','#22c55e'],['off','כבוי','#64748b'],['stop','עצור','#ef4444'],['go','עבור','#22c55e']] as [string,string,string][]).map(([key,label,color]) => (
+                                    <button key={key}
+                                      onClick={async () => { await onUpdateElement(el.id, { name: el.name, category: el.category, status: el.status, note: el.note, display_state: key, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url }); }}
+                                      style={{ padding: '1px 4px', fontSize: '8px', borderRadius: '3px', border: `1px solid ${(el.display_state || 'normal') === key ? color : '#334155'}`, background: (el.display_state || 'normal') === key ? color + '33' : 'transparent', color: (el.display_state || 'normal') === key ? color : '#64748b', cursor: 'pointer', fontWeight: (el.display_state || 'normal') === key ? 'bold' : 'normal' }}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           );
@@ -7736,6 +7764,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
             const isTakul = el.status === 'תקול';
+            const isLaTakin = el.status === 'לא תקין';
+            const isTakin = el.status === 'תקין';
             const isShamish = el.status === 'שמיש';
             const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
             const isSvgIcon = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
@@ -7778,8 +7808,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             return (
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}\nלחיצה ימנית: הגדר מסלול`}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}>
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${(el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (el.category === 'כלי רכב' || el.category === 'מטוס') { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
                   <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
@@ -7806,15 +7836,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : effectiveMapIconKey, 26, el.status, dState)}
                     </div>
                   ) : (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
-                      {isClosed ? '✕' : isOff ? '○' : !isTakul && (el.type_icon || '🔧')}
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : isLaTakin ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : isLaTakin ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
+                      {isClosed ? '✕' : isOff ? '○' : !(isTakul || isLaTakin) && (el.type_icon || '🔧')}
                     </div>
                   )}
-                  {/* Closed X overlay for SVG icons */}
-                  {isClosed && isSvgIcon && (
+                  {/* X overlay for SVG icons — closed or לא תקין */}
+                  {(isClosed || isLaTakin) && isSvgIcon && (
                     <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 6px #000' }}>✕</div>
                   )}
-                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isClosed ? '#fca5a5' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
+                  {/* Big red X overlay for לא תקין non-SVG elements */}
+                  {isLaTakin && !isSvgIcon && el.category !== 'camera' && (
+                    <div style={{ position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 4px #000, 0 0 8px #ef4444' }}>✕</div>
+                  )}
+                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : (isClosed || isLaTakin) ? '#fca5a5' : isTakul ? '#fca5a5' : isTakin ? '#86efac' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
                   {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {(canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
