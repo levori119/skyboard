@@ -30386,8 +30386,20 @@ CHARLIE,1,301,`}
           };
           const addPointAt = async (x_pct: number, y_pct: number) => {
             if (!selectedAdminAirfieldId || !airfieldPointForm.name.trim()) return;
-            const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn, point_type: airfieldPointForm.point_type || null }) });
-            if (res.ok) { setAirfieldPointForm(p => ({ ...p, name: '' })); setPlacingPointMode(false); loadAirfieldPoints(selectedAdminAirfieldId); }
+            try {
+              const res = await fetch(`${API_URL}/airfields/${selectedAdminAirfieldId}/points`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldPointForm.name, x_pct, y_pct, color: airfieldPointForm.color, marker: airfieldPointForm.marker, density_warn: airfieldPointForm.density_warn, point_type: airfieldPointForm.point_type || null }) });
+              if (res.ok) {
+                const saved = await res.json();
+                setAirfieldPoints(prev => [...prev, saved]);
+                setAirfieldPointForm(p => ({ ...p, name: '' }));
+                setPlacingPointMode(false);
+              } else {
+                const errData = await res.json().catch(() => ({}));
+                alert(`שגיאה בשמירת נקודה: ${errData.error || res.status}`);
+              }
+            } catch (e) {
+              alert('שגיאת רשת — לא ניתן לשמור נקודה');
+            }
           };
           const deletePoint = async (pointId: number) => {
             await fetch(`${API_URL}/airfield-points/${pointId}`, { method: 'DELETE' });
@@ -31398,15 +31410,17 @@ CHARLIE,1,301,`}
                       const relX = (e.clientX - rect.left - el.clientLeft) / z;
                       const relY = (e.clientY - rect.top - el.clientTop) / z;
                       let x_pct: number, y_pct: number;
-                      if (adminMapImgBounds) {
+                      if (adminMapImgBounds && adminMapImgBounds.width > 0 && adminMapImgBounds.height > 0) {
                         x_pct = Math.round(((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100);
                         y_pct = Math.round(((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100);
-                      } else {
+                      } else if (el.clientWidth > 0 && el.clientHeight > 0) {
                         x_pct = Math.round((relX / el.clientWidth) * 100);
                         y_pct = Math.round((relY / el.clientHeight) * 100);
+                      } else {
+                        x_pct = 50; y_pct = 50;
                       }
-                      x_pct = Math.max(0, Math.min(100, x_pct));
-                      y_pct = Math.max(0, Math.min(100, y_pct));
+                      x_pct = Math.max(0, Math.min(100, isFinite(x_pct) ? x_pct : 50));
+                      y_pct = Math.max(0, Math.min(100, isFinite(y_pct) ? y_pct : 50));
                       if (drawingPolygonId) {
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
