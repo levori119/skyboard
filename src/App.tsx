@@ -6312,10 +6312,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     if (!sec) { el.style.transform = ''; return; }
     const cW = el.offsetWidth;
     const cH = el.offsetHeight;
-    const x = Math.min(sec.x1_pct, sec.x2_pct) / 100;
-    const y = Math.min(sec.y1_pct, sec.y2_pct) / 100;
-    const w = Math.abs(sec.x2_pct - sec.x1_pct) / 100;
-    const h = Math.abs(sec.y2_pct - sec.y1_pct) / 100;
+    const r = sec.rect || {};
+    const x = (r.x ?? 10) / 100;
+    const y = (r.y ?? 10) / 100;
+    const w = (r.w ?? 30) / 100;
+    const h = (r.h ?? 20) / 100;
     const secLeft = imgBounds.left + x * imgBounds.width;
     const secTop = imgBounds.top + y * imgBounds.height;
     const secW = w * imgBounds.width;
@@ -7371,10 +7372,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'all', zIndex: 4 }}>
               {(airfieldSectors || []).map((sec: any) => {
-                const x = Math.min(sec.x1_pct, sec.x2_pct);
-                const y = Math.min(sec.y1_pct, sec.y2_pct);
-                const w = Math.abs(sec.x2_pct - sec.x1_pct);
-                const h = Math.abs(sec.y2_pct - sec.y1_pct);
+                const rr = sec.rect || {};
+                const x = rr.x ?? 10;
+                const y = rr.y ?? 10;
+                const w = rr.w ?? 30;
+                const h = rr.h ?? 20;
                 if (w < 0.5 || h < 0.5) return null;
                 const col = sec.color || '#f59e0b';
                 const isFocused = focusedSectorId === sec.id;
