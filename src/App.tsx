@@ -7327,6 +7327,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         <div ref={mapRef}
           style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: groundMapDragRef.current ? 'grabbing' : (groundMapZoom !== 1 ? 'grab' : 'default') }}
           onWheel={e => {
+            if (hideStrips) return;
             if (focusedSectorId) return;
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
@@ -7347,6 +7348,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             });
           }}
           onMouseDown={e => {
+            if (hideStrips) return;
             if (focusedSectorId) return;
             if (e.button !== 0) return;
             // Only start pan drag if not clicking on an overlay button/interactive element
