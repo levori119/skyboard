@@ -7795,10 +7795,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* Airfield elements overlay */}
           {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
             const elColor = el.type_color || '#f59e0b';
-            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444' };
+            const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444', 'לא שמיש': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
             const isTakul = el.status === 'תקול';
             const isLaTakin = el.status === 'לא תקין';
+            const isLaShamish = el.status === 'לא שמיש';
             const isTakin = el.status === 'תקין';
             const isShamish = el.status === 'שמיש';
             const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
@@ -7871,19 +7872,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : effectiveMapIconKey, 26, el.status, dState)}
                     </div>
                   ) : (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : isLaTakin ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : isLaTakin ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
-                      {isClosed ? '✕' : isOff ? '○' : !(isTakul || isLaTakin) && (el.type_icon || '🔧')}
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
+                      {isClosed ? '✕' : isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (el.type_icon || '🔧')}
                     </div>
                   )}
-                  {/* X overlay for SVG icons — closed or לא תקין */}
-                  {(isClosed || isLaTakin) && isSvgIcon && (
+                  {/* X overlay for SVG icons — closed / לא תקין / לא שמיש */}
+                  {(isClosed || isLaTakin || isLaShamish) && isSvgIcon && (
                     <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 6px #000' }}>✕</div>
                   )}
-                  {/* Big red X overlay for לא תקין non-SVG elements */}
-                  {isLaTakin && !isSvgIcon && el.category !== 'camera' && (
+                  {/* Big red X overlay for לא תקין / לא שמיש non-SVG elements */}
+                  {(isLaTakin || isLaShamish) && !isSvgIcon && el.category !== 'camera' && (
                     <div style={{ position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 4px #000, 0 0 8px #ef4444' }}>✕</div>
                   )}
-                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : (isClosed || isLaTakin) ? '#fca5a5' : isTakul ? '#fca5a5' : isTakin ? '#86efac' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
+                  <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : (isClosed || isLaTakin || isLaShamish) ? '#fca5a5' : isTakul ? '#fca5a5' : isTakin ? '#86efac' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
                   {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {(canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
@@ -8794,9 +8795,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const el = elemStatusPicker.el;
         const rawAllowed = el.type_allowed_statuses;
         const allowedStatuses: string[] = Array.isArray(rawAllowed) ? rawAllowed : (typeof rawAllowed === 'string' ? (() => { try { return JSON.parse(rawAllowed); } catch { return []; } })() : []);
-        const STATUS_OPTS = ['דולק', 'כבוי', 'מנצנץ', 'נוסע', 'עומד', 'פתוח', 'סגור'];
+        const STATUS_OPTS = ['שמיש', 'לא שמיש'];
         const statuses = allowedStatuses.length > 0 ? allowedStatuses : STATUS_OPTS;
-        const statusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
+        const statusColors: Record<string, string> = { 'שמיש': '#22c55e', 'לא שמיש': '#ef4444', 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
         const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 210);
         const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 380);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
