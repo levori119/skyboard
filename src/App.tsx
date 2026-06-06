@@ -5683,9 +5683,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string } | null>(null);
-  const [cameraPanel, setCameraPanel] = useState<{ url: string; name: string } | null>(null);
-  const [cameraDragPos, setCameraDragPos] = useState<{ x: number; y: number }>({ x: 80, y: 80 });
-  const [cameraExpanded, setCameraExpanded] = useState(false);
+  const [cameraPanels, setCameraPanels] = useState<{ id: number; url: string; name: string; dragPos: { x: number; y: number }; expanded: boolean }[]>([]);
+  const nextCamId = useRef(0);
+  const [cameraWall, setCameraWall] = useState(false);
   const [cameraPicker, setCameraPicker] = useState<{ el: any; url: string } | null>(null);
   const [cameraPickerPos, setCameraPickerPos] = useState<'right'|'left'|'top'|'bottom'|'full'>('right');
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
@@ -6989,7 +6989,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                   <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
                                 )}
                                 {el.category === 'camera' && el.camera_url && (
-                                  <button onClick={() => setCameraPanel({ url: el.camera_url, name: el.name })}
+                                  <button onClick={() => { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); }}
                                     title="פתח תצוגת מצלמה"
                                     style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #3b82f6', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', flexShrink: 0 }}>
                                     📷
@@ -7535,6 +7535,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 style={{ width: '22px', height: '22px', borderRadius: '4px', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, background: lightMode ? '#f1f5f9' : '#1e293b', color: headerColor, cursor: 'pointer', fontSize: '14px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>−</button>
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
+            {/* Camera wall button */}
+            {(airfieldElements || []).some((e: any) => e.camera_url) && (
+              <div style={{ borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, padding: '5px 6px' }}>
+                <button
+                  onClick={() => setCameraWall(true)}
+                  style={{ width: '100%', padding: '5px 6px', borderRadius: '6px', border: `1px solid ${lightMode ? '#3b82f6' : '#1e40af'}`, background: lightMode ? '#dbeafe' : '#0d1f3c', color: lightMode ? '#1d4ed8' : '#93c5fd', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                  <span>📷</span>
+                  <span>לוח מצלמות</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
@@ -7898,7 +7909,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
-                onClick={el.camera_url ? (e) => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); } : undefined}
+                onClick={el.camera_url ? (e) => { e.stopPropagation(); const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
@@ -7908,7 +7919,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isBeingEdited && (
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
-                <div style={blinkAnimStyle} onClick={el.camera_url ? (e) => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); } : canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                <div style={blinkAnimStyle} onClick={el.camera_url ? (e) => { e.stopPropagation(); const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                   {el.category === 'camera' ? (
                     <div style={{ width: '26px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.7))' }}>
                       <svg width="26" height="20" viewBox="0 0 26 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8462,7 +8473,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => { if (cameraPicker.url) { setCameraPanel({ url: cameraPicker.url, name: cameraPicker.el.name }); setCameraPicker(null); } }}
+                onClick={() => { if (cameraPicker.url) { const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: cameraPicker.url, name: cameraPicker.el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); setCameraPicker(null); } }}
                 disabled={!cameraPicker.url}
                 style={{ flex: 2, padding: '10px', background: cameraPicker.url ? '#1d4ed8' : '#1e293b', color: cameraPicker.url ? 'white' : '#64748b', border: 'none', borderRadius: '8px', cursor: cameraPicker.url ? 'pointer' : 'default', fontSize: '13px', fontWeight: 'bold' }}>
                 פתח מצלמה
@@ -8476,38 +8487,67 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       )}
 
-      {/* Camera panel — draggable floating window */}
-      {cameraPanel && (() => {
-        const w = cameraExpanded ? 700 : 380;
-        const h = cameraExpanded ? 520 : 260;
+      {/* Camera wall — fullscreen grid of all cameras */}
+      {cameraWall && (() => {
+        const allCams = (airfieldElements || []).filter((e: any) => e.camera_url);
+        const n = allCams.length;
+        const cols = n === 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : Math.ceil(Math.sqrt(n));
         return (
-          <div style={{ position: 'fixed', left: cameraDragPos.x, top: cameraDragPos.y, width: w, height: h, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Drag handle / title bar */}
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+            <div style={{ padding: '6px 12px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <span style={{ fontSize: '16px' }}>📷</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
+              <button onClick={() => setCameraWall(false)}
+                style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✕ סגור</button>
+            </div>
+            {n === 0 ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '16px' }}>אין מצלמות עם כתובת URL מוגדרת</div>
+            ) : (
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px', padding: '2px', overflow: 'hidden', minHeight: 0 }}>
+                {allCams.map((cam: any) => (
+                  <div key={cam.id} style={{ position: 'relative', background: '#0a0a0a', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                    <div style={{ padding: '3px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', fontSize: '11px', color: '#93c5fd', fontWeight: 'bold', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>📷</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cam.name}</span>
+                    </div>
+                    <iframe src={toEmbedUrl(cam.camera_url)} style={{ flex: 1, border: 'none', width: '100%', height: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title={cam.name} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Camera panels — multiple draggable floating windows */}
+      {cameraPanels.map(panel => {
+        const w = panel.expanded ? 700 : 380;
+        const h = panel.expanded ? 520 : 260;
+        return (
+          <div key={panel.id} style={{ position: 'fixed', left: panel.dragPos.x, top: panel.dragPos.y, width: w, height: h, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div
               onMouseDown={e => {
-                const startX = e.clientX - cameraDragPos.x, startY = e.clientY - cameraDragPos.y;
-                const onMove = (ev: MouseEvent) => setCameraDragPos({ x: ev.clientX - startX, y: ev.clientY - startY });
+                const startX = e.clientX - panel.dragPos.x, startY = e.clientY - panel.dragPos.y;
+                const onMove = (ev: MouseEvent) => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, dragPos: { x: ev.clientX - startX, y: ev.clientY - startY } } : p));
                 const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
                 document.addEventListener('mousemove', onMove);
                 document.addEventListener('mouseup', onUp);
               }}
-              style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none' }}>
+              style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none', direction: 'rtl' }}>
               <span style={{ fontSize: '14px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cameraPanel.name}</span>
-              <button
-                onClick={() => setCameraExpanded(x => !x)}
-                title={cameraExpanded ? 'כווץ' : 'הגדל'}
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.name}</span>
+              <button onClick={() => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, expanded: !p.expanded } : p))}
+                title={panel.expanded ? 'כווץ' : 'הגדל'}
                 style={{ padding: '2px 7px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
-                {cameraExpanded ? '⊡' : '⊞'}
+                {panel.expanded ? '⊡' : '⊞'}
               </button>
-              <button
-                onClick={() => { setCameraPanel(null); setCameraExpanded(false); }}
+              <button onClick={() => setCameraPanels(prev => prev.filter(p => p.id !== panel.id))}
                 style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
             </div>
-            <iframe src={toEmbedUrl(cameraPanel.url)} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
+            <iframe src={toEmbedUrl(panel.url)} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
           </div>
         );
-      })()}
+      })}
 
       {/* Vehicle placement modal */}
       {vehiclePlaceModal && (
