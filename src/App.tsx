@@ -8724,45 +8724,86 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </div>
               </div>
 
-              {/* Via routes — by category */}
-              <div style={{ marginBottom: '14px' }}>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: 'bold' }}>🛤️ מסלולים (Via)</div>
-                {(['aircraft', 'vehicle', 'general'] as const).map(cat => {
-                  const catRoutes = routesByCategory[cat] || [];
-                  if (catRoutes.length === 0) return null;
-                  const selectedInCat = catRoutes.filter((r: any) => viaRouteIds.includes(r.id));
-                  const selectedFirst = [...selectedInCat, ...catRoutes.filter((r: any) => !viaRouteIds.includes(r.id))];
-                  return (
-                    <div key={cat} style={{ marginBottom: '8px' }}>
-                      <div style={{ fontSize: '10px', color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{catLabel[cat]}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                        {selectedFirst.map((r: any) => {
-                          const isSelected = viaRouteIds.includes(r.id);
-                          // Check intersections with other selected routes
-                          const hasConflict = isSelected && viaRouteIds.some(rid => rid !== r.id && routesIntersect(r, airfieldRoutesLocal.find((x: any) => x.id === rid) || {}));
-                          return (
-                            <button key={r.id} onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: m.viaRouteIds.includes(r.id) ? m.viaRouteIds.filter(id => id !== r.id) : [...m.viaRouteIds, r.id] } : null)}
-                              style={{ padding: '4px 10px', background: isSelected ? (r.color || '#3b82f6') + '33' : '#1e293b', border: `1.5px solid ${isSelected ? (r.color || '#3b82f6') : '#334155'}`, borderRadius: '6px', color: isSelected ? (r.color || '#60a5fa') : '#94a3b8', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', display: 'inline-block', flexShrink: 0 }} />
-                              {r.name}
-                              {hasConflict && <span title="מסלול זה מצטלב עם מסלול אחר שנבחר" style={{ color: '#f59e0b', fontSize: '10px' }}>⚠️</span>}
-                            </button>
-                          );
-                        })}
+              {/* Via routes — by category (additive selection) */}
+              {(() => {
+                const lastRouteId = viaRouteIds.length > 0 ? viaRouteIds[viaRouteIds.length - 1] : null;
+                const lastRoute = lastRouteId != null ? airfieldRoutesLocal.find((x: any) => x.id === lastRouteId) : null;
+                const gapAfterIdx: boolean[] = viaRouteIds.map((rid, i) => {
+                  if (i >= viaRouteIds.length - 1) return false;
+                  const r1 = airfieldRoutesLocal.find((x: any) => x.id === rid);
+                  const r2 = airfieldRoutesLocal.find((x: any) => x.id === viaRouteIds[i + 1]);
+                  return !(r1 && r2 && routesIntersect(r1, r2));
+                });
+                const hasAnyGap = gapAfterIdx.some(Boolean);
+                return (
+                  <>
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>🛤️ מסלולים — לחץ להוספה לרצף</div>
+                        {viaRouteIds.length > 0 && (
+                          <button onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: m.viaRouteIds.slice(0, -1) } : null)}
+                            style={{ padding: '2px 8px', background: '#451a03', color: '#fb923c', border: '1px solid #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>⌫ בטל אחרון</button>
+                        )}
                       </div>
+                      {(['aircraft', 'vehicle', 'general'] as const).map(cat => {
+                        const catRoutes = routesByCategory[cat] || [];
+                        if (catRoutes.length === 0) return null;
+                        return (
+                          <div key={cat} style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '10px', color: '#475569', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{catLabel[cat]}</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                              {catRoutes.map((r: any) => {
+                                const count = viaRouteIds.filter((id: number) => id === r.id).length;
+                                const intersectsWithLast = !lastRoute || routesIntersect(r, lastRoute);
+                                const isConnecting = viaRouteIds.length > 0 && intersectsWithLast;
+                                const isDisconnected = viaRouteIds.length > 0 && !intersectsWithLast;
+                                return (
+                                  <button key={r.id}
+                                    onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: [...m.viaRouteIds, r.id] } : null)}
+                                    title={isDisconnected ? 'נתיב שגוי — המסלולים אינם מצטלבים' : `הוסף: ${r.name}`}
+                                    style={{ padding: '4px 10px', background: isConnecting ? '#dc262622' : '#1e293b', border: `1.5px solid ${isConnecting ? '#ef4444' : '#334155'}`, borderRadius: '6px', color: isConnecting ? '#fca5a5' : '#94a3b8', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative', opacity: isDisconnected ? 0.6 : 1 }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', display: 'inline-block', flexShrink: 0 }} />
+                                    {r.name}
+                                    {count > 0 && <span style={{ background: '#3b82f6', color: 'white', borderRadius: '50%', minWidth: '16px', height: '16px', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px', fontWeight: 'bold' }}>{count}</span>}
+                                    {isDisconnected && <span title="נתיב שגוי — המסלולים אינם מצטלבים" style={{ fontSize: '10px' }}>⚠️</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {airfieldRoutesLocal.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>לא הוגדרו מסלולים עבור שדה זה</div>}
                     </div>
-                  );
-                })}
-                {airfieldRoutesLocal.length === 0 && <div style={{ color: '#475569', fontSize: '11px' }}>לא הוגדרו מסלולים עבור שדה זה</div>}
-              </div>
 
-              {/* Summary preview */}
-              {viaRouteIds.length > 0 && (
-                <div style={{ background: '#0c1a2e', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '8px 12px', marginBottom: '14px', fontSize: '11px' }}>
-                  <span style={{ color: '#7dd3fc' }}>מסלולים שנבחרו: </span>
-                  {viaRouteIds.map(rid => { const r = airfieldRoutesLocal.find((x: any) => x.id === rid); return r ? <span key={rid} style={{ color: r.color || '#60a5fa', marginLeft: '6px' }}>● {r.name}</span> : null; })}
-                </div>
-              )}
+                    {/* Sequence display */}
+                    {viaRouteIds.length > 0 && (
+                      <div style={{ background: '#0c1a2e', border: `1px solid ${hasAnyGap ? '#991b1b' : '#1e3a5f'}`, borderRadius: '6px', padding: '8px 12px', marginBottom: '14px', fontSize: '11px' }}>
+                        <div style={{ color: '#7dd3fc', marginBottom: '6px', fontWeight: 'bold', fontSize: '10px' }}>רצף נבחר:</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                          {viaRouteIds.map((rid: number, i: number) => {
+                            const r = airfieldRoutesLocal.find((x: any) => x.id === rid);
+                            const hasGapAfter = gapAfterIdx[i];
+                            return (
+                              <React.Fragment key={i}>
+                                <span style={{ padding: '2px 7px', background: (r?.color || '#60a5fa') + '22', border: `1px solid ${r?.color || '#60a5fa'}`, borderRadius: '4px', color: r?.color || '#60a5fa', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                                  {i + 1}. {r?.name || `#${rid}`}
+                                </span>
+                                {i < viaRouteIds.length - 1 && (
+                                  hasGapAfter
+                                    ? <span title="פרצה — המסלולים אינם מצטלבים" style={{ color: '#ef4444', fontSize: '11px', fontWeight: 'bold' }}>⚠️→</span>
+                                    : <span style={{ color: '#22c55e', fontSize: '11px' }}>→</span>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                        {hasAnyGap && <div style={{ color: '#ef4444', fontSize: '10px', marginTop: '5px', fontWeight: 'bold' }}>⚠️ נתיב שגוי — קיימות פרצות במסלול (מסלולים אינם מצטלבים)</div>}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
