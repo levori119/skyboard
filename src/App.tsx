@@ -6968,6 +6968,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 ) : (
                                   <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
                                 )}
+                                {el.category === 'camera' && el.camera_url && (
+                                  <button onClick={() => setCameraPanel({ url: el.camera_url, name: el.name })}
+                                    title="פתח תצוגת מצלמה"
+                                    style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #3b82f6', background: '#1e3a5f', color: '#93c5fd', cursor: 'pointer', flexShrink: 0 }}>
+                                    📷
+                                  </button>
+                                )}
                                 {(el.category === 'כלי רכב' || el.category === 'מטוס') && (
                                   <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
                                     title="הגדר מסלול לאלמנט"
@@ -7602,14 +7609,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const isVehicle = cat === 'vehicle';
                 if (isVehicle && !mapLayers.routes_vehicle) return null;
                 if (!isVehicle && !mapLayers.routes_aircraft) return null;
-                // Skip routes that are actively rendered as trimmed nav highlights — avoid full-route bleed-through
-                // Only skip if the owning element is actually placed on the map (x_pct != null)
-                const isActiveNavRoute = Object.entries(elemNavData).some(([elIdStr, nd]: [string, any]) => {
-                  if (!nd.viaRouteIds?.includes(r.id)) return false;
-                  const ownerEl = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
-                  return ownerEl && ownerEl.x_pct != null;
-                });
-                if (isActiveNavRoute) return null;
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
                 const col = r.color || '#3b82f6';
@@ -27061,6 +27060,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminElemFocusField, setAdminElemFocusField] = useState<'name'|'category'|'type'|'status'|'note'|null>(null);
   const [adminCameraForm, setAdminCameraForm] = useState({ name: '', camera_url: '' });
   const [showAdminCameraForm, setShowAdminCameraForm] = useState(false);
+  const [adminCameraPanel, setAdminCameraPanel] = useState<{ url: string; name: string } | null>(null);
+  const [adminCameraDragPos, setAdminCameraDragPos] = useState({ x: 80, y: 80 });
   const [adminAFExpanded, setAdminAFExpanded] = useState<Set<string>>(new Set());
   const toggleAFSec = (k: string) => setAdminAFExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const [showElementsSection, setShowElementsSection] = useState(false);
@@ -31783,8 +31784,12 @@ CHARLIE,1,301,`}
                         : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
                       const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
                       const isTakul = el.status === 'תקול'; const isShamish = el.status === 'שמיש';
+                      const isCamera = el.category === 'camera' && el.camera_url;
                       return (
-                        <div key={el.id} style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 8, textAlign: 'center' }}>
+                        <div key={el.id}
+                          style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: isCamera ? 'all' : 'none', zIndex: 8, textAlign: 'center', cursor: isCamera ? 'pointer' : 'default' }}
+                          onClick={isCamera ? (e) => { e.stopPropagation(); setAdminCameraPanel({ url: el.camera_url, name: el.name }); setAdminCameraDragPos({ x: 80, y: 80 }); } : undefined}
+                          title={isCamera ? `📷 ${el.name} — לחץ לצפייה` : el.name}>
                           <div style={{ width: '22px', height: '22px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '4px' : '50%', background: isTakul ? '#ef4444' : typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>
                             {!isTakul && (typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 18) : (el.type_icon || '🔧'))}
                           </div>
@@ -32570,6 +32575,26 @@ CHARLIE,1,301,`}
 
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
+
+      {/* Admin camera panel — draggable floating window */}
+      {adminCameraPanel && (
+        <div style={{ position: 'fixed', left: adminCameraDragPos.x, top: adminCameraDragPos.y, width: 420, height: 280, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div
+            onMouseDown={e => {
+              const startX = e.clientX - adminCameraDragPos.x, startY = e.clientY - adminCameraDragPos.y;
+              const onMove = (ev: MouseEvent) => setAdminCameraDragPos({ x: ev.clientX - startX, y: ev.clientY - startY });
+              const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+            style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none' }}>
+            <span style={{ fontSize: '14px' }}>📷</span>
+            <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminCameraPanel.name}</span>
+            <button onClick={() => setAdminCameraPanel(null)} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
+          </div>
+          <iframe src={adminCameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
+        </div>
+      )}
 
     </div>
   );
