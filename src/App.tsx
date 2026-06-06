@@ -6232,6 +6232,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     ? { left: `${imgBounds.left + (x_pct / 100) * imgBounds.width}px`, top: `${imgBounds.top + (y_pct / 100) * imgBounds.height}px` }
     : { left: `${x_pct}%`, top: `${y_pct}%` };
 
+  const [showConflictPanel, setShowConflictPanel] = React.useState(false);
+
+  const routeConflicts = React.useMemo(() => {
+    const conflicts: { vehicleName: string; elementName: string; routeNames: string[]; status: string }[] = [];
+    if (!airfieldElements || !airfieldRoutes) return conflicts;
+    Object.entries(elemNavData).forEach(([elIdStr, nav]) => {
+      if (!nav.viaRouteIds.length) return;
+      const vehicle = airfieldElements.find((e: any) => e.id === Number(elIdStr));
+      if (!vehicle) return;
+      airfieldElements.forEach((el: any) => {
+        if (el.id === Number(elIdStr)) return;
+        const relRoutes: number[] = Array.isArray(el.relevant_routes) ? el.relevant_routes : [];
+        const blockStatuses: string[] = Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [];
+        if (!relRoutes.length || !blockStatuses.length) return;
+        const overlapping = nav.viaRouteIds.filter(rid => relRoutes.includes(rid));
+        if (!overlapping.length) return;
+        if (!blockStatuses.includes(el.status)) return;
+        const routeNames = overlapping.map(rid => (airfieldRoutes as any[]).find((r: any) => r.id === rid)?.name).filter(Boolean);
+        conflicts.push({ vehicleName: vehicle.name, elementName: el.name, routeNames, status: el.status });
+      });
+    });
+    return conflicts;
+  }, [elemNavData, airfieldElements, airfieldRoutes]);
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -7695,6 +7719,36 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 );
               })}
             </svg>
+          )}
+
+          {/* Route conflict warning panel */}
+          {routeConflicts.length > 0 && (
+            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl' }}>
+              <button onClick={() => setShowConflictPanel(p => !p)}
+                style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: '8px', padding: '5px 10px', color: '#fca5a5', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(239,68,68,0.4)' }}>
+                <span style={{ animation: 'pulse 1s infinite' }}>⚠</span>
+                <span>{routeConflicts.length} התראת{routeConflicts.length !== 1 ? 'ות' : ''} תפעול</span>
+                <span style={{ fontSize: '9px', opacity: 0.7 }}>{showConflictPanel ? '▲' : '▼'}</span>
+              </button>
+              {showConflictPanel && (
+                <div style={{ background: '#1a0000', border: '1px solid #ef4444', borderRadius: '6px', marginTop: '4px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', minWidth: '260px', maxWidth: '340px', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                  {routeConflicts.map((c, i) => (
+                    <div key={i} style={{ background: '#2a0000', borderRadius: '5px', padding: '6px 8px', borderRight: '3px solid #ef4444' }}>
+                      <div style={{ color: '#fca5a5', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>
+                        🚗 {c.vehicleName}
+                      </div>
+                      <div style={{ color: '#fecaca', fontSize: '11px' }}>
+                        מסלול עובר דרך <span style={{ color: '#f87171', fontWeight: 'bold' }}>{c.elementName}</span> — סטטוס: <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>{c.status}</span>
+                      </div>
+                      {c.routeNames.length > 0 && (
+                        <div style={{ color: '#94a3b8', fontSize: '10px', marginTop: '2px' }}>({c.routeNames.join(', ')})</div>
+                      )}
+                      <div style={{ color: '#f87171', fontSize: '10px', fontWeight: 'bold', marginTop: '3px' }}>⚠ יש לתקן את המצב</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Nav route highlights — trimmed at intersection points */}
@@ -27200,7 +27254,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Airfield elements (per-airfield)
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [adminAirfieldElements, setAdminAirfieldElements] = useState<any[]>([]);
-  const [elementForm, setElementForm] = useState({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' });
+  const [elementForm, setElementForm] = useState({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [] as number[], blocking_statuses: [] as string[] });
   const [editingElement, setEditingElement] = useState<any | null>(null);
   const [showElementForm, setShowElementForm] = useState(false);
   const [adminElemFocusField, setAdminElemFocusField] = useState<'name'|'category'|'type'|'status'|'note'|null>(null);
@@ -31047,7 +31101,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
                           <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
-                          {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
+                          {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
                           <span style={{ color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('elements') ? '2000px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
@@ -31117,7 +31171,7 @@ CHARLIE,1,301,`}
                                   <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
                                     {el.x_pct != null && <button onClick={async () => { await adminSaveEl({ x_pct: null, y_pct: null }); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
-                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
+                                    <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '', relevant_routes: Array.isArray(el.relevant_routes) ? el.relevant_routes : [], blocking_statuses: Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [] }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
                                     <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
                                 </div>
@@ -31143,13 +31197,13 @@ CHARLIE,1,301,`}
                             const selStatus = ELEM_STATUS_OPTIONS.find(s => s.val === elementForm.status) || ELEM_STATUS_OPTIONS[0];
                             const doSave = async () => {
                               if (!elementForm.name.trim()) { setAdminElemFocusField('name'); return; }
-                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category };
+                              const body = { element_type_id: elementForm.element_type_id ? Number(elementForm.element_type_id) : null, name: elementForm.name, status: elementForm.status, note: elementForm.note, category: elementForm.category, relevant_routes: elementForm.relevant_routes, blocking_statuses: elementForm.blocking_statuses };
                               if (editingElement) {
                                 await fetch(`${API_URL}/airfield-elements/${editingElement.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, x_pct: editingElement.x_pct, y_pct: editingElement.y_pct }) });
                               } else {
                                 await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, airfield_id: selectedAdminAirfieldId }) });
                               }
-                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null);
+                              setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null);
                               loadAirfieldElements(selectedAdminAirfieldId!);
                             };
                             return (
@@ -31160,7 +31214,7 @@ CHARLIE,1,301,`}
                                   <span style={{ flex: 1, fontSize: '12px', fontWeight: 'bold', color: '#fce7f3' }}>
                                     {editingElement ? `עריכה: ${editingElement.name}` : 'אלמנט חדש'}
                                   </span>
-                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null); }}
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null); }}
                                     style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#f9a8d4', fontSize: '14px', lineHeight: 1, padding: '0 2px' }}>✕</button>
                                 </div>
 
@@ -31283,13 +31337,69 @@ CHARLIE,1,301,`}
                                   </div>
                                 </div>
 
+                                {/* Op-check: relevant routes + blocking statuses */}
+                                <div style={{ padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px', cursor: 'pointer' }}
+                                    onClick={() => setAdminElemFocusField(adminElemFocusField === 'opcheck' ? null : 'opcheck' as any)}>
+                                    <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>⚠ בדיקת תפעול</span>
+                                    {(elementForm.relevant_routes.length > 0 || elementForm.blocking_statuses.length > 0) && (
+                                      <span style={{ fontSize: '9px', background: '#78350f', color: '#fde68a', borderRadius: '3px', padding: '1px 4px' }}>
+                                        {elementForm.relevant_routes.length} מסלול{elementForm.relevant_routes.length !== 1 ? 'ות' : ''} · {elementForm.blocking_statuses.length} סטטוס{elementForm.blocking_statuses.length !== 1 ? 'ים' : ''}
+                                      </span>
+                                    )}
+                                    <span style={{ fontSize: '9px', color: '#475569', marginRight: 'auto' }}>{(adminElemFocusField as any) === 'opcheck' ? '▲' : '▼'}</span>
+                                  </div>
+                                  {(adminElemFocusField as any) === 'opcheck' && (
+                                    <div style={{ background: '#1a1000', borderRadius: '5px', border: '1px solid #78350f', padding: '7px 8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      {/* Relevant routes */}
+                                      <div>
+                                        <div style={{ fontSize: '10px', color: '#fbbf24', marginBottom: '4px', fontWeight: 'bold' }}>🛣 מסלולים רלוונטיים (הרכב עובר בהם)</div>
+                                        {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).length === 0
+                                          ? <div style={{ fontSize: '10px', color: '#475569' }}>אין מסלולים מוגדרים בשדה זה</div>
+                                          : <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                            {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
+                                              const isOn = elementForm.relevant_routes.includes(r.id);
+                                              return (
+                                                <button key={r.id} onClick={() => setElementForm(p => ({ ...p, relevant_routes: isOn ? p.relevant_routes.filter(id => id !== r.id) : [...p.relevant_routes, r.id] }))}
+                                                  style={{ padding: '2px 8px', background: isOn ? '#78350f' : '#1e293b', color: isOn ? '#fde68a' : '#64748b', border: `1px solid ${isOn ? '#f59e0b' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: isOn ? 'bold' : 'normal' }}>
+                                                  {isOn ? '✓ ' : ''}{r.name}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        }
+                                      </div>
+                                      {/* Blocking statuses */}
+                                      <div>
+                                        <div style={{ fontSize: '10px', color: '#fbbf24', marginBottom: '4px', fontWeight: 'bold' }}>🚫 סטטוסים מפריעים (מציתים התראה)</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                          {(() => {
+                                            const allowedStatuses: string[] = (adminElementTypes.find((et: any) => String(et.id) === elementForm.element_type_id) as any)?.allowed_statuses || [];
+                                            const statOpts = allowedStatuses.length > 0 ? allowedStatuses : ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול', 'סגור'];
+                                            return statOpts.map((s: string) => {
+                                              const isOn = elementForm.blocking_statuses.includes(s);
+                                              const COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#86efac', 'חלקי': '#fb923c', 'לא תקין': '#f87171', 'תקול': '#fca5a5', 'סגור': '#94a3b8' };
+                                              return (
+                                                <button key={s} onClick={() => setElementForm(p => ({ ...p, blocking_statuses: isOn ? p.blocking_statuses.filter(x => x !== s) : [...p.blocking_statuses, s] }))}
+                                                  style={{ padding: '2px 8px', background: isOn ? '#450a0a' : '#1e293b', color: isOn ? (COLOR[s] || '#fca5a5') : '#64748b', border: `1px solid ${isOn ? (COLOR[s] || '#ef4444') : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: isOn ? 'bold' : 'normal' }}>
+                                                  {isOn ? '✓ ' : ''}{s}
+                                                </button>
+                                              );
+                                            });
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
                                 {/* Save/Cancel */}
                                 <div style={{ display: 'flex', gap: '6px', padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
                                   <button onClick={doSave}
                                     style={{ flex: 1, padding: '6px', background: elementForm.name.trim() ? '#be185d' : '#374151', color: elementForm.name.trim() ? 'white' : '#6b7280', border: 'none', borderRadius: '5px', cursor: elementForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold' }}>
                                     ✓ שמור
                                   </button>
-                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '' }); setAdminElemFocusField(null); }}
+                                  <button onClick={() => { setShowElementForm(false); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setAdminElemFocusField(null); }}
                                     style={{ padding: '6px 12px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
                                     ביטול
                                   </button>
