@@ -13670,6 +13670,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [suggestAltRangeFormation, setSuggestAltRangeFormation] = useState(true);
   const [showFullPicture, setShowFullPicture] = useState(false);
   const [showViewMenu, setShowViewMenu] = useState(false);
+  const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
@@ -17458,11 +17459,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span>📊 תצוגת בלוקים</span>
                     {showVerticalView && <span style={{ fontSize: '10px', color: '#c084fc' }}>✓ פעיל</span>}
                   </div>
+                  {/* Camera wall — ground_mgmt only */}
+                  {isGroundMgmtMode && airfieldElements.some((e: any) => e.camera_url) && (
+                    <div
+                      onClick={() => { setShowAppCameraWall(true); setShowViewMenu(false); }}
+                      style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span>📷 לוח מצלמות</span>
+                      <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
+                    </div>
+                  )}
                 </div>
               </>
             )}
           </div>
           )}
+
+          {/* Camera wall modal — rendered at app level for ground_mgmt */}
+          {showAppCameraWall && (() => {
+            const allCams = airfieldElements.filter((e: any) => e.camera_url);
+            const n = allCams.length;
+            const cols = n === 1 ? 1 : n === 2 ? 2 : n === 3 ? 3 : n === 4 ? 2 : Math.ceil(Math.sqrt(n));
+            return (
+              <div style={{ position: 'fixed', inset: 0, zIndex: 10001, background: '#000', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+                <div style={{ padding: '6px 12px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <span style={{ fontSize: '16px' }}>📷</span>
+                  <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '14px', flex: 1 }}>לוח מצלמות — {n} מצלמות</span>
+                  <button onClick={() => setShowAppCameraWall(false)}
+                    style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '6px', padding: '4px 14px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✕ סגור</button>
+                </div>
+                {n === 0 ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '16px' }}>אין מצלמות עם כתובת URL מוגדרת</div>
+                ) : (
+                  <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px', padding: '2px', overflow: 'hidden', minHeight: 0 }}>
+                    {allCams.map((cam: any) => (
+                      <div key={cam.id} style={{ position: 'relative', background: '#0a0a0a', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                        <div style={{ padding: '3px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', fontSize: '11px', color: '#93c5fd', fontWeight: 'bold', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>📷</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cam.name}</span>
+                        </div>
+                        <iframe src={toEmbedUrl(cam.camera_url)} style={{ flex: 1, border: 'none', width: '100%', height: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title={cam.name} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <button
             onClick={() => setThemeMode(m => m === 'dark' ? 'light' : m === 'light' ? 'ocean' : 'dark')}
