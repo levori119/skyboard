@@ -5635,7 +5635,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
-  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string }) => Promise<void>;
+  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null }) => Promise<void>;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => Promise<void>;
   headerButtons?: React.ReactNode;
@@ -5679,6 +5679,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [vehiclePlaceModal, setVehiclePlaceModal] = useState<{ x_pct: number; y_pct: number } | null>(null);
   const [vehicleForm, setVehicleForm] = useState({ name: '', element_type_id: '' });
   const [vehicleSaving, setVehicleSaving] = useState(false);
+  const [placingExistingElement, setPlacingExistingElement] = useState<any | null>(null);
   const [polygonStatusPicker, setPolygonStatusPicker] = useState<{ polygon: any; x: number; y: number; currentStatus: any | null } | null>(null);
   const [polygonPickerNote, setPolygonPickerNote] = useState('');
   const [polygonPickerGrf, setPolygonPickerGrf] = useState<string | null>(null);
@@ -6989,6 +6990,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                     ✏
                                   </button>
                                 )}
+                                {onUpdateElement && el.x_pct == null && el.category !== 'camera' && (
+                                  <button onClick={() => setPlacingExistingElement(placingExistingElement?.id === el.id ? null : el)}
+                                    title="פרוס על המפה — לחץ על נקודה במפה"
+                                    style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${placingExistingElement?.id === el.id ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#334155')}`, background: placingExistingElement?.id === el.id ? '#92400e' : 'transparent', color: placingExistingElement?.id === el.id ? '#fde68a' : '#f59e0b', cursor: 'pointer', flexShrink: 0 }}>
+                                    📍
+                                  </button>
+                                )}
                               </div>
                               {/* Display state quick selector row */}
                               {onUpdateElement && (
@@ -7408,16 +7416,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
           {/* Sector list panel + Add vehicle button — always visible, top-right */}
-          {((airfieldSectors || []).length > 0 || onCreateElement) && (
+          {((airfieldSectors || []).length > 0 || onCreateElement || placingExistingElement) && (
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
               {/* Add vehicle button */}
               {onCreateElement && (
                 <button
-                  onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); }}
+                  onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); setPlacingExistingElement(null); }}
                   style={{ padding: '5px 12px', background: addVehicleMode ? '#854d0eee' : (lightMode ? '#ffffffee' : '#0f172aee'), border: `1px solid ${addVehicleMode ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#1e3a5f')}`, borderRadius: '8px', color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap' }}
                   title="לחץ על המפה להוספת רכב">
                   🚗 {addVehicleMode ? '← לחץ על המפה' : '+ הוסף רכב'}
                 </button>
+              )}
+              {/* Placing existing element hint */}
+              {placingExistingElement && (
+                <div style={{ padding: '5px 12px', background: '#92400eee', border: '1px solid #f59e0b', borderRadius: '8px', color: '#fde68a', fontSize: '11px', fontWeight: 'bold', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📍 פרוס "{placingExistingElement.name}" — לחץ על המפה</span>
+                  <button onClick={() => setPlacingExistingElement(null)} style={{ background: 'none', border: 'none', color: '#fde68a', cursor: 'pointer', fontSize: '13px', padding: '0', lineHeight: 1 }}>✕</button>
+                </div>
               )}
               {/* Reset zoom button */}
               {focusedSectorId && (
@@ -8330,6 +8345,38 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const y_pct = Math.max(0, Math.min(100, ((relY - imgTop) / imgH) * 100));
                 setVehiclePlaceModal({ x_pct, y_pct });
                 setVehicleForm({ name: '', element_type_id: '' });
+              }}
+            />
+          )}
+          {/* Place existing element click overlay */}
+          {placingExistingElement && (
+            <div
+              style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair', background: 'rgba(245,158,11,0.08)' }}
+              onClick={async e => {
+                const img = airfieldImgRef.current;
+                if (!img || !img.naturalWidth || !img.naturalHeight) return;
+                const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const cW = containerRect.width / groundMapZoom;
+                const cH = containerRect.height / groundMapZoom;
+                const iAspect = img.naturalWidth / img.naturalHeight;
+                const cAspect = cW / cH;
+                let imgLeft: number, imgTop: number, imgW: number, imgH: number;
+                if (iAspect > cAspect) {
+                  imgW = cW; imgH = cW / iAspect;
+                  imgLeft = 0; imgTop = (cH - imgH) / 2;
+                } else {
+                  imgH = cH; imgW = cH * iAspect;
+                  imgLeft = (cW - imgW) / 2; imgTop = 0;
+                }
+                const relX = (e.clientX - containerRect.left) / groundMapZoom;
+                const relY = (e.clientY - containerRect.top) / groundMapZoom;
+                const x_pct = Math.max(0, Math.min(100, ((relX - imgLeft) / imgW) * 100));
+                const y_pct = Math.max(0, Math.min(100, ((relY - imgTop) / imgH) * 100));
+                const el = placingExistingElement;
+                if (onUpdateElement) {
+                  await onUpdateElement(el.id, { name: el.name, category: el.category, status: el.status, note: el.note || '', display_state: el.display_state, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url, x_pct, y_pct });
+                }
+                setPlacingExistingElement(null);
               }}
             />
           )}
@@ -16391,12 +16438,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null }) => {
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null }) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0, camera_url: 'camera_url' in fields ? fields.camera_url : el.camera_url }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: 'x_pct' in fields ? fields.x_pct : el.x_pct, y_pct: 'y_pct' in fields ? fields.y_pct : el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0, camera_url: 'camera_url' in fields ? fields.camera_url : el.camera_url }) });
     } catch (e) { console.error(e); }
   };
 
