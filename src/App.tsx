@@ -6151,11 +6151,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const img = airfieldImgRef.current;
     if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
     const c = img.parentElement; if (!c) { setImgBounds(null); return; }
-    const cr = c.getBoundingClientRect();
-    // Compute actual letterboxed image content area (objectFit: contain).
-    // getBoundingClientRect on the <img> returns the element's bounds (= container),
-    // not the visual content bounds. Calculate manually from naturalWidth/Height.
-    const cW = cr.width, cH = cr.height;
+    // Use clientWidth/clientHeight (logical, pre-transform) so imgBounds stays stable
+    // when the user zooms/pans (CSS transform doesn't affect clientWidth/clientHeight).
+    const cW = c.clientWidth, cH = c.clientHeight;
     const iAspect = img.naturalWidth / img.naturalHeight;
     const cAspect = cW / cH;
     let w: number, h: number, left: number, top: number;
@@ -8290,9 +8288,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             <div
               style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair' }}
               onClick={e => {
-                const cr = mapInnerRef.current!.getBoundingClientRect();
-                const relX = e.clientX - cr.left;
-                const relY = e.clientY - cr.top;
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const relX = (e.clientX - rect.left) / groundMapZoom;
+                const relY = (e.clientY - rect.top) / groundMapZoom;
                 const x_pct = Math.max(0, Math.min(100, ((relX - imgBounds.left) / imgBounds.width) * 100));
                 const y_pct = Math.max(0, Math.min(100, ((relY - imgBounds.top) / imgBounds.height) * 100));
                 setVehiclePlaceModal({ x_pct, y_pct });
