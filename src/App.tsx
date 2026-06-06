@@ -7953,7 +7953,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {mapDisplaySettings.showStatus && (canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
-                      {isClosed ? 'תקול' : isBlinking ? 'מהבהב' : isOff ? 'כבוי' : isStop ? 'עצור' : isGo ? 'עבור' : isOpen ? 'שמיש' : el.status}
+                      {isClosed ? 'סגור' : isBlinking ? 'מהבהב' : isOff ? 'כבוי' : isStop ? 'עצור' : isGo ? 'עבור' : isOpen ? 'שמיש' : el.status}
                     </div>
                   )}
                   {/* Route tooltip — shown only when status = נוסע and a route is defined */}
