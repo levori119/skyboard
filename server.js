@@ -3489,10 +3489,10 @@ app.get('/api/airfield-elements', async (req, res) => {
 });
 app.post('/api/airfield-elements', async (req, res) => {
   try {
-    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct, category } = req.body;
+    const { airfield_id, element_type_id, name, status, note, x_pct, y_pct, category, camera_url } = req.body;
     const r = await pool.query(
-      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '']
+      'INSERT INTO airfield_elements (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+      [airfield_id, element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '', camera_url || null]
     );
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed' }); }

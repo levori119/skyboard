@@ -26836,6 +26836,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingElement, setEditingElement] = useState<any | null>(null);
   const [showElementForm, setShowElementForm] = useState(false);
   const [adminElemFocusField, setAdminElemFocusField] = useState<'name'|'category'|'type'|'status'|'note'|null>(null);
+  const [adminCameraForm, setAdminCameraForm] = useState({ name: '', camera_url: '' });
+  const [showAdminCameraForm, setShowAdminCameraForm] = useState(false);
   const [adminAFExpanded, setAdminAFExpanded] = useState<Set<string>>(new Set());
   const toggleAFSec = (k: string) => setAdminAFExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const [showElementsSection, setShowElementsSection] = useState(false);
@@ -30604,6 +30606,70 @@ CHARLIE,1,301,`}
                         </div>
                       </div>
                     </div>
+
+                    {/* Cameras section */}
+                    {editingAirfield && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('cameras') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('cameras')}>
+                          <div style={{ color: '#67e8f9', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>📷 מצלמות ({adminAirfieldElements.filter(e => e.category === 'camera').length})</div>
+                          {adminAFExpanded.has('cameras') && !showAdminCameraForm && (
+                            <button onClick={e => { e.stopPropagation(); setAdminCameraForm({ name: '', camera_url: '' }); setShowAdminCameraForm(true); }}
+                              style={{ padding: '2px 8px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מצלמה</button>
+                          )}
+                          <span style={{ color: adminAFExpanded.has('cameras') ? '#67e8f9' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('cameras') ? '▲' : '▼'}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('cameras') ? '2000px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+                          {showAdminCameraForm && (
+                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #155e75' }}>
+                              <input type="text" placeholder="שם המצלמה" value={adminCameraForm.name}
+                                onChange={e => setAdminCameraForm(p => ({ ...p, name: e.target.value }))}
+                                style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '5px' }} />
+                              <input type="text" placeholder="כתובת URL של המצלמה" value={adminCameraForm.camera_url}
+                                onChange={e => setAdminCameraForm(p => ({ ...p, camera_url: e.target.value }))}
+                                style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box', marginBottom: '5px' }} />
+                              <div style={{ display: 'flex', gap: '5px' }}>
+                                <button onClick={async () => {
+                                  if (!adminCameraForm.name.trim()) return;
+                                  await fetch(`${API_URL}/airfield-elements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: Number(selectedAdminAirfieldId), name: adminCameraForm.name.trim(), category: 'camera', status: 'תקין', camera_url: adminCameraForm.camera_url.trim() || null }) });
+                                  setShowAdminCameraForm(false);
+                                  setAdminCameraForm({ name: '', camera_url: '' });
+                                  loadAirfieldElements(selectedAdminAirfieldId!);
+                                }} style={{ flex: 1, padding: '4px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✓ שמור</button>
+                                <button onClick={() => { setShowAdminCameraForm(false); setAdminCameraForm({ name: '', camera_url: '' }); }}
+                                  style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
+                              </div>
+                            </div>
+                          )}
+                          {adminAirfieldElements.filter(e => e.category === 'camera').length === 0 && !showAdminCameraForm
+                            ? <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '6px 0' }}>אין מצלמות</div>
+                            : adminAirfieldElements.filter(e => e.category === 'camera').map(cam => (
+                              <div key={cam.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === cam.id ? '#67e8f9' : '#155e75'}`, padding: '5px 7px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '14px', flexShrink: 0 }}>📷</span>
+                                  <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold' }}>{cam.name}</span>
+                                  {cam.x_pct != null && <span title="ממוקם על המפה" style={{ fontSize: '9px', color: '#22d3ee' }}>📍</span>}
+                                  <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(cam.id); }}
+                                    title={cam.x_pct != null ? 'עדכן מיקום על המפה' : 'פרוס על המפה'}
+                                    style={{ padding: '1px 5px', background: cam.x_pct != null ? '#1e3a5f' : '#164e63', color: cam.x_pct != null ? '#93c5fd' : '#67e8f9', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>
+                                    {cam.x_pct != null ? '📍 עדכן' : '📍 פרוס'}
+                                  </button>
+                                  {cam.x_pct != null && (
+                                    <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${cam.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: cam.element_type_id, name: cam.name, status: cam.status, note: cam.note, category: cam.category, x_pct: null, y_pct: null, camera_url: cam.camera_url }) }); setAdminAirfieldElements(prev => prev.map(e => e.id === cam.id ? { ...e, x_pct: null, y_pct: null } : e)); }}
+                                      style={{ padding: '1px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר</button>
+                                  )}
+                                  <button onClick={async () => { if (!await customConfirm('למחוק את המצלמה?')) return; await fetch(`${API_URL}/airfield-elements/${cam.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }}
+                                    style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
+                                </div>
+                                <input type="text" placeholder="כתובת URL" value={cam.camera_url || ''}
+                                  onChange={e => setAdminAirfieldElements(prev => prev.map(el => el.id === cam.id ? { ...el, camera_url: e.target.value } : el))}
+                                  onBlur={async e => { await fetch(`${API_URL}/airfield-elements/${cam.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: cam.element_type_id, name: cam.name, status: cam.status, note: cam.note, category: cam.category, x_pct: cam.x_pct, y_pct: cam.y_pct, camera_url: e.target.value.trim() || null }) }); }}
+                                  style={{ width: '100%', padding: '3px 6px', background: '#0c1a2e', border: '1px solid #155e75', borderRadius: '4px', color: '#67e8f9', fontSize: '10px', direction: 'ltr', boxSizing: 'border-box' }} />
+                              </div>
+                            ))
+                          }
+                        </div>
+                      </div>
+                    )}
 
                     {/* Airfield Elements */}
                     {editingAirfield && (
