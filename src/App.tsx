@@ -6289,6 +6289,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const conflictElementIds = React.useMemo(() => new Set(routeConflicts.map(c => c.elementId)), [routeConflicts]);
   const conflictVehicleIds  = React.useMemo(() => new Set(routeConflicts.map(c => c.vehicleId)),  [routeConflicts]);
 
+  // Yellow caution — blocking elements that are non-operational (לא שמיש)
+  const malfunctionWarnings = React.useMemo(() => {
+    if (!airfieldElements) return [];
+    const BROKEN_STATUSES = ['לא שמיש', 'תקלה', 'מושבת', 'אינו פועל'];
+    return (airfieldElements as any[]).filter(el => {
+      const blockStatuses: string[] = Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [];
+      if (!blockStatuses.length) return false; // not a blocking element
+      const effectiveStatus = el.status || '';
+      return BROKEN_STATUSES.includes(effectiveStatus);
+    }).map(el => ({ id: el.id, name: el.name, status: el.status }));
+  }, [airfieldElements]);
+
+  const [showMalfunctionPanel, setShowMalfunctionPanel] = React.useState(false);
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -7801,6 +7815,39 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       {c.routeNames.length > 0 && (
                         <div style={{ color: '#64748b', fontSize: '10px', marginTop: '4px' }}>מסלולים: {c.routeNames.join(', ')}</div>
                       )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Yellow caution panel — blocking elements that are non-operational */}
+          {malfunctionWarnings.length > 0 && (
+            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', left: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }}>
+              <div style={{ background: '#713f12', border: '2px solid #eab308', borderRadius: showMalfunctionPanel ? '10px 10px 0 0' : '10px', padding: '7px 11px', color: '#fef08a', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 0 12px rgba(234,179,8,0.35)' }}
+                onClick={() => setShowMalfunctionPanel(p => !p)}>
+                <span style={{ fontSize: '18px' }}>⚠️</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fefce8' }}>שים לב — אלמנט חוסם לא שמיש</div>
+                  <div style={{ fontSize: '10px', color: '#fde047' }}>
+                    {malfunctionWarnings.length} אלמנט{malfunctionWarnings.length !== 1 ? 'ים' : ''} דור{malfunctionWarnings.length !== 1 ? 'שים' : 'ש'} תשומת לב
+                  </div>
+                </div>
+                <span style={{ fontSize: '10px', color: '#fde047', opacity: 0.8 }}>{showMalfunctionPanel ? '▲' : '▼'}</span>
+              </div>
+              {showMalfunctionPanel && (
+                <div style={{ background: '#1c1400', border: '2px solid #eab308', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px', boxShadow: '0 8px 20px rgba(234,179,8,0.2)' }}>
+                  {malfunctionWarnings.map((w, i) => (
+                    <div key={i} style={{ background: '#2a1f00', borderRadius: '7px', padding: '7px 9px', border: '1px solid #eab30866', borderRight: '4px solid #eab308' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+                        <span style={{ fontSize: '13px' }}>🔧</span>
+                        <span style={{ color: '#fefce8', fontSize: '12px', fontWeight: 'bold' }}>{w.name}</span>
+                      </div>
+                      <div style={{ color: '#fde047', fontSize: '11px' }}>
+                        מצב: <span style={{ background: '#422006', color: '#fbbf24', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold' }}>{w.status}</span>
+                        {' '}— אלמנט זה עשוי לחסום מסלולים
+                      </div>
                     </div>
                   ))}
                 </div>
