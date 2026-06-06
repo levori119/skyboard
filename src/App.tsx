@@ -12995,6 +12995,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [sidebarHtmlDragOver, setSidebarHtmlDragOver] = useState(false);
   const [sidebarAvailableSearch, setSidebarAvailableSearch] = useState('');
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
+  const [zoomedSectorId, setZoomedSectorId] = useState<number | null>(null);
+  const [sectorPickerOpen, setSectorPickerOpen] = useState(false);
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
@@ -21021,6 +21023,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
         </div>
 
+        {/* Sector Picker Panel — right side, shown in map/table mode for workstations with sectors */}
+        {!isGroundMode && !isClassicMode && !isCivilianMode && allSectors.length > 0 && (() => {
+          const W = sectorPickerOpen ? 168 : 28;
+          return (
+            <div style={{ width: W, background: lightMode ? '#f1f5f9' : '#0f172a', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: 'rtl' }}>
+              {/* Header */}
+              <div style={{ padding: '5px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: sectorPickerOpen ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
+                {sectorPickerOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text, whiteSpace: 'nowrap' }}>🗂 סקטורים</span>}
+                <button onClick={() => setSectorPickerOpen(v => !v)} title={sectorPickerOpen ? 'סגור' : 'בחירת סקטור להגדלה'}
+                  style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px', color: T.muted, flexShrink: 0 }}>
+                  {sectorPickerOpen ? '◀' : '▶'}
+                </button>
+              </div>
+              {/* Collapsed label */}
+              {!sectorPickerOpen && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span onClick={() => setSectorPickerOpen(true)} style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', cursor: 'pointer' }}>סקטורים 🗂</span>
+                </div>
+              )}
+              {/* Sectors list */}
+              {sectorPickerOpen && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+                  {allSectors.map((sec: any) => {
+                    const isZoomed = zoomedSectorId === Number(sec.id);
+                    const sStrips = myTableStrips.filter((s: any) => Number(s.sectorId) === Number(sec.id));
+                    const sIn = incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(sec.id));
+                    const sOut = outgoingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(sec.id));
+                    const hasTransfers = sIn.length + sOut.length > 0;
+                    return (
+                      <div key={sec.id}
+                        onClick={() => setZoomedSectorId(isZoomed ? null : Number(sec.id))}
+                        style={{ marginBottom: '3px', borderRadius: '5px', border: `1px solid ${isZoomed ? '#3b82f6' : T.border}`, background: isZoomed ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#ffffff' : '#1e293b'), cursor: 'pointer', padding: '5px 7px', transition: 'background 0.15s' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '14px', flexShrink: 0 }}>🔍</span>
+                          <span style={{ flex: 1, fontSize: '10px', fontWeight: 'bold', color: isZoomed ? (lightMode ? '#1d4ed8' : '#93c5fd') : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.label_he || sec.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '9px', color: T.muted }}>{sStrips.length} פמ&quot;מ</span>
+                          {hasTransfers && <span style={{ fontSize: '9px', color: '#f87171', fontWeight: 'bold' }}>{sIn.length + sOut.length} העברות</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Elements Panel — ground_mgmt dedicated column */}
         {isGroundMgmtMode && airfieldElements && airfieldElements.length > 0 && (() => {
           const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
@@ -21947,6 +21998,109 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             onEtaChange={setTransferEtaMinutes}
           />
         )}
+
+        {/* Zoomed Sector Drawer — slides in from the right when a sector is selected from the picker */}
+        {zoomedSectorId !== null && (() => {
+          const sec = allSectors.find((s: any) => Number(s.id) === Number(zoomedSectorId));
+          if (!sec) return null;
+          const sectorStrips = myTableStrips.filter((s: any) => Number(s.sectorId) === Number(zoomedSectorId));
+          const sectorIn = incomingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(zoomedSectorId));
+          const sectorOut = outgoingTransfers.filter((t: any) => Number(t.to_sector_id) === Number(zoomedSectorId));
+          const secName = sec.label_he || sec.name || `סקטור ${zoomedSectorId}`;
+          const STATUS_COLORS: Record<string, string> = { 'active': '#22c55e', 'pending_transfer': '#f59e0b', 'transfer': '#3b82f6', 'incoming': '#a855f7' };
+          const STATUS_LABELS: Record<string, string> = { 'active': 'פעיל', 'pending_transfer': 'בהעברה', 'transfer': 'בהעברה', 'incoming': 'נכנס' };
+          return (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 9500 }} onClick={() => setZoomedSectorId(null)}>
+              <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: '480px', maxWidth: '92vw', background: lightMode ? '#f8fafc' : '#0f172a', borderLeft: `2px solid #3b82f6`, boxShadow: '-8px 0 40px rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}
+                onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{ background: lightMode ? '#1e3a5f' : '#0a1628', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#93c5fd' }}>{secName}</div>
+                    {sec.notes && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{sec.notes}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', color: '#60a5fa', background: '#1e3a5f', borderRadius: '4px', padding: '2px 7px', border: '1px solid #2563eb' }}>{sectorStrips.length} פמ&quot;מ</span>
+                    {sectorIn.length > 0 && <span style={{ fontSize: '11px', color: '#f87171', background: '#450a0a', borderRadius: '4px', padding: '2px 7px', border: '1px solid #991b1b' }}>{sectorIn.length} נכנסות</span>}
+                    {sectorOut.length > 0 && <span style={{ fontSize: '11px', color: '#fbbf24', background: '#451a03', borderRadius: '4px', padding: '2px 7px', border: '1px solid #92400e' }}>{sectorOut.length} יוצאות</span>}
+                    <button onClick={() => setZoomedSectorId(null)} style={{ background: 'transparent', border: '1px solid #475569', borderRadius: '5px', color: '#94a3b8', cursor: 'pointer', padding: '4px 10px', fontSize: '13px' }}>✕</button>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {/* Incoming transfers */}
+                  {sectorIn.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#f87171', marginBottom: '6px', borderBottom: '1px solid #450a0a', paddingBottom: '4px' }}>📥 העברות נכנסות ({sectorIn.length})</div>
+                      {sectorIn.map((t: any) => (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: lightMode ? '#fff1f2' : '#1c0a0a', border: '1px solid #991b1b', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '14px' }}>✈</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#f1f5f9' }}>{t.callSign || t.callsign || '—'}</div>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>{t.from_sector_name || t.squadron || ''}</div>
+                          </div>
+                          <button onClick={() => handleAcceptTransfer(String(t.id))}
+                            style={{ padding: '3px 9px', background: '#14532d', border: '1px solid #22c55e', borderRadius: '4px', color: '#86efac', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>קבל</button>
+                          <button onClick={() => handleRejectTransfer(String(t.id))}
+                            style={{ padding: '3px 9px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '4px', color: '#fca5a5', cursor: 'pointer', fontSize: '11px' }}>דחה</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Outgoing transfers */}
+                  {sectorOut.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fbbf24', marginBottom: '6px', borderBottom: '1px solid #451a03', paddingBottom: '4px' }}>📤 העברות יוצאות ({sectorOut.length})</div>
+                      {sectorOut.map((t: any) => (
+                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: lightMode ? '#fffbeb' : '#1c1000', border: '1px solid #92400e', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '14px' }}>📤</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#f1f5f9' }}>{t.callSign || t.callsign || '—'}</div>
+                            <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8' }}>{t.squadron || ''}</div>
+                          </div>
+                          <button onClick={() => handleCancelTransfer(String(t.id))}
+                            style={{ padding: '3px 9px', background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: '4px', color: '#fca5a5', cursor: 'pointer', fontSize: '11px' }}>בטל</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Strips in sector */}
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#3b82f6' : '#60a5fa', marginBottom: '6px', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, paddingBottom: '4px' }}>
+                      ✈ פמ&quot;מ בסקטור ({sectorStrips.length})
+                    </div>
+                    {sectorStrips.length === 0 ? (
+                      <div style={{ fontSize: '12px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center', padding: '16px 0' }}>אין פמ&quot;מ בסקטור</div>
+                    ) : (
+                      sectorStrips.map((s: any) => {
+                        const sc = STATUS_COLORS[s.status] || '#94a3b8';
+                        const sl = STATUS_LABELS[s.status] || s.status || '—';
+                        return (
+                          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', background: lightMode ? '#ffffff' : '#1e293b', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, marginBottom: '4px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: sc, flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {s.callSign || s.callsign || '—'}
+                              </div>
+                              <div style={{ fontSize: '10px', color: lightMode ? '#64748b' : '#94a3b8', display: 'flex', gap: '8px' }}>
+                                {(s.sq || s.squadron) && <span>{s.sq || s.squadron}</span>}
+                                {s.numberOfFormation > 1 && <span>×{s.numberOfFormation}</span>}
+                                {s.takeoff_time && <span>⏱ {s.takeoff_time}</span>}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px', background: sc + '22', color: sc, border: `1px solid ${sc}55`, flexShrink: 0 }}>{sl}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Workstation Picker Modal — בחירת עמדה יעד כאשר הסקטור משותף למספר עמדות */}
         {workstationPickModal && (() => {
