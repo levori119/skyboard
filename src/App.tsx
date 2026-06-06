@@ -7602,9 +7602,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const isVehicle = cat === 'vehicle';
                 if (isVehicle && !mapLayers.routes_vehicle) return null;
                 if (!isVehicle && !mapLayers.routes_aircraft) return null;
-                // Skip routes that are displayed trimmed in nav highlights — avoid full-route bleed-through
-                const isNavRoute = Object.values(elemNavData).some((nd: any) => nd.viaRouteIds?.includes(r.id));
-                if (isNavRoute) return null;
+                // Skip routes that are actively rendered as trimmed nav highlights — avoid full-route bleed-through
+                // Only skip if the owning element is actually placed on the map (x_pct != null)
+                const isActiveNavRoute = Object.entries(elemNavData).some(([elIdStr, nd]: [string, any]) => {
+                  if (!nd.viaRouteIds?.includes(r.id)) return false;
+                  const ownerEl = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
+                  return ownerEl && ownerEl.x_pct != null;
+                });
+                if (isActiveNavRoute) return null;
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
                 const col = r.color || '#3b82f6';
