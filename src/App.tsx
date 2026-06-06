@@ -6248,9 +6248,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         if (!relRoutes.length || !blockStatuses.length) return;
         const overlapping = nav.viaRouteIds.filter(rid => relRoutes.includes(rid));
         if (!overlapping.length) return;
-        if (!blockStatuses.includes(el.status)) return;
+        // Map display_state → Hebrew label so "סגור" blocking config matches display_state='close'
+        const dState = el.display_state || 'normal';
+        const dStateLabel: Record<string, string> = { close: 'סגור', open: 'פתוח', off: 'כבוי', stop: 'עצור', go: 'עבור', blink: 'מנצנץ' };
+        const effectiveStatus = dStateLabel[dState] || el.status;
+        if (!blockStatuses.includes(effectiveStatus) && !blockStatuses.includes(el.status)) return;
+        const reportedStatus = blockStatuses.includes(effectiveStatus) ? effectiveStatus : el.status;
         const routeNames = overlapping.map(rid => (airfieldRoutes as any[]).find((r: any) => r.id === rid)?.name).filter(Boolean);
-        conflicts.push({ vehicleName: vehicle.name, elementName: el.name, routeNames, status: el.status });
+        conflicts.push({ vehicleName: vehicle.name, elementName: el.name, routeNames, status: reportedStatus });
       });
     });
     return conflicts;
