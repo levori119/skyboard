@@ -7073,14 +7073,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                     📷
                                   </button>
                                 )}
-                                {(el.category === 'כלי רכב' || el.category === 'מטוס') && (
-                                  <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
-                                    title="הגדר מסלול לאלמנט"
-                                    style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
-                                    🛣
-                                  </button>
-                                )}
-                                {(el.category === 'כלי רכב' || el.category === 'מטוס') && elemNavData[el.id]?.viaRouteIds?.length > 0 && (
+                                <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
+                                  title="הגדר מסלול לאלמנט"
+                                  style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
+                                  🛣
+                                </button>
+                                {elemNavData[el.id]?.viaRouteIds?.length > 0 && (
                                   routeAnimProgress[el.id] !== undefined
                                     ? <button onClick={() => stopRouteAnim(el.id)}
                                         title="עצור אנימציה"
@@ -8145,7 +8143,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/groundMapZoom})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
                 onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Conflict alert ring — pulsing red */}
                 {conflictElementIds.has(el.id) && (
                   <div className="conflict-ring" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: '3px solid #ef4444', pointerEvents: 'none', zIndex: 25 }} />
