@@ -7681,15 +7681,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   )}
                 </div>
-                {/* Edit button — shown on hover or when this element's category is highlighted */}
-                {onUpdateElement && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0 }); setEditingElemField(null); }}
-                    style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff', fontSize: '8px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
-                    title="ערוך אלמנט">
-                    ✏
-                  </button>
-                )}
                 {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
                 {onDeleteElement && el.category === 'כלי רכב' && (
                   <button
