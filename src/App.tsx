@@ -6343,11 +6343,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   };
 
   const mapRef = React.useRef<HTMLDivElement>(null);
+  // mapInnerRef wraps the image + overlays — receives CSS transform.
+  // The sector list and layers panels stay in mapRef (outside this inner wrapper) so they are never scaled.
+  const mapInnerRef = React.useRef<HTMLDivElement>(null);
 
   // Sector zoom: when a sector is focused, smoothly zoom + pan the map to that sector.
   // When no sector focused, apply user-controlled zoom+pan instead.
   React.useEffect(() => {
-    const el = mapRef.current;
+    const el = mapInnerRef.current;
     if (!el) return;
     if (!focusedSectorId) {
       if (groundMapZoom === 1 && groundMapPan.x === 0 && groundMapPan.y === 0) {
@@ -7320,10 +7323,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             window.addEventListener('mouseup', onUp);
           }}
         >
-          {airfieldMapSrc
-            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
-            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
-          }
+          {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
           {/* Sector list panel — always visible, top-right */}
           {(airfieldSectors || []).length > 0 && (
@@ -7391,6 +7391,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
           </div>
+
+          {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
+              Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
+          <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
+          {airfieldMapSrc
+            ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
+            : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
+          }
 
           {/* Airfield Polygons overlay */}
           {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
@@ -8194,6 +8202,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
         );
       })()}
+          </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
       {/* Element edit drawer — side panel with focus-mode field editing */}
       {elemEditModal && (() => {
