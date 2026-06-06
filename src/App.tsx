@@ -7811,8 +7811,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             return (
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${(el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (el.category === 'כלי רכב' || el.category === 'מטוס') { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
                   <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #3b82f6', boxShadow: '0 0 12px #3b82f688', pointerEvents: 'none', animation: 'pulse 1.5s infinite' }} />
@@ -7821,7 +7821,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isBeingEdited && (
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
-                <div style={blinkAnimStyle} onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                <div style={blinkAnimStyle} onClick={el.camera_url ? (e) => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); } : canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                   {el.category === 'camera' ? (
                     <div style={{ width: '26px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.7))' }}>
                       <svg width="26" height="20" viewBox="0 0 26 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -7869,14 +7869,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   )}
                 </div>
-                {/* Camera button — "הצג תמונה" label button for elements with camera_url */}
-                {el.camera_url && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); }}
-                    style={{ marginTop: '2px', padding: '1px 5px', background: '#0c2a4a', border: '1px solid #3b82f6', borderRadius: '4px', color: '#60a5fa', fontSize: '7px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '2px' }}
-                    title="הצג תמונת מצלמה">
-                    <span style={{ fontSize: '8px' }}>📷</span> הצג תמונה
-                  </button>
+                {/* Camera indicator — small icon shown below camera elements that have a URL */}
+                {el.camera_url && el.category === 'camera' && (
+                  <div style={{ fontSize: '7px', color: '#60a5fa', background: '#0c1a2ecc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>📷 לחץ לצפייה</div>
                 )}
                 {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
                 {onDeleteElement && el.category === 'כלי רכב' && (
