@@ -6145,8 +6145,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
     const c = img.parentElement; if (!c) { setImgBounds(null); return; }
     const cr = c.getBoundingClientRect();
-    const ir = img.getBoundingClientRect();
-    setImgBounds({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height });
+    // Compute actual letterboxed image content area (objectFit: contain).
+    // getBoundingClientRect on the <img> returns the element's bounds (= container),
+    // not the visual content bounds. Calculate manually from naturalWidth/Height.
+    const cW = cr.width, cH = cr.height;
+    const iAspect = img.naturalWidth / img.naturalHeight;
+    const cAspect = cW / cH;
+    let w: number, h: number, left: number, top: number;
+    if (iAspect > cAspect) {
+      // image wider than container — fills by width, letterboxes top/bottom
+      w = cW; h = cW / iAspect;
+      left = 0; top = (cH - h) / 2;
+    } else {
+      // image taller than container — fills by height, letterboxes left/right
+      h = cH; w = cH * iAspect;
+      left = (cW - w) / 2; top = 0;
+    }
+    setImgBounds({ left, top, width: w, height: h });
   }, []);
   React.useEffect(() => {
     const img = airfieldImgRef.current;
@@ -31257,7 +31272,7 @@ CHARLIE,1,301,`}
 
               {/* MAP area (large, fills remaining space) */}
               {hasMap && showAirfieldForm && (
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 160px)' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 160px)', overflow: 'hidden' }}>
                   {/* Zoom toolbar */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
                     <button onClick={() => setAdminMapZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>−</button>
@@ -31265,7 +31280,7 @@ CHARLIE,1,301,`}
                     <button onClick={() => setAdminMapZoom(z => Math.min(5, +(z * 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>+</button>
                     <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>Ctrl+גלגל לזום</span>
                   </div>
-                  <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto' }}>
+                  <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
                     style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#1e3a5f'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
