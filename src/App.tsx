@@ -5663,7 +5663,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
-  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number } | null>(null);
+  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string } | null>(null);
+  const [cameraPanel, setCameraPanel] = useState<{ url: string; position: 'right'|'left'|'top'|'bottom'|'full'; name: string } | null>(null);
+  const [cameraPicker, setCameraPicker] = useState<{ el: any; url: string } | null>(null);
+  const [cameraPickerPos, setCameraPickerPos] = useState<'right'|'left'|'top'|'bottom'|'full'>('right');
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
   const [catMapHighlight, setCatMapHighlight] = useState<Set<string>>(new Set());
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
@@ -6956,7 +6959,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 🛣
                               </button>
                               {onUpdateElement && (
-                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0 }); setEditingElemField(null); }}
+                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
                                   title="ערוך אלמנט"
                                   style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
                                   ✏
@@ -7701,6 +7704,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   )}
                 </div>
+                {/* Camera button — for elements with camera_url */}
+                {el.camera_url && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setCameraPicker({ el, url: el.camera_url }); setCameraPickerPos('right'); }}
+                    style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
+                    title="פתח מצלמה">
+                    📷
+                  </button>
+                )}
                 {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
                 {onDeleteElement && el.category === 'כלי רכב' && (
                   <button
@@ -8130,6 +8142,89 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
+      {/* Camera position picker modal */}
+      {cameraPicker && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)' }}
+          onClick={e => { if (e.target === e.currentTarget) setCameraPicker(null); }}>
+          <div style={{ background: '#0f172a', border: '2px solid #1e3a5f', borderRadius: '14px', padding: '20px', width: '320px', direction: 'rtl', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }}>
+            <div style={{ fontWeight: 'bold', color: '#7dd3fc', marginBottom: '14px', fontSize: '15px' }}>📷 {cameraPicker.el.name}</div>
+            {/* URL */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>כתובת מצלמה</div>
+              <input value={cameraPicker.url}
+                onChange={e => setCameraPicker(p => p ? { ...p, url: e.target.value } : p)}
+                placeholder="https://..."
+                style={{ width: '100%', padding: '7px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '7px', color: '#e2e8f0', fontSize: '12px', direction: 'ltr', boxSizing: 'border-box' }} />
+            </div>
+            {/* Position selector */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>מיקום חלון המצלמה</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {([
+                  { key: 'right', label: '◧ חלון ימני', icon: '▶' },
+                  { key: 'left',  label: '◨ חלון שמאלי', icon: '◀' },
+                  { key: 'top',   label: '⬒ למעלה', icon: '▲' },
+                  { key: 'bottom',label: '⬓ למטה', icon: '▼' },
+                ] as const).map(opt => (
+                  <button key={opt.key}
+                    onClick={() => setCameraPickerPos(opt.key)}
+                    style={{ padding: '8px', background: cameraPickerPos === opt.key ? '#1d4ed844' : 'transparent', border: `1px solid ${cameraPickerPos === opt.key ? '#3b82f6' : '#334155'}`, borderRadius: '7px', color: cameraPickerPos === opt.key ? '#60a5fa' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: cameraPickerPos === opt.key ? 'bold' : 'normal' }}>
+                    {opt.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCameraPickerPos('full')}
+                  style={{ gridColumn: '1 / -1', padding: '8px', background: cameraPickerPos === 'full' ? '#1d4ed844' : 'transparent', border: `1px solid ${cameraPickerPos === 'full' ? '#3b82f6' : '#334155'}`, borderRadius: '7px', color: cameraPickerPos === 'full' ? '#60a5fa' : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: cameraPickerPos === 'full' ? 'bold' : 'normal' }}>
+                  ⛶ כל המסך
+                </button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => { if (cameraPicker.url) { setCameraPanel({ url: cameraPicker.url, position: cameraPickerPos, name: cameraPicker.el.name }); setCameraPicker(null); } }}
+                disabled={!cameraPicker.url}
+                style={{ flex: 2, padding: '10px', background: cameraPicker.url ? '#1d4ed8' : '#1e293b', color: cameraPicker.url ? 'white' : '#64748b', border: 'none', borderRadius: '8px', cursor: cameraPicker.url ? 'pointer' : 'default', fontSize: '13px', fontWeight: 'bold' }}>
+                פתח מצלמה
+              </button>
+              <button onClick={() => setCameraPicker(null)}
+                style={{ flex: 1, padding: '10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camera panel — iframe overlay */}
+      {cameraPanel && (() => {
+        const pos = cameraPanel.position;
+        const panelStyle: React.CSSProperties = {
+          position: 'fixed',
+          zIndex: 9998,
+          background: '#000',
+          boxShadow: '0 0 0 2px #3b82f6, 0 4px 32px rgba(0,0,0,0.8)',
+          display: 'flex',
+          flexDirection: 'column',
+          ...(pos === 'right'  ? { top: 0, right: 0, width: '50%', height: '100%' } : {}),
+          ...(pos === 'left'   ? { top: 0, left:  0, width: '50%', height: '100%' } : {}),
+          ...(pos === 'top'    ? { top: 0, left:  0, width: '100%', height: '50%' } : {}),
+          ...(pos === 'bottom' ? { bottom: 0, left: 0, width: '100%', height: '50%' } : {}),
+          ...(pos === 'full'   ? { inset: 0 } : {}),
+        };
+        return (
+          <div style={panelStyle}>
+            {/* Header bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
+              <span style={{ fontSize: '13px' }}>📷</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1 }}>{cameraPanel.name}</span>
+              <button onClick={() => { setCameraPanel(null); setCameraPickerPos('right'); }}
+                style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕ סגור</button>
+            </div>
+            <iframe src={cameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
+          </div>
+        );
+      })()}
+
       {/* Vehicle placement modal */}
       {vehiclePlaceModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)' }}
@@ -8188,7 +8283,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const el = elemEditModal.el;
         const save = async () => {
-          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey, rotation: elemEditModal.rotation });
+          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey, rotation: elemEditModal.rotation, camera_url: elemEditModal.cameraUrl || null });
           setElemEditModal(null);
           setEditingElemField(null);
         };
@@ -8383,6 +8478,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       style={{ width: '100%', padding: '5px 8px', background: D_INPUT_BG, border: `1px solid ${D_BORDER}`, borderRadius: '5px', color: D_TEXT, fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* Camera URL section */}
+            <div style={{ padding: '10px 12px', borderTop: `1px solid ${D_BORDER}` }}>
+              <div style={{ fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold', marginBottom: '6px' }}>📷 מצלמה</div>
+              <div style={{ fontSize: '10px', color: D_LABEL, marginBottom: '3px' }}>כתובת URL למצלמה (stream / RTSP / HTTP)</div>
+              <input value={elemEditModal.cameraUrl} onChange={e => setElemEditModal(p => p ? { ...p, cameraUrl: e.target.value } : p)}
+                placeholder="https://..."
+                style={{ width: '100%', padding: '5px 8px', background: D_INPUT_BG, border: `1px solid ${elemEditModal.cameraUrl ? '#3b82f6' : D_BORDER}`, borderRadius: '5px', color: D_TEXT, fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+              {elemEditModal.cameraUrl && (
+                <div style={{ fontSize: '9px', color: '#60a5fa', marginTop: '4px' }}>✓ לחיצה על האלמנט במפה תפתח את המצלמה</div>
               )}
             </div>
 
