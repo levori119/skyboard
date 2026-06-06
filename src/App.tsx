@@ -7370,9 +7370,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         >
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
-          {/* Sector list panel — always visible, top-right */}
-          {(airfieldSectors || []).length > 0 && (
+          {/* Sector list panel + Add vehicle button — always visible, top-right */}
+          {((airfieldSectors || []).length > 0 || onCreateElement) && (
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+              {/* Add vehicle button */}
+              {onCreateElement && (
+                <button
+                  onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); }}
+                  style={{ padding: '5px 12px', background: addVehicleMode ? '#854d0eee' : (lightMode ? '#ffffffee' : '#0f172aee'), border: `1px solid ${addVehicleMode ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#1e3a5f')}`, borderRadius: '8px', color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', direction: 'rtl', boxShadow: '0 4px 16px #0006', whiteSpace: 'nowrap' }}
+                  title="לחץ על המפה להוספת רכב">
+                  🚗 {addVehicleMode ? '← לחץ על המפה' : '+ הוסף רכב'}
+                </button>
+              )}
               {/* Reset zoom button */}
               {focusedSectorId && (
                 <button onClick={() => setFocusedSectorId(null)}
@@ -7436,15 +7445,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ padding: '2px 8px 4px', fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569', textAlign: 'center' }}>= / − | גלגלת | גרירה</div>
           </div>
-          {/* Add vehicle button */}
-          {onCreateElement && (
-            <button
-              onClick={() => { setAddVehicleMode(v => !v); setVehiclePlaceModal(null); }}
-              style={{ display: 'block', width: '100%', padding: '5px 8px', background: addVehicleMode ? '#854d0e' : 'transparent', border: 'none', borderTop: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, color: addVehicleMode ? '#fde68a' : headerColor, fontSize: '11px', fontWeight: addVehicleMode ? 'bold' : 'normal', cursor: 'pointer', textAlign: 'center', direction: 'rtl' }}
-              title="לחץ על המפה להוספת רכב">
-              🚗 {addVehicleMode ? '← לחץ על המפה' : '+ הוסף רכב'}
-            </button>
-          )}
 
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
