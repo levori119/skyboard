@@ -7938,7 +7938,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   ) : (
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
-                      {isClosed ? '✕' : isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (el.type_icon || '🔧')}
+                      {isClosed ? '✕' : isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                     </div>
                   )}
                   {/* X overlay for SVG icons — closed / לא תקין / לא שמיש */}
@@ -8632,7 +8632,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             {/* Drawer header */}
             <div style={{ background: D_HDR, padding: '10px 12px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${D_BORDER}` }}>
               <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: el.type_color || '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0, border: `2px solid ${ELEM_STATUS_COLOR[elemEditModal.status] || '#94a3b8'}` }}>
-                {el.type_icon || '🔧'}
+                {el.type_icon || (el.category === 'camera' ? '📷' : '🔧')}
               </span>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#93c5fd', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{elemEditModal.name || el.name}</div>
@@ -8951,7 +8951,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {isSvg ? <span style={{ display: 'inline-flex' }}>{renderGroundSvgIcon(el.type_icon, 18)}</span> : <span>{el.type_icon || '🔧'}</span>}
+                {isSvg ? <span style={{ display: 'inline-flex' }}>{renderGroundSvgIcon(el.type_icon, 18)}</span> : <span>{el.type_icon || (el.category === 'camera' ? '📷' : '🔧')}</span>}
                 <span>{el.name}</span>
               </div>
               {/* Display state — filtered to allowed_statuses values */}
@@ -13248,7 +13248,7 @@ const AdminDashboard: React.FC<{
                       return (
                         <div key={el.id} style={{ background: lightMode ? '#fff' : '#1e293b', border: `1px solid ${lightMode ? '#e2e8f0' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', flexShrink: 0 }}>{el.type_icon || '🔧'}</div>
+                            <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', flexShrink: 0 }}>{el.type_icon || (el.category === 'camera' ? '📷' : '🔧')}</div>
                             {isEditing ? (
                               <input value={elemEditFields.name}
                                 onChange={e => setElemEditFields(p => ({ ...p, name: e.target.value }))}
@@ -21832,7 +21832,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <span style={{ fontSize: '8px', color: T.muted, flexShrink: 0, minWidth: '10px', textAlign: 'center' }}>{idx + 1}</span>
                                   {/* Icon */}
                                   <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
-                                    {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || '🔧')}
+                                    {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                   </div>
                                   {/* Name */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -22356,7 +22356,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       return (
                                         <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
                                           <div style={{ width: '16px', height: '16px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '3px' : '50%', background: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${statusColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '7px', flexShrink: 0 }}>
-                                            {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 12) : (el.type_icon || '🔧')}
+                                            {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 12) : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                           </div>
                                           <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '10px', fontWeight: 'bold', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
@@ -31078,7 +31078,7 @@ CHARLIE,1,301,`}
                                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', flexShrink: 0, transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
                                       {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:')
                                         ? renderGroundSvgIcon(el.type_icon, 16, undefined, elDState)
-                                        : <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>}
+                                        : <span style={{ fontSize: '12px' }}>{el.type_icon || (el.category === 'camera' ? '📷' : '🔧')}</span>}
                                     </span>
                                     <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
                                     {/* Status cycle badge */}
@@ -31937,7 +31937,7 @@ CHARLIE,1,301,`}
                           onClick={isCamera ? (e) => { e.stopPropagation(); setAdminCameraPanel({ url: el.camera_url, name: el.name }); setAdminCameraDragPos({ x: 80, y: 80 }); } : undefined}
                           title={isCamera ? `📷 ${el.name} — לחץ לצפייה` : el.name}>
                           <div style={{ width: '22px', height: '22px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '4px' : '50%', background: isTakul ? '#ef4444' : typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>
-                            {!isTakul && (typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 18) : (el.type_icon || '🔧'))}
+                            {!isTakul && (typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 18) : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧')))}
                           </div>
                           <div style={{ background: '#000000cc', color: el.type_color || '#f59e0b', fontSize: '7px', fontWeight: 'bold', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>{el.name}</div>
                         </div>
