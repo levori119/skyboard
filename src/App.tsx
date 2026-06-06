@@ -7009,7 +7009,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                     ✏
                                   </button>
                                 )}
-                                {onUpdateElement && el.x_pct == null && el.category !== 'camera' && (
+                                {onUpdateElement && el.x_pct == null && (
                                   <button onClick={() => setPlacingExistingElement(placingExistingElement?.id === el.id ? null : el)}
                                     title="פרוס על המפה — לחץ על נקודה במפה"
                                     style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${placingExistingElement?.id === el.id ? '#f59e0b' : (lightMode ? '#cbd5e1' : '#334155')}`, background: placingExistingElement?.id === el.id ? '#92400e' : 'transparent', color: placingExistingElement?.id === el.id ? '#fde68a' : '#f59e0b', cursor: 'pointer', flexShrink: 0 }}>
