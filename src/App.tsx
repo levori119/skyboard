@@ -7446,6 +7446,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {/* ── Inner content wrapper — receives CSS zoom/pan transform ──
               Image + all overlays go here. The UI panels above are in mapRef and stay fixed. */}
           <div ref={mapInnerRef} style={{ position: 'absolute', inset: 0 }}>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}`}</style>
           {airfieldMapSrc
             ? <img ref={airfieldImgRef} src={airfieldMapSrc} alt="airfield" onLoad={updateImgBounds} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', pointerEvents: 'none' }} />
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
@@ -7455,9 +7456,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           {mapLayers.polygons && imgBounds && (airfieldPolygons || []).length > 0 && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, zIndex: 3 }}>
-              <defs>
-                <style>{`@keyframes af-elem-blink { 0%,49%{opacity:1} 50%,100%{opacity:0.2} }`}</style>
-              </defs>
+              <defs></defs>
               {(airfieldPolygons || []).map((pg: any) => {
                 const pts: { x: number; y: number }[] = Array.isArray(pg.polygon) ? pg.polygon : [];
                 if (pts.length < 3) return null;
@@ -7644,8 +7643,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               ? (isStop ? 'MAP:traffic-red' : isGo ? 'MAP:traffic-green' : baseIconKey)
               : baseIconKey;
             const blinkRate = el.blink_rate || 1.0;
+            // For SVG icons: blink only the inner light elements (via .elem-blink class + --blink-rate CSS var)
+            // For emoji/circle icons: blink the whole container
             const blinkAnimStyle: React.CSSProperties = isBlinking
-              ? { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
+              ? isSvgIcon
+                ? ({ '--blink-rate': `${blinkRate}s` } as React.CSSProperties)
+                : { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
               : {};
             const hasNav = !!(elemNavData[el.id]?.viaRouteIds?.length || elemNavData[el.id]?.fromPointId || elemNavData[el.id]?.toPointId);
             return (
