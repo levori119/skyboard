@@ -8081,15 +8081,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         );
       })()}
           {/* Vehicle placement click overlay */}
-          {addVehicleMode && imgBounds && (
+          {addVehicleMode && (
             <div
               style={{ position: 'absolute', inset: 0, zIndex: 60, cursor: 'crosshair' }}
               onClick={e => {
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const relX = (e.clientX - rect.left) / groundMapZoom;
-                const relY = (e.clientY - rect.top) / groundMapZoom;
-                const x_pct = Math.max(0, Math.min(100, ((relX - imgBounds.left) / imgBounds.width) * 100));
-                const y_pct = Math.max(0, Math.min(100, ((relY - imgBounds.top) / imgBounds.height) * 100));
+                const img = airfieldImgRef.current;
+                if (!img || !img.naturalWidth || !img.naturalHeight) return;
+                // Compute image bounds fresh from DOM at click time (avoids stale state)
+                const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const cW = containerRect.width / groundMapZoom;
+                const cH = containerRect.height / groundMapZoom;
+                const iAspect = img.naturalWidth / img.naturalHeight;
+                const cAspect = cW / cH;
+                let imgLeft: number, imgTop: number, imgW: number, imgH: number;
+                if (iAspect > cAspect) {
+                  imgW = cW; imgH = cW / iAspect;
+                  imgLeft = 0; imgTop = (cH - imgH) / 2;
+                } else {
+                  imgH = cH; imgW = cH * iAspect;
+                  imgLeft = (cW - imgW) / 2; imgTop = 0;
+                }
+                const relX = (e.clientX - containerRect.left) / groundMapZoom;
+                const relY = (e.clientY - containerRect.top) / groundMapZoom;
+                const x_pct = Math.max(0, Math.min(100, ((relX - imgLeft) / imgW) * 100));
+                const y_pct = Math.max(0, Math.min(100, ((relY - imgTop) / imgH) * 100));
                 setVehiclePlaceModal({ x_pct, y_pct });
                 setVehicleForm({ name: '', element_type_id: '' });
               }}
