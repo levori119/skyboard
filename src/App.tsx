@@ -7018,17 +7018,26 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 )}
                               </div>
                               {/* Display state quick selector row */}
-                              {onUpdateElement && (
-                                <div style={{ display: 'flex', gap: '3px', padding: '0 12px 4px 12px', flexWrap: 'wrap' }}>
-                                  {([['normal','רגיל','#475569'],['blink','מהבהב','#f59e0b'],['close','סגור','#ef4444'],['open','פתוח','#22c55e'],['off','כבוי','#64748b'],['stop','עצור','#ef4444'],['go','עבור','#22c55e']] as [string,string,string][]).map(([key,label,color]) => (
-                                    <button key={key}
-                                      onClick={async () => { await onUpdateElement(el.id, { name: el.name, category: el.category, status: el.status, note: el.note, display_state: key, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url }); }}
-                                      style={{ padding: '1px 4px', fontSize: '8px', borderRadius: '3px', border: `1px solid ${(el.display_state || 'normal') === key ? color : '#334155'}`, background: (el.display_state || 'normal') === key ? color + '33' : 'transparent', color: (el.display_state || 'normal') === key ? color : '#64748b', cursor: 'pointer', fontWeight: (el.display_state || 'normal') === key ? 'bold' : 'normal' }}>
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
+                              {onUpdateElement && (() => {
+                                const rawA = el.type_allowed_statuses;
+                                const allowedA: string[] = Array.isArray(rawA) ? rawA : (typeof rawA === 'string' ? (() => { try { return JSON.parse(rawA); } catch { return []; } })() : []);
+                                const aToDsMap: Record<string, [string,string]> = { 'פתוח':['open','#22c55e'],'סגור':['close','#ef4444'],'מנצנץ':['blink','#f59e0b'],'כבוי':['off','#64748b'],'עצור':['stop','#ef4444'],'עבור':['go','#22c55e'],'דולק':['open','#22c55e'],'עומד':['normal','#a855f7'],'נוסע':['normal','#3b82f6'],'רגיל':['normal','#94a3b8'] };
+                                const ALL_DS = [['normal','רגיל','#475569'],['blink','מהבהב','#f59e0b'],['close','סגור','#ef4444'],['open','פתוח','#22c55e'],['off','כבוי','#64748b'],['stop','עצור','#ef4444'],['go','עבור','#22c55e']] as [string,string,string][];
+                                const dsRows: [string,string,string][] = allowedA.length > 0
+                                  ? allowedA.map(s => { const d = aToDsMap[s]; return d ? [d[0], s, d[1]] as [string,string,string] : null; }).filter(Boolean) as [string,string,string][]
+                                  : ALL_DS;
+                                return (
+                                  <div style={{ display: 'flex', gap: '3px', padding: '0 12px 4px 12px', flexWrap: 'wrap' }}>
+                                    {dsRows.map(([key,label,color]) => (
+                                      <button key={key+label}
+                                        onClick={async () => { await onUpdateElement(el.id, { name: el.name, category: el.category, status: el.status, note: el.note, display_state: key, blink_rate: el.blink_rate, open_icon_key: el.open_icon_key, close_icon_key: el.close_icon_key, rotation: el.rotation, camera_url: el.camera_url }); }}
+                                        style={{ padding: '1px 4px', fontSize: '8px', borderRadius: '3px', border: `1px solid ${(el.display_state || 'normal') === key ? color : '#334155'}`, background: (el.display_state || 'normal') === key ? color + '33' : 'transparent', color: (el.display_state || 'normal') === key ? color : '#64748b', cursor: 'pointer', fontWeight: (el.display_state || 'normal') === key ? 'bold' : 'normal' }}>
+                                        {label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           );
                         })}
@@ -8874,14 +8883,29 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const el = elemStatusPicker.el;
         const rawAllowed = el.type_allowed_statuses;
         const allowedStatuses: string[] = Array.isArray(rawAllowed) ? rawAllowed : (typeof rawAllowed === 'string' ? (() => { try { return JSON.parse(rawAllowed); } catch { return []; } })() : []);
-        const STATUS_OPTS = ['שמיש', 'לא שמיש'];
-        const statuses = allowedStatuses.length > 0 ? allowedStatuses : STATUS_OPTS;
-        const statusColors: Record<string, string> = { 'שמיש': '#22c55e', 'לא שמיש': '#ef4444', 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
         const px = Math.min(elemStatusPicker.x + 8, window.innerWidth - 210);
         const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 380);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
         const curDState = el.display_state || 'normal';
         const dStateOpts = getElemDisplayStateOpts(el.type_icon || '');
+        // Map allowed_statuses labels to display_state keys + colors
+        const allowedToDs: Record<string, { key: string; color: string }> = {
+          'פתוח': { key: 'open',   color: '#22c55e' },
+          'סגור': { key: 'close',  color: '#ef4444' },
+          'מנצנץ': { key: 'blink', color: '#f59e0b' },
+          'כבוי':  { key: 'off',   color: '#64748b' },
+          'עצור':  { key: 'stop',  color: '#ef4444' },
+          'עבור':  { key: 'go',    color: '#22c55e' },
+          'דולק':  { key: 'open',  color: '#22c55e' },
+          'עומד':  { key: 'normal',color: '#a855f7' },
+          'נוסע':  { key: 'normal',color: '#3b82f6' },
+          'רגיל':  { key: 'normal',color: '#94a3b8' },
+        };
+        const filteredDsOpts = allowedStatuses.length > 0
+          ? allowedStatuses.map(s => { const d = allowedToDs[s]; return d ? { key: d.key, label: s, color: d.color } : null; }).filter(Boolean) as { key:string; label:string; color:string }[]
+          : dStateOpts;
+        const isShamish   = el.status === 'שמיש';
+        const isLaShamish = el.status === 'לא שמיש';
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setElemStatusPicker(null)}>
             <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px', maxHeight: '90vh', overflowY: 'auto' }}
@@ -8890,41 +8914,43 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isSvg ? <span style={{ display: 'inline-flex' }}>{renderGroundSvgIcon(el.type_icon, 18)}</span> : <span>{el.type_icon || '🔧'}</span>}
                 <span>{el.name}</span>
               </div>
-              {/* Operational status */}
-              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>סטטוס תפעולי</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '10px' }}>
-                {statuses.map(s => (
-                  <button key={s} onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, s); setElemStatusPicker(null); }}
-                    style={{ padding: '7px 12px', background: el.status === s ? (statusColors[s] || '#888') + '33' : 'transparent', border: `1px solid ${el.status === s ? (statusColors[s] || '#888') : '#334155'}`, borderRadius: '7px', color: el.status === s ? (statusColors[s] || '#e2e8f0') : '#cbd5e1', cursor: 'pointer', fontSize: '13px', fontWeight: el.status === s ? 'bold' : 'normal', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '9px' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: statusColors[s] || '#888', display: 'inline-block', flexShrink: 0 }} />
-                    {s}
-                    {el.status === s && <span style={{ marginRight: 'auto', fontSize: '11px' }}>✓</span>}
+              {/* Display state — filtered to allowed_statuses values */}
+              <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>מצב תצוגה</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
+                {filteredDsOpts.map(opt => (
+                  <button key={opt.key + opt.label} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, opt.key); setElemStatusPicker(null); }}
+                    style={{ padding: '7px 4px', background: curDState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${curDState === opt.key ? opt.color : '#334155'}`, borderRadius: '6px', color: curDState === opt.key ? opt.color : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: curDState === opt.key ? 'bold' : 'normal', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: opt.color, flexShrink: 0, display: 'inline-block' }} />
+                    {opt.label}
+                    {curDState === opt.key && <span style={{ fontSize: '10px' }}>✓</span>}
                   </button>
                 ))}
               </div>
-              {/* Display state */}
-              <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
-                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>מצב תצוגה</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                  {dStateOpts.map(opt => (
-                    <button key={opt.key} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, opt.key); setElemStatusPicker(null); }}
-                      style={{ padding: '6px 4px', background: curDState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${curDState === opt.key ? opt.color : '#334155'}`, borderRadius: '6px', color: curDState === opt.key ? opt.color : '#94a3b8', cursor: 'pointer', fontSize: '11px', fontWeight: curDState === opt.key ? 'bold' : 'normal', textAlign: 'center' }}>
-                      {opt.label}
+              {/* Blink rate when blink is selected */}
+              {curDState === 'blink' && (
+                <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>קצב (שניות):</span>
+                  {[0.5, 1.0, 1.5, 2.0].map(r => (
+                    <button key={r} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, 'blink', r); setElemStatusPicker(null); }}
+                      style={{ padding: '3px 6px', background: (el.blink_rate || 1.0) === r ? '#f59e0b33' : 'transparent', border: `1px solid ${(el.blink_rate || 1.0) === r ? '#f59e0b' : '#334155'}`, borderRadius: '4px', color: (el.blink_rate || 1.0) === r ? '#fbbf24' : '#94a3b8', cursor: 'pointer', fontSize: '10px' }}>
+                      {r}s
                     </button>
                   ))}
                 </div>
-                {/* Blink rate when blink is selected */}
-                {curDState === 'blink' && (
-                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>קצב (שניות):</span>
-                    {[0.5, 1.0, 1.5, 2.0].map(r => (
-                      <button key={r} onClick={() => { if (onUpdateElementDisplayState) onUpdateElementDisplayState(el.id, 'blink', r); setElemStatusPicker(null); }}
-                        style={{ padding: '3px 6px', background: (el.blink_rate || 1.0) === r ? '#f59e0b33' : 'transparent', border: `1px solid ${(el.blink_rate || 1.0) === r ? '#f59e0b' : '#334155'}`, borderRadius: '4px', color: (el.blink_rate || 1.0) === r ? '#fbbf24' : '#94a3b8', cursor: 'pointer', fontSize: '10px' }}>
-                        {r}s
-                      </button>
-                    ))}
-                  </div>
-                )}
+              )}
+              {/* Serviceability — שמיש / לא שמיש */}
+              <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px', fontWeight: 'bold' }}>כשירות</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                  <button onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, 'שמיש'); setElemStatusPicker(null); }}
+                    style={{ padding: '8px 4px', background: isShamish ? '#22c55e33' : 'transparent', border: `2px solid ${isShamish ? '#22c55e' : '#334155'}`, borderRadius: '7px', color: isShamish ? '#22c55e' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isShamish ? 'bold' : 'normal', textAlign: 'center' }}>
+                    {isShamish ? '✓ ' : ''}שמיש
+                  </button>
+                  <button onClick={() => { if (onUpdateElementStatus) onUpdateElementStatus(el.id, 'לא שמיש'); setElemStatusPicker(null); }}
+                    style={{ padding: '8px 4px', background: isLaShamish ? '#ef444433' : 'transparent', border: `2px solid ${isLaShamish ? '#ef4444' : '#334155'}`, borderRadius: '7px', color: isLaShamish ? '#ef4444' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: isLaShamish ? 'bold' : 'normal', textAlign: 'center' }}>
+                    {isLaShamish ? '✕ ' : ''}לא שמיש
+                  </button>
+                </div>
               </div>
             </div>
           </div>
