@@ -3501,7 +3501,7 @@ app.put('/api/airfield-elements/:id', async (req, res) => {
   try {
     const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url } = req.body;
     const r = await pool.query(
-      `UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=$7,
+      `UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=COALESCE(NULLIF($7,''),category),
        display_state=COALESCE($8,display_state),blink_rate=COALESCE($9,blink_rate),blink_colors=COALESCE($10,blink_colors),
        open_icon_key=COALESCE($11,open_icon_key),close_icon_key=COALESCE($12,close_icon_key),
        rotation=COALESCE($14,rotation),camera_url=COALESCE($15,camera_url)

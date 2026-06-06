@@ -30886,7 +30886,7 @@ CHARLIE,1,301,`}
                                 </div>
                                 <input type="text" placeholder="כתובת URL" value={cam.camera_url || ''}
                                   onChange={e => setAdminAirfieldElements(prev => prev.map(el => el.id === cam.id ? { ...el, camera_url: e.target.value } : el))}
-                                  onBlur={async e => { await fetch(`${API_URL}/airfield-elements/${cam.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: cam.element_type_id, name: cam.name, status: cam.status, note: cam.note, category: cam.category, x_pct: cam.x_pct, y_pct: cam.y_pct, camera_url: e.target.value.trim() || null }) }); }}
+                                  onBlur={async e => { await fetch(`${API_URL}/airfield-elements/${cam.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: cam.element_type_id, name: cam.name, status: cam.status, note: cam.note, category: 'camera', x_pct: cam.x_pct, y_pct: cam.y_pct, camera_url: e.target.value.trim() || null }) }); }}
                                   style={{ width: '100%', padding: '3px 6px', background: '#0c1a2e', border: '1px solid #155e75', borderRadius: '4px', color: '#67e8f9', fontSize: '10px', direction: 'ltr', boxSizing: 'border-box' }} />
                               </div>
                             ))
