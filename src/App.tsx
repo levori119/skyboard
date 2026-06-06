@@ -30978,7 +30978,7 @@ CHARLIE,1,301,`}
                     </div>
 
                     {/* Cameras section */}
-                    {editingAirfield && (
+                    {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('cameras') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('cameras')}>
                           <div style={{ color: '#67e8f9', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>📷 מצלמות ({adminAirfieldElements.filter(e => e.category === 'camera').length})</div>
@@ -31042,7 +31042,7 @@ CHARLIE,1,301,`}
                     )}
 
                     {/* Airfield Elements */}
-                    {editingAirfield && (
+                    {(editingAirfield || selectedAdminAirfieldId) && (
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
                           <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
