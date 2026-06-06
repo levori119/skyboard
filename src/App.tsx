@@ -5664,7 +5664,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string } | null>(null);
-  const [cameraPanel, setCameraPanel] = useState<{ url: string; position: 'right'|'left'|'top'|'bottom'|'full'; name: string } | null>(null);
+  const [cameraPanel, setCameraPanel] = useState<{ url: string; name: string } | null>(null);
+  const [cameraDragPos, setCameraDragPos] = useState<{ x: number; y: number }>({ x: 80, y: 80 });
+  const [cameraExpanded, setCameraExpanded] = useState(false);
   const [cameraPicker, setCameraPicker] = useState<{ el: any; url: string } | null>(null);
   const [cameraPickerPos, setCameraPickerPos] = useState<'right'|'left'|'top'|'bottom'|'full'>('right');
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
@@ -7787,7 +7789,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
                 <div style={blinkAnimStyle} onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
-                  {isSvgIcon ? (
+                  {el.category === 'camera' ? (
+                    <div style={{ width: '26px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.7))' }}>
+                      <svg width="26" height="20" viewBox="0 0 26 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="1" y="4" width="24" height="14" rx="2.5" fill="#0c2a4a" stroke="#3b82f6" strokeWidth="1.5"/>
+                        <circle cx="13" cy="11" r="4.5" fill="none" stroke="#60a5fa" strokeWidth="1.5"/>
+                        <circle cx="13" cy="11" r="2.2" fill="#93c5fd"/>
+                        <circle cx="13" cy="11" r="0.8" fill="#1e3a5f"/>
+                        <rect x="9" y="1.5" width="8" height="3.5" rx="1" fill="#1d4ed8" stroke="#3b82f6" strokeWidth="0.8"/>
+                        <rect x="20" y="7" width="2.5" height="2" rx="0.5" fill="#f59e0b"/>
+                        <rect x="2.5" y="6" width="3" height="2" rx="0.5" fill="#1e3a5f" stroke="#334155" strokeWidth="0.5"/>
+                      </svg>
+                    </div>
+                  ) : isSvgIcon ? (
                     <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))${isClosed ? ' grayscale(1)' : ''}`, outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOff ? '#475569' : isStop ? '#ef4444' : isGo ? '#22c55e' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent', transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
                       {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : effectiveMapIconKey, 26, el.status, dState)}
                     </div>
@@ -7818,13 +7832,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   )}
                 </div>
-                {/* Camera button — for elements with camera_url */}
+                {/* Camera button — "הצג תמונה" label button for elements with camera_url */}
                 {el.camera_url && (
                   <button
-                    onClick={e => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, position: cameraPickerPos, name: el.name }); }}
-                    style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', fontSize: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
-                    title="פתח מצלמה">
-                    📷
+                    onClick={e => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); }}
+                    style={{ marginTop: '2px', padding: '1px 5px', background: '#0c2a4a', border: '1px solid #3b82f6', borderRadius: '4px', color: '#60a5fa', fontSize: '7px', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '2px' }}
+                    title="הצג תמונת מצלמה">
+                    <span style={{ fontSize: '8px' }}>📷</span> הצג תמונה
                   </button>
                 )}
                 {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
@@ -8295,7 +8309,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => { if (cameraPicker.url) { setCameraPanel({ url: cameraPicker.url, position: cameraPickerPos, name: cameraPicker.el.name }); setCameraPicker(null); } }}
+                onClick={() => { if (cameraPicker.url) { setCameraPanel({ url: cameraPicker.url, name: cameraPicker.el.name }); setCameraPicker(null); } }}
                 disabled={!cameraPicker.url}
                 style={{ flex: 2, padding: '10px', background: cameraPicker.url ? '#1d4ed8' : '#1e293b', color: cameraPicker.url ? 'white' : '#64748b', border: 'none', borderRadius: '8px', cursor: cameraPicker.url ? 'pointer' : 'default', fontSize: '13px', fontWeight: 'bold' }}>
                 פתח מצלמה
@@ -8309,36 +8323,32 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
       )}
 
-      {/* Camera panel — iframe overlay */}
+      {/* Camera panel — draggable floating window */}
       {cameraPanel && (() => {
-        const pos = cameraPanel.position;
-        const panelStyle: React.CSSProperties = {
-          position: 'fixed',
-          zIndex: 9998,
-          background: '#000',
-          boxShadow: '0 0 0 2px #3b82f6, 0 4px 32px rgba(0,0,0,0.8)',
-          display: 'flex',
-          flexDirection: 'column',
-          ...(pos === 'right'  ? { top: 0, right: 0, width: '50%', height: '100%' } : {}),
-          ...(pos === 'left'   ? { top: 0, left:  0, width: '50%', height: '100%' } : {}),
-          ...(pos === 'top'    ? { top: 0, left:  0, width: '100%', height: '50%' } : {}),
-          ...(pos === 'bottom' ? { bottom: 0, left: 0, width: '100%', height: '50%' } : {}),
-          ...(pos === 'full'   ? { inset: 0 } : {}),
-        };
+        const w = cameraExpanded ? 700 : 380;
+        const h = cameraExpanded ? 520 : 260;
         return (
-          <div style={panelStyle}>
-            {/* Header bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, minWidth: '60px' }}>{cameraPanel.name}</span>
-              {/* Position buttons */}
-              {(['right','left','top','bottom','full'] as const).map(p => (
-                <button key={p} onClick={() => setCameraPanel(cp => cp ? { ...cp, position: p } : cp)}
-                  style={{ padding: '2px 7px', background: cameraPanel.position === p ? '#1d4ed8' : 'transparent', border: `1px solid ${cameraPanel.position === p ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: cameraPanel.position === p ? '#bfdbfe' : '#64748b', cursor: 'pointer', fontSize: '10px' }}>
-                  {p === 'right' ? '◧ ימין' : p === 'left' ? '◨ שמאל' : p === 'top' ? '⬒ מעלה' : p === 'bottom' ? '⬓ מטה' : '⛶ מלא'}
-                </button>
-              ))}
-              <button onClick={() => setCameraPanel(null)}
+          <div style={{ position: 'fixed', left: cameraDragPos.x, top: cameraDragPos.y, width: w, height: h, zIndex: 9999, background: '#000', border: '2px solid #3b82f6', borderRadius: '10px', boxShadow: '0 8px 40px rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Drag handle / title bar */}
+            <div
+              onMouseDown={e => {
+                const startX = e.clientX - cameraDragPos.x, startY = e.clientY - cameraDragPos.y;
+                const onMove = (ev: MouseEvent) => setCameraDragPos({ x: ev.clientX - startX, y: ev.clientY - startY });
+                const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+              }}
+              style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none' }}>
+              <span style={{ fontSize: '14px' }}>📷</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cameraPanel.name}</span>
+              <button
+                onClick={() => setCameraExpanded(x => !x)}
+                title={cameraExpanded ? 'כווץ' : 'הגדל'}
+                style={{ padding: '2px 7px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
+                {cameraExpanded ? '⊡' : '⊞'}
+              </button>
+              <button
+                onClick={() => { setCameraPanel(null); setCameraExpanded(false); }}
                 style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
             </div>
             <iframe src={cameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
