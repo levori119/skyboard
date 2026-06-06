@@ -7680,8 +7680,50 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </React.Fragment>
                   );
                 })}
-                {fromPt && <><circle cx={fromPt.x_pct} cy={fromPt.y_pct} r="2.2" fill="#22c55e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={fromPt.x_pct} y={fromPt.y_pct - 3} textAnchor="middle" fill="#22c55e" fontSize="2.5" fontWeight="bold">מ</text></>}
-                {toPt   && <><circle cx={toPt.x_pct}   cy={toPt.y_pct}   r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" /><text x={toPt.x_pct}   y={toPt.y_pct   - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text></>}
+                {(() => {
+                  // Find closest point on a polyline (perpendicular foot)
+                  const closestOnPoly = (pts: {x:number;y:number}[], px: number, py: number): {x:number;y:number} => {
+                    let best = pts[0], bestD = Infinity;
+                    for (let i = 0; i < pts.length - 1; i++) {
+                      const ax=pts[i].x, ay=pts[i].y, bx=pts[i+1].x, by=pts[i+1].y;
+                      const dx=bx-ax, dy=by-ay, lenSq=dx*dx+dy*dy;
+                      if (lenSq < 1e-10) continue;
+                      const t = Math.max(0, Math.min(1, ((px-ax)*dx+(py-ay)*dy)/lenSq));
+                      const cx=ax+t*dx, cy=ay+t*dy;
+                      const d=(px-cx)*(px-cx)+(py-cy)*(py-cy);
+                      if (d < bestD) { bestD=d; best={x:cx,y:cy}; }
+                    }
+                    return best;
+                  };
+                  const firstPath = trimmedPaths.find((r: any) => r && r.pts.length >= 2);
+                  const lastPath  = [...trimmedPaths].reverse().find((r: any) => r && r.pts.length >= 2);
+                  return (
+                    <>
+                      {fromPt && firstPath && (() => {
+                        const foot = closestOnPoly(firstPath.pts, fromPt.x_pct, fromPt.y_pct);
+                        return (
+                          <>
+                            <line x1={fromPt.x_pct} y1={fromPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="1.5,0.8" opacity="0.9" />
+                            <circle cx={foot.x} cy={foot.y} r="1.0" fill="#22c55e" stroke="white" strokeWidth="0.3" opacity="0.95" />
+                            <circle cx={fromPt.x_pct} cy={fromPt.y_pct} r="2.2" fill="#22c55e" stroke="white" strokeWidth="0.6" opacity="0.95" />
+                            <text x={fromPt.x_pct} y={fromPt.y_pct - 3} textAnchor="middle" fill="#22c55e" fontSize="2.5" fontWeight="bold">מ</text>
+                          </>
+                        );
+                      })()}
+                      {toPt && lastPath && (() => {
+                        const foot = closestOnPoly(lastPath.pts, toPt.x_pct, toPt.y_pct);
+                        return (
+                          <>
+                            <line x1={toPt.x_pct} y1={toPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="1.5,0.8" opacity="0.9" />
+                            <circle cx={foot.x} cy={foot.y} r="1.0" fill="#22c55e" stroke="white" strokeWidth="0.3" opacity="0.95" />
+                            <circle cx={toPt.x_pct} cy={toPt.y_pct} r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" />
+                            <text x={toPt.x_pct} y={toPt.y_pct - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text>
+                          </>
+                        );
+                      })()}
+                    </>
+                  );
+                })()}
               </svg>
             );
           })}
