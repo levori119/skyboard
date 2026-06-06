@@ -5603,6 +5603,24 @@ function dpSimplify(pts:{x:number;y:number}[],eps:number):{x:number;y:number}[] 
   return [pts[0],pts[pts.length-1]];
 }
 
+function toEmbedUrl(url: string): string {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    // youtube.com/watch?v=ID → youtube.com/embed/ID
+    if ((u.hostname === 'www.youtube.com' || u.hostname === 'youtube.com') && u.pathname === '/watch') {
+      const v = u.searchParams.get('v');
+      if (v) return `https://www.youtube.com/embed/${v}`;
+    }
+    // youtu.be/ID → youtube.com/embed/ID
+    if (u.hostname === 'youtu.be') {
+      const id = u.pathname.replace(/^\//, '');
+      if (id) return `https://www.youtube.com/embed/${id}`;
+    }
+  } catch { /* not a valid URL, return as-is */ }
+  return url;
+}
+
 const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight }: {
   strips: any[];
   incomingTransfers: any[];
@@ -8463,7 +8481,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 onClick={() => { setCameraPanel(null); setCameraExpanded(false); }}
                 style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
             </div>
-            <iframe src={cameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
+            <iframe src={toEmbedUrl(cameraPanel.url)} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
           </div>
         );
       })()}
@@ -32640,7 +32658,7 @@ CHARLIE,1,301,`}
             <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{adminCameraPanel.name}</span>
             <button onClick={() => setAdminCameraPanel(null)} style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fca5a5', borderRadius: '5px', padding: '2px 8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
           </div>
-          <iframe src={adminCameraPanel.url} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
+          <iframe src={toEmbedUrl(adminCameraPanel.url)} style={{ flex: 1, border: 'none', width: '100%' }} allow="camera; microphone; autoplay" allowFullScreen title="camera" />
         </div>
       )}
 
