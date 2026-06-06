@@ -5348,10 +5348,42 @@ const GROUND_SVG_ICON_KEYS: { key: string; label: string }[] = [
   { key: 'MAP:opsvehicle',           label: 'רכב מבצעי ירוק' },
 ];
 
-const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string): JSX.Element | null => {
+// Returns type-aware display state options per element icon type
+const getElemDisplayStateOpts = (iconKey: string): { key: string; label: string; color: string }[] => {
+  const isSingle = iconKey === 'MAP:traffic-red-single' || iconKey === 'MAP:traffic-orange-single';
+  const isMulti = ['MAP:traffic-red', 'MAP:traffic-orange', 'MAP:traffic-green'].includes(iconKey);
+  const isStopbar = iconKey === 'MAP:stopbar';
+  const isBarrier = iconKey === 'MAP:barrier' || iconKey === 'MAP:barrier-open';
+  if (isSingle || isStopbar) return [
+    { key: 'off',   label: 'כבוי',   color: '#475569' },
+    { key: 'blink', label: 'מהבהב',  color: '#f59e0b' },
+    { key: 'fixed', label: 'קבוע',   color: '#22c55e' },
+  ];
+  if (isMulti) return [
+    { key: 'off',   label: 'כבוי',   color: '#475569' },
+    { key: 'blink', label: 'מהבהב',  color: '#f59e0b' },
+    { key: 'stop',  label: '🔴 עצור', color: '#ef4444' },
+    { key: 'go',    label: '🟢 עבור', color: '#22c55e' },
+  ];
+  if (isBarrier) return [
+    { key: 'normal', label: 'רגיל',  color: '#94a3b8' },
+    { key: 'open',   label: 'פתוח',  color: '#22c55e' },
+    { key: 'blink',  label: 'מהבהב', color: '#f59e0b' },
+    { key: 'close',  label: 'תקול',  color: '#ef4444' },
+  ];
+  return [
+    { key: 'normal', label: 'רגיל',  color: '#3b82f6' },
+    { key: 'blink',  label: 'מהבהב', color: '#f59e0b' },
+    { key: 'off',    label: 'כבוי',  color: '#475569' },
+    { key: 'close',  label: 'תקול',  color: '#ef4444' },
+  ];
+};
+
+const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string, displayState?: string): JSX.Element | null => {
   const s = size;
-  const isBlinking = status === 'מנצנץ';
-  const isOpen = status === 'פתוח';
+  const isBlinking = displayState === 'blink' || (!displayState && status === 'מנצנץ');
+  const isOpen = displayState === 'open' || (!displayState && status === 'פתוח');
+  const isOff = displayState === 'off';
   switch (iconKey) {
     case 'MAP:barrier':
       if (isOpen) {
@@ -5395,7 +5427,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="11.5" r="4" fill={isOff ? '#1e293b' : '#ef4444'} stroke={isOff ? '#555' : 'none'} strokeWidth={isOff ? '0.8' : '0'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
           <rect x="11" y="18" width="2" height="4" fill="#555"/>
         </svg>
       );
@@ -5403,27 +5435,27 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="7" y="5" width="10" height="13" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="11.5" r="4" fill="#f97316" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="11.5" r="4" fill={isOff ? '#1e293b' : '#f97316'} stroke={isOff ? '#555' : 'none'} strokeWidth={isOff ? '0.8' : '0'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
           <rect x="11" y="18" width="2" height="4" fill="#555"/>
         </svg>
       );
     case 'MAP:stopbar':
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
-          <text x="12" y="8" textAnchor="middle" fontSize="4.5" fill="#ef4444" fontFamily="monospace" fontWeight="bold">STOP BAR</text>
+          <text x="12" y="8" textAnchor="middle" fontSize="4.5" fill={isOff ? '#475569' : '#ef4444'} fontFamily="monospace" fontWeight="bold">STOP BAR</text>
           <rect x="1" y="11" width="22" height="5" rx="1" fill="#1e293b" stroke="#555" strokeWidth="0.4"/>
-          <circle cx="3.2"  cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="7.4"  cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="11.6" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="15.8" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
-          <circle cx="20.0" cy="13.5" r="1.6" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="3.2"  cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
+          <circle cx="7.4"  cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
+          <circle cx="11.6" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
+          <circle cx="15.8" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
+          <circle cx="20.0" cy="13.5" r="1.6" fill={isOff ? '#334155' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
         </svg>
       );
     case 'MAP:traffic-red':
       return (
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
-          <circle cx="12" cy="7"  r="2.5" fill="#ef4444" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="7"  r="2.5" fill={isOff ? '#1a1212' : '#ef4444'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
           <circle cx="12" cy="12" r="2.5" fill="#2d1515"/>
           <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
@@ -5434,7 +5466,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
         <svg width={s} height={s} viewBox="0 0 24 24" style={{ display: 'block' }}>
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
           <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
-          <circle cx="12" cy="12" r="2.5" fill="#f97316" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="12" r="2.5" fill={isOff ? '#1a1000' : '#f97316'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
           <circle cx="12" cy="17" r="2.5" fill="#14260e"/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
         </svg>
@@ -5445,7 +5477,7 @@ const renderGroundSvgIcon = (iconKey: string, size: number = 22, status?: string
           <rect x="8" y="2" width="8" height="20" rx="3" fill="#1e293b" stroke="#555" strokeWidth="0.5"/>
           <circle cx="12" cy="7"  r="2.5" fill="#2d1515"/>
           <circle cx="12" cy="12" r="2.5" fill="#2d1c09"/>
-          <circle cx="12" cy="17" r="2.5" fill="#22c55e" className={isBlinking ? 'elem-blink' : undefined}/>
+          <circle cx="12" cy="17" r="2.5" fill={isOff ? '#0a160a' : '#22c55e'} className={isBlinking && !isOff ? 'elem-blink' : undefined}/>
           <rect x="11" y="22" width="2" height="2" fill="#555"/>
         </svg>
       );
@@ -5629,7 +5661,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
-  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string } | null>(null);
+  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number } | null>(null);
   const [editingElemField, setEditingElemField] = useState<'name' | 'category' | 'status' | 'note' | null>(null);
   const [catMapHighlight, setCatMapHighlight] = useState<Set<string>>(new Set());
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
@@ -6855,7 +6887,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
                               <span style={{ fontSize: '9px', fontWeight: 'bold', color: sc, background: sc + '22', padding: '1px 4px', borderRadius: '3px', flexShrink: 0 }}>{el.status || '?'}</span>
                               {onUpdateElement && (
-                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '' }); setEditingElemField(null); }}
+                                <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0 }); setEditingElemField(null); }}
                                   title="ערוך אלמנט"
                                   style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
                                   ✏
@@ -7440,6 +7472,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const isBlinking = dState === 'blink';
             const isClosed = dState === 'close';
             const isOpen = dState === 'open';
+            const isOff = dState === 'off';
+            const isStop = dState === 'stop';
+            const isGo = dState === 'go';
+            const iconRotation = el.rotation || 0;
+            const baseIconKey = el.type_icon || '';
+            const isTrafficMulti = ['MAP:traffic-red','MAP:traffic-orange','MAP:traffic-green'].includes(baseIconKey);
+            const effectiveMapIconKey = isTrafficMulti
+              ? (isStop ? 'MAP:traffic-red' : isGo ? 'MAP:traffic-green' : baseIconKey)
+              : baseIconKey;
             const blinkRate = el.blink_rate || 1.0;
             const blinkAnimStyle: React.CSSProperties = isBlinking
               ? { animation: `af-elem-blink ${blinkRate}s step-end infinite` }
@@ -7458,12 +7499,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 )}
                 <div style={blinkAnimStyle} onClick={canChangeStatus ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
                   {isSvgIcon ? (
-                    <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))${isClosed ? ' grayscale(1)' : ''}`, outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent' }}>
-                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || el.type_icon) : isOpen ? (el.open_icon_key || el.type_open_icon || el.type_icon) : el.type_icon, 26, el.status)}
+                    <div style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: `drop-shadow(0 1px 3px rgba(0,0,0,0.6))${isClosed ? ' grayscale(1)' : ''}`, outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOff ? '#475569' : isStop ? '#ef4444' : isGo ? '#22c55e' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent', transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
+                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : effectiveMapIconKey, 26, el.status, dState)}
                     </div>
                   ) : (
-                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed ? 0.6 : 1 }}>
-                      {isClosed ? '✕' : !isTakul && (el.type_icon || '🔧')}
+                    <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : isTakul ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isClosed || isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
+                      {isClosed ? '✕' : isOff ? '○' : !isTakul && (el.type_icon || '🔧')}
                     </div>
                   )}
                   {/* Closed X overlay for SVG icons */}
@@ -7472,15 +7513,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   )}
                   <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : isClosed ? '#fca5a5' : isTakul ? '#fca5a5' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{el.name}</div>
                   {(canChangeStatus && el.status || dState !== 'normal') && (
-                    <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
-                      {isClosed ? 'תקול' : isBlinking ? 'מהבהב' : isOpen ? 'שמיש' : el.status}
+                    <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                      {isClosed ? 'תקול' : isBlinking ? 'מהבהב' : isOff ? 'כבוי' : isStop ? 'עצור' : isGo ? 'עבור' : isOpen ? 'שמיש' : el.status}
                     </div>
                   )}
                 </div>
                 {/* Edit button — shown on hover or when this element's category is highlighted */}
                 {onUpdateElement && (
                   <button
-                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '' }); setEditingElemField(null); }}
+                    onClick={e => { e.stopPropagation(); setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0 }); setEditingElemField(null); }}
                     style={{ position: 'absolute', top: '-10px', right: '-10px', width: '16px', height: '16px', borderRadius: '50%', background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff', fontSize: '8px', cursor: 'pointer', display: isBeingEdited || isCatHighlighted ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
                     title="ערוך אלמנט">
                     ✏
@@ -8083,7 +8124,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const el = elemEditModal.el;
         const save = async () => {
-          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey });
+          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey, rotation: elemEditModal.rotation });
           setElemEditModal(null);
           setEditingElemField(null);
         };
@@ -8225,14 +8266,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               {activeField === null && (
                 <div style={{ padding: '10px 12px', borderTop: `1px solid ${D_BORDER}` }}>
                   <div style={{ fontSize: '10px', fontWeight: 'bold', color: D_LABEL, marginBottom: '7px' }}>⚡ מצב תצוגה</div>
-                  {/* display_state buttons */}
+                  {/* display_state buttons — type-aware */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '8px' }}>
-                    {[
-                      { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
-                      { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
-                      { key: 'open', label: '🟢 שמיש', color: '#22c55e' },
-                      { key: 'close', label: '🔴 תקול', color: '#ef4444' },
-                    ].map(opt => (
+                    {getElemDisplayStateOpts(el.type_icon || '').map(opt => (
                       <button key={opt.key}
                         onClick={() => setElemEditModal(p => p ? { ...p, displayState: opt.key } : p)}
                         style={{ padding: '5px 4px', background: elemEditModal.displayState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${elemEditModal.displayState === opt.key ? opt.color : D_BORDER}`, borderRadius: '5px', color: elemEditModal.displayState === opt.key ? opt.color : D_LABEL, cursor: 'pointer', fontSize: '11px', fontWeight: elemEditModal.displayState === opt.key ? 'bold' : 'normal', textAlign: 'center' }}>
@@ -8255,6 +8291,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </div>
                     </div>
                   )}
+                  {/* Rotation control */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: D_LABEL, marginBottom: '5px' }}>🔄 סיבוב אייקון</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                      {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => (
+                        <button key={deg}
+                          onClick={() => setElemEditModal(p => p ? { ...p, rotation: deg } : p)}
+                          style={{ padding: '3px 6px', background: elemEditModal.rotation === deg ? '#6366f133' : 'transparent', border: `1px solid ${elemEditModal.rotation === deg ? '#6366f1' : D_BORDER}`, borderRadius: '4px', color: elemEditModal.rotation === deg ? '#818cf8' : D_LABEL, cursor: 'pointer', fontSize: '10px', fontWeight: elemEditModal.rotation === deg ? 'bold' : 'normal' }}>
+                          {deg}°
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   {/* Open icon key */}
                   <div style={{ marginBottom: '6px' }}>
                     <div style={{ fontSize: '10px', color: D_LABEL, marginBottom: '3px' }}>מפתח אייקון פתוח (open_icon_key)</div>
@@ -8386,12 +8435,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const py = Math.min(elemStatusPicker.y + 8, window.innerHeight - 380);
         const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
         const curDState = el.display_state || 'normal';
-        const dStateOpts = [
-          { key: 'normal', label: '🔵 רגיל', color: '#3b82f6' },
-          { key: 'blink', label: '⚡ מהבהב', color: '#f59e0b' },
-          { key: 'open', label: '🟢 שמיש', color: '#22c55e' },
-          { key: 'close', label: '🔴 תקול', color: '#ef4444' },
-        ];
+        const dStateOpts = getElemDisplayStateOpts(el.type_icon || '');
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99999 }} onClick={() => setElemStatusPicker(null)}>
             <div style={{ position: 'absolute', left: px, top: py, background: '#1e293b', borderRadius: '12px', padding: '14px', border: '1px solid #334155', boxShadow: '0 8px 32px rgba(0,0,0,0.75)', direction: 'rtl', minWidth: '190px', maxHeight: '90vh', overflowY: 'auto' }}
@@ -15826,12 +15870,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string }) => {
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number }) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0 }) });
     } catch (e) { console.error(e); }
   };
 
@@ -30213,20 +30257,61 @@ CHARLIE,1,301,`}
                             const cats = Object.keys(catMap).sort();
                             const renderEl = (el: any) => {
                               const sColor = statusColors[el.status] || '#94a3b8';
+                              const elDState = el.display_state || 'normal';
+                              const elDStateOpts = getElemDisplayStateOpts(el.type_icon || '');
+                              const elDStateColor = elDStateOpts.find(o => o.key === elDState)?.color || '#3b82f6';
+                              const STATUS_CYCLE = ['תקין', 'שמיש', 'חלקי', 'לא תקין', 'תקול'];
+                              const STATUS_COLOR_ADM: Record<string,string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'חלקי': '#f97316', 'לא תקין': '#ef4444', 'תקול': '#ef4444' };
+                              const adminSaveEl = async (patch: Record<string,unknown>) => {
+                                const body = { element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: el.x_pct, y_pct: el.y_pct, display_state: el.display_state, blink_rate: el.blink_rate, rotation: el.rotation || 0, ...patch };
+                                await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                setAdminAirfieldElements(prev => prev.map(e => e.id === el.id ? { ...e, ...patch } : e));
+                              };
                               return (
                                 <div key={el.id} style={{ background: '#0f172a', borderRadius: '4px', border: `1px solid ${placingElementId === el.id ? '#ec4899' : '#1e3a5f'}`, padding: '4px 6px' }}>
+                                  {/* Header row: icon + name + status badge */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:')
-                                      ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', flexShrink: 0 }}>{renderGroundSvgIcon(el.type_icon, 16)}</span>
-                                      : <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>}
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', flexShrink: 0, transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
+                                      {typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:')
+                                        ? renderGroundSvgIcon(el.type_icon, 16, undefined, elDState)
+                                        : <span style={{ fontSize: '12px' }}>{el.type_icon || '🔧'}</span>}
+                                    </span>
                                     <span style={{ flex: 1, fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
-                                    <span style={{ fontSize: '9px', background: sColor + '33', color: sColor, border: `1px solid ${sColor}`, borderRadius: '3px', padding: '0 4px' }}>{el.status}</span>
+                                    {/* Status cycle badge */}
+                                    <button onClick={async () => {
+                                      const cur = STATUS_CYCLE.indexOf(el.status);
+                                      const next = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
+                                      await adminSaveEl({ status: next });
+                                    }} title="לחץ למעבר למצב הבא" style={{ fontSize: '9px', background: (STATUS_COLOR_ADM[el.status] || '#94a3b8') + '22', color: STATUS_COLOR_ADM[el.status] || '#94a3b8', border: `1px solid ${STATUS_COLOR_ADM[el.status] || '#94a3b8'}`, borderRadius: '3px', padding: '0 5px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                      {el.status || '?'}
+                                    </button>
                                   </div>
                                   {el.type_name && <div style={{ fontSize: '9px', color: el.type_color || '#f59e0b', marginTop: '1px' }}>{el.type_name}</div>}
                                   {el.note && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.note}</div>}
+                                  {/* Display state quick buttons */}
+                                  <div style={{ display: 'flex', gap: '2px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '8px', color: '#475569', alignSelf: 'center', marginLeft: '2px' }}>מצב:</span>
+                                    {elDStateOpts.map(opt => (
+                                      <button key={opt.key} onClick={async () => { await adminSaveEl({ display_state: opt.key }); }}
+                                        style={{ padding: '1px 5px', background: elDState === opt.key ? opt.color + '33' : 'transparent', border: `1px solid ${elDState === opt.key ? opt.color : '#1e3a5f'}`, borderRadius: '3px', color: elDState === opt.key ? opt.color : '#475569', cursor: 'pointer', fontSize: '8px', fontWeight: elDState === opt.key ? 'bold' : 'normal' }}>
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {/* Rotation + blink rate (shown when blinking) */}
+                                  <div style={{ display: 'flex', gap: '3px', marginTop: '3px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '8px', color: '#475569' }}>🔄</span>
+                                    {[0, 45, 90, 135, 180, 270].map(deg => (
+                                      <button key={deg} onClick={async () => { await adminSaveEl({ rotation: deg }); }}
+                                        style={{ padding: '1px 4px', background: (el.rotation || 0) === deg ? '#6366f133' : 'transparent', border: `1px solid ${(el.rotation || 0) === deg ? '#6366f1' : '#1e3a5f'}`, borderRadius: '3px', color: (el.rotation || 0) === deg ? '#818cf8' : '#475569', cursor: 'pointer', fontSize: '8px', fontWeight: (el.rotation || 0) === deg ? 'bold' : 'normal' }}>
+                                        {deg}°
+                                      </button>
+                                    ))}
+                                  </div>
+                                  {/* Action buttons */}
                                   <div style={{ display: 'flex', gap: '3px', marginTop: '4px' }}>
                                     <button onClick={() => { setPlacingElementMode(true); setPlacingElementId(el.id); }} style={{ flex: 1, padding: '2px', background: el.x_pct != null ? '#1e3a5f' : '#4c1d95', color: el.x_pct != null ? '#93c5fd' : '#c4b5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>{el.x_pct != null ? '📍 עדכן מיקום' : '📍 פרוס'}</button>
-                                    {el.x_pct != null && <button onClick={async () => { await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: el.name, status: el.status, note: el.note, category: el.category || '', x_pct: null, y_pct: null }) }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
+                                    {el.x_pct != null && <button onClick={async () => { await adminSaveEl({ x_pct: null, y_pct: null }); }} style={{ padding: '2px 5px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>הסר מיקום</button>}
                                     <button onClick={() => { setElementForm({ name: el.name, element_type_id: String(el.element_type_id || ''), status: el.status, note: el.note || '', category: el.category || '' }); setEditingElement(el); setShowElementForm(true); }} style={{ padding: '2px 5px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>ערוך</button>
                                     <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-elements/${el.id}`, { method: 'DELETE' }); loadAirfieldElements(selectedAdminAirfieldId!); }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
                                   </div>
