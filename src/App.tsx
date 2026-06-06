@@ -7817,6 +7817,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
+                onClick={el.camera_url ? (e) => { e.stopPropagation(); setCameraPanel({ url: el.camera_url, name: el.name }); } : undefined}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && (el.category === 'כלי רכב' || el.category === 'מטוס')) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Category highlight ring */}
                 {isCatHighlighted && (
@@ -16363,12 +16364,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number }) => {
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null }) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0 }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: el.x_pct, y_pct: el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0, camera_url: 'camera_url' in fields ? fields.camera_url : el.camera_url }) });
     } catch (e) { console.error(e); }
   };
 
