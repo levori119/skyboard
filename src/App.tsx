@@ -27213,6 +27213,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showElementsSection, setShowElementsSection] = useState(false);
   const [placingElementMode, setPlacingElementMode] = useState(false);
   const [placingElementId, setPlacingElementId] = useState<number | null>(null);
+  const [adminMapElPopup, setAdminMapElPopup] = useState<{ el: any; x: number; y: number } | null>(null);
 
   // Airfield Polygons / Sectors / Status Types admin state
   const [adminAirfieldPolygons, setAdminAirfieldPolygons] = useState<any[]>([]);
@@ -31865,6 +31866,7 @@ CHARLIE,1,301,`}
                       }
                       x_pct = Math.max(0, Math.min(100, isFinite(x_pct) ? x_pct : 50));
                       y_pct = Math.max(0, Math.min(100, isFinite(y_pct) ? y_pct : 50));
+                      setAdminMapElPopup(null);
                       if (drawingPolygonId) {
                         setPolygonDraftPoints(prev => [...prev, { x: x_pct, y: y_pct }]);
                       } else if (drawingRouteId) {
@@ -31933,9 +31935,9 @@ CHARLIE,1,301,`}
                       const isCamera = el.category === 'camera' && el.camera_url;
                       return (
                         <div key={el.id}
-                          style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: isCamera ? 'all' : 'none', zIndex: 8, textAlign: 'center', cursor: isCamera ? 'pointer' : 'default' }}
-                          onClick={isCamera ? (e) => { e.stopPropagation(); setAdminCameraPanel({ url: el.camera_url, name: el.name }); setAdminCameraDragPos({ x: 80, y: 80 }); } : undefined}
-                          title={isCamera ? `📷 ${el.name} — לחץ לצפייה` : el.name}>
+                          style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'all', zIndex: adminMapElPopup?.el?.id === el.id ? 20 : 8, textAlign: 'center', cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); if (isCamera) { setAdminCameraPanel({ url: el.camera_url, name: el.name }); setAdminCameraDragPos({ x: 80, y: 80 }); } else { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); setAdminMapElPopup(prev => prev?.el?.id === el.id ? null : { el, x: e.clientX, y: e.clientY }); } }}
+                          title={isCamera ? `📷 ${el.name} — לחץ לצפייה` : `${el.name} — לחץ לעריכה`}>
                           <div style={{ width: '22px', height: '22px', borderRadius: typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? '4px' : '50%', background: isTakul ? '#ef4444' : typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? 'transparent' : (el.type_color || '#f59e0b'), border: isShamish ? '3px solid #22c55e' : `2px solid ${statusColors[el.status] || '#94a3b8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', margin: '0 auto' }}>
                             {!isTakul && (typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:') ? renderGroundSvgIcon(el.type_icon, 18) : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧')))}
                           </div>
@@ -31943,6 +31945,38 @@ CHARLIE,1,301,`}
                         </div>
                       );
                     })}
+                    {/* Admin map element popup — appears when clicking a placed element */}
+                    {adminMapElPopup && (() => {
+                      const popEl = adminMapElPopup.el;
+                      const pos = adminMapImgBounds
+                        ? { left: `${adminMapImgBounds.left + (popEl.x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (popEl.y_pct / 100) * adminMapImgBounds.height + 18}px` }
+                        : { left: `${popEl.x_pct}%`, top: `${popEl.y_pct}%` };
+                      return (
+                        <div style={{ position: 'absolute', left: pos.left, top: pos.top, transform: 'translateX(-50%)', zIndex: 30, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '8px', padding: '8px 10px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: 'rtl', minWidth: '140px', pointerEvents: 'all' }}
+                          onClick={e => e.stopPropagation()}>
+                          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{popEl.name}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <button onClick={() => {
+                              setElementForm({ name: popEl.name, element_type_id: String(popEl.element_type_id || ''), status: popEl.status, note: popEl.note || '', category: popEl.category || '' });
+                              setEditingElement(popEl);
+                              setShowElementForm(true);
+                              if (!adminAFExpanded.has('elements')) toggleAFSec('elements');
+                              setAdminMapElPopup(null);
+                            }} style={{ padding: '4px 8px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', textAlign: 'right' }}>✏️ ערוך</button>
+                            <button onClick={async () => {
+                              await fetch(`${API_URL}/airfield-elements/${popEl.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: popEl.element_type_id, name: popEl.name, status: popEl.status, note: popEl.note, category: popEl.category || '', x_pct: null, y_pct: null }) });
+                              loadAirfieldElements(selectedAdminAirfieldId!);
+                              setAdminMapElPopup(null);
+                            }} style={{ padding: '4px 8px', background: '#1e293b', color: '#f87171', border: '1px solid #ef4444', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right' }}>🗑 הסר מיקום</button>
+                            <button onClick={() => {
+                              setPlacingElementMode(true);
+                              setPlacingElementId(popEl.id);
+                              setAdminMapElPopup(null);
+                            }} style={{ padding: '4px 8px', background: '#1e293b', color: '#f9a8d4', border: '1px solid #ec4899', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right' }}>📍 שנה מיקום</button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {placingElementMode && placingElementId && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(236,72,153,0.05)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 5 }}>
                         <div style={{ background: '#000000dd', color: '#f9a8d4', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #ec4899' }}>
