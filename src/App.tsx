@@ -6092,13 +6092,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const img = airfieldImgRef.current;
     if (!img || !img.naturalWidth || !img.naturalHeight) { setImgBounds(null); return; }
     const c = img.parentElement; if (!c) { setImgBounds(null); return; }
-    const cW = c.offsetWidth, cH = c.offsetHeight;
-    const nRatio = img.naturalWidth / img.naturalHeight;
-    const cRatio = cW / cH;
-    let w, h, left, top;
-    if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
-    else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
-    setImgBounds({ left, top, width: w, height: h });
+    const cr = c.getBoundingClientRect();
+    const ir = img.getBoundingClientRect();
+    setImgBounds({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height });
   }, []);
   React.useEffect(() => {
     const img = airfieldImgRef.current;
@@ -7233,39 +7229,35 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: headerColor, fontSize: '14px', opacity: 0.5 }}>לא הוגדרה מפה לשדה זה</div>
           }
 
-          {/* Airfield sector zoom panel — right side of map */}
+          {/* Sector list panel — always visible, top-right */}
           {(airfieldSectors || []).length > 0 && (
             <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 31, direction: 'rtl', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-              {/* Reset zoom button — shown when a sector is focused */}
+              {/* Reset zoom button */}
               {focusedSectorId && (
                 <button onClick={() => setFocusedSectorId(null)}
                   style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #22c55e', background: '#052e16ee', color: '#86efac', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0008', whiteSpace: 'nowrap' }}>
                   🔍 חזרה למפה מלאה
                 </button>
               )}
-              {/* Sector list toggle button */}
-              <button onClick={() => setSectorZoomPanelOpen(v => !v)}
-                style={{ padding: '4px 9px', borderRadius: '6px', border: `1px solid ${sectorZoomPanelOpen ? '#60a5fa' : (lightMode ? '#cbd5e1' : '#334155')}`, background: sectorZoomPanelOpen ? '#1e3a5fee' : (lightMode ? '#f0f4f8ee' : '#0f172aee'), color: sectorZoomPanelOpen ? '#93c5fd' : headerColor, fontSize: '11px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 8px #0004', whiteSpace: 'nowrap' }}>
-                🗺 אזורי מפה {sectorZoomPanelOpen ? '▲' : '▼'}
-              </button>
-              {/* Expanded sector list */}
-              {sectorZoomPanelOpen && (
-                <div style={{ background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', padding: '6px', display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '260px', overflowY: 'auto', minWidth: '130px', boxShadow: '0 4px 16px #0006' }}>
+              {/* Sector list — always open */}
+              <div style={{ background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }}>
+                <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗺 אזורי מפה</div>
+                <div style={{ padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '260px', overflowY: 'auto', minWidth: '130px' }}>
                   {(airfieldSectors || []).map((sec: any) => {
                     const isFocused = focusedSectorId === sec.id;
                     const col = sec.color || '#f59e0b';
                     return (
                       <button key={sec.id}
-                        onClick={() => { setFocusedSectorId(isFocused ? null : sec.id); if (!isFocused) setSectorZoomPanelOpen(false); }}
+                        onClick={() => setFocusedSectorId(isFocused ? null : sec.id)}
                         style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', border: `1px solid ${isFocused ? '#22c55e' : (lightMode ? '#e2e8f0' : '#334155')}`, background: isFocused ? (lightMode ? '#dcfce7' : '#052e16cc') : (lightMode ? '#f8fafc' : '#1e293bcc'), cursor: 'pointer', textAlign: 'right', width: '100%', transition: 'background 0.12s' }}>
                         <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: col, flexShrink: 0, border: `1px solid ${col}88` }} />
                         <span style={{ fontSize: '11px', fontWeight: isFocused ? 'bold' : 'normal', color: isFocused ? (lightMode ? '#15803d' : '#86efac') : headerColor, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.name}</span>
-                        {isFocused && <span style={{ fontSize: '10px', color: '#22c55e' }}>🔍</span>}
+                        {isFocused && <span style={{ fontSize: '10px', color: '#22c55e' }}>✓</span>}
                       </button>
                     );
                   })}
                 </div>
-              )}
+              </div>
             </div>
           )}
           {/* Fallback reset button when no sectors exist */}
@@ -7278,22 +7270,17 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             </div>
           )}
 
-          {/* Layer toggle panel */}
-          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl' }}>
-            <button onClick={() => setShowLayerPanel(p => !p)}
-              style={{ padding: '3px 8px', borderRadius: '6px', border: `1px solid ${border}`, background: showLayerPanel ? '#1e40af' : (lightMode ? '#f0f4f8dd' : '#0f172add'), color: showLayerPanel ? '#fff' : headerColor, fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
-              🗂 שכבות
-            </button>
-            {showLayerPanel && (
-              <div style={{ marginTop: '4px', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${border}`, borderRadius: '6px', padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}>
-                {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
-                  <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
-                    <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            )}
+          {/* Layers panel — always visible, top-left */}
+          <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, direction: 'rtl', background: lightMode ? '#ffffffee' : '#0f172aee', border: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 4px 16px #0006' }}>
+            <div style={{ padding: '4px 8px', background: lightMode ? '#e2e8f0' : '#0a1628', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#475569' : '#94a3b8' }}>🗂 שכבות</div>
+            <div style={{ padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {[{ key: 'polygons', label: '🔷 אזורים' }, { key: 'sectors', label: '⬛ סקטורים' }, { key: 'routes', label: '🛣 מסלולים' }, { key: 'elements', label: '🔧 אלמנטים' }, { key: 'points', label: '📍 נקודות' }].map(({ key, label }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
+                  <input type="checkbox" checked={(mapLayers as any)[key]} onChange={e => setMapLayers(p => ({ ...p, [key]: e.target.checked }))} />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Airfield Polygons overlay */}
@@ -26403,13 +26390,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const computeAdminMapBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setAdminMapImgBounds(null); return; }
     const c = imgEl.parentElement; if (!c) { setAdminMapImgBounds(null); return; }
-    const cW = c.offsetWidth, cH = c.offsetHeight;
-    const nRatio = imgEl.naturalWidth / imgEl.naturalHeight;
-    const cRatio = cW / cH;
-    let w, h, left, top;
-    if (nRatio > cRatio) { w = cW; h = w / nRatio; left = 0; top = (cH - h) / 2; }
-    else { h = cH; w = h * nRatio; left = (cW - w) / 2; top = 0; }
-    setAdminMapImgBounds({ left, top, width: w, height: h });
+    const cr = c.getBoundingClientRect();
+    const ir = imgEl.getBoundingClientRect();
+    setAdminMapImgBounds({ left: ir.left - cr.left, top: ir.top - cr.top, width: ir.width, height: ir.height });
   };
   const adminPtPos = (x_pct: number, y_pct: number) => adminMapImgBounds
     ? { left: `${adminMapImgBounds.left + (x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (y_pct / 100) * adminMapImgBounds.height}px` }
