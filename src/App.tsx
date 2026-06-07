@@ -22133,78 +22133,81 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const cats = Object.keys(catMap).sort();
           const panelOpen = !aidExpandedIds.has('__mgmt_elem_panel_closed__');
           return (
-            <div style={{ width: panelOpen ? 200 : 28, background: lightMode ? '#f1f5f9' : '#0f172a', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: 'rtl' }}>
+            <div style={{ width: panelOpen ? 210 : 28, background: lightMode ? '#f1f5f9' : '#070f1c', borderLeft: `2px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'hidden', direction: 'rtl' }}>
               {/* Header */}
-              <div style={{ padding: '5px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: panelOpen ? `1px solid ${T.border}` : 'none', background: lightMode ? '#e2e8f0' : '#0a1628', flexShrink: 0 }}>
-                {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text, whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>}
+              <div style={{ padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'space-between', borderBottom: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}`, background: lightMode ? '#1d4ed8' : '#1e3a5f', flexShrink: 0 }}>
+                {panelOpen && <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#e0f2fe', whiteSpace: 'nowrap', flex: 1 }}>אלמנטים</span>}
+                {panelOpen && <span style={{ fontSize: '10px', fontWeight: 'bold', background: lightMode ? '#1e40af' : '#0f2744', color: '#93c5fd', borderRadius: '10px', padding: '1px 7px', flexShrink: 0 }}>{airfieldElements.length}</span>}
                 <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__mgmt_elem_panel_closed__') ? s.delete('__mgmt_elem_panel_closed__') : s.add('__mgmt_elem_panel_closed__'); return s; })}
                   title={panelOpen ? 'סגור' : 'פתח אלמנטים'}
-                  style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px', color: T.muted, flexShrink: 0 }}>
+                  style={{ background: 'transparent', border: '1px solid #3b82f633', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', padding: '2px 5px', color: '#93c5fd', flexShrink: 0 }}>
                   {panelOpen ? '◀' : '▶'}
                 </button>
               </div>
               {/* Collapsed label */}
               {!panelOpen && (
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: lightMode ? '#94a3b8' : '#64748b', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>אלמנטים</span>
+                  <span style={{ color: '#3b82f6', fontSize: '10px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap' }}>אלמנטים</span>
                 </div>
               )}
               {/* Elements list */}
               {panelOpen && (
-                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '4px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', direction: 'rtl', padding: '5px' }}>
                   {cats.map(cat => {
                     const els = catMap[cat];
                     const isCatHighlighted = sdCatHighlight.has(cat);
                     const isCatCollapsed = sdElemCollapsed.has(cat);
                     return (
-                      <div key={cat} style={{ marginBottom: '4px', border: `1px solid ${isCatHighlighted ? '#3b82f6' : T.border}`, borderRadius: '5px', overflow: 'hidden' }}>
+                      <div key={cat} style={{ marginBottom: '5px', border: `1.5px solid ${isCatHighlighted ? '#3b82f6' : (lightMode ? '#bfdbfe' : '#1e3a5f')}`, borderRadius: '6px', overflow: 'hidden', background: lightMode ? '#eff6ff' : '#0a1628' }}>
                         {/* Category header */}
-                        <div style={{ display: 'flex', alignItems: 'center', background: isCatHighlighted ? (lightMode ? '#dbeafe' : '#1e3a5f') : (lightMode ? '#e2e8f0' : '#0f172a'), borderBottom: isCatCollapsed ? 'none' : `1px solid ${T.border}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', background: isCatHighlighted ? (lightMode ? '#1d4ed8' : '#1e3a5f') : (lightMode ? '#dbeafe' : '#0f1e35'), borderBottom: isCatCollapsed ? 'none' : `1px solid ${lightMode ? '#bfdbfe' : '#1e3a5f'}` }}>
                           <button onClick={() => setSdElemCollapsed(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
-                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: lightMode ? '#1e293b' : '#e2e8f0', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '10px', fontWeight: 'bold' }}>
-                            <span style={{ fontSize: '8px', flexShrink: 0, transition: 'transform 0.15s', display: 'inline-block', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)' }}>▶</span>
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', color: isCatHighlighted ? '#e0f2fe' : (lightMode ? '#1e3a5f' : '#7dd3fc'), padding: '5px 7px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
+                            <span style={{ fontSize: '8px', flexShrink: 0, transition: 'transform 0.15s', display: 'inline-block', transform: isCatCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', opacity: 0.7 }}>▼</span>
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
-                            <span style={{ fontSize: '8px', color: lightMode ? '#94a3b8' : '#475569' }}>({els.length})</span>
+                            <span style={{ fontSize: '9px', background: lightMode ? '#1d4ed833' : '#1e3a5f', color: lightMode ? '#1d4ed8' : '#93c5fd', borderRadius: '8px', padding: '0 5px', fontWeight: 'normal' }}>{els.length}</span>
                           </button>
+                          {/* Highlight button */}
                           <button onClick={() => setSdCatHighlight(prev => { const n = new Set(prev); isCatHighlighted ? n.delete(cat) : n.add(cat); return n; })}
                             title={isCatHighlighted ? 'בטל הדגשה על מפה' : 'הדגש קטגוריה על המפה'}
-                            style={{ padding: '3px 5px', fontSize: '9px', background: isCatHighlighted ? '#1d4ed8' : 'transparent', border: `1px solid ${isCatHighlighted ? '#3b82f6' : T.borderLight}`, borderRadius: '3px', color: isCatHighlighted ? '#bfdbfe' : T.muted, cursor: 'pointer', margin: '2px 4px 2px 0', flexShrink: 0 }}>
+                            style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', background: isCatHighlighted ? '#2563eb' : 'transparent', border: `1px solid ${isCatHighlighted ? '#60a5fa' : (lightMode ? '#93c5fd55' : '#1e3a5f')}`, borderRadius: '4px', color: isCatHighlighted ? '#e0f2fe' : (lightMode ? '#3b82f6' : '#334155'), cursor: 'pointer', margin: '0 4px', flexShrink: 0, transition: 'all 0.15s' }}>
                             👁
                           </button>
                         </div>
                         {/* Elements in category */}
                         {!isCatCollapsed && (
-                          <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '3px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <div style={{ background: lightMode ? '#f8fafc' : '#070f1c', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {els.map((el: any, idx: number) => {
                               const sc = ESTATUS_COLORS[el.status] || '#94a3b8';
                               const sbg = ESTATUS_BG[el.status] || (lightMode ? '#e2e8f0' : '#334155');
                               const nextStatus = ESTATUS_CYCLE[(ESTATUS_CYCLE.indexOf(el.status) + 1) % ESTATUS_CYCLE.length] || 'תקין';
                               const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
+                              const isHidden = sdHiddenElements.has(el.id);
                               return (
-                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${sdHiddenElements.has(el.id) ? (lightMode ? '#cbd5e1' : '#334155') : (lightMode ? '#e2e8f0' : '#1e293b')}`, opacity: sdHiddenElements.has(el.id) ? 0.45 : 1 }}>
-                                  {/* Visibility toggle */}
-                                  <button
-                                    onPointerDown={e => e.stopPropagation()}
-                                    onClick={e => { e.stopPropagation(); setSdHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; }); }}
-                                    title={sdHiddenElements.has(el.id) ? 'הצג על מפה' : 'הסתר מהמפה'}
-                                    style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1.5px solid ${sdHiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: sdHiddenElements.has(el.id) ? (lightMode ? '#e2e8f0' : '#1e293b') : '#166534', color: sdHiddenElements.has(el.id) ? '#64748b' : '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0, padding: 0, fontWeight: 'bold' }}>
-                                    {sdHiddenElements.has(el.id) ? '–' : '✓'}
+                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 5px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0a1628', border: `1px solid ${lightMode ? '#e2e8f0' : '#1a2d4a'}`, opacity: isHidden ? 0.4 : 1, transition: 'opacity 0.15s' }}>
+                                  {/* Status badge — click to cycle */}
+                                  <button onClick={() => handleUpdateElementStatus && handleUpdateElementStatus(el.id, nextStatus)}
+                                    title={`לחץ → ${nextStatus}`}
+                                    style={{ padding: '1px 5px', borderRadius: '3px', border: 'none', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', background: sbg, color: sc, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                    {el.status || '?'}
                                   </button>
+                                  {/* Name */}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
+                                  </div>
                                   {/* Icon with rotation */}
                                   <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
                                     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
                                       {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                                     </span>
                                   </div>
-                                  {/* Name */}
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</div>
-                                  </div>
-                                  {/* Status badge — click to cycle */}
-                                  <button onClick={() => handleUpdateElementStatus && handleUpdateElementStatus(el.id, nextStatus)}
-                                    title={`לחץ → ${nextStatus}`}
-                                    style={{ padding: '1px 5px', borderRadius: '3px', border: 'none', cursor: 'pointer', fontSize: '8px', fontWeight: 'bold', background: sbg, color: sc, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                    {el.status || '?'}
+                                  {/* Visibility toggle */}
+                                  <button
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onClick={e => { e.stopPropagation(); setSdHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; }); }}
+                                    title={isHidden ? 'הצג על מפה' : 'הסתר מהמפה'}
+                                    style={{ width: '20px', height: '20px', borderRadius: '4px', border: `1px solid ${isHidden ? '#334155' : '#1e3a5f'}`, background: 'transparent', color: isHidden ? '#475569' : '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0, padding: 0 }}>
+                                    –
                                   </button>
                                 </div>
                               );
