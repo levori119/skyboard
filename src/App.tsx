@@ -7078,19 +7078,26 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                   style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
                                   🛣
                                 </button>
-                                {elemNavData[el.id]?.viaRouteIds?.length > 0 && (
-                                  routeAnimProgress[el.id] !== undefined
-                                    ? <button onClick={() => stopRouteAnim(el.id)}
-                                        title="עצור אנימציה"
-                                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #ef4444', background: '#450a0a', color: '#fca5a5', cursor: 'pointer', flexShrink: 0 }}>
-                                        ■
-                                      </button>
-                                    : <button onClick={() => startRouteAnim(el.id, 1.0)}
-                                        title="הפעל אנימציית נסיעה"
-                                        style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #22c55e', background: '#052e16', color: '#86efac', cursor: 'pointer', flexShrink: 0 }}>
-                                        ▶
-                                      </button>
-                                )}
+                                {routeAnimProgress[el.id] !== undefined
+                                  ? <button onClick={() => stopRouteAnim(el.id)}
+                                      title="עצור אנימציה"
+                                      style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: '1px solid #ef4444', background: '#450a0a', color: '#fca5a5', cursor: 'pointer', flexShrink: 0 }}>
+                                      ■
+                                    </button>
+                                  : <button
+                                      onClick={() => {
+                                        if (elemNavData[el.id]?.viaRouteIds?.length > 0) {
+                                          startRouteAnim(el.id, 1.0);
+                                        } else {
+                                          const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] };
+                                          setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] });
+                                        }
+                                      }}
+                                      title={elemNavData[el.id]?.viaRouteIds?.length > 0 ? 'הפעל אנימציית נסיעה' : 'הגדר מסלול תחילה — לחץ לפתיחת חלון הגדרה'}
+                                      style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length > 0 ? '#22c55e' : '#475569'}`, background: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '#052e16' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '#86efac' : '#64748b', cursor: 'pointer', flexShrink: 0 }}>
+                                      ▶
+                                    </button>
+                                }
                                 {onUpdateElement && (
                                   <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
                                     title="ערוך אלמנט"
