@@ -7848,7 +7848,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
 
           {/* Route lines overlay */}
-          {mapDisplaySettings.showRoutes && (mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
@@ -7880,7 +7880,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
 
           {/* Nav route highlights — trimmed at intersection points */}
-          {imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
+          {mapDisplaySettings.showRoutes && imgBounds && Object.entries(elemNavData).map(([elIdStr, nav]) => {
             if (!nav.viaRouteIds.length && !nav.fromPointId && !nav.toPointId) return null;
             const el = (airfieldElements || []).find((e: any) => e.id === Number(elIdStr));
             if (!el || el.x_pct == null) return null;
