@@ -7023,9 +7023,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           airfieldElements.forEach((el: any) => { const c = el.category || 'כללי'; if (!elByCat[c]) elByCat[c] = []; elByCat[c].push(el); });
           const ESTATUS_COLORS: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
           return (
-            <div style={{ flexShrink: 0, maxHeight: elemPanelOpen ? '42%' : 'auto', display: 'flex', flexDirection: 'column', borderTop: `2px solid ${lightMode ? '#cbd5e1' : '#1e3a5f'}`, overflow: 'hidden' }}>
+            <div style={{ flexShrink: 0, maxHeight: elemPanelOpen ? '42%' : 'auto', display: 'flex', flexDirection: 'column', borderTop: '2px solid #452eb2', borderRadius: '1px', overflow: 'hidden' }}>
               {/* Panel toggle header */}
-              <div style={{ background: lightMode ? '#1e3a5f' : '#0a1628', color: '#93c5fd', padding: '5px 8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}
+              <div style={{ background: '#452eb2', color: '#e4e2f0', padding: '5px 8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}
                 onClick={() => setElemPanelOpen(v => !v)}>
                 <span style={{ transform: elemPanelOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-block', fontSize: '10px' }}>▶</span>
                 🔧 אלמנטים <span style={{ fontWeight: 'normal', opacity: 0.7, fontSize: '11px' }}>({airfieldElements.length})</span>
@@ -7039,9 +7039,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     return (
                       <div key={cat}>
                         {/* Category header */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', background: lightMode ? '#1e3a5f' : '#0d1f3c', border: `1px solid ${lightMode ? '#3b82f6' : '#1e40af'}`, borderRadius: '0', marginTop: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', background: '#452eb2', border: '1px solid #452eb2', borderRadius: '0', marginTop: '2px' }}>
                           <span onClick={() => setCollapsedElemCats(prev => { const n = new Set(prev); isCatCollapsed ? n.delete(cat) : n.add(cat); return n; })}
-                            style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
+                            style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: '#e4e2f0', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', userSelect: 'none' }}>
                             <span style={{ fontSize: '9px', transform: isCatCollapsed ? 'rotate(0)' : 'rotate(90deg)', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
                             {cat}
                             <span style={{ fontWeight: 'normal', opacity: 0.6, fontSize: '10px' }}>({catEls.length})</span>
@@ -7049,7 +7049,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           <button
                             onClick={() => setCatMapHighlight(prev => { const n = new Set(prev); isCatOnMap ? n.delete(cat) : n.add(cat); return n; })}
                             title={isCatOnMap ? 'הסתר הדגשה על מפה' : 'הדגש קטגוריה על המפה'}
-                            style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : '#334155'}`, background: isCatOnMap ? '#1d4ed8' : '#0f172a', color: isCatOnMap ? '#bfdbfe' : '#475569', cursor: 'pointer', flexShrink: 0 }}>
+                            style={{ padding: '2px 6px', fontSize: '10px', borderRadius: '4px', border: `1px solid ${isCatOnMap ? '#3b82f6' : '#e4e2f0'}`, background: isCatOnMap ? '#1d4ed8' : 'transparent', color: isCatOnMap ? '#bfdbfe' : '#e4e2f0', cursor: 'pointer', flexShrink: 0 }}>
                             👁
                           </button>
                         </div>
