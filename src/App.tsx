@@ -5676,7 +5676,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false });
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false });
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -7620,7 +7620,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>הגדרות תצוגה</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
@@ -7848,7 +7848,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
 
           {/* Route lines overlay */}
-          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {mapDisplaySettings.showRoutes && (mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
@@ -7863,8 +7863,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 return (
                   <g key={r.id}>
                     {isVehicle
-                      ? <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.55" strokeDasharray="1.8,1.1" strokeLinecap="round" />
-                      : <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                      ? <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.3" strokeDasharray="1.8,1.1" strokeLinecap="round" />
+                      : <polyline points={pts.map((p: any) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.2" />
                     }
                     {labelPts.map((lp: any, li: number) => (
                       <g key={li}>
@@ -7980,7 +7980,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <polyline
                         points={rp.pts.map((p:any) => `${p.x},${p.y}`).join(' ')}
                         fill="none" stroke={stroke}
-                        strokeWidth={isVehicle ? "1.4" : "1.0"}
+                        strokeWidth={isVehicle ? "0.7" : "0.5"}
                         strokeDasharray={isVehicle ? "3,1.5" : "2.5,1.5"}
                         opacity="0.95" strokeLinecap="round" />
                       {/* Red dot at intersection with next route */}
