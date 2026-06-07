@@ -6192,6 +6192,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   // User-controlled map zoom & pan (= / - keys, wheel, drag)
   const [groundMapZoom, setGroundMapZoom] = React.useState(1.0);
   const [groundMapPan, setGroundMapPan] = React.useState({ x: 0, y: 0 });
+  const [effectiveMapScale, setEffectiveMapScale] = React.useState(1.0);
   const groundMapDragRef = React.useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
 
   // Keyboard zoom handler
@@ -6504,16 +6505,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         el.style.transform = '';
         el.style.transformOrigin = '';
         el.style.transition = '';
+        setEffectiveMapScale(1);
       } else {
         el.style.transformOrigin = '50% 50%';
         el.style.transition = 'transform 0.1s ease';
         el.style.transform = `translate(${groundMapPan.x}px,${groundMapPan.y}px) scale(${groundMapZoom})`;
+        setEffectiveMapScale(groundMapZoom);
       }
       return;
     }
     if (!imgBounds) return;
     const sec = (airfieldSectors || []).find((s: any) => s.id === focusedSectorId);
-    if (!sec) { el.style.transform = ''; return; }
+    if (!sec) { el.style.transform = ''; setEffectiveMapScale(1); return; }
     const cW = el.offsetWidth;
     const cH = el.offsetHeight;
     const r = sec.rect || {};
@@ -6534,6 +6537,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     el.style.transformOrigin = '0 0';
     el.style.transition = 'transform 0.4s ease';
     el.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+    setEffectiveMapScale(scale);
   }, [focusedSectorId, imgBounds, airfieldSectors, groundMapZoom, groundMapPan]);
 
   const PANEL: React.CSSProperties = { display: 'flex', flexDirection: 'column', overflow: 'hidden', background: panelBg };
@@ -8169,7 +8173,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const navRouteNames = (navForEl?.viaRouteIds || []).map((rid: number) => (airfieldRoutes || []).find((r: any) => r.id === rid)?.name).filter(Boolean);
             return (
               <div key={el.id}
-                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/groundMapZoom})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/effectiveMapScale})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
                 onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && canHaveRoute) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
@@ -8284,7 +8288,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const pos = ptPos(pt.x_pct, pt.y_pct);
             return (
               <div key={pt.id}
-                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -50%) scale(${1/groundMapZoom})`, transformOrigin: 'center center', zIndex: isHovered ? 50 : 10, pointerEvents: 'all' }}
+                style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, -50%) scale(${1/effectiveMapScale})`, transformOrigin: 'center center', zIndex: isHovered ? 50 : 10, pointerEvents: 'all' }}
                 onMouseEnter={() => { if (isDense) setHoveredDensePtId(pt.id); }}
                 onMouseLeave={() => setHoveredDensePtId(null)}
                 onDragOver={e => { e.preventDefault(); setMapDragOver(pt.id); }}
