@@ -7063,8 +7063,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px' }}>
                                 <button onClick={() => setHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; })}
                                   title={hiddenElements.has(el.id) ? 'הצג על מפה' : 'הסתר מהמפה'}
-                                  style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1px solid ${hiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: hiddenElements.has(el.id) ? 'transparent' : '#22c55e22', color: hiddenElements.has(el.id) ? '#475569' : '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0, padding: 0 }}>
-                                  {hiddenElements.has(el.id) ? '' : '✓'}
+                                  style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1.5px solid ${hiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: hiddenElements.has(el.id) ? '#1e293b' : '#22c55e33', color: hiddenElements.has(el.id) ? '#475569' : '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', flexShrink: 0, padding: 0, fontWeight: 'bold' }}>
+                                  {hiddenElements.has(el.id) ? '–' : '✓'}
                                 </button>
                                 <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.category === 'camera' ? '📷' : (el.type_icon || '🔧')}</span>
                                 <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
