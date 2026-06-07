@@ -895,6 +895,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS camera_url TEXT DEFAULT NULL`);
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS relevant_routes JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS blocking_statuses JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE airfield_elements ADD COLUMN IF NOT EXISTS hidden_on_map BOOLEAN DEFAULT false`);
   // Polygon GRF wetness + RVR visibility status
   await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS grf_status VARCHAR(20) DEFAULT NULL`);
   await pool.query(`ALTER TABLE airfield_polygon_statuses ADD COLUMN IF NOT EXISTS rvr_meters INTEGER DEFAULT NULL`);
@@ -3502,19 +3503,21 @@ app.post('/api/airfield-elements', async (req, res) => {
 });
 app.put('/api/airfield-elements/:id', async (req, res) => {
   try {
-    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses } = req.body;
+    const { element_type_id, name, status, note, x_pct, y_pct, category, display_state, blink_rate, blink_colors, open_icon_key, close_icon_key, rotation, camera_url, relevant_routes, blocking_statuses, hidden_on_map } = req.body;
     const r = await pool.query(
       `UPDATE airfield_elements SET element_type_id=$1,name=$2,status=$3,note=$4,x_pct=$5,y_pct=$6,category=COALESCE(NULLIF($7,''),category),
        display_state=COALESCE($8,display_state),blink_rate=COALESCE($9,blink_rate),blink_colors=COALESCE($10,blink_colors),
        open_icon_key=COALESCE($11,open_icon_key),close_icon_key=COALESCE($12,close_icon_key),
        rotation=COALESCE($14,rotation),camera_url=COALESCE($15,camera_url),
-       relevant_routes=COALESCE($16::jsonb,relevant_routes),blocking_statuses=COALESCE($17::jsonb,blocking_statuses)
+       relevant_routes=COALESCE($16::jsonb,relevant_routes),blocking_statuses=COALESCE($17::jsonb,blocking_statuses),
+       hidden_on_map=COALESCE($18,hidden_on_map)
        WHERE id=$13 RETURNING *`,
       [element_type_id || null, name, status || 'תקין', note || null, x_pct ?? null, y_pct ?? null, category || '',
        display_state ?? null, blink_rate ?? null, blink_colors ?? null, open_icon_key ?? null, close_icon_key ?? null,
        req.params.id, rotation ?? null, camera_url !== undefined ? (camera_url || null) : null,
        relevant_routes !== undefined ? JSON.stringify(relevant_routes) : null,
-       blocking_statuses !== undefined ? JSON.stringify(blocking_statuses) : null]
+       blocking_statuses !== undefined ? JSON.stringify(blocking_statuses) : null,
+       hidden_on_map !== undefined ? hidden_on_map : null]
     );
     res.json(r.rows[0] || {});
   } catch (err) { res.status(500).json({ error: 'Failed' }); }

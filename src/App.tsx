@@ -5684,7 +5684,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
-  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string } | null>(null);
+  const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string; hiddenOnMap: boolean } | null>(null);
   const [cameraPanels, setCameraPanels] = useState<{ id: number; url: string; name: string; dragPos: { x: number; y: number }; expanded: boolean }[]>([]);
   const nextCamId = useRef(0);
   // Route animation — vehicle moving along its path
@@ -7122,7 +7122,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                 }
                                 </>)}
                                 {onUpdateElement && (
-                                  <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
+                                  <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '', hiddenOnMap: el.hidden_on_map || false }); setEditingElemField(null); }}
                                     title="ערוך אלמנט"
                                     style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemEditModal?.el?.id === el.id ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal?.el?.id === el.id ? '#1d4ed8' : 'transparent', color: elemEditModal?.el?.id === el.id ? '#bfdbfe' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
                                     ✏
@@ -8124,7 +8124,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
 
           {/* Airfield elements overlay */}
-          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id))).map(el => {
+          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id)) && (!el.hidden_on_map || (mapDisplaySettings.showRoutes && elemNavData[el.id]))).map(el => {
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444', 'לא שמיש': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
@@ -8901,7 +8901,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const ELEM_STATUS_COLOR: Record<string, string> = { 'תקין': '#22c55e', 'שמיש': '#22c55e', 'לא תקין': '#ef4444', 'תקול': '#ef4444', 'חלקי': '#f97316' };
         const el = elemEditModal.el;
         const save = async () => {
-          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey, rotation: elemEditModal.rotation, camera_url: elemEditModal.cameraUrl || null });
+          if (onUpdateElement) await onUpdateElement(el.id, { name: elemEditModal.name, category: elemEditModal.category, status: elemEditModal.status, note: elemEditModal.note, display_state: elemEditModal.displayState, blink_rate: elemEditModal.blinkRate, open_icon_key: elemEditModal.openIconKey, close_icon_key: elemEditModal.closeIconKey, rotation: elemEditModal.rotation, camera_url: elemEditModal.cameraUrl || null, hidden_on_map: elemEditModal.hiddenOnMap });
           setElemEditModal(null);
           setEditingElemField(null);
         };
@@ -9097,6 +9097,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Hidden on map toggle */}
+            <div style={{ padding: '8px 12px', borderTop: `1px solid ${D_BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: elemEditModal.hiddenOnMap ? '#f97316' : D_LABEL }}>🙈 הסתר במפה</div>
+                <div style={{ fontSize: '9px', color: D_LABEL, marginTop: '2px' }}>האלמנט לא יוצג בעמדות הרגילות, אך יוצג בתצוגות ייעודיות (ניהול נתיב הסעה)</div>
+              </div>
+              <button
+                onClick={() => setElemEditModal(p => p ? { ...p, hiddenOnMap: !p.hiddenOnMap } : p)}
+                style={{ flexShrink: 0, padding: '5px 12px', borderRadius: '6px', border: `1.5px solid ${elemEditModal.hiddenOnMap ? '#f97316' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemEditModal.hiddenOnMap ? '#7c2d1233' : 'transparent', color: elemEditModal.hiddenOnMap ? '#fb923c' : D_LABEL, cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                {elemEditModal.hiddenOnMap ? 'מוסתר' : 'מוצג'}
+              </button>
             </div>
 
             {/* Camera URL section */}
@@ -16832,12 +16845,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch (e) { console.error(e); }
   };
 
-  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null }) => {
+  const handleUpdateElement = async (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null; hidden_on_map?: boolean }) => {
     setAirfieldElements(prev => prev.map(el => el.id === elementId ? { ...el, ...fields } : el));
     try {
       const el = airfieldElements.find(e => e.id === elementId);
       if (!el) return;
-      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: 'x_pct' in fields ? fields.x_pct : el.x_pct, y_pct: 'y_pct' in fields ? fields.y_pct : el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0, camera_url: 'camera_url' in fields ? fields.camera_url : el.camera_url }) });
+      await fetch(`${API_URL}/airfield-elements/${elementId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ element_type_id: el.element_type_id, name: fields.name, status: fields.status, note: fields.note, category: fields.category, x_pct: 'x_pct' in fields ? fields.x_pct : el.x_pct, y_pct: 'y_pct' in fields ? fields.y_pct : el.y_pct, display_state: fields.display_state ?? el.display_state, blink_rate: fields.blink_rate ?? el.blink_rate, open_icon_key: fields.open_icon_key ?? el.open_icon_key, close_icon_key: fields.close_icon_key ?? el.close_icon_key, rotation: fields.rotation ?? el.rotation ?? 0, camera_url: 'camera_url' in fields ? fields.camera_url : el.camera_url, hidden_on_map: 'hidden_on_map' in fields ? fields.hidden_on_map : el.hidden_on_map }) });
     } catch (e) { console.error(e); }
   };
 
