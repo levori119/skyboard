@@ -5621,7 +5621,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5671,6 +5671,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
   externalCatHighlight?: Set<string>;
+  externalHiddenElements?: Set<number>;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -8123,7 +8124,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
 
           {/* Airfield elements overlay */}
-          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id)).map(el => {
+          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id) && !(externalHiddenElements?.has(el.id))).map(el => {
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444', 'לא שמיש': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
@@ -14028,6 +14029,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [aidsPinned, setAidsPinned] = useState(true);
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
+  const [sdHiddenElements, setSdHiddenElements] = useState<Set<number>>(new Set());
   const [aidGroup, setAidGroup] = useState<any | null>(null);
   const [aidExpandedIds, setAidExpandedIds] = useState<Set<string>>(new Set());
   // Whether the table is being drag-hovered from sidebar
@@ -18925,6 +18927,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
+                externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
@@ -22165,12 +22168,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               const nextStatus = ESTATUS_CYCLE[(ESTATUS_CYCLE.indexOf(el.status) + 1) % ESTATUS_CYCLE.length] || 'תקין';
                               const isSvg = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
                               return (
-                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
-                                  {/* Row number */}
-                                  <span style={{ fontSize: '8px', color: T.muted, flexShrink: 0, minWidth: '10px', textAlign: 'center' }}>{idx + 1}</span>
-                                  {/* Icon */}
+                                <div key={el.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', borderRadius: '4px', background: lightMode ? '#ffffff' : '#0f172a', border: `1px solid ${sdHiddenElements.has(el.id) ? (lightMode ? '#cbd5e1' : '#334155') : (lightMode ? '#e2e8f0' : '#1e293b')}`, opacity: sdHiddenElements.has(el.id) ? 0.45 : 1 }}>
+                                  {/* Visibility toggle */}
+                                  <button
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onClick={e => { e.stopPropagation(); setSdHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; }); }}
+                                    title={sdHiddenElements.has(el.id) ? 'הצג על מפה' : 'הסתר מהמפה'}
+                                    style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1.5px solid ${sdHiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: sdHiddenElements.has(el.id) ? (lightMode ? '#e2e8f0' : '#1e293b') : '#166534', color: sdHiddenElements.has(el.id) ? '#64748b' : '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0, padding: 0, fontWeight: 'bold' }}>
+                                    {sdHiddenElements.has(el.id) ? '–' : '✓'}
+                                  </button>
+                                  {/* Icon with rotation */}
                                   <div style={{ width: '18px', height: '18px', borderRadius: isSvg ? '3px' : '50%', background: isSvg ? 'transparent' : (el.type_color || '#f59e0b'), border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>
-                                    {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined }}>
+                                      {isSvg ? (() => { const parts = el.type_icon.slice(4).split('|'); const svgStr = parts[0]; const color = parts[1] || '#ffffff'; return <svg viewBox="0 0 24 24" width="12" height="12" style={{ fill: 'none', stroke: color, strokeWidth: 2 }} dangerouslySetInnerHTML={{ __html: svgStr }} />; })() : (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                                    </span>
                                   </div>
                                   {/* Name */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
