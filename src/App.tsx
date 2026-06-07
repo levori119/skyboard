@@ -5672,7 +5672,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   hideStrips?: boolean;
   externalCatHighlight?: Set<string>;
 }) => {
-  const [elemPanelOpen, setElemPanelOpen] = useState(true);
+  const [elemPanelOpen, setElemPanelOpen] = useState(false);
+  const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false });
@@ -7060,6 +7061,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             <div key={el.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
                               {/* Main row */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px' }}>
+                                <button onClick={() => setHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; })}
+                                  title={hiddenElements.has(el.id) ? 'הצג על מפה' : 'הסתר מהמפה'}
+                                  style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1px solid ${hiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: hiddenElements.has(el.id) ? 'transparent' : '#22c55e22', color: hiddenElements.has(el.id) ? '#475569' : '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', flexShrink: 0, padding: 0 }}>
+                                  {hiddenElements.has(el.id) ? '' : '✓'}
+                                </button>
                                 <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.category === 'camera' ? '📷' : (el.type_icon || '🔧')}</span>
                                 <span style={{ flex: 1, fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.name}</span>
                                 {/* Status badge — clickable to cycle תקין/לא תקין */}
@@ -8111,7 +8117,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           })}
 
           {/* Airfield elements overlay */}
-          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null).map(el => {
+          {mapLayers.elements && airfieldElements && airfieldElements.filter(el => el.x_pct != null && el.y_pct != null && !hiddenElements.has(el.id)).map(el => {
             const elColor = el.type_color || '#f59e0b';
             const statusColors: Record<string, string> = { 'תקין': '#22c55e', 'לא תקין': '#ef4444', 'חלקי': '#f97316', 'שמיש': '#22c55e', 'תקול': '#ef4444', 'לא שמיש': '#ef4444' };
             const sColor = statusColors[el.status] || '#94a3b8';
