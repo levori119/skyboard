@@ -8205,7 +8205,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div style={{ position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 4px #000, 0 0 8px #ef4444' }}>✕</div>
                   )}
                   {mapDisplaySettings.showNames && <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : (isClosed || isLaTakin || isLaShamish) ? '#fca5a5' : isTakul ? '#fca5a5' : isTakin ? '#86efac' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>{el.name}</div>}
-                  {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
+                  {/* Play/Stop button directly on map element */}
+                {routeAnimProgress[el.id] !== undefined
+                  ? <button
+                      onClick={e => { e.stopPropagation(); stopRouteAnim(el.id); }}
+                      title="עצור אנימציה"
+                      style={{ position: 'absolute', top: '-9px', right: '-9px', width: '16px', height: '16px', borderRadius: '50%', background: '#ef4444', border: '1.5px solid white', color: 'white', fontSize: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, boxShadow: '0 0 6px #ef444488', lineHeight: 1, padding: 0 }}>
+                      ■
+                    </button>
+                  : <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (elemNavData[el.id]?.viaRouteIds?.length > 0) {
+                          startRouteAnim(el.id, 1.0);
+                        } else {
+                          const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] };
+                          setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] });
+                        }
+                      }}
+                      title={elemNavData[el.id]?.viaRouteIds?.length > 0 ? 'הפעל אנימציית נסיעה' : 'הגדר מסלול'}
+                      style={{ position: 'absolute', top: '-9px', right: '-9px', width: '16px', height: '16px', borderRadius: '50%', background: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '#22c55e' : '#475569', border: '1.5px solid white', color: 'white', fontSize: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, boxShadow: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '0 0 6px #22c55e88' : 'none', lineHeight: 1, padding: 0 }}>
+                      ▶
+                    </button>
+                }
+                {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {mapDisplaySettings.showStatus && (canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
                       {isClosed ? 'סגור' : isBlinking ? 'מהבהב' : isOff ? 'כבוי' : isStop ? 'עצור' : isGo ? 'עבור' : isOpen ? 'שמיש' : el.status}
