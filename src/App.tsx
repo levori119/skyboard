@@ -7869,7 +7869,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     {labelPts.map((lp: any, li: number) => (
                       <g key={li}>
                         <circle cx={lp.x} cy={lp.y} r="1.6" fill={col} opacity="0.9" />
-                        {mapDisplaySettings.showNames && <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>}
+                        <text x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="0.9" fontWeight="bold" style={{ userSelect: 'none' }}>{r.name}</text>
                       </g>
                     ))}
                     {r.notes && <title>{r.notes}</title>}
