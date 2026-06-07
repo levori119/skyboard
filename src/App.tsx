@@ -5691,17 +5691,25 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const startRouteAnim = React.useCallback((elId: number, endFrac: number) => {
     if (routeAnimRaf.current[elId]) cancelAnimationFrame(routeAnimRaf.current[elId]);
-    setRouteAnimProgress(prev => ({ ...prev, [elId]: 0 }));
-    const DURATION = 4000;
-    const startTime = performance.now();
+    const DURATION = 6000;
+    const PAUSE = 600; // pause at end before looping
+    let loopStart = performance.now();
     const ease = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOut
     const tick = (now: number) => {
-      const raw = Math.min(1, (now - startTime) / DURATION);
+      const elapsed = now - loopStart;
+      if (elapsed >= DURATION + PAUSE) {
+        // restart loop
+        loopStart = now;
+        setRouteAnimProgress(prev => ({ ...prev, [elId]: 0 }));
+        routeAnimRaf.current[elId] = requestAnimationFrame(tick);
+        return;
+      }
+      const raw = Math.min(1, elapsed / DURATION);
       const t = ease(raw) * endFrac;
       setRouteAnimProgress(prev => ({ ...prev, [elId]: t }));
-      if (raw < 1) { routeAnimRaf.current[elId] = requestAnimationFrame(tick); }
-      else { delete routeAnimRaf.current[elId]; }
+      routeAnimRaf.current[elId] = requestAnimationFrame(tick);
     };
+    setRouteAnimProgress(prev => ({ ...prev, [elId]: 0 }));
     routeAnimRaf.current[elId] = requestAnimationFrame(tick);
   }, []);
 
@@ -8073,21 +8081,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     }
                     acc3 += segLens[i];
                   }
+                  const dotColor = isBlocked ? '#ef4444' : '#f97316';
                   return (
                     <g transform={`translate(${dotX},${dotY})`}>
-                      {/* Glow halo */}
-                      <circle r="3.5" fill={isBlocked ? '#ef4444' : '#f97316'} opacity="0.25" />
+                      {/* Outer glow ring */}
+                      <circle r="5.5" fill={dotColor} opacity="0.15" />
+                      {/* Mid glow */}
+                      <circle r="3.8" fill={dotColor} opacity="0.3" />
                       {/* Vehicle body */}
-                      <circle r="2.0" fill={isBlocked ? '#ef4444' : '#f97316'} stroke="white" strokeWidth="0.6" />
+                      <circle r="2.5" fill={dotColor} stroke="white" strokeWidth="0.8" />
                       {/* Direction arrow */}
-                      <polygon points="0,-1.1 0.7,0.5 -0.7,0.5"
-                        fill="white" opacity="0.9"
+                      <polygon points="0,-1.6 1.0,0.7 -1.0,0.7"
+                        fill="white" opacity="0.95"
                         transform={`rotate(${dirAngle + 90})`} />
                       {/* Blocked X mark */}
                       {isBlocked && (
                         <>
-                          <line x1="-1.4" y1="-1.4" x2="1.4" y2="1.4" stroke="white" strokeWidth="0.8" />
-                          <line x1="1.4" y1="-1.4" x2="-1.4" y2="1.4" stroke="white" strokeWidth="0.8" />
+                          <line x1="-1.8" y1="-1.8" x2="1.8" y2="1.8" stroke="white" strokeWidth="0.9" />
+                          <line x1="1.8" y1="-1.8" x2="-1.8" y2="1.8" stroke="white" strokeWidth="0.9" />
                         </>
                       )}
                     </g>
