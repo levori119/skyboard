@@ -7061,9 +7061,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                             <div key={el.id} style={{ display: 'flex', flexDirection: 'column', borderBottom: `1px solid ${lightMode ? '#f1f5f9' : '#1e293b'}`, background: elemEditModal?.el?.id === el.id ? (lightMode ? '#eff6ff' : '#0c1a2e') : 'transparent' }}>
                               {/* Main row */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 12px' }}>
-                                <button onClick={() => setHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; })}
+                                <button
+                                  onPointerDown={e => e.stopPropagation()}
+                                  onClick={e => { e.stopPropagation(); e.preventDefault(); setHiddenElements(prev => { const n = new Set(prev); n.has(el.id) ? n.delete(el.id) : n.add(el.id); return n; }); }}
                                   title={hiddenElements.has(el.id) ? 'הצג על מפה' : 'הסתר מהמפה'}
-                                  style={{ width: '18px', height: '18px', borderRadius: '3px', border: `1.5px solid ${hiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: hiddenElements.has(el.id) ? '#1e293b' : '#22c55e33', color: hiddenElements.has(el.id) ? '#475569' : '#22c55e', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', flexShrink: 0, padding: 0, fontWeight: 'bold' }}>
+                                  style={{ width: '22px', height: '22px', borderRadius: '4px', border: `2px solid ${hiddenElements.has(el.id) ? '#475569' : '#22c55e'}`, background: hiddenElements.has(el.id) ? '#1e293b' : '#166534', color: hiddenElements.has(el.id) ? '#64748b' : '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0, padding: 0, fontWeight: 'bold', touchAction: 'none' }}>
                                   {hiddenElements.has(el.id) ? '–' : '✓'}
                                 </button>
                                 <span style={{ width: '16px', height: '16px', borderRadius: '50%', background: el.type_color || '#f59e0b', border: `2px solid ${sc}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', flexShrink: 0 }}>{el.category === 'camera' ? '📷' : (el.type_icon || '🔧')}</span>
