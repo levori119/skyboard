@@ -7081,6 +7081,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                     📷
                                   </button>
                                 )}
+                                {(el.type_can_have_route === true || el.type_can_have_route === 'true') && (<>
                                 <button onClick={() => { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); }}
                                   title="הגדר מסלול לאלמנט"
                                   style={{ padding: '2px 5px', fontSize: '11px', borderRadius: '4px', border: `1px solid ${elemNavData[el.id]?.viaRouteIds?.length ? '#3b82f6' : (lightMode ? '#cbd5e1' : '#334155')}`, background: elemNavData[el.id]?.viaRouteIds?.length ? '#1e3a5f' : 'transparent', color: elemNavData[el.id]?.viaRouteIds?.length ? '#93c5fd' : (lightMode ? '#64748b' : '#64748b'), cursor: 'pointer', flexShrink: 0 }}>
@@ -7106,6 +7107,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                                       ▶
                                     </button>
                                 }
+                                </>)}
                                 {onUpdateElement && (
                                   <button onClick={() => { setElemEditModal({ el, name: el.name || '', category: el.category || '', status: el.status || 'תקין', note: el.note || '', displayState: el.display_state || 'normal', blinkRate: el.blink_rate || 1.0, openIconKey: el.open_icon_key || '', closeIconKey: el.close_icon_key || '', rotation: el.rotation || 0, cameraUrl: el.camera_url || '' }); setEditingElemField(null); }}
                                     title="ערוך אלמנט"
@@ -8119,6 +8121,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const isTakin = el.status === 'תקין';
             const isShamish = el.status === 'שמיש';
             const canChangeStatus = el.type_can_change_status === true || el.type_can_change_status === 'true';
+            const canHaveRoute = el.type_can_have_route === true || el.type_can_have_route === 'true';
             const isSvgIcon = typeof el.type_icon === 'string' && el.type_icon.startsWith('MAP:');
             const elCatKey = el.category || 'כללי';
             const isCatHighlighted = catMapHighlight.has(elCatKey) || (externalCatHighlight?.has(elCatKey) ?? false);
@@ -8161,7 +8164,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/groundMapZoom})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
                 title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : (el.category === 'כלי רכב' || el.category === 'מטוס') ? '\nלחיצה ימנית: הגדר מסלול' : ''}`}
                 onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : undefined}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && canHaveRoute) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
                 {/* Conflict alert ring — pulsing red */}
                 {conflictElementIds.has(el.id) && (
                   <div className="conflict-ring" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: '3px solid #ef4444', pointerEvents: 'none', zIndex: 25 }} />
@@ -8205,8 +8208,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     <div style={{ position: 'absolute', top: '-2px', left: '50%', transform: 'translateX(-50%)', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', color: '#ef4444', fontWeight: 'bold', pointerEvents: 'none', textShadow: '0 0 4px #000, 0 0 8px #ef4444' }}>✕</div>
                   )}
                   {mapDisplaySettings.showNames && <div style={{ background: isBeingEdited ? '#f59e0bcc' : '#000000cc', color: isBeingEdited ? '#fff' : (isClosed || isLaTakin || isLaShamish) ? '#fca5a5' : isTakul ? '#fca5a5' : isTakin ? '#86efac' : isShamish ? '#86efac' : elColor, fontSize: '8px', fontWeight: 'bold', padding: '1px 4px', borderRadius: '3px', whiteSpace: 'nowrap', marginTop: '1px', maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>{el.name}</div>}
-                  {/* Play/Stop button directly on map element */}
-                {routeAnimProgress[el.id] !== undefined
+                  {/* Play/Stop button directly on map element — only for route-capable types */}
+                {canHaveRoute && (routeAnimProgress[el.id] !== undefined
                   ? <button
                       onClick={e => { e.stopPropagation(); stopRouteAnim(el.id); }}
                       title="עצור אנימציה"
@@ -8227,7 +8230,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       style={{ position: 'absolute', top: '-9px', right: '-9px', width: '16px', height: '16px', borderRadius: '50%', background: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '#22c55e' : '#475569', border: '1.5px solid white', color: 'white', fontSize: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30, boxShadow: elemNavData[el.id]?.viaRouteIds?.length > 0 ? '0 0 6px #22c55e88' : 'none', lineHeight: 1, padding: 0 }}>
                       ▶
                     </button>
-                }
+                )}
                 {hasNav && !isMoving && <div style={{ fontSize: '7px', color: '#60a5fa', background: '#1e3a5fcc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap' }}>🛣 מסלול</div>}
                   {mapDisplaySettings.showStatus && (canChangeStatus && el.status || dState !== 'normal') && (
                     <div style={{ background: isClosed ? '#ef4444dd' : isBlinking ? '#f59e0bdd' : isOff ? '#475569dd' : isStop ? '#ef4444dd' : isGo ? '#22c55edd' : isOpen ? '#22c55edd' : opColor + 'dd', color: 'white', fontSize: '7px', fontWeight: 'bold', padding: '0px 3px', borderRadius: '2px', whiteSpace: 'nowrap', marginTop: '1px' }}>
@@ -27493,8 +27496,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Airfield element types (global list)
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
-  const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '' });
-  const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '' });
+  const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
+  const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
   elementTypeFormRef.current = elementTypeForm;
   const setElementTypeFormAndRef = React.useCallback((updater: any) => {
     setElementTypeForm(prev => {
@@ -32836,6 +32839,11 @@ CHARLIE,1,301,`}
                   style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#3b82f6' }} />
                 <span style={{ fontSize: '13px', color: '#e2e8f0', cursor: 'pointer' }} onClick={() => setElementTypeFormAndRef(p => ({ ...p, can_change_status: !p.can_change_status }))}>ניתן לשינוי סטטוס בלחיצה בעמדה</span>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: '#0f172a', borderRadius: '6px', border: '1px solid #334155' }}>
+                <input type="checkbox" checked={elementTypeForm.can_have_route} onChange={e => setElementTypeFormAndRef(p => ({ ...p, can_have_route: e.target.checked }))}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#22c55e' }} />
+                <span style={{ fontSize: '13px', color: '#e2e8f0', cursor: 'pointer' }} onClick={() => setElementTypeFormAndRef(p => ({ ...p, can_have_route: !p.can_have_route }))}>🛣 ניתן להגדרת מסלול ואנימציה</span>
+              </div>
               {elementTypeForm.can_change_status && (
                 <div style={{ padding: '10px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1d4ed8' }}>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '7px' }}>סטטוסים מותרים (ריק = כולם):</div>
@@ -32890,7 +32898,10 @@ CHARLIE,1,301,`}
                             🔄 {aStatuses.length > 0 ? aStatuses.join('/') : 'כל הסטטוסים'}
                           </span>
                         )}
-                        <button type="button" onClick={() => { setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '' }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
+                        {et.can_have_route && (
+                          <span style={{ fontSize: '10px', background: '#14532d33', color: '#86efac', border: '1px solid #22c55e55', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>🛣 מסלול</span>
+                        )}
+                        <button type="button" onClick={() => { setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '', can_have_route: !!et.can_have_route }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
                         <button onClick={async () => { if (!await customConfirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
                       </div>
                     );
@@ -32913,9 +32924,9 @@ CHARLIE,1,301,`}
                       </div>
                       {CanChangeStatusSection()}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '' }); }}
+                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
                           style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
-                        <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '' }); }}
+                        <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
                           style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                       </div>
                     </div>
@@ -32935,7 +32946,7 @@ CHARLIE,1,301,`}
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
                       {CanChangeStatusSection()}
-                      <button type="button" onClick={async () => { const form = elementTypeFormRef.current; if (!form.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '' }); }}
+                      <button type="button" onClick={async () => { const form = elementTypeFormRef.current; if (!form.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
                         disabled={!elementTypeForm.name.trim()}
                         style={{ padding: '8px', background: elementTypeForm.name.trim() ? '#059669' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: elementTypeForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: elementTypeForm.name.trim() ? 1 : 0.5 }}>+ הוסף סוג</button>
                     </div>
