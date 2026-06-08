@@ -5728,6 +5728,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [elemStatusPicker, setElemStatusPicker] = useState<{ el: any; x: number; y: number } | null>(null);
   const [elemNavModal, setElemNavModal] = useState<{ el: any; fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] } | null>(null);
   const [elemNavData, setElemNavData] = useState<Record<number, { fromPointId: number|null; toPointId: number|null; viaRouteIds: number[] }>>({});
+  const [navModalPos, setNavModalPos] = useState<{x:number;y:number}>({x:180,y:80});
+  const [navBlockedGroupsOpen, setNavBlockedGroupsOpen] = useState<Record<string,boolean>>({});
+  const navModalDragRef = React.useRef<{startMX:number;startMY:number;startPX:number;startPY:number}|null>(null);
+  const navModalOrigNavRef = React.useRef<{elId:number;data:{fromPointId:number|null;toPointId:number|null;viaRouteIds:number[]}|undefined}|null>(null);
   // Vehicle placement
   const [addVehicleMode, setAddVehicleMode] = useState(false);
   const [vehiclePlaceModal, setVehiclePlaceModal] = useState<{ x_pct: number; y_pct: number } | null>(null);
@@ -9490,15 +9494,62 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         };
         const fromPt = fromPointId ? (points as any[]).find((p: any) => p.id === fromPointId) : null;
         const toPt = toPointId ? (points as any[]).find((p: any) => p.id === toPointId) : null;
-        const suggestedPaths: number[][] = (fromPt && toPt) ? findAllPaths(fromPt, toPt) : [];
-        const altPaths: number[][] = (blockedOnPath.length > 0 && fromPt && toPt) ? findAllPaths(fromPt, toPt, new Set([...blockedRouteSet])) : [];
+        // Split into clear vs blocked paths
+        const allSuggestedPaths: number[][] = (fromPt && toPt) ? findAllPaths(fromPt, toPt) : [];
+        const clearPaths = allSuggestedPaths.filter(path => !path.some((id: number) => blockedRouteSet.has(id)));
+        const blockedPaths = allSuggestedPaths.filter(path => path.some((id: number) => blockedRouteSet.has(id)));
+        // Group blocked paths by the names of the blocking elements
+        const blockedPathsByElem: Record<string, {path:number[];blockedIds:number[]}[]> = {};
+        for (const path of blockedPaths) {
+          const bIds = path.filter((id: number) => blockedRouteSet.has(id));
+          const key = [...new Set(bIds.map((id: number) => blockedRouteToElem[id] || `מסלול #${id}`))].join(', ');
+          if (!blockedPathsByElem[key]) blockedPathsByElem[key] = [];
+          blockedPathsByElem[key].push({ path, blockedIds: bIds });
+        }
+
+        // Preview a path on the map and select it in the modal
+        const handleApplyPath = (path: number[]) => {
+          if (!navModalOrigNavRef.current || navModalOrigNavRef.current.elId !== el.id) {
+            navModalOrigNavRef.current = { elId: el.id, data: elemNavData[el.id] };
+          }
+          setElemNavModal(m => m ? { ...m, viaRouteIds: path } : null);
+          setElemNavData(prev => ({ ...prev, [el.id]: { fromPointId: fromPointId ?? null, toPointId: toPointId ?? null, viaRouteIds: path } }));
+        };
+
+        // Cancel: revert preview and close
+        const handleCancel = () => {
+          const saved = navModalOrigNavRef.current;
+          if (saved && saved.elId === el.id) {
+            const orig = saved.data;
+            if (orig) setElemNavData(prev => ({ ...prev, [el.id]: orig }));
+            else setElemNavData(prev => { const n = {...prev}; delete n[el.id]; return n; });
+            navModalOrigNavRef.current = null;
+          }
+          setElemNavModal(null);
+        };
+
+        // Drag handlers
+        const handleDragStart = (e: React.MouseEvent) => {
+          e.preventDefault();
+          navModalDragRef.current = { startMX: e.clientX, startMY: e.clientY, startPX: navModalPos.x, startPY: navModalPos.y };
+          const onMove = (ev: MouseEvent) => {
+            if (!navModalDragRef.current) return;
+            setNavModalPos({ x: navModalDragRef.current.startPX + ev.clientX - navModalDragRef.current.startMX, y: navModalDragRef.current.startPY + ev.clientY - navModalDragRef.current.startMY });
+          };
+          const onUp = () => { navModalDragRef.current = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        };
 
         return (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setElemNavModal(null)}>
-            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '20px', minWidth: '400px', maxWidth: '520px', color: 'white', direction: 'rtl', maxHeight: '85vh', overflowY: 'auto' }}
-              onClick={e => e.stopPropagation()}>
-              <div style={{ fontWeight: 'bold', fontSize: '15px', marginBottom: '16px', color: '#60a5fa' }}>🧭 ניווט מסלול — {el.name}</div>
+          <div style={{ position: 'fixed', left: navModalPos.x, top: navModalPos.y, zIndex: 99999, background: '#0f172a', border: '1px solid #334155', borderRadius: '12px', width: '480px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', color: 'white', direction: 'rtl', boxShadow: '0 20px 60px rgba(0,0,0,0.75)', overflow: 'hidden' }}>
+            {/* Drag handle header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1e3a5f', borderBottom: '1px solid #334155', cursor: 'grab', userSelect: 'none', flexShrink: 0 }}
+              onMouseDown={handleDragStart}>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#60a5fa' }}>🧭 ניווט מסלול — {el.name}</span>
+              <button onClick={handleCancel} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', lineHeight: 1, padding: '0 2px' }}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '14px 16px', flex: 1 }}>
 
               {/* From / To points */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
@@ -9520,65 +9571,76 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </div>
               </div>
 
-              {/* Auto-suggest & blocked warning */}
+              {/* Clear paths — sorted shortest to longest */}
               {fromPt && toPt && (
-                <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {/* All suggested paths — sorted shortest to longest */}
-                  {suggestedPaths.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }}>
-                      <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '2px' }}>🔍 מסלולים אפשריים — מהקצר לארוך:</div>
-                      {suggestedPaths.map((path: number[], i: number) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: i === 0 ? '#0c2440' : '#0f172a', border: `1px solid ${i === 0 ? '#1d4ed8' : '#1e293b'}`, borderRadius: '6px', padding: '6px 10px' }}>
-                          <span style={{ fontSize: '10px', color: i === 0 ? '#60a5fa' : '#94a3b8', minWidth: '18px', fontWeight: 'bold' }}>{path.length}</span>
-                          <span style={{ fontSize: '11px', color: i === 0 ? '#93c5fd' : '#cbd5e1', flex: 1 }}>
-                            {path.map((id: number) => airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`).join(' → ')}
-                          </span>
-                          <button onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: path } : null)}
-                            style={{ padding: '3px 10px', background: i === 0 ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>
-                            החל ✓
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {suggestedPaths.length === 0 && (
-                    <div style={{ fontSize: '11px', color: '#64748b', background: '#0c1a2e', border: '1px solid #1e293b', borderRadius: '7px', padding: '7px 12px' }}>
-                      🔍 לא נמצא מסלול אוטומטי בין הנקודות שנבחרו (אין חיבור בין מסלולים)
-                    </div>
+                <div style={{ marginBottom: '10px' }}>
+                  {clearPaths.length > 0 ? (
+                    <>
+                      <div style={{ fontSize: '10px', color: '#22c55e', fontWeight: 'bold', marginBottom: '4px' }}>✅ מסלולים פנויים — מהקצר לארוך:</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '200px', overflowY: 'auto' }}>
+                        {clearPaths.map((path: number[], i: number) => {
+                          const isActive = path.join(',') === viaRouteIds.join(',');
+                          return (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isActive ? '#052e16' : i === 0 ? '#0c2440' : '#0f172a', border: `1px solid ${isActive ? '#16a34a' : i === 0 ? '#1d4ed8' : '#1e293b'}`, borderRadius: '6px', padding: '5px 10px' }}>
+                              <span style={{ fontSize: '10px', color: isActive ? '#86efac' : i === 0 ? '#60a5fa' : '#64748b', minWidth: '16px', fontWeight: 'bold' }}>{path.length}</span>
+                              <span style={{ fontSize: '11px', color: isActive ? '#86efac' : i === 0 ? '#93c5fd' : '#cbd5e1', flex: 1 }}>
+                                {path.map((id: number) => airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`).join(' → ')}
+                              </span>
+                              <button onClick={() => handleApplyPath(path)}
+                                style={{ padding: '2px 9px', background: isActive ? '#16a34a' : i === 0 ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>
+                                {isActive ? '✓ נבחר' : 'החל'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : allSuggestedPaths.length > 0 ? (
+                    <div style={{ fontSize: '11px', color: '#f97316', background: '#1c0a00', border: '1px solid #9a3412', borderRadius: '6px', padding: '6px 10px' }}>🚫 כל המסלולים האפשריים חסומים</div>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: '#64748b', background: '#0c1a2e', border: '1px solid #1e293b', borderRadius: '6px', padding: '6px 10px' }}>🔍 לא נמצא מסלול בין הנקודות שנבחרו</div>
                   )}
                 </div>
               )}
 
-              {/* Blocked route warning + alternative */}
-              {blockedOnPath.length > 0 && (
-                <div style={{ marginBottom: '12px', background: '#2d0b0b', border: '1px solid #dc2626', borderRadius: '7px', padding: '10px 12px' }}>
-                  <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 'bold', marginBottom: '6px' }}>
-                    🚫 מסלול חסום! — {blockedOnPath.map((id: number) => {
-                      const rName = airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`;
-                      const elName = blockedRouteToElem[id];
-                      return elName ? `${rName} (${elName})` : rName;
-                    }).join(', ')}
-                  </div>
-                  {altPaths.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '120px', overflowY: 'auto' }}>
-                      {altPaths.map((path: number[], i: number) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', color: '#86efac', minWidth: '18px', fontWeight: 'bold' }}>{path.length}</span>
-                          <span style={{ fontSize: '11px', color: '#86efac', flex: 1 }}>
-                            🔀 {path.map((id: number) => airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`).join(' → ')}
-                          </span>
-                          <button onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: path } : null)}
-                            style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: '1px solid #16a34a', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>
-                            החל ✓
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (fromPt && toPt) ? (
-                    <div style={{ fontSize: '11px', color: '#f87171' }}>⚠️ לא קיים מסלול חלופי — כל הדרכים האפשריות חסומות או אינן מחוברות</div>
-                  ) : (
-                    <div style={{ fontSize: '11px', color: '#f87171' }}>💡 בחר מוצא ויעד לחישוב מסלול חלופי</div>
-                  )}
+              {/* Blocked paths — collapsed by blocking element */}
+              {fromPt && toPt && Object.keys(blockedPathsByElem).length > 0 && (
+                <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', marginBottom: '2px' }}>🚫 מסלולים חסומים — לפי אלמנט חוסם:</div>
+                  {Object.entries(blockedPathsByElem).map(([elemName, entries]) => {
+                    const isOpen = navBlockedGroupsOpen[elemName] ?? false;
+                    return (
+                      <div key={elemName} style={{ background: '#1a0505', border: '1px solid #7f1d1d', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button onClick={() => setNavBlockedGroupsOpen(prev => ({ ...prev, [elemName]: !isOpen }))}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', textAlign: 'right', direction: 'rtl', fontSize: '11px', fontWeight: 'bold' }}>
+                          <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '10px' }}>{isOpen ? '▲' : '▼'} {entries.length}</span>
+                          <span style={{ flex: 1 }}>🔒 {elemName}</span>
+                        </button>
+                        {isOpen && (
+                          <div style={{ borderTop: '1px solid #7f1d1d', padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {entries.map(({ path, blockedIds }, i) => {
+                              const isActive = path.join(',') === viaRouteIds.join(',');
+                              return (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isActive ? '#052e16' : 'transparent', borderRadius: '4px', padding: '3px 4px' }}>
+                                  <span style={{ fontSize: '10px', color: '#64748b', minWidth: '14px' }}>{path.length}</span>
+                                  <span style={{ fontSize: '11px', color: '#fca5a5', flex: 1 }}>
+                                    {path.map((id: number) => {
+                                      const name = airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`;
+                                      return blockedIds.includes(id) ? <span key={id} style={{ color: '#ef4444', textDecoration: 'line-through' }}>{name}</span> : <span key={id}>{name}</span>;
+                                    }).reduce<React.ReactNode[]>((acc, el2, i2) => i2 === 0 ? [el2] : [...acc, <span key={`a${i2}`} style={{ color: '#475569' }}> → </span>, el2], [])}
+                                  </span>
+                                  <button onClick={() => handleApplyPath(path)}
+                                    style={{ padding: '2px 8px', background: isActive ? '#16a34a' : '#450a0a', color: isActive ? 'white' : '#fca5a5', border: `1px solid ${isActive ? '#16a34a' : '#7f1d1d'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>
+                                    {isActive ? '✓' : 'החל'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -9663,20 +9725,22 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 );
               })()}
 
-              {/* Action buttons */}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
-                <button onClick={async () => {
-                  await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from_point_id: fromPointId, to_point_id: toPointId, via_route_ids: viaRouteIds }) });
-                  setElemNavData(prev => ({ ...prev, [el.id]: { fromPointId, toPointId, viaRouteIds } }));
-                  setElemNavModal(null);
-                }} style={{ padding: '7px 18px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>💾 שמור ניווט</button>
-                <button onClick={async () => {
-                  await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'DELETE' });
-                  setElemNavData(prev => { const n = { ...prev }; delete n[el.id]; return n; });
-                  setElemNavModal(null);
-                }} style={{ padding: '7px 14px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 נקה</button>
-                <button onClick={() => setElemNavModal(null)} style={{ padding: '7px 14px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
-              </div>
+            </div>
+            {/* Sticky action bar */}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', padding: '10px 16px', borderTop: '1px solid #1e293b', background: '#0f172a', flexShrink: 0 }}>
+              <button onClick={async () => {
+                await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from_point_id: fromPointId, to_point_id: toPointId, via_route_ids: viaRouteIds }) });
+                setElemNavData(prev => ({ ...prev, [el.id]: { fromPointId, toPointId, viaRouteIds } }));
+                navModalOrigNavRef.current = null;
+                setElemNavModal(null);
+              }} style={{ padding: '7px 18px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}>💾 שמור ניווט</button>
+              <button onClick={async () => {
+                await fetch(`${API_URL}/element-nav/${el.id}`, { method: 'DELETE' });
+                setElemNavData(prev => { const n = { ...prev }; delete n[el.id]; return n; });
+                navModalOrigNavRef.current = null;
+                setElemNavModal(null);
+              }} style={{ padding: '7px 14px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 נקה</button>
+              <button onClick={handleCancel} style={{ padding: '7px 14px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
             </div>
           </div>
         );
