@@ -9391,7 +9391,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           // 1. Geometric intersection
           for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
           // 2. Endpoint of r1 close (perpendicular) to any segment of r2
-          const NEAR_EP = 2;
+          const NEAR_EP = 4;
           const eps1 = [p1[0], p1[p1.length - 1]];
           const eps2 = [p2[0], p2[p2.length - 1]];
           for (const ep of eps1) if (_ptPolySegDist(ep.x, ep.y, p2) < NEAR_EP) return true;
@@ -9431,9 +9431,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         // BFS: find shortest connected route chain from point A to point B, avoiding excluded route IDs
         const findBestPath = (fromPt: any, toPt: any, exclude: Set<number> = new Set()): number[]|null => {
           if (!fromPt || !toPt) return null;
-          const NEAR = 4;
+          const NEAR = 6;
           const startIds: number[] = airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(fromPt.x_pct, fromPt.y_pct, r) < NEAR).sort((a: any,b: any) => ptToRouteDist(fromPt.x_pct, fromPt.y_pct, a) - ptToRouteDist(fromPt.x_pct, fromPt.y_pct, b)).map((r: any) => r.id as number);
-          const endIds = new Set<number>(airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(toPt.x_pct, toPt.y_pct, r) < NEAR).map((r: any) => r.id as number));
+          // endIds: only the single closest route to destination — prevents BFS from picking a shorter but wrong path
+          const endIdsSorted = airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(toPt.x_pct, toPt.y_pct, r) < NEAR).sort((a: any,b: any) => ptToRouteDist(toPt.x_pct, toPt.y_pct, a) - ptToRouteDist(toPt.x_pct, toPt.y_pct, b));
+          const endIds = new Set<number>(endIdsSorted.length ? [endIdsSorted[0].id as number] : []);
           if (!startIds.length || !endIds.size) return null;
           const directHit = startIds.find((id: number) => endIds.has(id));
           if (directHit !== undefined) return [directHit];
