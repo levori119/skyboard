@@ -9427,14 +9427,14 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           const p1: {x:number;y:number}[] = Array.isArray(r1.route_path) ? r1.route_path : (typeof r1.route_path === 'string' ? (() => { try { return JSON.parse(r1.route_path); } catch { return []; } })() : []);
           const p2: {x:number;y:number}[] = Array.isArray(r2.route_path) ? r2.route_path : (typeof r2.route_path === 'string' ? (() => { try { return JSON.parse(r2.route_path); } catch { return []; } })() : []);
           if (p1.length < 2 || p2.length < 2) return false;
-          // 1. Geometric intersection
+          // 1. Geometric intersection of segments
           for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
-          // 2. Endpoint of r1 close (perpendicular) to any segment of r2
+          // 2. Endpoint-to-endpoint proximity only (junction check)
+          //    Do NOT check endpoint vs. mid-segment — that causes false positives for nearby but unconnected routes
           const NEAR_EP = 4;
           const eps1 = [p1[0], p1[p1.length - 1]];
           const eps2 = [p2[0], p2[p2.length - 1]];
-          for (const ep of eps1) if (_ptPolySegDist(ep.x, ep.y, p2) < NEAR_EP) return true;
-          for (const ep of eps2) if (_ptPolySegDist(ep.x, ep.y, p1) < NEAR_EP) return true;
+          for (const a of eps1) for (const b of eps2) if (Math.hypot(a.x - b.x, a.y - b.y) < NEAR_EP) return true;
           return false;
         };
         const catLabel: Record<string, string> = { general: 'כללי', aircraft: 'מטוסים', vehicle: 'כלי רכב' };
