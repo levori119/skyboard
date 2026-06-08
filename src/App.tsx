@@ -9406,7 +9406,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
         // --- Pathfinding helpers ---
         const parsePts = (r: any): {x:number;y:number}[] => Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? (() => { try { return JSON.parse(r.route_path); } catch { return []; } })() : []);
-        const ptToRouteDist = (px: number, py: number, r: any) => { const p = parsePts(r); return p.length ? Math.min(...p.map((pt: any) => Math.hypot(pt.x - px, pt.y - py))) : Infinity; };
+        const ptToRouteDist = (px: number, py: number, r: any) => { const p = parsePts(r); return _ptPolySegDist(px, py, p); };
         const NAV_DS: Record<string,string> = { close:'סגור', open:'פתוח', off:'כבוי', stop:'עצור', go:'עבור', blink:'מנצנץ' };
         // Build set of currently blocked route IDs
         const blockedRouteSet = new Set<number>((airfieldElements||[]).flatMap((ae: any) => {
