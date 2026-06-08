@@ -17908,6 +17908,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
                     </button>
                   </div>
+                  {/* רענן — בתחתית תפריט תצוגה */}
+                  <div style={{ borderTop: '1px solid #334155' }}>
+                    <button
+                      onClick={() => { refreshPresetConfig(); setShowViewMenu(false); }}
+                      disabled={refreshing}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                      onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                    >
+                      {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -18021,19 +18033,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </button>
                 </div>
               </div>
-              {/* רענן — בתחתית תפריט תצוגה */}
-              <div style={{ borderTop: '1px solid #334155' }}>
-                <button
-                  onClick={() => { refreshPresetConfig(); setShowViewMenu(false); }}
-                  disabled={refreshing}
-                  style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
-                  onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
-                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
-                >
-                  {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
-                </button>
-              </div>
-                </div>
               </>
             )}
           </div>
