@@ -13925,6 +13925,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showViewMenu, setShowViewMenu] = useState(false);
   const [showAppCameraWall, setShowAppCameraWall] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [allWorkGroups, setAllWorkGroups] = useState<any[]>([]);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
@@ -17871,6 +17872,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </button>
             );
           })()}
+          {/* כפתור מידע מערכת */}
+          <button
+            onClick={() => setShowInfoModal(true)}
+            title="מידע על המערכת"
+            style={{ background: '#1e3a5f', color: '#93c5fd', border: '1.5px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'serif' }}
+          >!</button>
+
           {/* תפריט משתמש */}
           <div style={{ position: 'relative' }}>
             <button
@@ -18018,6 +18026,115 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         );
       })()}
 
+
+      {/* Info Modal */}
+      {showInfoModal && (() => {
+        const ROLE_LABEL: Record<string, string> = { tower: 'לחץ', mazaa: 'מז"א', controller: 'בקר', senior_controller: 'בקר בכיר', ground: 'קרקע', supervisor: 'מפקח', admin: 'מנהל' };
+        const myGroup = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
+        const groupPresets = myGroup
+          ? (myGroup.members || []).map((m: any) => workstationPresets.find((p: any) => Number(p.id) === Number(m.preset_id))).filter(Boolean)
+          : [];
+        const adminPreset = myGroup?.admin_preset_id ? workstationPresets.find((p: any) => Number(p.id) === Number(myGroup.admin_preset_id)) : null;
+        return (
+          <>
+            <div onClick={() => setShowInfoModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9998 }} />
+            <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 9999, width: '480px', maxWidth: '95vw', maxHeight: '85vh', background: '#070f1c', border: '1.5px solid #1e3a5f', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb', border: '2px solid #60a5fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold', color: '#e0f2fe', fontFamily: 'serif' }}>!</div>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#e0f2fe', letterSpacing: '1px' }}>SKY KING</div>
+                    <div style={{ fontSize: '10px', color: '#93c5fd', letterSpacing: '0.5px' }}>לוח שמיים — מידע על המערכת</div>
+                  </div>
+                </div>
+                <button onClick={() => setShowInfoModal(false)} style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: '#64748b', cursor: 'pointer', fontSize: '16px', padding: '2px 8px', lineHeight: 1 }}>✕</button>
+              </div>
+
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {/* Version */}
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>📦</span>
+                    <span style={{ fontSize: '13px', color: '#94a3b8' }}>גרסה נוכחית</span>
+                  </div>
+                  <span style={{ background: '#1e3a5f', border: '1px solid #3b82f6', color: '#60a5fa', borderRadius: '6px', padding: '3px 12px', fontSize: '13px', fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '1px' }}>v1.0.0</span>
+                </div>
+
+                {/* Work group */}
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px' }}>👥</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>קבוצת עבודה</span>
+                    {myGroup && <span style={{ background: '#0f2744', border: '1px solid #1e3a5f', color: '#93c5fd', borderRadius: '8px', padding: '1px 8px', fontSize: '11px' }}>{myGroup.name}</span>}
+                  </div>
+                  {!myGroup && <div style={{ fontSize: '12px', color: '#475569', paddingRight: '22px' }}>העמדה אינה משויכת לקבוצת עבודה</div>}
+                  {myGroup && (
+                    <div style={{ paddingRight: '22px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {adminPreset && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '10px', color: '#64748b' }}>מנהל קבוצה:</span>
+                          <span style={{ background: '#1c1200', border: '1px solid #f59e0b', color: '#fbbf24', borderRadius: '4px', padding: '1px 8px', fontSize: '11px', fontWeight: 'bold' }}>⭐ {adminPreset.name}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '4px' }}>
+                        {groupPresets.map((p: any) => {
+                          const role = p.preset_role || '';
+                          const roleLabel = ROLE_LABEL[role] || role || '—';
+                          const isMe = Number(p.id) === Number(session.presetId);
+                          const isAdmin = myGroup.admin_preset_id && Number(p.id) === Number(myGroup.admin_preset_id);
+                          return (
+                            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', borderRadius: '6px', background: isMe ? '#0f2744' : '#0a1628', border: `1px solid ${isMe ? '#3b82f6' : '#1e3a5f'}` }}>
+                              <span style={{ fontSize: '10px', minWidth: '14px', textAlign: 'center' }}>{isMe ? '▶' : '·'}</span>
+                              <span style={{ flex: 1, fontSize: '12px', color: isMe ? '#e0f2fe' : '#94a3b8', fontWeight: isMe ? 'bold' : 'normal' }}>{p.name}</span>
+                              {role && <span style={{ fontSize: '10px', background: role === 'tower' ? '#1c1a00' : role === 'mazaa' ? '#1a0a2e' : '#0f172a', border: `1px solid ${role === 'tower' ? '#f59e0b' : role === 'mazaa' ? '#a855f7' : '#334155'}`, color: role === 'tower' ? '#fbbf24' : role === 'mazaa' ? '#d8b4fe' : '#94a3b8', borderRadius: '4px', padding: '0 6px' }}>{roleLabel}</span>}
+                              {isAdmin && <span style={{ fontSize: '9px', color: '#fbbf24' }}>⭐</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* About */}
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e3a5f' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px' }}>ℹ️</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>אודות</span>
+                  </div>
+                  <div style={{ paddingRight: '22px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.7 }}>
+                    <div style={{ marginBottom: '8px' }}><strong style={{ color: '#e0f2fe' }}>SKY KING — לוח שמיים</strong></div>
+                    <div>מערכת ניהול פסי טיסה דיגיטלית לתעופה צבאית. מאפשרת ניהול עמדות עבודה מרובות, העברות בזמן אמת, ניהול קרקע, מעקב אחר גובה וקונפליקטים, מפות תפעוליות, ובניית שאילתות מסנן מתקדמות.</div>
+                  </div>
+                </div>
+
+                {/* Developers */}
+                <div style={{ padding: '14px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '14px' }}>💻</span>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7dd3fc' }}>מפתחים</span>
+                  </div>
+                  <div style={{ paddingRight: '22px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {['אורי אלימלך', 'אורי לב'].map(name => (
+                      <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: '#0a1628', border: '1px solid #1e3a5f' }}>
+                        <span style={{ fontSize: '13px' }}>👨‍💻</span>
+                        <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: 'bold' }}>{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '10px 20px', borderTop: '1px solid #1e3a5f', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <span style={{ fontSize: '10px', color: '#334155' }}>© 2025 SKY KING</span>
+                <button onClick={() => setShowInfoModal(false)} style={{ padding: '6px 20px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>סגור</button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Admin Dashboard Overlay */}
       {showAdminDashboard && (() => {
