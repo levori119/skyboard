@@ -7981,20 +7981,19 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             });
             if (trimmedPaths.every((r: any) => !r) && !fromPt && !toPt) return null;
 
-            {
-                  const sc = effectiveMapScale || 1;
-                  const rIntersect  = 0.7 / sc;
-                  const rFoot       = 0.45 / sc;
-                  const rEndpoint   = 1.3 / sc;
-                  const swIntersect = 0.4 / sc;
-                  const swFoot      = 0.25 / sc;
-                  const swEndpoint  = 0.5 / sc;
-                  const swLine      = 0.6 / sc;
-                  const swPoly      = (isVehicle: boolean) => (isVehicle ? 0.7 : 0.5) / sc;
-                  const dashPoly    = (isVehicle: boolean) => isVehicle ? `${3/sc},${1.5/sc}` : `${2.5/sc},${1.5/sc}`;
-                  const dashLine    = `${1.2/sc},${0.7/sc}`;
-                  const fontSize    = 2.0 / sc;
-                  const labelOff    = 2.5 / sc;
+            const sc = effectiveMapScale || 1;
+            const rIntersect  = 0.7 / sc;
+            const rFoot       = 0.45 / sc;
+            const rEndpoint   = 1.3 / sc;
+            const swIntersect = 0.4 / sc;
+            const swFoot      = 0.25 / sc;
+            const swEndpoint  = 0.5 / sc;
+            const swLine      = 0.6 / sc;
+            const swPoly      = (isVehicle: boolean) => (isVehicle ? 0.7 : 0.5) / sc;
+            const dashPoly    = (isVehicle: boolean) => isVehicle ? `${3/sc},${1.5/sc}` : `${2.5/sc},${1.5/sc}`;
+            const dashLine    = `${1.2/sc},${0.7/sc}`;
+            const fontSize    = 2.0 / sc;
+            const labelOff    = 2.5 / sc;
             return (
               <svg key={elIdStr} viewBox="0 0 100 100" preserveAspectRatio="none"
                 style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
