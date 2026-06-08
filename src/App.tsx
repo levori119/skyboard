@@ -8589,6 +8589,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         // taxiViaRouteIds holds ordered route IDs; 0 means "empty slot"
         const viaSlots: number[] = taxiViaRouteIds.length > 0 ? taxiViaRouteIds : [0];
         const routes = airfieldRoutes || [];
+        // Blocked route detection for taxi modal
+        const TAXI_DS: Record<string,string> = { close:'סגור', open:'פתוח', off:'כבוי', stop:'עצור', go:'עבור', blink:'מנצנץ' };
+        const taxiBlockedRouteToElem: Record<number,string> = {};
+        (airfieldElements||[]).forEach((ae: any) => {
+          const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
+          const bsts: string[] = Array.isArray(ae.blocking_statuses) ? ae.blocking_statuses : [];
+          if (!rels.length || !bsts.length) return;
+          const eff = TAXI_DS[ae.display_state||''] || ae.status || '';
+          if (!bsts.includes(eff) && !bsts.includes(ae.status||'')) return;
+          rels.forEach((rid: number) => { taxiBlockedRouteToElem[rid] = ae.name; });
+        });
+        const taxiBlockedRouteSet = new Set<number>(Object.keys(taxiBlockedRouteToElem).map(Number));
+        const filledVia = viaSlots.filter(id => id > 0);
+        const taxiBlockedVia = filledVia.filter(id => taxiBlockedRouteSet.has(id));
+        const taxiDestBlocked = taxiDestRouteId != null && taxiBlockedRouteSet.has(taxiDestRouteId);
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}
             onClick={() => setTaxiInstModal(null)}>
@@ -8639,6 +8654,28 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   >+ הוסף דרך</button>
                 </div>
               </div>
+
+              {/* Blocked route warning for taxi */}
+              {(taxiBlockedVia.length > 0 || taxiDestBlocked) && (
+                <div style={{ marginBottom: '16px', background: '#2d0b0b', border: '1px solid #dc2626', borderRadius: '7px', padding: '10px 12px' }}>
+                  <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 'bold', marginBottom: taxiBlockedVia.length > 0 ? '4px' : 0 }}>
+                    🚫 מסלול חסום!
+                  </div>
+                  {taxiDestBlocked && (
+                    <div style={{ fontSize: '11px', color: '#fca5a5', marginBottom: '3px' }}>
+                      יעד: {routes.find((r: any) => r.id === taxiDestRouteId)?.name || `#${taxiDestRouteId}`}
+                      {taxiBlockedRouteToElem[taxiDestRouteId!] ? ` — חסום ע"י ${taxiBlockedRouteToElem[taxiDestRouteId!]}` : ''}
+                    </div>
+                  )}
+                  {taxiBlockedVia.map((id: number) => (
+                    <div key={id} style={{ fontSize: '11px', color: '#fca5a5' }}>
+                      דרך: {routes.find((r: any) => r.id === id)?.name || `#${id}`}
+                      {taxiBlockedRouteToElem[id] ? ` — חסום ע"י ${taxiBlockedRouteToElem[id]}` : ''}
+                    </div>
+                  ))}
+                  <div style={{ fontSize: '10px', color: '#f87171', marginTop: '6px' }}>⚠️ בחר מסלול חלופי שאינו חסום</div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setTaxiInstModal(null)}
@@ -9331,6 +9368,64 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           acc[cat] = airfieldRoutesLocal.filter((r: any) => (r.route_category || 'general') === cat);
           return acc;
         }, {});
+
+        // --- Pathfinding helpers ---
+        const parsePts = (r: any): {x:number;y:number}[] => Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? (() => { try { return JSON.parse(r.route_path); } catch { return []; } })() : []);
+        const ptToRouteDist = (px: number, py: number, r: any) => { const p = parsePts(r); return p.length ? Math.min(...p.map((pt: any) => Math.hypot(pt.x - px, pt.y - py))) : Infinity; };
+        const NAV_DS: Record<string,string> = { close:'סגור', open:'פתוח', off:'כבוי', stop:'עצור', go:'עבור', blink:'מנצנץ' };
+        // Build set of currently blocked route IDs
+        const blockedRouteSet = new Set<number>((airfieldElements||[]).flatMap((ae: any) => {
+          const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
+          const bsts: string[] = Array.isArray(ae.blocking_statuses) ? ae.blocking_statuses : [];
+          if (!rels.length || !bsts.length) return [];
+          const eff = NAV_DS[ae.display_state||''] || ae.status || '';
+          if (!bsts.includes(eff) && !bsts.includes(ae.status||'')) return [];
+          return rels;
+        }));
+        // Map blocked route → element name for display
+        const blockedRouteToElem: Record<number,string> = {};
+        (airfieldElements||[]).forEach((ae: any) => {
+          const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
+          const bsts: string[] = Array.isArray(ae.blocking_statuses) ? ae.blocking_statuses : [];
+          if (!rels.length || !bsts.length) return;
+          const eff = NAV_DS[ae.display_state||''] || ae.status || '';
+          if (!bsts.includes(eff) && !bsts.includes(ae.status||'')) return;
+          rels.forEach((rid: number) => { blockedRouteToElem[rid] = ae.name; });
+        });
+        const blockedOnPath = viaRouteIds.filter((id: number) => blockedRouteSet.has(id));
+        // BFS: find shortest connected route chain from point A to point B, avoiding excluded route IDs
+        const findBestPath = (fromPt: any, toPt: any, exclude: Set<number> = new Set()): number[]|null => {
+          if (!fromPt || !toPt) return null;
+          const NEAR = 8;
+          const startIds: number[] = airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(fromPt.x_pct, fromPt.y_pct, r) < NEAR).sort((a: any,b: any) => ptToRouteDist(fromPt.x_pct, fromPt.y_pct, a) - ptToRouteDist(fromPt.x_pct, fromPt.y_pct, b)).map((r: any) => r.id as number);
+          const endIds = new Set<number>(airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(toPt.x_pct, toPt.y_pct, r) < NEAR).map((r: any) => r.id as number));
+          if (!startIds.length || !endIds.size) return null;
+          const directHit = startIds.find((id: number) => endIds.has(id));
+          if (directHit !== undefined) return [directHit];
+          const queue: {path: number[]}[] = startIds.map((id: number) => ({path:[id]}));
+          const visited = new Set<number>(startIds);
+          while (queue.length) {
+            const {path} = queue.shift()!;
+            const lastId = path[path.length-1];
+            const lastR = airfieldRoutesLocal.find((r: any) => r.id === lastId);
+            if (!lastR) continue;
+            for (const r of airfieldRoutesLocal) {
+              if (visited.has(r.id) || exclude.has(r.id)) continue;
+              if (routesIntersect(lastR, r)) {
+                visited.add(r.id);
+                const np = [...path, r.id];
+                if (endIds.has(r.id)) return np;
+                queue.push({path: np});
+              }
+            }
+          }
+          return null;
+        };
+        const fromPt = fromPointId ? (points as any[]).find((p: any) => p.id === fromPointId) : null;
+        const toPt = toPointId ? (points as any[]).find((p: any) => p.id === toPointId) : null;
+        const suggestedPath: number[]|null = (fromPt && toPt) ? findBestPath(fromPt, toPt) : null;
+        const altPath: number[]|null = (blockedOnPath.length > 0 && fromPt && toPt) ? findBestPath(fromPt, toPt, new Set([...blockedRouteSet])) : null;
+
         return (
           <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setElemNavModal(null)}>
@@ -9357,6 +9452,59 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </select>
                 </div>
               </div>
+
+              {/* Auto-suggest & blocked warning */}
+              {fromPt && toPt && (
+                <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* Auto-suggest button */}
+                  {suggestedPath && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0c2440', border: '1px solid #1d4ed8', borderRadius: '7px', padding: '8px 12px' }}>
+                      <span style={{ fontSize: '11px', color: '#93c5fd', flex: 1 }}>
+                        🔍 מסלול מומלץ ({suggestedPath.length} קטע{suggestedPath.length !== 1 ? 'ים' : ''}):&nbsp;
+                        {suggestedPath.map((id: number) => airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`).join(' → ')}
+                      </span>
+                      <button onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: suggestedPath } : null)}
+                        style={{ padding: '4px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>
+                        החל ✓
+                      </button>
+                    </div>
+                  )}
+                  {!suggestedPath && (
+                    <div style={{ fontSize: '11px', color: '#64748b', background: '#0c1a2e', border: '1px solid #1e293b', borderRadius: '7px', padding: '7px 12px' }}>
+                      🔍 לא נמצא מסלול אוטומטי בין הנקודות שנבחרו (אין חיבור בין מסלולים)
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Blocked route warning + alternative */}
+              {blockedOnPath.length > 0 && (
+                <div style={{ marginBottom: '12px', background: '#2d0b0b', border: '1px solid #dc2626', borderRadius: '7px', padding: '10px 12px' }}>
+                  <div style={{ fontSize: '12px', color: '#fca5a5', fontWeight: 'bold', marginBottom: '6px' }}>
+                    🚫 מסלול חסום! — {blockedOnPath.map((id: number) => {
+                      const rName = airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`;
+                      const elName = blockedRouteToElem[id];
+                      return elName ? `${rName} (${elName})` : rName;
+                    }).join(', ')}
+                  </div>
+                  {altPath ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '11px', color: '#86efac', flex: 1 }}>
+                        🔀 מסלול חלופי ({altPath.length} קטע{altPath.length !== 1 ? 'ים' : ''}):&nbsp;
+                        {altPath.map((id: number) => airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`).join(' → ')}
+                      </span>
+                      <button onClick={() => setElemNavModal(m => m ? { ...m, viaRouteIds: altPath } : null)}
+                        style={{ padding: '4px 12px', background: '#166534', color: '#86efac', border: '1px solid #16a34a', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>
+                        עבור לחלופי ✓
+                      </button>
+                    </div>
+                  ) : (fromPt && toPt) ? (
+                    <div style={{ fontSize: '11px', color: '#f87171' }}>⚠️ לא קיים מסלול חלופי — כל הדרכים האפשריות חסומות או אינן מחוברות</div>
+                  ) : (
+                    <div style={{ fontSize: '11px', color: '#f87171' }}>💡 בחר מוצא ויעד לחישוב מסלול חלופי</div>
+                  )}
+                </div>
+              )}
 
               {/* Via routes — by category (additive selection) */}
               {(() => {
