@@ -17486,11 +17486,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <div style={{ fontSize: '8px', color: '#93c5fd', letterSpacing: '1px', lineHeight: 1.2 }}>לוח שמיים</div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '6px' }}>
             <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
               {session.workstationName}
             </span>
-            {/* כפתור משתמש — ממוקם מתחת שם העמדה */}
+            {/* כפתור משתמש — משמאל לשם העמדה */}
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
