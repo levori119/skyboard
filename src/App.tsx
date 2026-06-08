@@ -9391,7 +9391,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           // 1. Geometric intersection
           for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
           // 2. Endpoint of r1 close (perpendicular) to any segment of r2
-          const NEAR_EP = 6;
+          const NEAR_EP = 2;
           const eps1 = [p1[0], p1[p1.length - 1]];
           const eps2 = [p2[0], p2[p2.length - 1]];
           for (const ep of eps1) if (_ptPolySegDist(ep.x, ep.y, p2) < NEAR_EP) return true;
