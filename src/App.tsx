@@ -9431,7 +9431,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         // BFS: find shortest connected route chain from point A to point B, avoiding excluded route IDs
         const findBestPath = (fromPt: any, toPt: any, exclude: Set<number> = new Set()): number[]|null => {
           if (!fromPt || !toPt) return null;
-          const NEAR = 8;
+          const NEAR = 4;
           const startIds: number[] = airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(fromPt.x_pct, fromPt.y_pct, r) < NEAR).sort((a: any,b: any) => ptToRouteDist(fromPt.x_pct, fromPt.y_pct, a) - ptToRouteDist(fromPt.x_pct, fromPt.y_pct, b)).map((r: any) => r.id as number);
           const endIds = new Set<number>(airfieldRoutesLocal.filter((r: any) => !exclude.has(r.id) && ptToRouteDist(toPt.x_pct, toPt.y_pct, r) < NEAR).map((r: any) => r.id as number));
           if (!startIds.length || !endIds.size) return null;
