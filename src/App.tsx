@@ -7981,6 +7981,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             });
             if (trimmedPaths.every((r: any) => !r) && !fromPt && !toPt) return null;
 
+            {
+                  const sc = effectiveMapScale || 1;
+                  const rIntersect  = 0.7 / sc;
+                  const rFoot       = 0.45 / sc;
+                  const rEndpoint   = 1.3 / sc;
+                  const swIntersect = 0.4 / sc;
+                  const swFoot      = 0.25 / sc;
+                  const swEndpoint  = 0.5 / sc;
+                  const swLine      = 0.6 / sc;
+                  const swPoly      = (isVehicle: boolean) => (isVehicle ? 0.7 : 0.5) / sc;
+                  const dashPoly    = (isVehicle: boolean) => isVehicle ? `${3/sc},${1.5/sc}` : `${2.5/sc},${1.5/sc}`;
+                  const dashLine    = `${1.2/sc},${0.7/sc}`;
+                  const fontSize    = 2.0 / sc;
+                  const labelOff    = 2.5 / sc;
             return (
               <svg key={elIdStr} viewBox="0 0 100 100" preserveAspectRatio="none"
                 style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 4 }}>
@@ -7993,13 +8007,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       <polyline
                         points={rp.pts.map((p:any) => `${p.x},${p.y}`).join(' ')}
                         fill="none" stroke={stroke}
-                        strokeWidth={isVehicle ? "0.7" : "0.5"}
-                        strokeDasharray={isVehicle ? "3,1.5" : "2.5,1.5"}
+                        strokeWidth={swPoly(isVehicle)}
+                        strokeDasharray={dashPoly(isVehicle)}
                         opacity="0.95" strokeLinecap="round" />
                       {/* Red dot at intersection with next route */}
                       {intersections[i] && (
                         <circle cx={intersections[i]!.pt.x} cy={intersections[i]!.pt.y}
-                          r="1.5" fill="#ef4444" stroke="white" strokeWidth="0.5" opacity="0.95" />
+                          r={rIntersect} fill="#ef4444" stroke="white" strokeWidth={swIntersect} opacity="0.95" />
                       )}
                     </React.Fragment>
                   );
@@ -8027,10 +8041,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         const foot = closestOnPoly(firstPath.pts, fromPt.x_pct, fromPt.y_pct);
                         return (
                           <>
-                            <line x1={fromPt.x_pct} y1={fromPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="1.5,0.8" opacity="0.9" />
-                            <circle cx={foot.x} cy={foot.y} r="1.0" fill="#22c55e" stroke="white" strokeWidth="0.3" opacity="0.95" />
-                            <circle cx={fromPt.x_pct} cy={fromPt.y_pct} r="2.2" fill="#22c55e" stroke="white" strokeWidth="0.6" opacity="0.95" />
-                            <text x={fromPt.x_pct} y={fromPt.y_pct - 3} textAnchor="middle" fill="#22c55e" fontSize="2.5" fontWeight="bold">מ</text>
+                            <line x1={fromPt.x_pct} y1={fromPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth={swLine} strokeDasharray={dashLine} opacity="0.9" />
+                            <circle cx={foot.x} cy={foot.y} r={rFoot} fill="#22c55e" stroke="white" strokeWidth={swFoot} opacity="0.95" />
+                            <circle cx={fromPt.x_pct} cy={fromPt.y_pct} r={rEndpoint} fill="#22c55e" stroke="white" strokeWidth={swEndpoint} opacity="0.95" />
+                            <text x={fromPt.x_pct} y={fromPt.y_pct - labelOff} textAnchor="middle" fill="#22c55e" fontSize={fontSize} fontWeight="bold">מ</text>
                           </>
                         );
                       })()}
@@ -8038,10 +8052,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         const foot = closestOnPoly(lastPath.pts, toPt.x_pct, toPt.y_pct);
                         return (
                           <>
-                            <line x1={toPt.x_pct} y1={toPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth="0.8" strokeDasharray="1.5,0.8" opacity="0.9" />
-                            <circle cx={foot.x} cy={foot.y} r="1.0" fill="#22c55e" stroke="white" strokeWidth="0.3" opacity="0.95" />
-                            <circle cx={toPt.x_pct} cy={toPt.y_pct} r="2.2" fill="#f43f5e" stroke="white" strokeWidth="0.6" opacity="0.95" />
-                            <text x={toPt.x_pct} y={toPt.y_pct - 3} textAnchor="middle" fill="#f43f5e" fontSize="2.5" fontWeight="bold">ל</text>
+                            <line x1={toPt.x_pct} y1={toPt.y_pct} x2={foot.x} y2={foot.y} stroke="#22c55e" strokeWidth={swLine} strokeDasharray={dashLine} opacity="0.9" />
+                            <circle cx={foot.x} cy={foot.y} r={rFoot} fill="#22c55e" stroke="white" strokeWidth={swFoot} opacity="0.95" />
+                            <circle cx={toPt.x_pct} cy={toPt.y_pct} r={rEndpoint} fill="#f43f5e" stroke="white" strokeWidth={swEndpoint} opacity="0.95" />
+                            <text x={toPt.x_pct} y={toPt.y_pct - labelOff} textAnchor="middle" fill="#f43f5e" fontSize={fontSize} fontWeight="bold">ל</text>
                           </>
                         );
                       })()}
