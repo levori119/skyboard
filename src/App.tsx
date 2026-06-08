@@ -17431,7 +17431,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header style={{ padding: '6px 16px', background: T.surface, color: T.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', direction: 'rtl', borderBottom: `1px solid ${T.border}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setShowInfoModal(true)} title="מידע על המערכת">
             {/* Animated header logo — radar sweep + banking plane */}
             <svg width="28" height="28" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
@@ -17671,12 +17671,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           );
         })()}
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          {/* כפתור חוזי עומס */}
-          <button
-            onClick={() => setShowLoadForecast(v => !v)}
-            title="חוזי עומס — גרף עומס לפי שעה"
-            style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-          >📈 עומס</button>
           {/* כפתור כל המכלול */}
           {myPresetConfig?.show_full_picture && (
             <button
@@ -17695,78 +17689,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               📊 דש בורד
             </button>
           )}
-          {/* תפריט התראות */}
-          <div style={{ position: 'relative' }}>
-            {(() => {
-              const hasAlert = (loadLevel !== 'none' && !muteLoadAlerts);
-              return (
-                <button
-                  onClick={() => { setShowAlertsMenu(v => !v); setShowViewMenu(false); setShowUserMenu(false); }}
-                  style={{ background: showAlertsMenu ? '#475569' : (hasAlert ? '#7c2d12' : '#334155'), color: hasAlert ? '#fbbf24' : 'white', border: `1px solid ${hasAlert ? '#f59e0b' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
-                >
-                  {hasAlert ? '🔔' : '🔕'} התראות {showAlertsMenu ? '▲' : '▼'}
-                </button>
-              );
-            })()}
-            {showAlertsMenu && (
-              <>
-                <div onClick={() => setShowAlertsMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '210px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
-                  onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>ניהול התראות</div>
-                  {/* Load alert row */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
-                      {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
-                    </span>
-                    <button
-                      onClick={() => setMuteLoadAlerts(v => !v)}
-                      style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} עומס
-                    </button>
-                  </div>
-                  {/* Block alert row */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
-                      {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
-                    </span>
-                    <button
-                      onClick={() => setMuteBlockAlerts(v => !v)}
-                      style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} בלוקים
-                    </button>
-                  </div>
-                  {/* Contacts on transfer row */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
-                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#64748b' }}>
-                      {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
-                    </span>
-                    <button
-                      onClick={() => setShowContactsOnTransfer(v => !v)}
-                      style={{ background: showContactsOnTransfer ? '#1e3a5f' : '#334155', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8', border: `1px solid ${showContactsOnTransfer ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      {showContactsOnTransfer ? '🔕 כבה' : '🔔 הפעל'}
-                    </button>
-                  </div>
-                  {/* Suggest alt range for formation row */}
-                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
-                      {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
-                    </span>
-                    <button
-                      onClick={() => setSuggestAltRangeFormation(v => !v)}
-                      style={{ background: suggestAltRangeFormation ? '#2e1a5e' : '#334155', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8', border: `1px solid ${suggestAltRangeFormation ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
           {/* כפתור אחד/פצל — גלוי רק במוד מפה */}
           {!isClassicMode && !isGroundMode && !tableMode && (
             <button
@@ -17874,6 +17796,56 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <span style={{ fontSize: '10px', color: '#64748b' }}>{airfieldElements.filter((e: any) => e.camera_url).length} מצלמות</span>
                     </div>
                   )}
+                  {/* ─── עומס ───────────────────────────────────── */}
+                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderTop: '1px solid #334155', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
+                  {/* Load forecast toggle */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
+                    <span style={{ fontSize: '12px', color: showLoadForecast ? '#a78bfa' : '#64748b' }}>📈 חוזי עומס</span>
+                    <button onClick={() => { setShowLoadForecast(v => !v); setShowViewMenu(false); }}
+                      style={{ background: showLoadForecast ? '#2e1a5e' : '#334155', color: showLoadForecast ? '#a78bfa' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {showLoadForecast ? '🔕 סגור' : '🔔 פתח'}
+                    </button>
+                  </div>
+                  {/* Load alert */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e3a5f', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: loadLevel !== 'none' ? '#93c5fd' : '#64748b' }}>
+                      {loadLevel !== 'none' ? (loadLevel === 'full' ? '🔴 עומס מלא' : '🟠 עומס חלקי') : '⚪ אין עומס'}
+                    </span>
+                    <button onClick={() => setMuteLoadAlerts(v => !v)}
+                      style={{ background: muteLoadAlerts ? '#334155' : '#1e3a5f', color: muteLoadAlerts ? '#94a3b8' : '#93c5fd', border: `1px solid ${muteLoadAlerts ? '#475569' : '#3b82f6'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} עומס
+                    </button>
+                  </div>
+                  {/* Block alert */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
+                    <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
+                      {muteBlockAlerts ? '⚪ בלוקים מושתקים' : '🟢 בלוקים פעיל'}
+                    </span>
+                    <button onClick={() => setMuteBlockAlerts(v => !v)}
+                      style={{ background: muteBlockAlerts ? '#334155' : '#1e2a1f', color: muteBlockAlerts ? '#94a3b8' : '#86efac', border: `1px solid ${muteBlockAlerts ? '#475569' : '#22c55e'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {muteBlockAlerts ? '🔔 הפעל' : '🔕 השתק'} בלוקים
+                    </button>
+                  </div>
+                  {/* Contacts on transfer */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
+                    <span style={{ fontSize: '12px', color: showContactsOnTransfer ? '#93c5fd' : '#64748b' }}>
+                      {showContactsOnTransfer ? '📡 קשרים בהעברה' : '⚪ קשרים בהעברה'}
+                    </span>
+                    <button onClick={() => setShowContactsOnTransfer(v => !v)}
+                      style={{ background: showContactsOnTransfer ? '#1e3a5f' : '#334155', color: showContactsOnTransfer ? '#93c5fd' : '#94a3b8', border: `1px solid ${showContactsOnTransfer ? '#3b82f6' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {showContactsOnTransfer ? '🔕 כבה' : '🔔 הפעל'}
+                    </button>
+                  </div>
+                  {/* Suggest alt range for formation */}
+                  <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: suggestAltRangeFormation ? '#a78bfa' : '#64748b' }}>
+                      {suggestAltRangeFormation ? '📐 מרחב לפמ>זוג' : '⚪ מרחב לפמ>זוג'}
+                    </span>
+                    <button onClick={() => setSuggestAltRangeFormation(v => !v)}
+                      style={{ background: suggestAltRangeFormation ? '#2e1a5e' : '#334155', color: suggestAltRangeFormation ? '#a78bfa' : '#94a3b8', border: `1px solid ${suggestAltRangeFormation ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {suggestAltRangeFormation ? '🔕 כבה' : '🔔 הפעל'}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -18020,20 +17992,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </button>
             );
           })()}
-          {/* כפתור מידע מערכת */}
-          <button
-            onClick={() => setShowInfoModal(true)}
-            title="מידע על המערכת"
-            style={{ background: '#1e3a5f', color: '#93c5fd', border: '1.5px solid #3b82f6', borderRadius: '50%', width: '30px', height: '30px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'serif' }}
-          >!</button>
-
           {/* תפריט משתמש */}
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
               style={{ background: showUserMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >
-              👤 משתמש {showUserMenu ? '▲' : '▼'}
+              {session.crewMember?.name || 'משתמש'} {showUserMenu ? '▲' : '▼'}
             </button>
             {showUserMenu && (
               <>
