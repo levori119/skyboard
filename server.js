@@ -1025,6 +1025,17 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS route_links (
+      id SERIAL PRIMARY KEY,
+      preset_id_a INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      route_id_a INTEGER NOT NULL REFERENCES airfield_routes(id) ON DELETE CASCADE,
+      preset_id_b INTEGER NOT NULL REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      route_id_b INTEGER NOT NULL REFERENCES airfield_routes(id) ON DELETE CASCADE,
+      UNIQUE(preset_id_a, route_id_a, preset_id_b)
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -6132,6 +6143,63 @@ app.put('/api/preset-active-crew/:presetId', async (req, res) => {
     );
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to update active crew' }); }
+});
+
+// --- Route Links ---
+app.get('/api/route-links', async (req, res) => {
+  try {
+    const { preset_id } = req.query;
+    if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+    const pid = Number(preset_id);
+    const { rows } = await pool.query(
+      `SELECT rl.id,
+              rl.preset_id_a, pa.name AS preset_name_a,
+              rl.route_id_a,  ra.name AS route_name_a,
+              rl.preset_id_b, pb.name AS preset_name_b,
+              rl.route_id_b,  rb.name AS route_name_b
+       FROM route_links rl
+       JOIN workstation_presets pa ON pa.id = rl.preset_id_a
+       JOIN workstation_presets pb ON pb.id = rl.preset_id_b
+       JOIN airfield_routes ra ON ra.id = rl.route_id_a
+       JOIN airfield_routes rb ON rb.id = rl.route_id_b
+       WHERE rl.preset_id_a = $1 OR rl.preset_id_b = $1`,
+      [pid]
+    );
+    const normalized = rows.map(r => {
+      if (Number(r.preset_id_a) === pid) return r;
+      return {
+        id: r.id,
+        preset_id_a: r.preset_id_b, preset_name_a: r.preset_name_b,
+        route_id_a:  r.route_id_b,  route_name_a:  r.route_name_b,
+        preset_id_b: r.preset_id_a, preset_name_b: r.preset_name_a,
+        route_id_b:  r.route_id_a,  route_name_b:  r.route_name_a,
+      };
+    });
+    res.json(normalized);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch route links' }); }
+});
+
+app.post('/api/route-links', async (req, res) => {
+  try {
+    const { preset_id_a, route_id_a, preset_id_b, route_id_b } = req.body;
+    if (!preset_id_a || !route_id_a || !preset_id_b || !route_id_b)
+      return res.status(400).json({ error: 'Missing fields' });
+    const { rows } = await pool.query(
+      `INSERT INTO route_links (preset_id_a, route_id_a, preset_id_b, route_id_b)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (preset_id_a, route_id_a, preset_id_b) DO UPDATE SET route_id_b=$4
+       RETURNING *`,
+      [preset_id_a, route_id_a, preset_id_b, route_id_b]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create route link' }); }
+});
+
+app.delete('/api/route-links/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM route_links WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete route link' }); }
 });
 
 const PORT = process.env.PORT || 3001;

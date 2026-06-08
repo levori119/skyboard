@@ -27760,6 +27760,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
+  // Route links state
+  const [adminRouteLinks, setAdminRouteLinks] = useState<any[]>([]);
+  const [showAddRouteLinkForm, setShowAddRouteLinkForm] = useState(false);
+  const [newRouteLinkForm, setNewRouteLinkForm] = useState({ routeIdA: '', presetIdB: '', routeIdB: '' });
+  const [routeLinkPresetBRoutes, setRouteLinkPresetBRoutes] = useState<any[]>([]);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
   const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string}|null>(null);
   // Airfield element types (global list)
@@ -28191,6 +28196,16 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     setShowAddLinkForm(false);
     setEditingLinkId(null);
     setNewLinkForm({ url: '', name: '', category: '', note: '' });
+    setAdminRouteLinks([]);
+    setShowAddRouteLinkForm(false);
+    setNewRouteLinkForm({ routeIdA: '', presetIdB: '', routeIdB: '' });
+    setRouteLinkPresetBRoutes([]);
+    if (preset.id) {
+      fetch(`${API_URL}/route-links?preset_id=${preset.id}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(setAdminRouteLinks)
+        .catch(() => {});
+    }
   };
 
   const toggleSectorSelection = (sectorId: number) => {
@@ -29219,6 +29234,139 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     ))}
                   </div>
                 )}
+
+                {/* Route Links section — shown for any preset that has an airfield */}
+                {editingPreset && presetForm.airfield_id && (() => {
+                  const myAirfieldId = Number(presetForm.airfield_id);
+                  const myRoutes = adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === myAirfieldId);
+                  const otherPresets = presets.filter((p: any) => p.id !== editingPreset.id);
+                  const selectedPresetB = otherPresets.find((p: any) => p.id === Number(newRouteLinkForm.presetIdB));
+                  return (
+                    <div style={{ marginBottom: '18px', padding: '14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <label style={{ color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🔗 קישורי מסלולים</label>
+                        {!showAddRouteLinkForm && (
+                          <button type="button" onClick={() => setShowAddRouteLinkForm(true)}
+                            style={{ background: '#1e3a5f', color: '#7dd3fc', border: '1px solid #2563eb', borderRadius: '5px', padding: '4px 12px', fontSize: '12px', cursor: 'pointer' }}>
+                            + קישור חדש
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Existing links */}
+                      {adminRouteLinks.length === 0 ? (
+                        <p style={{ color: '#475569', fontSize: '12px', margin: '0 0 8px 0' }}>אין קישורי מסלולים מוגדרים לעמדה זו.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                          {adminRouteLinks.map((lnk: any) => (
+                            <div key={lnk.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1e293b', borderRadius: '6px', padding: '7px 10px' }}>
+                              <span style={{ flex: 1, fontSize: '13px', color: '#e2e8f0', direction: 'rtl' }}>
+                                <span style={{ color: '#fbbf24', fontWeight: 'bold' }}>{lnk.route_name_a}</span>
+                                <span style={{ color: '#64748b', margin: '0 6px' }}>→</span>
+                                <span style={{ color: '#94a3b8' }}>{lnk.preset_name_b}</span>
+                                <span style={{ color: '#64748b', margin: '0 4px' }}>/</span>
+                                <span style={{ color: '#86efac', fontWeight: 'bold' }}>{lnk.route_name_b}</span>
+                              </span>
+                              <button type="button" onClick={async () => {
+                                await fetch(`${API_URL}/route-links/${lnk.id}`, { method: 'DELETE' });
+                                const updated = await fetch(`${API_URL}/route-links?preset_id=${editingPreset.id}`).then(r => r.ok ? r.json() : []);
+                                setAdminRouteLinks(updated);
+                              }} style={{ background: 'transparent', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}>
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add new link form */}
+                      {showAddRouteLinkForm && (
+                        <div style={{ background: '#1e293b', borderRadius: '7px', padding: '12px', border: '1px solid #334155' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div>
+                              <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>מסלול בעמדה זו:</label>
+                              <select value={newRouteLinkForm.routeIdA}
+                                onChange={e => setNewRouteLinkForm(p => ({ ...p, routeIdA: e.target.value }))}
+                                style={{ width: '100%', padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                                <option value="">— בחר מסלול —</option>
+                                {myRoutes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>עמדה אחרת:</label>
+                              <select value={newRouteLinkForm.presetIdB}
+                                onChange={e => {
+                                  const pid = e.target.value;
+                                  setNewRouteLinkForm(p => ({ ...p, presetIdB: pid, routeIdB: '' }));
+                                  if (pid) {
+                                    const bp = presets.find((p: any) => p.id === Number(pid));
+                                    if (bp?.airfield_id) {
+                                      setRouteLinkPresetBRoutes(adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(bp.airfield_id)));
+                                    } else {
+                                      setRouteLinkPresetBRoutes([]);
+                                    }
+                                  } else {
+                                    setRouteLinkPresetBRoutes([]);
+                                  }
+                                }}
+                                style={{ width: '100%', padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                                <option value="">— בחר עמדה —</option>
+                                {otherPresets.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                            {newRouteLinkForm.presetIdB && (
+                              <div>
+                                <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                  מסלול ב{selectedPresetB ? `"${selectedPresetB.name}"` : 'עמדה שנבחרה'}:
+                                </label>
+                                {routeLinkPresetBRoutes.length === 0 ? (
+                                  <p style={{ color: '#ef4444', fontSize: '12px', margin: 0 }}>לעמדה זו אין שדה תעופה עם מסלולים מוגדרים.</p>
+                                ) : (
+                                  <select value={newRouteLinkForm.routeIdB}
+                                    onChange={e => setNewRouteLinkForm(p => ({ ...p, routeIdB: e.target.value }))}
+                                    style={{ width: '100%', padding: '7px 10px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                                    <option value="">— בחר מסלול —</option>
+                                    {routeLinkPresetBRoutes.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                  </select>
+                                )}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                              <button type="button"
+                                disabled={!newRouteLinkForm.routeIdA || !newRouteLinkForm.presetIdB || !newRouteLinkForm.routeIdB}
+                                onClick={async () => {
+                                  try {
+                                    await fetch(`${API_URL}/route-links`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        preset_id_a: editingPreset.id,
+                                        route_id_a: Number(newRouteLinkForm.routeIdA),
+                                        preset_id_b: Number(newRouteLinkForm.presetIdB),
+                                        route_id_b: Number(newRouteLinkForm.routeIdB),
+                                      }),
+                                    });
+                                    const updated = await fetch(`${API_URL}/route-links?preset_id=${editingPreset.id}`).then(r => r.ok ? r.json() : []);
+                                    setAdminRouteLinks(updated);
+                                    setShowAddRouteLinkForm(false);
+                                    setNewRouteLinkForm({ routeIdA: '', presetIdB: '', routeIdB: '' });
+                                    setRouteLinkPresetBRoutes([]);
+                                  } catch {}
+                                }}
+                                style={{ padding: '7px 18px', background: (!newRouteLinkForm.routeIdA || !newRouteLinkForm.presetIdB || !newRouteLinkForm.routeIdB) ? '#1e3a2a' : '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: (!newRouteLinkForm.routeIdA || !newRouteLinkForm.presetIdB || !newRouteLinkForm.routeIdB) ? 'not-allowed' : 'pointer', fontSize: '13px', opacity: (!newRouteLinkForm.routeIdA || !newRouteLinkForm.presetIdB || !newRouteLinkForm.routeIdB) ? 0.5 : 1 }}>
+                                שמור קישור
+                              </button>
+                              <button type="button" onClick={() => { setShowAddRouteLinkForm(false); setNewRouteLinkForm({ routeIdA: '', presetIdB: '', routeIdB: '' }); setRouteLinkPresetBRoutes([]); }}
+                                style={{ padding: '7px 14px', background: '#475569', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}>
+                                ביטול
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
                   <button
