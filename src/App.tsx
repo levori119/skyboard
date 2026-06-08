@@ -9369,11 +9369,33 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           const u = cross2d(p3.x - p1.x, p3.y - p1.y, d1x, d1y) / denom;
           return t >= 0 && t <= 1 && u >= 0 && u <= 1;
         };
+        // Distance from point to segment (perpendicular foot or endpoint)
+        const _ptSegDist = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+          const dx = bx - ax, dy = by - ay;
+          const lenSq = dx*dx + dy*dy;
+          if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+          const t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / lenSq));
+          return Math.hypot(px - ax - t*dx, py - ay - t*dy);
+        };
+        // Min distance from point to any segment of a parsed polyline
+        const _ptPolySegDist = (px: number, py: number, pts: {x:number;y:number}[]) => {
+          if (pts.length < 2) return pts.length === 1 ? Math.hypot(pts[0].x - px, pts[0].y - py) : Infinity;
+          let minD = Infinity;
+          for (let i = 0; i < pts.length - 1; i++) { const d = _ptSegDist(px, py, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y); if (d < minD) minD = d; }
+          return minD;
+        };
         const routesIntersect = (r1: any, r2: any) => {
           const p1: {x:number;y:number}[] = Array.isArray(r1.route_path) ? r1.route_path : (typeof r1.route_path === 'string' ? (() => { try { return JSON.parse(r1.route_path); } catch { return []; } })() : []);
           const p2: {x:number;y:number}[] = Array.isArray(r2.route_path) ? r2.route_path : (typeof r2.route_path === 'string' ? (() => { try { return JSON.parse(r2.route_path); } catch { return []; } })() : []);
           if (p1.length < 2 || p2.length < 2) return false;
+          // 1. Geometric intersection
           for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
+          // 2. Endpoint of r1 close (perpendicular) to any segment of r2
+          const NEAR_EP = 6;
+          const eps1 = [p1[0], p1[p1.length - 1]];
+          const eps2 = [p2[0], p2[p2.length - 1]];
+          for (const ep of eps1) if (_ptPolySegDist(ep.x, ep.y, p2) < NEAR_EP) return true;
+          for (const ep of eps2) if (_ptPolySegDist(ep.x, ep.y, p1) < NEAR_EP) return true;
           return false;
         };
         const catLabel: Record<string, string> = { general: 'כללי', aircraft: 'מטוסים', vehicle: 'כלי רכב' };
