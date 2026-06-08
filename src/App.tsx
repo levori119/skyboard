@@ -18033,6 +18033,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
                 </button>
               </div>
+                </div>
               </>
             )}
           </div>
