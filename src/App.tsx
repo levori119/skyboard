@@ -17490,12 +17490,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
               {session.workstationName}
             </span>
-            <button
-              onClick={refreshPresetConfig}
-              disabled={refreshing}
-              title="רענן הגדרות תצוגה"
-              style={{ fontSize: '10px', padding: '1px 8px', background: 'transparent', border: `1px solid ${lightMode ? '#93c5fd' : '#334155'}`, borderRadius: '3px', color: lightMode ? '#2563eb' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', opacity: refreshing ? 0.5 : 0.8, letterSpacing: '0.5px' }}
-            >{refreshing ? '...' : '🔄 רענן'}</button>
           </div>
           {session.crewMember && (
             <span style={{ background: '#10b981', padding: '3px 10px', borderRadius: '4px', fontSize: '12px' }}>
@@ -17972,6 +17966,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </button>
                 </div>
               </div>
+              {/* רענן — בתחתית תפריט תצוגה */}
+              <div style={{ borderTop: '1px solid #334155' }}>
+                <button
+                  onClick={() => { refreshPresetConfig(); setShowViewMenu(false); }}
+                  disabled={refreshing}
+                  style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: refreshing ? '#64748b' : '#93c5fd', cursor: refreshing ? 'wait' : 'pointer', fontSize: '13px' }}
+                  onMouseEnter={e => { if (!refreshing) (e.currentTarget as HTMLButtonElement).style.background = '#334155'; }}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}
+                >
+                  {refreshing ? '⏳ מרענן...' : '🔄 רענן הגדרות'}
+                </button>
+              </div>
               </>
             )}
           </div>
@@ -18009,7 +18015,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
-              style={{ background: showUserMenu ? '#475569' : '#334155', color: 'white', border: '1px solid #475569', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+              style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' }}
             >
               {session.crewMember?.name || 'משתמש'} {showUserMenu ? '▲' : '▼'}
             </button>
