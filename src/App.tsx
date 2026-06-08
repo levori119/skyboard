@@ -7923,12 +7923,46 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             };
 
             // Build route objects
-            const routeObjs = nav.viaRouteIds.map((rid: number) => {
+            const routeObjs: ({id:number;pts:{x:number;y:number}[];color:string;category:string}|null)[] = nav.viaRouteIds.map((rid: number) => {
               const route = (airfieldRoutes || []).find((r: any) => r.id === rid);
               if (!route) return null;
               const pts = parsePts(route);
               return pts.length >= 2 ? { id: rid, pts, color: route.color || '#3b82f6', category: route.route_category || 'general' } : null;
             });
+
+            // Resolve from/to nav points early (needed for direction normalisation below)
+            const fromPt = nav.fromPointId ? (points as any[]).find((p: any) => p.id === nav.fromPointId) : null;
+            const toPt   = nav.toPointId   ? (points as any[]).find((p: any) => p.id === nav.toPointId)   : null;
+
+            // Normalize route directions so each route points in the correct travel direction.
+            // When two consecutive routes don't geometrically cross, we use endpoint proximity
+            // to determine which end of the next route to enter from — and reverse its pts if needed.
+            const NEAR_EP2_disp = 8 * 8; // % units squared
+            const ptD2_disp = (a:{x:number;y:number}, b:{x:number;y:number}) => (a.x-b.x)**2 + (a.y-b.y)**2;
+            // Normalise first route direction based on fromPt
+            if (fromPt && routeObjs[0]) {
+              const r0 = routeObjs[0]!;
+              const dToStart = ptD2_disp({ x: fromPt.x_pct, y: fromPt.y_pct }, r0.pts[0]);
+              const dToEnd   = ptD2_disp({ x: fromPt.x_pct, y: fromPt.y_pct }, r0.pts[r0.pts.length - 1]);
+              if (dToEnd < dToStart) {
+                routeObjs[0] = { ...r0, pts: [...r0.pts].reverse() };
+              }
+            }
+            // Normalise each subsequent route relative to the previous route's exit point
+            for (let i = 0; i < routeObjs.length - 1; i++) {
+              const r1 = routeObjs[i], r2 = routeObjs[i+1];
+              if (!r1 || !r2) continue;
+              // Skip if they already cross geometrically — intersection handles trimming
+              if (polylineIntersect(r1.pts, r2.pts)) continue;
+              // r1's "exit point" is its last pt after any prior normalisation
+              const exitPt = r1.pts[r1.pts.length - 1];
+              const dToR2Start = ptD2_disp(exitPt, r2.pts[0]);
+              const dToR2End   = ptD2_disp(exitPt, r2.pts[r2.pts.length - 1]);
+              // If r1's exit is closer to r2's END, reverse r2 so travel enters at index 0
+              if (dToR2End < dToR2Start && dToR2End <= NEAR_EP2_disp) {
+                routeObjs[i + 1] = { ...r2, pts: [...r2.pts].reverse() };
+              }
+            }
 
             // Compute intersection between each consecutive pair
             const intersections: ({pt:{x:number;y:number};si:number;sj:number}|null)[] = [];
@@ -7951,9 +7985,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }
               return { foot: best, segIdx: bestSeg };
             };
-
-            const fromPt = nav.fromPointId ? points.find((p: any) => p.id === nav.fromPointId) : null;
-            const toPt   = nav.toPointId   ? points.find((p: any) => p.id === nav.toPointId)   : null;
 
             // Trim each route: keep only the portion between its adjacent intersection points
             const trimmedPaths = routeObjs.map((ro: any, i: number) => {
