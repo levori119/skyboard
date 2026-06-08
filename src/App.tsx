@@ -17491,11 +17491,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               {session.workstationName}
             </span>
           </div>
-          {session.crewMember && (
-            <span style={{ background: '#10b981', padding: '3px 10px', borderRadius: '4px', fontSize: '12px' }}>
-              {session.crewMember.name}
-            </span>
-          )}
           {/* Pressure field */}
           {(() => {
             const canEdit = canUpdatePressure || !parentBaseId;
