@@ -17490,6 +17490,44 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <span style={{ background: '#2563eb', padding: '3px 10px', borderRadius: '4px', fontSize: '13px' }}>
               {session.workstationName}
             </span>
+            {/* כפתור משתמש — ממוקם מתחת שם העמדה */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
+                style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', fontWeight: 'bold', width: '100%', justifyContent: 'center' }}
+              >
+                {session.crewMember?.name || 'משתמש'} {showUserMenu ? '▲' : '▼'}
+              </button>
+              {showUserMenu && (
+                <>
+                  <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+                  <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
+                    onClick={e => e.stopPropagation()}>
+                    <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
+                      {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
+                    </div>
+                    <button
+                      onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '13px' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      🔄 החלף משתמש
+                    </button>
+                    <div style={{ borderTop: '1px solid #334155' }}>
+                      <button
+                        onClick={onLogout}
+                        style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                      >
+                        🚪 יציאה
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           {/* Pressure field */}
           {(() => {
@@ -18006,44 +18044,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </button>
             );
           })()}
-          {/* תפריט משתמש */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => { setShowUserMenu(v => !v); setShowAlertsMenu(false); setShowViewMenu(false); }}
-              style={{ background: showUserMenu ? '#047857' : '#059669', color: 'white', border: '1px solid #059669', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' }}
-            >
-              {session.crewMember?.name || 'משתמש'} {showUserMenu ? '▲' : '▼'}
-            </button>
-            {showUserMenu && (
-              <>
-                <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-                <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', zIndex: 3000, minWidth: '160px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', direction: 'rtl', overflow: 'hidden' }}
-                  onClick={e => e.stopPropagation()}>
-                  <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderBottom: '1px solid #334155' }}>
-                    {session.crewMember ? session.crewMember.name : 'אין משתמש מחובר'}
-                  </div>
-                  <button
-                    onClick={() => { loadCrewMembers(); setShowCrewSwap(true); setShowUserMenu(false); }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#fbbf24', cursor: 'pointer', fontSize: '13px' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >
-                    🔄 החלף משתמש
-                  </button>
-                  <div style={{ borderTop: '1px solid #334155' }}>
-                    <button
-                      onClick={onLogout}
-                      style={{ display: 'block', width: '100%', textAlign: 'right', padding: '9px 14px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#7f1d1d')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      🚪 יציאה
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
           {/* Clock widget */}
           <ClockWidget lightMode={lightMode} />
         </div>
