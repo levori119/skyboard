@@ -7976,7 +7976,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 endIdx = segIdx + 1;
                 endPts = [foot];
               }
-              const pts = [...startPts, ...ro.pts.slice(startIdx, endIdx), ...endPts];
+              // If startIdx > endIdx the route is traversed in reverse — reverse the middle segment
+              const midPts: {x:number;y:number}[] = startIdx <= endIdx
+                ? ro.pts.slice(startIdx, endIdx)
+                : ro.pts.slice(endIdx - 1, Math.max(startIdx, endIdx)).reverse();
+              const pts = [...startPts, ...midPts, ...endPts];
               return pts.length >= 2 ? { ...ro, pts } : null;
             });
             if (trimmedPaths.every((r: any) => !r) && !fromPt && !toPt) return null;
