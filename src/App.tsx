@@ -15531,9 +15531,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // Map-strip altitude conflict detection: compare all active onMap strips pairwise.
   // Any two strips within conflict_alt_delta of each other → both flagged.
   const mapStripConflictIds = React.useMemo(() => {
-    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const fallbackDelta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const rules: { maarav: string; delta: number }[] = myPresetConfig?.conflict_alt_rules || [];
+    const getStripDelta = (sq: string) => {
+      if (rules.length > 0) {
+        const sqLower = (sq || '').toLowerCase();
+        const match = rules.find(r => r.maarav && sqLower.includes(r.maarav.toLowerCase()));
+        if (match) return match.delta;
+      }
+      return fallbackDelta;
+    };
     const result = new Set<string>();
-    if (delta <= 0) return result;
+    if (fallbackDelta <= 0 && rules.every(r => r.delta <= 0)) return result;
     const parseAltVal = (alt: string | null | undefined): number | null => {
       if (!alt) return null;
       const m = alt.match(/\d+/);
@@ -15544,18 +15553,21 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const a = onMapStrips[i];
       const altA = parseAltVal(a.alt);
       if (altA == null) continue;
+      const deltaA = getStripDelta(a.sq || a.squadron || '');
       for (let j = i + 1; j < onMapStrips.length; j++) {
         const b = onMapStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
-        if (altA !== altB && Math.abs(altA - altB) * 100 <= delta) {
+        const effectiveDelta = Math.max(deltaA, getStripDelta(b.sq || b.squadron || ''));
+        if (effectiveDelta <= 0) continue;
+        if (altA !== altB && Math.abs(altA - altB) * 100 <= effectiveDelta) {
           result.add(String(a.id));
           result.add(String(b.id));
         }
       }
     }
     return result;
-  }, [strips, myPresetConfig?.conflict_alt_delta]);
+  }, [strips, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules]);
 
   const activeAirfield = (isGroundMode || isTowerMode) ? airfields.find(af => af.id === myPresetConfig?.airfield_id) || null : null;
 
@@ -15730,9 +15742,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   //  4. Otherwise (same block, same table, or no block assignment) → conflict when delta met.
   const tableStripConflictIds = React.useMemo(() => {
     if (!tableMode) return new Set<string>();
-    const delta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const fallbackDelta = myPresetConfig?.conflict_alt_delta ?? 500;
+    const altRules: { maarav: string; delta: number }[] = myPresetConfig?.conflict_alt_rules || [];
+    const getStripDeltaT = (sq: string) => {
+      if (altRules.length > 0) {
+        const sqLower = (sq || '').toLowerCase();
+        const match = altRules.find(r => r.maarav && sqLower.includes(r.maarav.toLowerCase()));
+        if (match) return match.delta;
+      }
+      return fallbackDelta;
+    };
     const result = new Set<string>();
-    if (delta <= 0) return result;
+    if (fallbackDelta <= 0 && altRules.every(r => r.delta <= 0)) return result;
 
     // Collect all blocks relevant to this workstation (across ALL its block tables)
     const preset = session.presetId ? workstationPresets.find((p: any) => Number(p.id) === Number(session.presetId)) : null;
@@ -15792,12 +15813,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       const a = boardStrips[i];
       const altA = parseAltVal(a.alt);
       if (altA == null) continue;
+      const deltaA = getStripDeltaT(a.sq || a.squadron || '');
       for (let j = i + 1; j < boardStrips.length; j++) {
         const b = boardStrips[j];
         const altB = parseAltVal(b.alt);
         if (altB == null) continue;
+        const effectiveDeltaT = Math.max(deltaA, getStripDeltaT(b.sq || b.squadron || ''));
 
-        if (Math.abs(altA - altB) * 100 > delta) continue; // outside delta → no conflict
+        if (effectiveDeltaT <= 0 || Math.abs(altA - altB) * 100 > effectiveDeltaT) continue; // outside delta → no conflict
 
         // Rule 1: strips in different segments (based on current block-view groupBy) → no conflict
         if (verticalGroupBy !== 'none') {
@@ -15822,7 +15845,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
 
   // tableConflictPairsMap — same detection logic, but maps each strip ID to the IDs it conflicts with.
   const tableConflictPairsMap = React.useMemo(() => {
@@ -15893,7 +15916,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       }
     }
     return result;
-  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
+  }, [tableMode, myTableStrips, tableOnBoard, myPresetConfig?.conflict_alt_delta, myPresetConfig?.conflict_alt_rules, dashboardBlocks, dashboardBlockTables, activeBlockTableId, session.presetId, workstationPresets, verticalGroupBy, outgoingTransfers]);
 
   // tableEffectiveConflictIds — conflict IDs excluding fully-resolved ones (session-only).
   const tableEffectiveConflictIds = React.useMemo(() => {
@@ -28082,6 +28105,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     partial_load: 3 as number,
     full_load: 5 as number,
     conflict_alt_delta: 500 as number,
+    conflict_alt_rules: [] as { maarav: string; delta: number }[],
     relevant_control_stations: [] as string[],
     filter_query: null as QGroup | null,
     block_table_ids: [] as number[],
@@ -28119,6 +28143,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     map2_id: '' as string | number,
     dual_map_layout: 'side-by-side' as string,
     dual_map_split: 50 as number,
+    conflict_alt_rules: [] as { maarav: string; delta: number }[],
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -28545,6 +28570,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           partial_load: presetForm.partial_load,
           full_load: presetForm.full_load,
           conflict_alt_delta: presetForm.conflict_alt_delta,
+          conflict_alt_rules: presetForm.conflict_alt_rules || [],
           relevant_control_stations: presetForm.relevant_control_stations.length > 0 ? presetForm.relevant_control_stations : null,
           filter_query: presetForm.filter_query || null,
           block_table_ids: presetForm.block_table_ids,
@@ -28596,7 +28622,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -28616,6 +28642,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       partial_load: preset.partial_load ?? 3,
       full_load: preset.full_load ?? 5,
       conflict_alt_delta: preset.conflict_alt_delta ?? 500,
+      conflict_alt_rules: Array.isArray(preset.conflict_alt_rules) ? preset.conflict_alt_rules : [],
       relevant_control_stations: preset.relevant_control_stations || [],
       filter_query: preset.filter_query || null,
       block_table_ids: Array.isArray(preset.block_table_ids) ? preset.block_table_ids : [],
@@ -28823,7 +28850,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -28833,7 +28860,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -29207,19 +29234,64 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
                   </p>
                   <div style={{ marginTop: '12px', borderTop: '1px solid #334155', paddingTop: '12px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#f472b6', fontSize: '13px' }}>⚠️ סף קונפליקט גובה בין פ"ממים (רגליים):</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="99000"
-                      step="100"
-                      value={presetForm.conflict_alt_delta}
-                      onChange={e => setPresetForm(p => ({ ...p, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ec4899', borderRadius: '6px', background: '#0f172a', color: '#f472b6', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
-                    />
-                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                      טווח גובה שבו שני פ"ממים נחשבים קונפליקט. לדוגמה: 1000 = ±1000 רגל. 0 = כבוי.
-                    </p>
+                    <label style={{ display: 'block', marginBottom: '8px', color: '#f472b6', fontSize: '13px', fontWeight: 'bold' }}>⚠️ קונפליקט גובה לפי מערך:</label>
+                    {/* Per-מערך rules table */}
+                    {(presetForm.conflict_alt_rules || []).map((rule, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center', direction: 'rtl' }}>
+                        <input
+                          list="conflict-maarav-options"
+                          placeholder="מערך (לפי שם טייסת)"
+                          value={rule.maarav}
+                          onChange={e => setPresetForm(p => ({ ...p, conflict_alt_rules: (p.conflict_alt_rules || []).map((r, i) => i === idx ? { ...r, maarav: e.target.value } : r) }))}
+                          style={{ flex: 2, padding: '7px 10px', border: '1px solid #ec4899', borderRadius: '6px', background: '#1e293b', color: '#f9a8d4', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="99000"
+                          step="100"
+                          value={rule.delta}
+                          onChange={e => setPresetForm(p => ({ ...p, conflict_alt_rules: (p.conflict_alt_rules || []).map((r, i) => i === idx ? { ...r, delta: Math.max(0, parseInt(e.target.value) || 0) } : r) }))}
+                          placeholder="רגליים"
+                          style={{ flex: 1, padding: '7px 6px', border: '1px solid #ec4899', borderRadius: '6px', background: '#1e293b', color: '#f472b6', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPresetForm(p => ({ ...p, conflict_alt_rules: (p.conflict_alt_rules || []).filter((_, i) => i !== idx) }))}
+                          style={{ padding: '7px 10px', background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: '6px', color: '#f87171', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}
+                          title="מחק שורה"
+                        >🗑</button>
+                      </div>
+                    ))}
+                    <datalist id="conflict-maarav-options">
+                      <option value="קרב" />
+                      <option value="תובלה" />
+                      <option value="מסוקים" />
+                      <option value="כטמ&quot;מ" />
+                      <option value="ים" />
+                      <option value="אז&quot;מ" />
+                    </datalist>
+                    <button
+                      type="button"
+                      onClick={() => setPresetForm(p => ({ ...p, conflict_alt_rules: [...(p.conflict_alt_rules || []), { maarav: '', delta: 500 }] }))}
+                      style={{ width: '100%', padding: '7px', background: '#1e293b', border: '1px dashed #ec4899', borderRadius: '6px', color: '#f472b6', cursor: 'pointer', fontSize: '13px', marginBottom: '10px' }}
+                    >+ הוסף מערך</button>
+                    {/* Fallback general threshold */}
+                    <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                      <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '12px' }}>סף כללי — למי שאין מערך תואם (רגליים):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="99000"
+                        step="100"
+                        value={presetForm.conflict_alt_delta}
+                        onChange={e => setPresetForm(p => ({ ...p, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
+                        style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#0f172a', color: '#94a3b8', fontSize: '15px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                      />
+                      <p style={{ margin: '4px 0 0 0', color: '#475569', fontSize: '11px', direction: 'rtl' }}>
+                        ℹ️ מערך מזוהה לפי התאמת שם טייסת (sq). 0 = קונפליקט כבוי.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -29838,7 +29910,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
