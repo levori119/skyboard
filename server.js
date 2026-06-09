@@ -3495,9 +3495,10 @@ app.post('/api/airfields/:id/duplicate', async (req, res) => {
     const routeMap = {};
     const oldRoutes = (await client.query('SELECT * FROM airfield_routes WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const r of oldRoutes) {
+      const rPath = Array.isArray(r.route_path) ? r.route_path : (r.route_path ? (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : r.route_path) : []);
       const nr = await client.query(
         'INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [newId, r.name, r.color || '#3b82f6', r.route_path, r.notes, r.route_category || 'general']
+        [newId, r.name, r.color || '#3b82f6', JSON.stringify(rPath), r.notes, r.route_category || 'general']
       );
       routeMap[r.id] = nr.rows[0].id;
     }
@@ -3506,9 +3507,9 @@ app.post('/api/airfields/:id/duplicate', async (req, res) => {
     const elementMap = {};
     const oldElements = (await client.query('SELECT * FROM airfield_elements WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     for (const el of oldElements) {
-      const remappedRoutes = Array.isArray(el.relevant_routes)
-        ? el.relevant_routes.map(rid => routeMap[rid] ?? rid)
-        : [];
+      const relRoutes = Array.isArray(el.relevant_routes) ? el.relevant_routes : (el.relevant_routes ? (typeof el.relevant_routes === 'string' ? JSON.parse(el.relevant_routes) : el.relevant_routes) : []);
+      const blockSt   = Array.isArray(el.blocking_statuses) ? el.blocking_statuses : (el.blocking_statuses ? (typeof el.blocking_statuses === 'string' ? JSON.parse(el.blocking_statuses) : el.blocking_statuses) : []);
+      const remappedRoutes = relRoutes.map(rid => routeMap[rid] ?? rid);
       const nr = await client.query(
         `INSERT INTO airfield_elements
           (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url,
@@ -3518,8 +3519,7 @@ app.post('/api/airfields/:id/duplicate', async (req, res) => {
          el.x_pct, el.y_pct, el.category || '', el.camera_url,
          el.display_state || 'normal', el.blink_rate ?? 1.0, el.blink_colors,
          el.open_icon_key, el.close_icon_key, el.rotation ?? 0,
-         JSON.stringify(remappedRoutes),
-         JSON.stringify(Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [])]
+         JSON.stringify(remappedRoutes), JSON.stringify(blockSt)]
       );
       elementMap[el.id] = nr.rows[0].id;
     }
@@ -3535,7 +3535,7 @@ app.post('/api/airfields/:id/duplicate', async (req, res) => {
       if (!newElId) continue;
       const newFrom = nav.from_point_id ? (pointMap[nav.from_point_id] ?? null) : null;
       const newTo   = nav.to_point_id   ? (pointMap[nav.to_point_id]   ?? null) : null;
-      const oldVia  = Array.isArray(nav.via_route_ids) ? nav.via_route_ids : (nav.via_route_ids ? JSON.parse(nav.via_route_ids) : []);
+      const oldVia  = Array.isArray(nav.via_route_ids) ? nav.via_route_ids : (nav.via_route_ids ? (typeof nav.via_route_ids === 'string' ? JSON.parse(nav.via_route_ids) : nav.via_route_ids) : []);
       const newVia  = oldVia.map(rid => routeMap[rid] ?? rid);
       await client.query(
         `INSERT INTO element_nav_routes (element_id,from_point_id,to_point_id,via_route_ids,updated_at)
@@ -3549,9 +3549,10 @@ app.post('/api/airfields/:id/duplicate', async (req, res) => {
     const oldPolygons = (await client.query('SELECT * FROM airfield_polygons WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
     // First pass: insert without parent_id
     for (const pg of oldPolygons) {
+      const pgPoly = Array.isArray(pg.polygon) ? pg.polygon : (pg.polygon ? (typeof pg.polygon === 'string' ? JSON.parse(pg.polygon) : pg.polygon) : []);
       const nr = await client.query(
         'INSERT INTO airfield_polygons (airfield_id,name,color,notes,polygon,sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
-        [newId, pg.name, pg.color || '#3b82f6', pg.notes, pg.polygon, pg.sort_order ?? 0]
+        [newId, pg.name, pg.color || '#3b82f6', pg.notes, JSON.stringify(pgPoly), pg.sort_order ?? 0]
       );
       polygonMap[pg.id] = nr.rows[0].id;
     }
