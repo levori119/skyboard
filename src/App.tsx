@@ -14094,6 +14094,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [fzSplitForm, setFzSplitForm] = useState({ label: '', count: '1' });
   const [fzFlashZoneIds, setFzFlashZoneIds] = useState<Set<number>>(new Set());
   const fzFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fzFlashMsg, setFzFlashMsg] = useState<string | null>(null);
+  const fzFlashMsgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fzZoneColorOverrides, setFzZoneColorOverrides] = useState<Record<number, string>>({});
   const [fzZoneOpacityOverrides, setFzZoneOpacityOverrides] = useState<Record<number, number>>({});
   const [fzZoneNotes, setFzZoneNotes] = useState<Record<number, string>>({});
@@ -22018,6 +22020,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
           </div>{/* /Map 1 panel wrapper */}
 
+          {/* Flight Zones flash notification banner */}
+          {isFlightZonesMode && fzFlashMsg && (
+            <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 520, pointerEvents: 'none', borderRadius: '10px', padding: '10px 24px', fontWeight: 'bold', fontSize: '15px', direction: 'rtl', boxShadow: '0 6px 30px rgba(0,0,0,0.7)', whiteSpace: 'nowrap', ...(fzFlashMsg.startsWith('שגיאה') ? { background: 'rgba(220,38,38,0.97)', color: '#fff', border: '2px solid #ef4444' } : fzFlashMsg.startsWith('אין') || fzFlashMsg.startsWith('לא') ? { background: 'rgba(51,65,85,0.97)', color: '#94a3b8', border: '2px solid #475569' } : { background: 'rgba(253,224,71,0.97)', color: '#0f172a', border: '2px solid #fbbf24' }) }}>
+              {fzFlashMsg}
+            </div>
+          )}
+
           {/* Flight Zones status bar — outside overflow:hidden so always visible over both maps */}
           {isFlightZonesMode && (
             <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.92)', border: '1px solid #1e3a5f', borderRadius: '8px', padding: '4px 14px', zIndex: 510, fontSize: '11px', color: '#64748b', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap', boxShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>
@@ -24705,22 +24714,59 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               🗺 הצג אזורים מוקצים
             </button>
             {/* Flash zones on map */}
-            <button onClick={() => {
-              const a = fzPinMenu.assignment;
-              if (!a) return;
-              const ids = new Set<number>([
-                ...(a.zone_id != null ? [a.zone_id] : []),
-                ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id as number)
-              ]);
-              if (ids.size === 0) return;
-              if (fzFlashTimerRef.current) clearTimeout(fzFlashTimerRef.current);
-              setFzFlashZoneIds(ids);
-              fzFlashTimerRef.current = setTimeout(() => setFzFlashZoneIds(new Set()), 5000);
-              setFzPinMenu(null);
+            {fzPinMenu.assignment ? (
+            <button onClick={async () => {
+              try {
+                const a = fzPinMenu.assignment;
+                if (!a) {
+                  if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
+                  setFzFlashMsg('אין הקצאת אזור לסטריפ זה');
+                  fzFlashMsgTimerRef.current = setTimeout(() => setFzFlashMsg(null), 3000);
+                  setFzPinMenu(null);
+                  return;
+                }
+                const ids = new Set<number>([
+                  ...(a.zone_id != null ? [a.zone_id] : []),
+                  ...((a.extra_zones || []) as any[]).map((e: any) => e.zone_id as number)
+                ]);
+                if (ids.size === 0) {
+                  if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
+                  setFzFlashMsg('לא נמצאו אזורים להדגשה');
+                  fzFlashMsgTimerRef.current = setTimeout(() => setFzFlashMsg(null), 3000);
+                  setFzPinMenu(null);
+                  return;
+                }
+                if (mapZones.length === 0 && currentMapId) {
+                  await loadMapZones(currentMapId);
+                }
+                if (fzFlashTimerRef.current) clearTimeout(fzFlashTimerRef.current);
+                if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
+                setFzFlashZoneIds(ids);
+                setFzShowZones(true);
+                const _flashZoneName = mapZones.find(z => ids.has(z.id))?.name || a.zone_name || `אזור ${a.zone_id}`;
+                setFzFlashMsg(`⚡ מדגיש: ${_flashZoneName}`);
+                fzFlashTimerRef.current = setTimeout(() => {
+                  setFzFlashZoneIds(new Set());
+                  setFzFlashMsg(null);
+                }, 5000);
+                fzFlashMsgTimerRef.current = setTimeout(() => setFzFlashMsg(null), 5000);
+                setFzPinMenu(null);
+              } catch (err) {
+                console.error('[fzFlash] error:', err);
+                if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
+                setFzFlashMsg(`שגיאה: ${String(err)}`);
+                fzFlashMsgTimerRef.current = setTimeout(() => setFzFlashMsg(null), 4000);
+                setFzPinMenu(null);
+              }
             }}
               style={{ display: 'block', width: '100%', padding: '7px 14px', background: 'transparent', border: 'none', color: '#fde047', cursor: 'pointer', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155' }}>
               🟡 הדגש אזורים על מפה (5 שנ׳)
             </button>
+            ) : (
+            <div style={{ display: 'block', width: '100%', padding: '7px 14px', color: '#475569', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #334155', cursor: 'default' }}>
+              🟡 הדגש אזורים על מפה — <span style={{ fontSize: '10px' }}>ללא הקצאה</span>
+            </div>
+            )}
             {/* Split — only if more than 1 aircraft */}
             {(Number(fzPinMenu.strip.numberOfFormation) > 1) && (
             <button onClick={() => { setSectorSplitSelected([]); setSectorSplitModal({ strip: fzPinMenu.strip }); setFzPinMenu(null); }}
