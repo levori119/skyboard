@@ -8158,23 +8158,24 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     acc3 += segLens[i];
                   }
                   const dotColor = isBlocked ? '#ef4444' : '#f97316';
+                  const dotScale = 1 / effectiveMapScale;
                   return (
-                    <g transform={`translate(${dotX},${dotY})`}>
+                    <g transform={`translate(${dotX},${dotY}) scale(${dotScale})`}>
                       {/* Outer glow ring */}
-                      <circle r="5.5" fill={dotColor} opacity="0.15" />
+                      <circle r="3.5" fill={dotColor} opacity="0.15" />
                       {/* Mid glow */}
-                      <circle r="3.8" fill={dotColor} opacity="0.3" />
+                      <circle r="2.4" fill={dotColor} opacity="0.3" />
                       {/* Vehicle body */}
-                      <circle r="2.5" fill={dotColor} stroke="white" strokeWidth="0.8" />
+                      <circle r="1.6" fill={dotColor} stroke="white" strokeWidth="0.6" />
                       {/* Direction arrow */}
-                      <polygon points="0,-1.6 1.0,0.7 -1.0,0.7"
+                      <polygon points="0,-1.1 0.7,0.5 -0.7,0.5"
                         fill="white" opacity="0.95"
                         transform={`rotate(${dirAngle + 90})`} />
                       {/* Blocked X mark */}
                       {isBlocked && (
                         <>
-                          <line x1="-1.8" y1="-1.8" x2="1.8" y2="1.8" stroke="white" strokeWidth="0.9" />
-                          <line x1="1.8" y1="-1.8" x2="-1.8" y2="1.8" stroke="white" strokeWidth="0.9" />
+                          <line x1="-1.3" y1="-1.3" x2="1.3" y2="1.3" stroke="white" strokeWidth="0.7" />
+                          <line x1="1.3" y1="-1.3" x2="-1.3" y2="1.3" stroke="white" strokeWidth="0.7" />
                         </>
                       )}
                     </g>
