@@ -5283,6 +5283,14 @@ const AIR_DEFENSE_STATUSES: { label: string; color: string }[] = [
   { label: 'פתוח להזנקות',      color: '#ef4444' },
 ];
 
+const YABA_AIR_DEFENSE_STATUSES: { label: string; color: string }[] = [
+  { label: 'מרחב בראייה',       color: '#22c55e' },
+  { label: 'מרחב במכשירים',     color: '#f97316' },
+  { label: 'מרחב סגור',         color: '#ef4444' },
+];
+
+const ALL_MAZAA_STATUSES = [...AIR_DEFENSE_STATUSES, ...YABA_AIR_DEFENSE_STATUSES];
+
 const GROUND_STATUSES = [
   { key: 'none',    label: 'Pre-Call — טרם קרא',      color: '#64748b', bg: '#0f172a', dot: '#475569', flash: false },
   { key: 'taxi',    label: 'Taxi — קרא להסעה',        color: '#86efac', bg: '#14532d', dot: '#22c55e', flash: false },
@@ -14695,7 +14703,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const newAd: string = b.air_defense_status || '';
           const prevAd: string = prevBaseAdRef.current[b.id] ?? null;
           if (prevAd !== null && prevAd !== newAd) {
-            const color = AIR_DEFENSE_STATUSES.find(s => s.label === newAd)?.color || '#94a3b8';
+            const color = ALL_MAZAA_STATUSES.find(s => s.label === newAd)?.color || '#94a3b8';
             newAlerts.push({ key: Date.now() + b.id, baseName: b.name, prev: prevAd, next: newAd, color });
           }
           prevBaseAdRef.current[b.id] = newAd;
@@ -14822,6 +14830,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
+  const isYabaMode = myPresetConfig?.preset_role === 'yaba';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
   const [mmiAllContacts, setMmiAllContacts] = React.useState<any[]>([]);
   React.useEffect(() => {
@@ -17891,7 +17900,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {/* מצב מז"א */}
           {(() => {
-            const mazaaColor = AIR_DEFENSE_STATUSES.find(s => s.label === currentMazaaStatus)?.color || (lightMode ? '#94a3b8' : '#475569');
+            const mazaaColor = ALL_MAZAA_STATUSES.find(s => s.label === currentMazaaStatus)?.color || (lightMode ? '#94a3b8' : '#475569');
             const hasStatus = currentMazaaStatus !== '';
             const label = isTowerMode ? 'מז"א בסיס' : 'מז"א מרחבי';
             return (
@@ -17932,7 +17941,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl', maxWidth: '100px' }}
                   >
                     <option value="">— בחר —</option>
-                    {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
+                    {(isYabaMode ? YABA_AIR_DEFENSE_STATUSES : AIR_DEFENSE_STATUSES).map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
                   </select>
                 ) : (
                   <span style={{ fontSize: '12px', fontWeight: 'bold', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569') }}>
@@ -23190,7 +23199,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {baseStatuses.length > 0 && (() => {
                     const hasPrev = true; // contacts section always renders above
                     const _bsRow = (bs: any) => {
-                      const adColor = AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.muted;
+                      const adColor = ALL_MAZAA_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.muted;
                       return (
                         <div key={bs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, gap: '4px', direction: 'rtl', fontSize: '11px' }}>
                           <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
@@ -23230,13 +23239,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 if (!groups.has(key)) groups.set(key, []);
                                 groups.get(key)!.push(bs);
                               });
-                              const order = AIR_DEFENSE_STATUSES.map(s => s.label);
+                              const order = ALL_MAZAA_STATUSES.map(s => s.label);
                               const sorted = [...groups.entries()].sort((a, b) => {
                                 const ia = order.indexOf(a[0]); const ib = order.indexOf(b[0]);
                                 return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
                               });
                               return sorted.map(([status, items]) => {
-                                const grpColor = AIR_DEFENSE_STATUSES.find(s => s.label === status)?.color || T.muted;
+                                const grpColor = ALL_MAZAA_STATUSES.find(s => s.label === status)?.color || T.muted;
                                 return (
                                   <div key={status} style={{ marginBottom: '2px' }}>
                                     <div style={{ fontSize: '10px', fontWeight: 'bold', color: grpColor, padding: '2px 6px', background: grpColor + '18', borderRadius: '3px', marginBottom: '2px', direction: 'rtl' }}>{status}</div>
@@ -29378,7 +29387,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       <div style={{ marginBottom: '10px' }}>
                         {editingPresetMazaaRows.map(row => (
                           <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', direction: 'rtl' }}>
-                            <span style={{ fontSize: '12px', color: AIR_DEFENSE_STATUSES.find(s => s.label === row.mazaa_status)?.color || '#94a3b8', fontWeight: 'bold', minWidth: '130px' }}>{row.mazaa_status}</span>
+                            <span style={{ fontSize: '12px', color: ALL_MAZAA_STATUSES.find(s => s.label === row.mazaa_status)?.color || '#94a3b8', fontWeight: 'bold', minWidth: '130px' }}>{row.mazaa_status}</span>
                             <span style={{ fontSize: '11px', color: '#64748b' }}>חלקי:</span>
                             <input type="number" value={row.partial_load} min={1} max={99}
                               onChange={e => { const v = Number(e.target.value); setEditingPresetMazaaRows(prev => prev.map(r => r.id === row.id ? { ...r, partial_load: v } : r)); }}
@@ -29397,9 +29406,9 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl', paddingTop: editingPresetMazaaRows.length > 0 ? '8px' : '0', borderTop: editingPresetMazaaRows.length > 0 ? '1px solid #334155' : 'none' }}>
                       <select value={newMazaaRow.mazaa_status} onChange={e => setNewMazaaRow(p => ({ ...p, mazaa_status: e.target.value }))}
-                        style={{ padding: '4px 8px', background: '#1e293b', border: `1px solid ${newMazaaRow.mazaa_status ? (AIR_DEFENSE_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#475569') : '#475569'}`, borderRadius: '5px', color: newMazaaRow.mazaa_status ? (AIR_DEFENSE_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#e2e8f0') : '#94a3b8', fontSize: '12px', direction: 'rtl' }}>
+                        style={{ padding: '4px 8px', background: '#1e293b', border: `1px solid ${newMazaaRow.mazaa_status ? (ALL_MAZAA_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#475569') : '#475569'}`, borderRadius: '5px', color: newMazaaRow.mazaa_status ? (ALL_MAZAA_STATUSES.find(s => s.label === newMazaaRow.mazaa_status)?.color || '#e2e8f0') : '#94a3b8', fontSize: '12px', direction: 'rtl' }}>
                         <option value="">— בחר מצב מז"א —</option>
-                        {AIR_DEFENSE_STATUSES.filter(s => !editingPresetMazaaRows.some(r => r.mazaa_status === s.label)).map(s => (
+                        {(editingPreset?.preset_role === 'yaba' ? YABA_AIR_DEFENSE_STATUSES : AIR_DEFENSE_STATUSES).filter(s => !editingPresetMazaaRows.some(r => r.mazaa_status === s.label)).map(s => (
                           <option key={s.label} value={s.label}>{s.label}</option>
                         ))}
                       </select>
@@ -33531,9 +33540,14 @@ CHARLIE,1,301,`}
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>מצב מז"א</label>
-                      <select value={baseStatusForm.air_defense_status} onChange={e => setBaseStatusForm(p => ({ ...p, air_defense_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: AIR_DEFENSE_STATUSES.find(s => s.label === baseStatusForm.air_defense_status)?.color || '#94a3b8', fontSize: '13px', direction: 'rtl' }}>
+                      <select value={baseStatusForm.air_defense_status} onChange={e => setBaseStatusForm(p => ({ ...p, air_defense_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: ALL_MAZAA_STATUSES.find(s => s.label === baseStatusForm.air_defense_status)?.color || '#94a3b8', fontSize: '13px', direction: 'rtl' }}>
                         <option value="">— בחר מצב מז"א —</option>
-                        {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label} style={{ color: s.color }}>{s.label}</option>)}
+                        <optgroup label="מגדל">
+                          {AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label} style={{ color: s.color }}>{s.label}</option>)}
+                        </optgroup>
+                        <optgroup label='יב"א'>
+                          {YABA_AIR_DEFENSE_STATUSES.map(s => <option key={s.label} value={s.label} style={{ color: s.color }}>{s.label}</option>)}
+                        </optgroup>
                       </select>
                     </div>
                     <div>
@@ -33568,7 +33582,7 @@ CHARLIE,1,301,`}
                         {bs.relevant_to && bs.relevant_to !== 'כולם' && <span style={{ fontSize: '10px', color: '#94a3b8', background: '#1e293b', borderRadius: '4px', padding: '1px 6px' }}>✈ {bs.relevant_to}</span>}
                       </div>
                       <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#94a3b8' }}>
-                        {bs.air_defense_status && <span><span style={{ color: '#64748b' }}>מז"א: </span><span style={{ color: AIR_DEFENSE_STATUSES.find(s => s.label === bs.air_defense_status)?.color || '#e2e8f0', fontWeight: 'bold' }}>{bs.air_defense_status}</span></span>}
+                        {bs.air_defense_status && <span><span style={{ color: '#64748b' }}>מז"א: </span><span style={{ color: ALL_MAZAA_STATUSES.find(s => s.label === bs.air_defense_status)?.color || '#e2e8f0', fontWeight: 'bold' }}>{bs.air_defense_status}</span></span>}
                         {bs.absorption_status && <span><span style={{ color: '#64748b' }}>ספיגה: </span><span style={{ color: '#e2e8f0' }}>{bs.absorption_status}</span></span>}
                         {bs.bird_status && <span><span style={{ color: '#64748b' }}>ציפורי: </span><span style={{ color: '#e2e8f0' }}>{bs.bird_status}</span></span>}
                       </div>
