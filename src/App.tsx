@@ -28055,6 +28055,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminAFExpanded, setAdminAFExpanded] = useState<Set<string>>(new Set());
   const toggleAFSec = (k: string) => setAdminAFExpanded(prev => { const s = new Set(prev); s.has(k) ? s.delete(k) : s.add(k); return s; });
   const [showElementsSection, setShowElementsSection] = useState(false);
+  const [adminMapLayers, setAdminMapLayers] = useState<Record<string,boolean>>({ routes: true, polygons: true, sectors: true, elements: true, points: true, cameras: true });
+  const toggleAdminLayer = (k: string) => setAdminMapLayers(p => ({ ...p, [k]: !p[k] }));
+  const routeDragRef = React.useRef<{ id: number; startSvgX: number; startSvgY: number; origPts: {x:number;y:number}[] } | null>(null);
+  const [routeDragPreview, setRouteDragPreview] = useState<{ id: number; pts: {x:number;y:number}[] } | null>(null);
   const [placingElementMode, setPlacingElementMode] = useState(false);
   const [placingElementId, setPlacingElementId] = useState<number | null>(null);
   const [adminMapElPopup, setAdminMapElPopup] = useState<{ el: any; x: number; y: number } | null>(null);
@@ -32076,6 +32080,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('cameras') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('cameras')}>
                           <div style={{ color: '#67e8f9', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>📷 מצלמות ({adminAirfieldElements.filter(e => e.category === 'camera').length})</div>
+                          <button onClick={e => { e.stopPropagation(); toggleAdminLayer('cameras'); }} title={adminMapLayers.cameras ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.cameras ? '#67e8f9' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.cameras ? '#67e8f9' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.cameras ? '✓' : '○'}</button>
                           {adminAFExpanded.has('cameras') && !showAdminCameraForm && (
                             <button onClick={e => { e.stopPropagation(); setAdminCameraForm({ name: '', camera_url: '' }); setShowAdminCameraForm(true); }}
                               style={{ padding: '2px 8px', background: '#0e7490', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מצלמה</button>
@@ -32140,6 +32145,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('elements') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('elements')}>
                           <div style={{ color: '#f9a8d4', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔧 אלמנטים בשדה ({adminAirfieldElements.length})</div>
+                          <button onClick={e => { e.stopPropagation(); toggleAdminLayer('elements'); }} title={adminMapLayers.elements ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.elements ? '#f9a8d4' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.elements ? '#f9a8d4' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.elements ? '✓' : '○'}</button>
                           {adminAFExpanded.has('elements') && !showElementForm && <button onClick={e => { e.stopPropagation(); setEditingElement(null); setElementForm({ name: '', element_type_id: '', status: 'תקין', note: '', category: '', relevant_routes: [], blocking_statuses: [] }); setShowElementForm(true); }} style={{ padding: '2px 8px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
                           <span style={{ color: adminAFExpanded.has('elements') ? '#f9a8d4' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('elements') ? '▲' : '▼'}</span>
                         </div>
@@ -32463,6 +32469,7 @@ CHARLIE,1,301,`}
                     {/* Point form */}
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '6px', paddingBottom: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: adminAFExpanded.has('points') ? '4px' : 0 }} onClick={() => toggleAFSec('points')}>
                       <div style={{ color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>📍 נקודות ({airfieldPoints.length})</div>
+                      <button onClick={e => { e.stopPropagation(); toggleAdminLayer('points'); }} title={adminMapLayers.points ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.points ? '#60a5fa' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.points ? '#60a5fa' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.points ? '✓' : '○'}</button>
                       <span style={{ color: adminAFExpanded.has('points') ? '#60a5fa' : '#475569', fontSize: '11px' }}>{adminAFExpanded.has('points') ? '▲' : '▼'}</span>
                     </div>
                     {adminAFExpanded.has('points') && hasMap && (
@@ -32651,6 +32658,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('polygons') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('polygons')}>
                           <div style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🔷 אזורים ומסלולים (פוליגונים)</div>
+                          <button onClick={e => { e.stopPropagation(); toggleAdminLayer('polygons'); }} title={adminMapLayers.polygons ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.polygons ? '#a78bfa' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.polygons ? '#a78bfa' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.polygons ? '✓' : '○'}</button>
                           {adminAFExpanded.has('polygons') && <button onClick={e => { e.stopPropagation(); setEditingPolygon(null); setPolygonForm({ name: '', color: '#a78bfa', notes: '', parent_id: '' }); setShowPolygonForm(true); }}
                             style={{ padding: '2px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
                           <span style={{ color: adminAFExpanded.has('polygons') ? '#a78bfa' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('polygons') ? '▲' : '▼'}</span>
@@ -32743,6 +32751,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('sectors') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('sectors')}>
                           <div style={{ color: '#34d399', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>⬛ סקטורי מפה (אזורי זום)</div>
+                          <button onClick={e => { e.stopPropagation(); toggleAdminLayer('sectors'); }} title={adminMapLayers.sectors ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.sectors ? '#34d399' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.sectors ? '#34d399' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.sectors ? '✓' : '○'}</button>
                           {adminAFExpanded.has('sectors') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldSector(null); setAirfieldSectorForm({ name: '', notes: '' }); setShowAirfieldSectorForm(true); }}
                             style={{ padding: '2px 8px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ הוסף</button>}
                           <span style={{ color: adminAFExpanded.has('sectors') ? '#34d399' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('sectors') ? '▲' : '▼'}</span>
@@ -32810,6 +32819,7 @@ CHARLIE,1,301,`}
                       <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('routes') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('routes')}>
                           <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🛤️ מסלולי הסעה</div>
+                          <button onClick={e => { e.stopPropagation(); toggleAdminLayer('routes'); }} title={adminMapLayers.routes ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.routes ? '#7dd3fc' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.routes ? '#7dd3fc' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.routes ? '✓' : '○'}</button>
                           {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general' }); setShowAirfieldRouteForm(true); }}
                             style={{ padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>}
                           <span style={{ color: adminAFExpanded.has('routes') ? '#7dd3fc' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('routes') ? '▲' : '▼'}</span>
@@ -32961,19 +32971,39 @@ CHARLIE,1,301,`}
                       setSectorDraftRect({ x: clampedX, y: clampedY, w: 0, h: 0 });
                     }}
                     onMouseMove={e => {
-                      if (!drawingSectorId || !sectorDragStartRef.current) return;
                       const container = e.currentTarget as HTMLElement;
                       const cr = container.getBoundingClientRect();
                       const z = adminMapZoom || 1;
                       const relX = (e.clientX - cr.left) / z; const relY = (e.clientY - cr.top) / z;
-                      let x2: number, y2: number;
-                      if (adminMapImgBounds) { x2 = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; y2 = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
-                      else { x2 = (relX / container.clientWidth) * 100; y2 = (relY / container.clientHeight) * 100; }
-                      x2 = Math.max(0, Math.min(100, x2)); y2 = Math.max(0, Math.min(100, y2));
+                      let svgX: number, svgY: number;
+                      if (adminMapImgBounds) { svgX = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; svgY = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
+                      else { svgX = (relX / container.clientWidth) * 100; svgY = (relY / container.clientHeight) * 100; }
+                      svgX = Math.max(0, Math.min(100, svgX)); svgY = Math.max(0, Math.min(100, svgY));
+                      if (routeDragRef.current) {
+                        const dx = svgX - routeDragRef.current.startSvgX;
+                        const dy = svgY - routeDragRef.current.startSvgY;
+                        const newPts = routeDragRef.current.origPts.map((p: {x:number;y:number}) => ({ x: Math.max(0, Math.min(100, p.x + dx)), y: Math.max(0, Math.min(100, p.y + dy)) }));
+                        setRouteDragPreview({ id: routeDragRef.current.id, pts: newPts });
+                        return;
+                      }
+                      if (!drawingSectorId || !sectorDragStartRef.current) return;
                       const ds = sectorDragStartRef.current;
-                      setSectorDraftRect({ x: Math.min(ds.x, x2), y: Math.min(ds.y, y2), w: Math.abs(x2 - ds.x), h: Math.abs(y2 - ds.y) });
+                      setSectorDraftRect({ x: Math.min(ds.x, svgX), y: Math.min(ds.y, svgY), w: Math.abs(svgX - ds.x), h: Math.abs(svgY - ds.y) });
                     }}
                     onMouseUp={async e => {
+                      if (routeDragRef.current) {
+                        const drag = routeDragRef.current;
+                        routeDragRef.current = null;
+                        if (routeDragPreview && routeDragPreview.pts.length >= 2) {
+                          const route = adminAirfieldRoutes.find((r: any) => r.id === drag.id);
+                          if (route) {
+                            await fetch(`${API_URL}/airfield-routes/${drag.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color, notes: route.notes || '', route_path: routeDragPreview.pts, route_category: route.route_category || 'general' }) });
+                            setAdminAirfieldRoutes((prev: any[]) => prev.map((r: any) => r.id === drag.id ? { ...r, route_path: routeDragPreview.pts } : r));
+                          }
+                        }
+                        setRouteDragPreview(null);
+                        return;
+                      }
                       const ds = sectorDragStartRef.current;
                       if (!drawingSectorId || !ds) return;
                       const container = e.currentTarget as HTMLElement;
@@ -32997,6 +33027,7 @@ CHARLIE,1,301,`}
                       }
                       setDrawingSectorId(null);
                     }}
+                    onMouseLeave={() => { if (routeDragRef.current) { routeDragRef.current = null; setRouteDragPreview(null); } }}
                     onClick={async e => {
                       const el = e.currentTarget as HTMLElement;
                       const rect = el.getBoundingClientRect();
@@ -33039,18 +33070,38 @@ CHARLIE,1,301,`}
 
                     {/* Route polygons SVG overlay */}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
-                      style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 2 }}>
-                      {adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
-                        const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
-                        if (pts.length < 2) return null;
+                      style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: (drawingRouteId || placingPointMode || placingElementMode || drawingPolygonId || drawingSectorId) ? 'none' : 'all', zIndex: 2 }}>
+                      {adminMapLayers.routes && adminAirfieldRoutes.filter((r: any) => Number(r.airfield_id) === Number(selectedAdminAirfieldId)).map((r: any) => {
+                        const rawPts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
+                        if (rawPts.length < 2) return null;
+                        const isDraggingThis = routeDragPreview?.id === r.id;
+                        const pts = isDraggingThis ? routeDragPreview!.pts : rawPts;
                         const col = r.color || '#3b82f6';
                         const isVehicle = (r.route_category || 'general') === 'vehicle';
                         const labelPts = [pts[0], pts[pts.length - 1]];
+                        const canDrag = !drawingRouteId && !placingPointMode && !placingElementMode && !drawingPolygonId && !drawingSectorId;
                         return (
-                          <g key={r.id}>
+                          <g key={r.id}
+                            style={{ cursor: canDrag ? (isDraggingThis ? 'grabbing' : 'grab') : 'default', pointerEvents: canDrag ? 'all' : 'none' }}
+                            onMouseDown={canDrag ? (e => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              const container = adminMapInnerRef.current as HTMLElement | null;
+                              if (!container) return;
+                              const cr = container.getBoundingClientRect();
+                              const z = adminMapZoom || 1;
+                              const relX = (e.clientX - cr.left) / z;
+                              const relY = (e.clientY - cr.top) / z;
+                              let startSvgX: number, startSvgY: number;
+                              if (adminMapImgBounds) { startSvgX = ((relX - adminMapImgBounds.left) / adminMapImgBounds.width) * 100; startSvgY = ((relY - adminMapImgBounds.top) / adminMapImgBounds.height) * 100; }
+                              else { startSvgX = (relX / container.clientWidth) * 100; startSvgY = (relY / container.clientHeight) * 100; }
+                              routeDragRef.current = { id: r.id, startSvgX, startSvgY, origPts: rawPts };
+                            }) : undefined}>
+                            {/* invisible thick hit area for easier grabbing */}
+                            <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="transparent" strokeWidth="3" />
                             {isVehicle
-                              ? <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.55" strokeDasharray="1.8,1.1" strokeLinecap="round" />
-                              : <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={col} strokeWidth="0.4" />
+                              ? <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={isDraggingThis ? '#fff' : col} strokeWidth="0.55" strokeDasharray="1.8,1.1" strokeLinecap="round" opacity={isDraggingThis ? 0.7 : 1} />
+                              : <polyline points={pts.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke={isDraggingThis ? '#fff' : col} strokeWidth="0.4" opacity={isDraggingThis ? 0.7 : 1} />
                             }
                             {labelPts.map((lp, li) => (
                               <g key={li}>
@@ -33061,7 +33112,7 @@ CHARLIE,1,301,`}
                           </g>
                         );
                       })}
-                      {/* Draft polygon while drawing */}
+                      {/* Draft route while drawing */}
                       {drawingRouteId && routeDraftPoints.length >= 2 && (() => {
                         const drawingRoute = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
                         const col = drawingRoute?.color || '#f59e0b';
@@ -33075,7 +33126,7 @@ CHARLIE,1,301,`}
                     </svg>
 
                     {/* Elements overlay in admin map */}
-                    {adminAirfieldElements.filter(el => el.x_pct != null).map(el => {
+                    {adminAirfieldElements.filter(el => el.x_pct != null && (el.category === 'camera' ? adminMapLayers.cameras : adminMapLayers.elements)).map(el => {
                       const pos = adminMapImgBounds
                         ? { left: `${adminMapImgBounds.left + (el.x_pct / 100) * adminMapImgBounds.width}px`, top: `${adminMapImgBounds.top + (el.y_pct / 100) * adminMapImgBounds.height}px` }
                         : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
@@ -33147,7 +33198,7 @@ CHARLIE,1,301,`}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
                       style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 4 }}>
                       {/* Saved polygons */}
-                      {adminAirfieldPolygons.map(pg => {
+                      {adminMapLayers.polygons && adminAirfieldPolygons.map(pg => {
                         const pts: {x:number;y:number}[] = Array.isArray(pg.polygon) ? pg.polygon : [];
                         if (pts.length < 3) return null;
                         const col = pg.color || '#a78bfa';
@@ -33172,7 +33223,7 @@ CHARLIE,1,301,`}
                         );
                       })()}
                       {/* Saved sectors */}
-                      {adminAirfieldSectors.map(sec => {
+                      {adminMapLayers.sectors && adminAirfieldSectors.map(sec => {
                         if (!sec.rect) return null;
                         const { x, y, w, h } = sec.rect;
                         return (
@@ -33201,7 +33252,7 @@ CHARLIE,1,301,`}
                       </div>
                     )}
 
-                    {airfieldPoints.map(pt => {
+                    {adminMapLayers.points && airfieldPoints.map(pt => {
                       const apos = adminPtPos(pt.x_pct, pt.y_pct);
                       return (
                         <div key={pt.id} style={{ position: 'absolute', left: apos.left, top: apos.top, transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 5 }}>
