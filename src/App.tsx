@@ -6325,6 +6325,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     [routeConflicts, malfunctionElementIds]
   );
 
+  const animatedRouteIds = React.useMemo(() => {
+    const ids = new Set<number>();
+    Object.keys(routeAnimProgress).forEach(elIdStr => {
+      const nav = elemNavData[Number(elIdStr)];
+      if (nav?.viaRouteIds) nav.viaRouteIds.forEach((id: number) => ids.add(id));
+    });
+    return ids;
+  }, [routeAnimProgress, elemNavData]);
+
   const DENSITY_WARN = 3; // warn when >= this many aircraft at a point
   const pointAircraftCount = React.useMemo(() => {
     const counts: Record<number, number> = {};
@@ -7676,7 +7685,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
+            <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
               {/* Header — always visible, flashing */}
               <div className="conflict-alert-flash"
                 style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
@@ -7717,7 +7726,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
           {/* Yellow caution panel — blocking elements that are non-operational */}
           {malfunctionWarnings.length > 0 && (
-            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', left: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }} data-nopan>
+            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', right: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }} data-nopan>
               <div style={{ background: '#713f12', border: '2px solid #eab308', borderRadius: showMalfunctionPanel ? '10px 10px 0 0' : '10px', padding: '7px 11px', color: '#fef08a', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 0 12px rgba(234,179,8,0.35)' }}
                 onClick={() => setShowMalfunctionPanel(p => !p)}>
                 <span style={{ fontSize: '18px' }}>⚠️</span>
@@ -7865,13 +7874,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           )}
 
           {/* Route lines overlay */}
-          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
+          {(mapLayers.routes_aircraft || mapLayers.routes_vehicle || animatedRouteIds.size > 0) && imgBounds && airfieldRoutes && airfieldRoutes.some((r: any) => { const p = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []); return p.length >= 2; }) && (
             <svg viewBox="0 0 100 100" preserveAspectRatio="none"
               style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
               {(airfieldRoutes || []).map((r: any) => {
                 const cat = r.route_category || 'general';
                 const isVehicle = cat === 'vehicle';
-                if (isVehicle && !mapLayers.routes_vehicle) return null;
+                if (isVehicle && !mapLayers.routes_vehicle && !animatedRouteIds.has(r.id)) return null;
                 if (!isVehicle && !mapLayers.routes_aircraft) return null;
                 const pts: {x:number;y:number}[] = Array.isArray(r.route_path) ? r.route_path : (typeof r.route_path === 'string' ? JSON.parse(r.route_path) : []);
                 if (pts.length < 2) return null;
@@ -8196,6 +8205,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               : { left: `${el.x_pct}%`, top: `${el.y_pct}%` };
             const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
+            const statusIconEmoji: string | null = (() => { const si = typeof el.type_status_icons === 'object' && !Array.isArray(el.type_status_icons) ? el.type_status_icons : (typeof el.type_status_icons === 'string' ? (() => { try { return JSON.parse(el.type_status_icons); } catch { return null; } })() : null); return si && el.status ? (si[el.status] || null) : null; })();
             // Display state: normal / blink / open / close
             const dState = el.display_state || 'normal';
             const isBlinking = dState === 'blink';
@@ -8261,7 +8271,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   ) : (
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined, animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>
-                      {isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                      {isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (statusIconEmoji || el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                     </div>
                   )}
                   {/* X overlay for SVG icons — לא תקין / לא שמיש only (not for closed) */}
@@ -28177,8 +28187,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Airfield element types (global list)
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
-  const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
-  const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
+  const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} as Record<string,string> });
+  const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} as Record<string,string> });
   elementTypeFormRef.current = elementTypeForm;
   const setElementTypeFormAndRef = React.useCallback((updater: ((prev: any) => any) | { [key: string]: any }) => {
     setElementTypeForm(prev => {
@@ -28680,7 +28690,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     borderRight: `3px solid ${active ? '#3b82f6' : 'transparent'}`,
     cursor: 'pointer',
     fontSize: '13px',
-    fontWeight: (active ? 'bold' : 'normal') as const,
+    fontWeight: active ? ('bold' as const) : ('normal' as const),
     textAlign: 'right' as const,
     direction: 'rtl' as const,
     transition: 'background 0.12s, color 0.12s',
@@ -28760,7 +28770,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={sideNavItemStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
           {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={sideNavItemStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
           {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={sideNavItemStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
-          {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>📋 רשימות ערכים</button>}
+          {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>⚙️ אלמנטים בבסיס</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
 
         </div>{/* end sidebar */}
@@ -33808,13 +33818,35 @@ CHARLIE,1,301,`}
                       <div style={{ fontSize: '10px', color: '#64748b' }}>💡 כדי להגדיר אייקון לפתוח/סגור — לחץ על "פתוח" או "סגור" בתצוגה המקדימה למטה</div>
                     </div>
                   )}
+                  {elementTypeForm.allowed_statuses.length > 0 && (
+                    <div style={{ marginTop: '8px', padding: '8px 10px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f' }}>
+                      <div style={{ fontSize: '10px', color: '#60a5fa', marginBottom: '6px', fontWeight: 'bold' }}>🎯 אמוג׳י לכל סטטוס (אופציונלי):</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {elementTypeForm.allowed_statuses.map((s: string) => {
+                          const scol2: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
+                          return (
+                            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: scol2[s] || '#94a3b8', minWidth: '42px', fontWeight: 'bold' }}>{s}:</span>
+                              <input
+                                value={elementTypeForm.status_icons[s] || ''}
+                                onChange={e => setElementTypeFormAndRef((p: any) => ({ ...p, status_icons: { ...p.status_icons, [s]: e.target.value } }))}
+                                placeholder="אמוג׳י…"
+                                style={{ width: '68px', padding: '2px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '15px', direction: 'rtl', textAlign: 'center' }}
+                              />
+                              {elementTypeForm.status_icons[s] && <span style={{ fontSize: '20px', lineHeight: 1 }}>{elementTypeForm.status_icons[s]}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           );
           return (
             <div style={{ padding: '20px', direction: 'rtl', maxWidth: '700px' }}>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: '#c4b5fd' }}>📋 רשימות ערכים</h2>
+              <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: '#c4b5fd' }}>⚙️ אלמנטים בבסיס</h2>
 
               {/* Element Types list */}
               <div style={{ background: '#0f172a', borderRadius: '10px', border: '1px solid #7c3aed', overflow: 'hidden' }}>
@@ -33844,7 +33876,7 @@ CHARLIE,1,301,`}
                         {et.can_have_route && (
                           <span style={{ fontSize: '10px', background: '#14532d33', color: '#86efac', border: '1px solid #22c55e55', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>🛣 מסלול</span>
                         )}
-                        <button type="button" onClick={() => { setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '', can_have_route: !!et.can_have_route }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
+                        <button type="button" onClick={() => { const sicons = typeof et.status_icons === 'object' && !Array.isArray(et.status_icons) ? (et.status_icons || {}) : (typeof et.status_icons === 'string' ? (() => { try { return JSON.parse(et.status_icons); } catch { return {}; } })() : {}); setElementTypeFormAndRef({ name: et.name, color: et.color, icon: et.icon, can_change_status: !!et.can_change_status, allowed_statuses: aStatuses, open_icon: et.open_icon || '', close_icon: et.close_icon || '', can_have_route: !!et.can_have_route, status_icons: sicons }); setEditingElementType(et); }} style={{ padding: '3px 10px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✏ ערוך</button>
                         <button onClick={async () => { if (!await customConfirm('למחוק סוג זה?')) return; await fetch(`${API_URL}/airfield-element-types/${et.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); }} style={{ padding: '3px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕ מחק</button>
                       </div>
                     );
@@ -33867,9 +33899,9 @@ CHARLIE,1,301,`}
                       </div>
                       {CanChangeStatusSection()}
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
+                        <button type="button" onClick={async () => { const form = elementTypeFormRef.current; await fetch(`${API_URL}/airfield-element-types/${editingElementType.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} }); }}
                           style={{ flex: 1, padding: '8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>שמור</button>
-                        <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
+                        <button type="button" onClick={() => { setEditingElementType(null); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} }); }}
                           style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
                       </div>
                     </div>
@@ -33889,7 +33921,7 @@ CHARLIE,1,301,`}
                         <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: elementTypeForm.color, border: '1px solid #334155' }} />
                       </div>
                       {CanChangeStatusSection()}
-                      <button type="button" onClick={async () => { const form = elementTypeFormRef.current; if (!form.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false }); }}
+                      <button type="button" onClick={async () => { const form = elementTypeFormRef.current; if (!form.name.trim()) return; await fetch(`${API_URL}/airfield-element-types`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAdminElementTypes).catch(() => {}); setElementTypeFormAndRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [], open_icon: '', close_icon: '', can_have_route: false, status_icons: {} }); }}
                         disabled={!elementTypeForm.name.trim()}
                         style={{ padding: '8px', background: elementTypeForm.name.trim() ? '#059669' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: elementTypeForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold', opacity: elementTypeForm.name.trim() ? 1 : 0.5 }}>+ הוסף סוג</button>
                     </div>
