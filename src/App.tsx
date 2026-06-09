@@ -7672,7 +7672,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}`}</style>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}`}</style>
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
@@ -13645,7 +13645,7 @@ const AdminDashboard: React.FC<{
                                   : (lightMode ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : (idx % 2 === 0 ? '#1e293b' : '#0f172a'));
                               const rowBorder = isConflictRow ? '1px solid #ef4444' : isDeviationRow ? '1px solid #f59e0b' : `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3f'}`;
                               return (
-                                <tr key={s.id} className={isConflictRow ? 'alt-conflict-flash' : isDeviationRow ? 'block-deviation-flash' : undefined} style={{ background: rowBg, borderBottom: rowBorder }}>
+                                <tr key={s.id} data-strip-id={s.id} className={[isConflictRow ? 'alt-conflict-flash' : isDeviationRow ? 'block-deviation-flash' : '', acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : ''].filter(Boolean).join(' ') || undefined} style={{ background: rowBg, borderBottom: rowBorder }}>
                                   {columns.map((col: any, ci: number) => (
                                     <td key={col.key || col.field} style={{ padding: '5px 6px' }}>
                                       {ci === 0 && (isConflictRow || isDeviationRow) && (
@@ -14565,6 +14565,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [sessionContacts, setSessionContacts] = useState<{ id?: number; mahut: string; oketz: string; frequency: string; note: string; device_type: string; priority: string; sort_order: number; _key: number }[]>([]);
   const [contactsSummaryOpen, setContactsSummaryOpen] = useState(false);
   const [contactsSummaryFlashing, setContactsSummaryFlashing] = useState(false);
+  const [acceptFlashStripId, setAcceptFlashStripId] = useState<string | null>(null);
+  const acceptFlashTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    const existing = document.getElementById('accept-flash-style');
+    if (existing) existing.remove();
+    if (!acceptFlashStripId) return;
+    const el = document.createElement('style');
+    el.id = 'accept-flash-style';
+    el.textContent = `@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e!important;outline-offset:2px;box-shadow:0 0 14px rgba(34,197,94,0.8)}50%{outline:3px solid transparent!important;outline-offset:2px;box-shadow:none}}[data-strip-id="${acceptFlashStripId}"]{animation:accept-green-flash 0.55s ease-in-out 9;outline:3px solid #22c55e!important;outline-offset:2px;position:relative;z-index:10;}`;
+    document.head.appendChild(el);
+    return () => { el.remove(); };
+  }, [acceptFlashStripId]);
   const contactsAutoCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contactsSummaryData, setContactsSummaryData] = useState<any[]>([]);
   const [contactsSummaryPos, setContactsSummaryPos] = useState({ x: 60, y: 80 });
@@ -17107,6 +17119,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         stripCallsign: t?.callsign || t?.callSign,
         details: { fromPresetId: t?.from_workstation_id }
       });
+      if (t?.strip_id) {
+        const fid = 's' + t.strip_id;
+        if (acceptFlashTimer.current) clearTimeout(acceptFlashTimer.current);
+        setAcceptFlashStripId(fid);
+        acceptFlashTimer.current = setTimeout(() => setAcceptFlashStripId(null), 5000);
+      }
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer:', err);
@@ -17338,6 +17356,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         stripCallsign: t?.callsign || t?.callSign,
         details: { fromPresetId: t?.from_workstation_id, x, y }
       });
+      if (t?.strip_id) {
+        const fid = 's' + t.strip_id;
+        if (acceptFlashTimer.current) clearTimeout(acceptFlashTimer.current);
+        setAcceptFlashStripId(fid);
+        acceptFlashTimer.current = setTimeout(() => setAcceptFlashStripId(null), 5000);
+      }
       loadData();
     } catch (err) {
       console.error('Failed to accept transfer to map:', err);
@@ -20651,7 +20675,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <tr
                         key={s.id}
                         data-strip-id={s.id}
-                        className={isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : undefined)}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
@@ -29006,33 +29030,50 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   )}
                 </div>
 
-                {/* Parent Base — shared atmospheric pressure */}
+                {/* Airfield Template — select airfield to auto-fill map + show SIDs/STARs */}
+                {(presetForm.preset_type !== 'ground' && presetForm.preset_type !== 'ground_mgmt') && (
                 <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🏢 בסיס אב (לחץ אטמוספרי משותף):</label>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>✈️ שדה תעופה (תבנית):</label>
                   <select
-                    value={presetForm.parent_base_id || ''}
-                    onChange={e => setPresetForm(p => ({ ...p, parent_base_id: e.target.value || '', can_update_pressure: e.target.value ? p.can_update_pressure : false }))}
-                    style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '13px', marginBottom: '8px' }}
+                    value={presetForm.airfield_id || ''}
+                    onChange={e => {
+                      const afId = e.target.value;
+                      const af = adminAirfields.find((a: any) => String(a.id) === afId);
+                      setPresetForm(p => ({
+                        ...p,
+                        airfield_id: afId,
+                        map_id: (af?.map_id && !p.map_id) ? String(af.map_id) : p.map_id,
+                      }));
+                    }}
+                    style={{ width: '100%', padding: '8px', border: '1px solid #475569', borderRadius: '6px', background: '#1e293b', color: 'white', fontSize: '13px', marginBottom: '8px', direction: 'rtl' }}
                   >
-                    <option value="">— ללא בסיס אב —</option>
-                    {adminAviationBases.map((bs: any) => (
-                      <option key={bs.id} value={bs.id}>{bs.name}{bs.code ? ` (${bs.code})` : ''}</option>
+                    <option value="">— ללא שדה תעופה —</option>
+                    {adminAirfields.map((af: any) => (
+                      <option key={af.id} value={af.id}>{af.name}</option>
                     ))}
                   </select>
-                  {presetForm.parent_base_id && (
-                    <div style={{ display: 'flex', gap: '8px', direction: 'rtl', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '12px', color: '#94a3b8', flexShrink: 0 }}>הרשאת עדכון לחץ:</span>
-                      {([{ val: true, label: '✏️ מעדכן' }, { val: false, label: '👁 קורא בלבד' }] as { val: boolean; label: string }[]).map(opt => (
-                        <button key={String(opt.val)} type="button"
-                          onClick={() => setPresetForm(p => ({ ...p, can_update_pressure: opt.val }))}
-                          style={{ padding: '5px 14px', borderRadius: '6px', border: `1px solid ${presetForm.can_update_pressure === opt.val ? '#3b82f6' : '#334155'}`, background: presetForm.can_update_pressure === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.can_update_pressure === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: presetForm.can_update_pressure === opt.val ? 'bold' : 'normal' }}>
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות עם אותו בסיס אב משתפות לחץ אטמוספרי. רק עמדת "מעדכן" יכולה לשנות — האחרות קריאה בלבד עם עדכון אוטומטי כל 5 שניות.</p>
+                  {(() => {
+                    const selAf = adminAirfields.find((a: any) => String(a.id) === String(presetForm.airfield_id));
+                    if (!selAf) return null;
+                    const afSids: string[] = Array.isArray(selAf.sids) ? selAf.sids.map((s: any) => typeof s === 'string' ? s : s.label || '') : [];
+                    const afStars: string[] = Array.isArray(selAf.stars) ? selAf.stars : [];
+                    return (
+                      <div style={{ background: '#0a1628', borderRadius: '6px', padding: '8px 10px', border: '1px solid #1e3a5f', direction: 'rtl' }}>
+                        {selAf.map_id && <p style={{ margin: '0 0 6px 0', fontSize: '11px', color: '#60a5fa' }}>🗺 מפה: {maps.find((m: any) => m.id === selAf.map_id)?.name || `מפה ${selAf.map_id}`}</p>}
+                        {afSids.length > 0 && <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#86efac' }}>📤 SIDs: {afSids.join(', ')}</p>}
+                        {afStars.length > 0 && <p style={{ margin: '0', fontSize: '11px', color: '#fcd34d' }}>📥 STARs: {afStars.join(', ')}</p>}
+                        {selAf.map_id && (
+                          <button type="button" onClick={() => setPresetForm(p => ({ ...p, map_id: String(selAf.map_id) }))}
+                            style={{ marginTop: '6px', padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+                            🗺 טען מפה מהשדה
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {adminAirfields.length === 0 && <p style={{ margin: '0', fontSize: '11px', color: '#ef4444' }}>צור שדות תעופה בלשונית "שדות תעופה" בניהול מבצעי</p>}
                 </div>
+                )}
 
                 {/* can_update_mazaa toggle */}
                 <div style={{ marginTop: '15px' }}>
