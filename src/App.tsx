@@ -28629,12 +28629,39 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>שדה תעופה:</label>
                     <select value={presetForm.airfield_id}
-                      onChange={e => setPresetForm(p => ({ ...p, airfield_id: e.target.value }))}
+                      onChange={e => {
+                        const afId = e.target.value;
+                        const af = adminAirfields.find((a: any) => String(a.id) === afId);
+                        setPresetForm(p => ({
+                          ...p,
+                          airfield_id: afId,
+                          map_id: (af?.map_id && !p.map_id) ? String(af.map_id) : p.map_id,
+                        }));
+                      }}
                       style={{ width: '100%', padding: '10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '14px', direction: 'rtl' }}>
                       <option value="">— ללא שדה —</option>
                       {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
+                    {(() => {
+                      const selAf = adminAirfields.find((a: any) => String(a.id) === String(presetForm.airfield_id));
+                      if (!selAf) return null;
+                      const afSids: string[] = Array.isArray(selAf.sids) ? selAf.sids.map((s: any) => typeof s === 'string' ? s : s.label || '') : [];
+                      const afStars: string[] = Array.isArray(selAf.stars) ? selAf.stars : [];
+                      return (
+                        <div style={{ marginTop: '8px', background: '#0a1628', borderRadius: '6px', padding: '8px 10px', border: '1px solid #1e3a5f', direction: 'rtl' }}>
+                          {selAf.map_id && <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#60a5fa' }}>🗺 מפה: {maps.find((m: any) => m.id === selAf.map_id)?.name || `מפה ${selAf.map_id}`}</p>}
+                          {afSids.length > 0 && <p style={{ margin: '0 0 4px 0', fontSize: '11px', color: '#86efac' }}>📤 SIDs: {afSids.join(', ')}</p>}
+                          {afStars.length > 0 && <p style={{ margin: '0', fontSize: '11px', color: '#fcd34d' }}>📥 STARs: {afStars.join(', ')}</p>}
+                          {selAf.map_id && (
+                            <button type="button" onClick={() => setPresetForm(p => ({ ...p, map_id: String(selAf.map_id) }))}
+                              style={{ marginTop: '6px', padding: '4px 10px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+                              🗺 טען מפה מהשדה
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {presetForm.preset_type === 'ground_mgmt' && (
                       <div style={{ marginTop: '12px' }}>
                         <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מפה:</label>
