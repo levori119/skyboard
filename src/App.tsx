@@ -28611,6 +28611,17 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                       {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
                     </select>
                     {adminAirfields.length === 0 && <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#ef4444' }}>צור שדה תעופה בלשונית "שדות תעופה"</p>}
+                    {presetForm.preset_type === 'ground_mgmt' && (
+                      <div style={{ marginTop: '12px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '14px' }}>מפה:</label>
+                        <select value={presetForm.map_id}
+                          onChange={e => setPresetForm(p => ({ ...p, map_id: e.target.value }))}
+                          style={{ width: '100%', padding: '10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '14px', direction: 'rtl' }}>
+                          <option value="">— ללא מפה —</option>
+                          {maps.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
+                    )}
                     {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '12px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                       <label style={{ display: 'block', marginBottom: '6px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>⏰ הצגת מטוס ליד דת"ק לפני המראה:</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
