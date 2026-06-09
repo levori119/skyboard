@@ -14334,6 +14334,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [tableDragRow, setTableDragRow] = useState<string | null>(null);
   const [tableDragOverRow, setTableDragOverRow] = useState<string | null>(null);
   const [tableTransferOpen, setTableTransferOpen] = useState<string | null>(null);
+  const [stripTransferTo, setStripTransferTo] = useState<Record<string, string>>({});
+  const [transferToDropOpen, setTransferToDropOpen] = useState<string | null>(null);
   const [availableTableModes, setAvailableTableModes] = useState<any[]>([]);
   const [selectedTableModeId, setSelectedTableModeId] = useState<number | null>(null);
   const [tableGroupByKey, setTableGroupByKey] = useState<string | null>(null);
@@ -14702,6 +14704,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearTimeout(timer);
   }, [adAlerts]);
 
+  // Close transfer_to dropdown on outside click
+  useEffect(() => {
+    if (!transferToDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-transfer-to-drop]')) setTransferToDropOpen(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [transferToDropOpen]);
+
   // Load session contacts when preset changes (session-only — not persisted)
   useEffect(() => {
     if (!session.presetId) { setSessionContacts([]); return; }
@@ -14793,6 +14806,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isGroundMgmtMode = myPresetConfig?.preset_type === 'ground_mgmt';
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
+  const isMmiMode = myPresetConfig?.preset_role === 'mmi';
+  const mmiConnectedPresets = React.useMemo(() => {
+    if (!isMmiMode || !myPresetConfig) return [] as { id: number; name: string; freqs: string }[];
+    const myTfPts = ((myPresetConfig.classic_transfer_points || []) as any[]).map((p: any) => Number(p.sector_id));
+    const myRcvPts = ((myPresetConfig.classic_receive_points || []) as any[]).map((p: any) => Number(p.sector_id));
+    const myRelSectors = ((myPresetConfig.relevant_sectors || []) as number[]).map(Number);
+    const myAllSectors = new Set([...myTfPts, ...myRcvPts, ...myRelSectors]);
+    return (workstationPresets as any[])
+      .filter((p: any) => Number(p.id) !== Number(session.presetId))
+      .filter((p: any) => {
+        const ptf = ((p.classic_transfer_points || []) as any[]).map((x: any) => Number(x.sector_id));
+        const prc = ((p.classic_receive_points || []) as any[]).map((x: any) => Number(x.sector_id));
+        const prel = ((p.relevant_sectors || []) as number[]).map(Number);
+        return [...ptf, ...prc, ...prel].some((sid: number) => myAllSectors.has(sid));
+      })
+      .map((p: any) => {
+        const contacts = allDashContacts.filter((c: any) => Number(c.preset_id) === Number(p.id));
+        const freqs = contacts
+          .filter((c: any) => c.frequency)
+          .map((c: any) => (c.device_type ? `${c.device_type} ` : '') + c.frequency)
+          .filter(Boolean)
+          .join(' | ');
+        return { id: Number(p.id), name: String(p.name || ''), freqs };
+      });
+  }, [isMmiMode, myPresetConfig, workstationPresets, allDashContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
@@ -20363,6 +20401,45 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     </td>
                   );
                 }
+                case 'transfer_to': {
+                  if (!isMmiMode) return <td key={col.key} style={{ padding: '10px 12px', color: T.muted, verticalAlign: 'top' }}>—</td>;
+                  const toVal = stripTransferTo[String(s.id)] || '';
+                  const isOpen = transferToDropOpen === String(s.id);
+                  return (
+                    <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'top', position: 'relative' }} onClick={e => e.stopPropagation()} data-transfer-to-drop="1">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', direction: 'rtl' }}>
+                        <button
+                          onClick={() => setTransferToDropOpen(prev => prev === String(s.id) ? null : String(s.id))}
+                          style={{ flex: 1, textAlign: 'right', background: toVal ? '#0c2a40' : '#1e293b', border: `1px solid ${toVal ? '#3b82f6' : '#334155'}`, borderRadius: '4px', color: toVal ? '#7dd3fc' : '#64748b', padding: '4px 7px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px', minWidth: 0 }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'right' }}>{toVal || 'העבר אל...'}</span>
+                          <span style={{ flexShrink: 0, fontSize: '10px', color: toVal ? '#60a5fa' : '#475569', lineHeight: 1 }}>▽</span>
+                        </button>
+                        {toVal && (
+                          <button onClick={() => setStripTransferTo(prev => { const n = { ...prev }; delete n[String(s.id)]; return n; })} style={{ background: 'transparent', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', padding: '2px 3px', flexShrink: 0, lineHeight: 1 }} title="נקה">✕</button>
+                        )}
+                      </div>
+                      {isOpen && (
+                        <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 9999, background: '#0f172a', border: '1px solid #3b82f6', borderRadius: '6px', minWidth: '220px', maxHeight: '240px', overflowY: 'auto', direction: 'rtl', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', padding: '4px' }}>
+                          {mmiConnectedPresets.length === 0
+                            ? <div style={{ padding: '10px 12px', color: '#64748b', fontSize: '11px', textAlign: 'center', fontStyle: 'italic' }}>אין עמדות מתמשקות</div>
+                            : mmiConnectedPresets.map(p => (
+                              <button key={p.id}
+                                onClick={() => { const text = p.freqs ? `${p.name} | ${p.freqs}` : p.name; setStripTransferTo(prev => ({ ...prev, [String(s.id)]: text })); setTransferToDropOpen(null); }}
+                                style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
+                                onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                <div style={{ fontWeight: 'bold', color: '#7dd3fc' }}>{p.name}</div>
+                                {p.freqs && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{p.freqs}</div>}
+                              </button>
+                            ))
+                          }
+                        </div>
+                      )}
+                    </td>
+                  );
+                }
                 case 'takeoffTime': {
                   const t = s.takeoffTime || s.takeoff_time;
                   let display = '—';
@@ -20957,37 +21034,69 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const ctxS = myTableStrips.find((s: any) => s.id === verticalCtxMenu.stripId);
             const ctxDev = ctxS ? computeBlockDeviation(ctxS, dashboardBlocks, dashboardBlockTables, effectiveBlockTableId, session.presetId ? Number(session.presetId) : null) : false;
             const ctxAck = ctxS ? !!ctxS.block_deviation : false;
-            if (!ctxDev && !ctxAck) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
+            if (!ctxDev && !ctxAck && !isMmiMode) { setTimeout(() => setVerticalCtxMenu(null), 0); return null; }
             return (
               <div
-                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 200, 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '180px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
+                style={{ position: 'fixed', ...clampMenuPos(verticalCtxMenu.x, verticalCtxMenu.y, 220, isMmiMode ? 200 + mmiConnectedPresets.length * 36 : 140), background: '#1e293b', border: '1px solid #f97316', borderRadius: '6px', zIndex: 9999, minWidth: '200px', boxShadow: '0 4px 16px rgba(0,0,0,0.6)', padding: '4px', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}
               >
-                <button
-                  onClick={() => {
-                    setAltUpdateValue(ctxS?.alt || '');
-                    setAltUpdateForm({ stripId: verticalCtxMenu.stripId, currentAlt: ctxS?.alt || '', x: verticalCtxMenu.x, y: verticalCtxMenu.y });
-                    setVerticalCtxMenu(null);
-                  }}
-                  style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                >✏️ עדכון גובה</button>
-                {ctxDev && !ctxAck && (
+                {(ctxDev || ctxAck) && <>
                   <button
-                    onClick={async () => {
-                      try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                    onClick={() => {
+                      setAltUpdateValue(ctxS?.alt || '');
+                      setAltUpdateForm({ stripId: verticalCtxMenu.stripId, currentAlt: ctxS?.alt || '', x: verticalCtxMenu.x, y: verticalCtxMenu.y });
                       setVerticalCtxMenu(null);
                     }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                  >⚠️ אשר חריגה מבלוק</button>
-                )}
-                {ctxAck && (
-                  <button
-                    onClick={async () => {
-                      try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
-                      setVerticalCtxMenu(null);
-                    }}
-                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
-                  >✅ בטל אישור חריגה מבלוק</button>
+                    style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#60a5fa', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                  >✏️ עדכון גובה</button>
+                  {ctxDev && !ctxAck && (
+                    <button
+                      onClick={async () => {
+                        try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: true }) }); } catch {}
+                        setVerticalCtxMenu(null);
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#f97316', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >⚠️ אשר חריגה מבלוק</button>
+                  )}
+                  {ctxAck && (
+                    <button
+                      onClick={async () => {
+                        try { await fetch(`${API_URL}/strips/${verticalCtxMenu.stripId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block_deviation: false }) }); } catch {}
+                        setVerticalCtxMenu(null);
+                      }}
+                      style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', fontSize: '13px' }}
+                    >✅ בטל אישור חריגה מבלוק</button>
+                  )}
+                </>}
+                {isMmiMode && (
+                  <>
+                    {(ctxDev || ctxAck) && <div style={{ height: '1px', background: '#334155', margin: '2px 8px' }} />}
+                    <div style={{ padding: '6px 12px 3px', fontSize: '11px', color: '#7dd3fc', fontWeight: 'bold' }}>📡 העבר אל</div>
+                    {mmiConnectedPresets.length === 0
+                      ? <div style={{ padding: '4px 12px 8px', fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>אין עמדות מתמשקות</div>
+                      : mmiConnectedPresets.map(p => (
+                        <button key={p.id}
+                          onClick={() => {
+                            const text = p.freqs ? `${p.name} | ${p.freqs}` : p.name;
+                            setStripTransferTo(prev => ({ ...prev, [String(verticalCtxMenu.stripId)]: text }));
+                            setVerticalCtxMenu(null);
+                          }}
+                          style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#e2e8f0', border: 'none', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', borderRadius: '4px' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#1e3a5f')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <span style={{ color: '#7dd3fc', fontWeight: 'bold' }}>{p.name}</span>
+                          {p.freqs && <span style={{ fontSize: '10px', color: '#94a3b8' }}> | {p.freqs}</span>}
+                        </button>
+                      ))
+                    }
+                    {stripTransferTo[String(verticalCtxMenu.stripId)] && (
+                      <button
+                        onClick={() => { setStripTransferTo(prev => { const n = { ...prev }; delete n[String(verticalCtxMenu.stripId)]; return n; }); setVerticalCtxMenu(null); }}
+                        style={{ display: 'block', width: '100%', textAlign: 'right', background: 'transparent', color: '#64748b', border: 'none', padding: '4px 12px 6px', cursor: 'pointer', fontSize: '11px', borderRadius: '4px' }}
+                      >✕ נקה</button>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -25079,6 +25188,7 @@ const STRIP_FIELD_DEFS = [
   { key: 'sector',            label: 'אזור',          editableOptions: ['none', 'dropdown'] },
   { key: 'serials',           label: 'ספרורים',       editableOptions: ['none'] as string[] },
   { key: 'transfer',          label: 'העבר',          editableOptions: ['none'] as string[] },
+  { key: 'transfer_to',       label: 'העבר אל (מ"מי)', editableOptions: ['none'] as string[] },
   { key: 'sid',               label: 'SID',           editableOptions: ['none', 'keyboard', 'both'] },
   { key: 'star',              label: 'STAR',          editableOptions: ['none', 'keyboard', 'both'] },
 ];
@@ -28741,7 +28851,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 <div style={{ marginBottom: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🏷 תפקיד עמדה:</label>
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {[{ val: 'tower', label: '🗼 מגדל' }, { val: 'yaba', label: '📡 יב"א' }].map(opt => (
+                    {[{ val: 'tower', label: '🗼 מגדל' }, { val: 'yaba', label: '📡 יב"א' }, { val: 'mmi', label: '🖥 מ"מי' }, { val: 'lev', label: '❤ לב' }].map(opt => (
                       <button key={opt.val} type="button" onClick={() => setPresetForm(p => ({ ...p, preset_role: opt.val }))}
                         style={{ flex: '1 0 auto', padding: '9px 10px', borderRadius: '6px', border: `2px solid ${presetForm.preset_role === opt.val ? '#0ea5e9' : '#334155'}`, background: presetForm.preset_role === opt.val ? '#0c2a40' : '#1e293b', color: presetForm.preset_role === opt.val ? '#7dd3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', fontWeight: presetForm.preset_role === opt.val ? 'bold' : 'normal' }}>
                         {opt.label}
