@@ -5653,7 +5653,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldElements?: any[];
   elementTypes?: any[];
   onUpdateElementStatus?: (elementId: number, status: string) => void;
-  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null }) => Promise<void>;
+  onUpdateElement?: (elementId: number, fields: { name: string; category: string; status: string; note: string; display_state?: string; blink_rate?: number; open_icon_key?: string; close_icon_key?: string; rotation?: number; camera_url?: string | null; x_pct?: number | null; y_pct?: number | null; hidden_on_map?: boolean }) => Promise<void>;
   onMergePartial?: (targetStripId: string, sourceStripId: string) => Promise<void>;
   onSplitPartial?: (sourceStripId: string, indices: number[]) => Promise<void>;
   headerButtons?: React.ReactNode;
@@ -6275,7 +6275,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [showConflictPanel, setShowConflictPanel] = React.useState(false);
 
   const routeConflicts = React.useMemo(() => {
-    const conflicts: { vehicleName: string; elementName: string; routeNames: string[]; status: string }[] = [];
+    const conflicts: { vehicleName: string; vehicleId: number; elementName: string; elementId: number; routeNames: string[]; status: string }[] = [];
     if (!airfieldElements || !airfieldRoutes) return conflicts;
     Object.entries(elemNavData).forEach(([elIdStr, nav]) => {
       if (!nav.viaRouteIds.length) return;
@@ -13645,7 +13645,7 @@ const AdminDashboard: React.FC<{
                                   : (lightMode ? (idx % 2 === 0 ? '#ffffff' : '#f8fafc') : (idx % 2 === 0 ? '#1e293b' : '#0f172a'));
                               const rowBorder = isConflictRow ? '1px solid #ef4444' : isDeviationRow ? '1px solid #f59e0b' : `1px solid ${lightMode ? '#e2e8f0' : '#1e2d3f'}`;
                               return (
-                                <tr key={s.id} data-strip-id={s.id} className={[isConflictRow ? 'alt-conflict-flash' : isDeviationRow ? 'block-deviation-flash' : '', acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : ''].filter(Boolean).join(' ') || undefined} style={{ background: rowBg, borderBottom: rowBorder }}>
+                                <tr key={s.id} data-strip-id={s.id} className={[isConflictRow ? 'alt-conflict-flash' : isDeviationRow ? 'block-deviation-flash' : ''].filter(Boolean).join(' ') || undefined} style={{ background: rowBg, borderBottom: rowBorder }}>
                                   {columns.map((col: any, ci: number) => (
                                     <td key={col.key || col.field} style={{ padding: '5px 6px' }}>
                                       {ci === 0 && (isConflictRow || isDeviationRow) && (
@@ -28134,7 +28134,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [elementTypeForm, setElementTypeForm] = useState({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
   const elementTypeFormRef = React.useRef({ name: '', color: '#f59e0b', icon: '🔧', can_change_status: false, allowed_statuses: [] as string[], open_icon: '', close_icon: '', can_have_route: false });
   elementTypeFormRef.current = elementTypeForm;
-  const setElementTypeFormAndRef = React.useCallback((updater: any) => {
+  const setElementTypeFormAndRef = React.useCallback((updater: ((prev: any) => any) | { [key: string]: any }) => {
     setElementTypeForm(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       elementTypeFormRef.current = next;
@@ -32502,7 +32502,7 @@ CHARLIE,1,301,`}
                                 {/* Op-check: relevant routes + blocking statuses */}
                                 <div style={{ padding: '6px 8px', borderTop: '1px solid #1e3a5f' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px', cursor: 'pointer' }}
-                                    onClick={() => setAdminElemFocusField(adminElemFocusField === 'opcheck' ? null : 'opcheck' as any)}>
+                                    onClick={() => setAdminElemFocusField((adminElemFocusField as any) === 'opcheck' ? null : 'opcheck' as any)}>
                                     <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 'bold' }}>⚠ בדיקת תפעול</span>
                                     {(elementForm.relevant_routes.length > 0 || elementForm.blocking_statuses.length > 0) && (
                                       <span style={{ fontSize: '9px', background: '#78350f', color: '#fde68a', borderRadius: '3px', padding: '1px 4px' }}>
@@ -33787,7 +33787,7 @@ CHARLIE,1,301,`}
                       const isOn = elementTypeForm.allowed_statuses.includes(s);
                       const scol: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
                       return (
-                        <button type="button" key={s} onClick={() => setElementTypeFormAndRef(p => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter(x => x !== s) : [...p.allowed_statuses, s] }))}
+                        <button type="button" key={s} onClick={() => setElementTypeFormAndRef((p: any) => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter((x: any) => x !== s) : [...p.allowed_statuses, s] }))}
                           style={{ padding: '5px 12px', background: isOn ? (scol[s] || '#888') + '22' : 'transparent', border: `1px solid ${isOn ? (scol[s] || '#888') : '#334155'}`, borderRadius: '6px', color: isOn ? (scol[s] || '#e2e8f0') : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: isOn ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px' }}>
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: scol[s] || '#888', display: 'inline-block' }} />
                           {s}
