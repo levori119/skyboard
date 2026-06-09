@@ -6040,9 +6040,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       setRunwayConflicts({});
       return;
     }
-    const afId = airfield?.id;
-    if (!afId) return;
-    const runwayRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(afId));
+    const afId = airfield?.id ?? myPresetConfig?.airfield_id;
+    const runwayRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && (afId ? Number(r.airfield_id) === Number(afId) : false));
     if (runwayRoutes.length === 0) return;
     Promise.all(runwayRoutes.map((r: any) =>
       fetch(`${API_URL}/runway-conflict?route_id=${r.id}`).then(res => res.ok ? res.json() : []).then((c: any[]) => ({ id: r.id, conflicts: c }))
@@ -9970,6 +9969,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <span key={ci} style={{ display: 'inline-block', marginLeft: '6px' }}>
                                 {c.type === 'vehicle'
                                   ? `🚗 ${c.name || `רכב #${c.id}`} — נמצא על מסלול זה`
+                                  : c.type === 'takeoff_clearance'
+                                  ? `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — קיבל אישור המראה`
                                   : `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — מוסע למסלול זה`}
                               </span>
                             ))}

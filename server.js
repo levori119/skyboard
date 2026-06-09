@@ -5994,6 +5994,12 @@ app.get('/api/runway-conflict', async (req, res) => {
     );
     const linkedRouteIds = links.map(l => Number(l.route_id_a) === routeId ? Number(l.route_id_b) : Number(l.route_id_a));
     const routesToCheck = [routeId, ...linkedRouteIds];
+    // Fetch runway names for takeoff-clearance detection
+    const { rows: routeRows } = await pool.query(
+      `SELECT id, name, end_a_name, end_b_name FROM airfield_routes WHERE id = ANY($1::int[]) AND is_runway = true`,
+      [routesToCheck]
+    );
+    const runwayNames = routeRows.flatMap(r => [r.name, r.end_a_name, r.end_b_name].filter(Boolean));
     // Aircraft taxi conflicts (strips with aircraft positions using this runway route)
     const { rows: acRows } = await pool.query(
       `SELECT DISTINCT s.id, s.call_sign, s.callsign, 'aircraft' AS type, NULL AS name
@@ -6010,6 +6016,23 @@ app.get('/api/runway-conflict', async (req, res) => {
          )`,
       [routesToCheck]
     );
+    // Aircraft takeoff-clearance conflicts (status='takeoff' with matching takeoff_runway name)
+    let tcRows = [];
+    if (runwayNames.length > 0) {
+      const { rows } = await pool.query(
+        `SELECT DISTINCT s.id, s.call_sign, s.callsign, 'takeoff_clearance' AS type, NULL AS name
+         FROM strips s
+         WHERE s.aircraft_positions IS NOT NULL
+           AND jsonb_array_length(s.aircraft_positions) > 0
+           AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+             WHERE ac->>'status' = 'takeoff'
+               AND ac->>'takeoff_runway' = ANY($1::text[])
+           )`,
+        [runwayNames]
+      );
+      tcRows = rows;
+    }
     // Vehicle conflicts: airfield elements with element_nav_routes using this runway route
     const { rows: vhRows } = await pool.query(
       `SELECT DISTINCT ae.id, NULL AS call_sign, NULL AS callsign, 'vehicle' AS type, ae.name
@@ -6021,7 +6044,7 @@ app.get('/api/runway-conflict', async (req, res) => {
        )`,
       [routesToCheck]
     );
-    res.json([...acRows, ...vhRows]);
+    res.json([...acRows, ...tcRows, ...vhRows]);
   } catch (err) {
     console.error('runway-conflict error:', err.message);
     res.status(500).json({ error: 'Failed to check runway conflict' });
