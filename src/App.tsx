@@ -6521,7 +6521,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const nextStatus = statuses[(statuses.indexOf(a.status) + 1) % statuses.length];
     if (nextStatus === 'takeoff' && airfield) {
       const sids = parseAirfieldSids(airfield.sids);
-      if (sids.length > 0) {
+      const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
+      if (sids.length > 0 || rwRoutes.length > 0) {
         setSidModal({ strip, idx });
         return;
       }
@@ -8562,7 +8563,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           <button key={s.key} onClick={() => {
                             if (s.key === 'takeoff' && airfield) {
                               const sids = parseAirfieldSids(airfield.sids);
-                              if (sids.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
+                              const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
+                              if (sids.length > 0 || rwRoutes.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
                             }
                             const positions = getAircraftPositions(strip); const updated = positions.map(x => ({ ...x, status: s.key as GroundStatusKey })); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
                           }}
@@ -8632,7 +8634,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                           <button key={s.key} onClick={() => {
                             if (s.key === 'takeoff' && airfield) {
                               const sids = parseAirfieldSids(airfield.sids);
-                              if (sids.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }
+                              const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
+                              if (sids.length > 0 || rwRoutes.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }
                             }
                             const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
                           }}
