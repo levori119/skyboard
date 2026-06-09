@@ -6027,6 +6027,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [groundMergeConfirm, setGroundMergeConfirm] = React.useState<{ targetId: string; sourceId: string; targetName: string; sourceName: string } | null>(null);
   const [sidPreStep, setSidPreStep] = React.useState<boolean>(false);
   const [sidPartialSelected, setSidPartialSelected] = React.useState<number[]>([]);
+  const [sidRunwayName, setSidRunwayName] = React.useState<string | null>(null);
+  const [sidRunwayRouteId, setSidRunwayRouteId] = React.useState<number | null>(null);
+  const [runwayConflicts, setRunwayConflicts] = React.useState<Record<number, {id:number;call_sign:string;callsign:string}[]>>({});
+
+  // Reset runway step state when sidModal closes; load conflicts when it opens
+  React.useEffect(() => {
+    if (!sidModal) {
+      setSidRunwayName(null);
+      setSidRunwayRouteId(null);
+      setRunwayConflicts({});
+      return;
+    }
+    const afId = airfield?.id;
+    if (!afId) return;
+    const runwayRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(afId));
+    if (runwayRoutes.length === 0) return;
+    Promise.all(runwayRoutes.map((r: any) =>
+      fetch(`${API_URL}/runway-conflict?route_id=${r.id}`).then(res => res.ok ? res.json() : []).then((c: any[]) => ({ id: r.id, conflicts: c }))
+    )).then(results => {
+      const map: Record<number, any[]> = {};
+      results.forEach(({ id, conflicts }) => { map[id] = conflicts; });
+      setRunwayConflicts(map);
+    }).catch(() => {});
+  }, [sidModal?.strip?.id, sidModal?.idx]);
 
   // Load armaments + systems for all visible aircraft
   React.useEffect(() => {
@@ -9855,24 +9879,18 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const positions = getAircraftPositions(strip);
         const totalCount = positions.length;
         const activeIndices = sidPartialSelected.length > 0 ? sidPartialSelected : positions.map((p: any) => p.idx);
+        const affectedIndices: number[] = allAircraft && sidPartialSelected.length > 0 ? sidPartialSelected : allAircraft ? positions.map((p: any) => p.idx) : [sidModal.idx];
+        const applyTakeoff = (pts: any[]) => pts.map((x: any) =>
+          affectedIndices.includes(x.idx) ? { ...x, status: 'takeoff', takeoff_runway: sidRunwayName || null } : x
+        );
         const confirmSid = (sid: { label: string; sector_id: number | null }) => {
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
-          const updated = allAircraft && sidPartialSelected.length === 0
-            ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
-            : allAircraft && sidPartialSelected.length > 0
-              ? positions.map((x: any) => sidPartialSelected.includes(x.idx) ? { ...x, status: 'takeoff' } : x)
-              : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
-          onUpdateAircraft(String(strip.id), updated);
+          onUpdateAircraft(String(strip.id), applyTakeoff(positions));
           if (sid.sector_id) onTransfer(String(strip.id), sid.sector_id);
           setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
         };
         const skipSid = () => {
-          const updated = allAircraft && sidPartialSelected.length === 0
-            ? positions.map((x: any) => ({ ...x, status: 'takeoff' }))
-            : allAircraft && sidPartialSelected.length > 0
-              ? positions.map((x: any) => sidPartialSelected.includes(x.idx) ? { ...x, status: 'takeoff' } : x)
-              : positions.map((x: any) => x.idx === sidModal.idx ? { ...x, status: 'takeoff' } : x);
-          onUpdateAircraft(String(strip.id), updated);
+          onUpdateAircraft(String(strip.id), applyTakeoff(positions));
           setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
         };
 
@@ -9926,6 +9944,73 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   </button>
                   <button onClick={() => setSidModal(null)}
                     style={{ padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        const runwayRoutesForStep = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield?.id));
+        if (runwayRoutesForStep.length > 0 && sidRunwayName === null) {
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => setSidModal(null)}>
+              <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '380px', width: '90%', border: '1px solid #f59e0b', direction: 'rtl' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fcd34d', marginBottom: '4px' }}>🛫 המראה — בחר מסלול</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>
+                  פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong>
+                  {allAircraft && sidPartialSelected.length > 0 ? <span> · מטוסים {sidPartialSelected.join(',')}</span> : allAircraft ? <span> · כל המבנה</span> : <span> · מטוס #{sidModal.idx}</span>}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '14px' }}>
+                  {runwayRoutesForStep.map((rwy: any) => {
+                    const conflicts = runwayConflicts[rwy.id] || [];
+                    const hasConflict = conflicts.length > 0;
+                    return (
+                      <div key={rwy.id} style={{ border: `1px solid ${hasConflict ? '#dc2626' : '#475569'}`, borderRadius: '8px', padding: '10px 12px', background: hasConflict ? '#1a0000' : '#0f172a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: rwy.color || '#3b82f6', flexShrink: 0 }} />
+                          <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '13px' }}>{rwy.name}</span>
+                          {hasConflict && <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 'bold', marginRight: 'auto' }}>⚠️ קונפליקט!</span>}
+                        </div>
+                        {hasConflict && (
+                          <div style={{ fontSize: '10px', color: '#f87171', marginBottom: '8px', paddingRight: '4px' }}>
+                            {conflicts.map((c: any) => c.call_sign || c.callsign || `פמ #${c.id}`).join(', ')} — מוסע למסלול זה
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          {rwy.end_a_name ? (
+                            <button onClick={() => { setSidRunwayName(rwy.end_a_name); setSidRunwayRouteId(rwy.id); }}
+                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
+                              {rwy.end_a_name}
+                            </button>
+                          ) : null}
+                          {rwy.end_b_name ? (
+                            <button onClick={() => { setSidRunwayName(rwy.end_b_name); setSidRunwayRouteId(rwy.id); }}
+                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
+                              {rwy.end_b_name}
+                            </button>
+                          ) : null}
+                          {!rwy.end_a_name && !rwy.end_b_name && (
+                            <button onClick={() => { setSidRunwayName(rwy.name); setSidRunwayRouteId(rwy.id); }}
+                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>
+                              {rwy.name}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => setSidRunwayName('')}
+                    style={{ flex: 1, padding: '8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
+                    ללא מסלול ספציפי
+                  </button>
+                  <button onClick={() => setSidModal(null)}
+                    style={{ flex: 1, padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                     ביטול
                   </button>
                 </div>
@@ -28261,7 +28346,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showAviationBaseForm, setShowAviationBaseForm] = useState(false);
   // Airfield Routes admin state
   const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
-  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '', category: 'general' });
+  const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' });
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
@@ -28271,7 +28356,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [newRouteLinkForm, setNewRouteLinkForm] = useState({ presetIdA: '', routeIdA: '', presetIdB: '', routeIdB: '' });
   const [routeLinkPresetBRoutes, setRouteLinkPresetBRoutes] = useState<any[]>([]);
   const [routeDraftPoints, setRouteDraftPoints] = useState<{x: number; y: number}[]>([]);
-  const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string}|null>(null);
+  const [pendingNewRoute, setPendingNewRoute] = useState<{name:string;color:string;notes:string;category:string;is_runway:boolean;end_a_name:string;end_b_name:string}|null>(null);
   // Airfield element types (global list)
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [adminElementTypes, setAdminElementTypes] = useState<any[]>([]);
@@ -32990,7 +33075,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('routes') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('routes')}>
                           <div style={{ color: '#7dd3fc', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🛤️ מסלולי הסעה</div>
                           <button onClick={e => { e.stopPropagation(); toggleAdminLayer('routes'); }} title={adminMapLayers.routes ? 'הסתר שכבה במפה' : 'הצג שכבה במפה'} style={{ padding: '1px 5px', background: 'transparent', border: `1px solid ${adminMapLayers.routes ? '#7dd3fc' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminMapLayers.routes ? '#7dd3fc' : '#475569', marginLeft: '4px', flexShrink: 0 }}>{adminMapLayers.routes ? '✓' : '○'}</button>
-                          {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general' }); setShowAirfieldRouteForm(true); }}
+                          {adminAFExpanded.has('routes') && <button onClick={e => { e.stopPropagation(); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' }); setShowAirfieldRouteForm(true); }}
                             style={{ padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>}
                           <span style={{ color: adminAFExpanded.has('routes') ? '#7dd3fc' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('routes') ? '▲' : '▼'}</span>
                         </div>
@@ -33018,11 +33103,25 @@ CHARLIE,1,301,`}
                               <option value="aircraft">מטוסים</option>
                               <option value="vehicle">כלי רכב</option>
                             </select>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px', cursor: 'pointer' }}>
+                              <input type="checkbox" checked={airfieldRouteForm.is_runway} onChange={e => setAirfieldRouteForm(p => ({ ...p, is_runway: e.target.checked }))} style={{ width: '14px', height: '14px', cursor: 'pointer' }} />
+                              <span style={{ fontSize: '11px', color: airfieldRouteForm.is_runway ? '#fcd34d' : '#94a3b8' }}>🛫 מסלול המראה</span>
+                            </label>
+                            {airfieldRouteForm.is_runway && (
+                              <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                                <input type="text" placeholder='קצה א׳ (לדוג׳ "27")' value={airfieldRouteForm.end_a_name}
+                                  onChange={e => setAirfieldRouteForm(p => ({ ...p, end_a_name: e.target.value }))}
+                                  style={{ flex: 1, padding: '4px 7px', background: '#1e293b', border: '1px solid #b45309', borderRadius: '5px', color: '#fcd34d', fontSize: '12px', direction: 'rtl' }} />
+                                <input type="text" placeholder='קצה ב׳ (לדוג׳ "09")' value={airfieldRouteForm.end_b_name}
+                                  onChange={e => setAirfieldRouteForm(p => ({ ...p, end_b_name: e.target.value }))}
+                                  style={{ flex: 1, padding: '4px 7px', background: '#1e293b', border: '1px solid #b45309', borderRadius: '5px', color: '#fcd34d', fontSize: '12px', direction: 'rtl' }} />
+                              </div>
+                            )}
                             <div style={{ display: 'flex', gap: '5px' }}>
                               {!editingAirfieldRoute && hasMap ? (
                                 <button onClick={() => {
                                   if (!airfieldRouteForm.name.trim()) return;
-                                  setPendingNewRoute({ name: airfieldRouteForm.name, color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, category: airfieldRouteForm.category });
+                                  setPendingNewRoute({ name: airfieldRouteForm.name, color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, category: airfieldRouteForm.category, is_runway: airfieldRouteForm.is_runway, end_a_name: airfieldRouteForm.end_a_name, end_b_name: airfieldRouteForm.end_b_name });
                                   setDrawingRouteId(-1);
                                   setRouteDraftPoints([]);
                                   setShowAirfieldRouteForm(false);
@@ -33035,14 +33134,14 @@ CHARLIE,1,301,`}
                                   const existingPath = editingAirfieldRoute
                                     ? (adminAirfieldRoutes.find((x: any) => x.id === editingAirfieldRoute.id)?.route_path || [])
                                     : [];
-                                  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_category: airfieldRouteForm.category, route_path: existingPath }) });
+                                  const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldRouteForm.name, airfield_id: Number(selectedAdminAirfieldId), color: airfieldRouteForm.color, notes: airfieldRouteForm.notes, route_category: airfieldRouteForm.category, route_path: existingPath, is_runway: airfieldRouteForm.is_runway, end_a_name: airfieldRouteForm.end_a_name || null, end_b_name: airfieldRouteForm.end_b_name || null }) });
                                   if (res.ok) {
-                                    setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general' });
+                                    setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' });
                                     fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAdminAirfieldRoutes).catch(() => {});
                                   }
                                 }} style={{ flex: 1, padding: '4px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
                               )}
-                              <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); }}
+                              <button onClick={() => { setShowAirfieldRouteForm(false); setEditingAirfieldRoute(null); setAirfieldRouteForm({ name: '', airfield_id: String(selectedAdminAirfieldId), color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' }); }}
                                 style={{ padding: '4px 8px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>ביטול</button>
                             </div>
                           </div>
@@ -33055,7 +33154,7 @@ CHARLIE,1,301,`}
                               <button onClick={async () => {
                                 if (routeDraftPoints.length < 2) { alert('יש לסמן לפחות 2 נקודות'); return; }
                                 if (drawingRouteId === -1 && pendingNewRoute) {
-                                  await fetch(`${API_URL}/airfield-routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingNewRoute.name, airfield_id: Number(selectedAdminAirfieldId), color: pendingNewRoute.color, notes: pendingNewRoute.notes, route_category: pendingNewRoute.category || 'general', route_path: routeDraftPoints }) });
+                                  await fetch(`${API_URL}/airfield-routes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: pendingNewRoute.name, airfield_id: Number(selectedAdminAirfieldId), color: pendingNewRoute.color, notes: pendingNewRoute.notes, route_category: pendingNewRoute.category || 'general', route_path: routeDraftPoints, is_runway: pendingNewRoute.is_runway || false, end_a_name: pendingNewRoute.end_a_name || null, end_b_name: pendingNewRoute.end_b_name || null }) });
                                   setPendingNewRoute(null);
                                 } else {
                                   const route = adminAirfieldRoutes.find((r: any) => r.id === drawingRouteId);
@@ -33078,15 +33177,15 @@ CHARLIE,1,301,`}
                             return (
                               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 7px', background: drawingRouteId === r.id ? '#1c1400' : '#0f172a', borderRadius: '4px', marginBottom: '3px', border: `1px solid ${drawingRouteId === r.id ? '#fbbf24' : '#1e293b'}` }}>
                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: r.color || '#3b82f6', flexShrink: 0 }} />
-                                <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : '✈'}</span>
-                                <span style={{ flex: 1, color: '#e2e8f0', fontSize: '11px' }}>{r.name}</span>
+                                <span title={(r.route_category || 'general') === 'vehicle' ? 'מסלול הסעה לרכבים' : r.is_runway ? 'מסלול המראה' : 'מסלול הסעה למטוסים'} style={{ fontSize: '10px', flexShrink: 0 }}>{(r.route_category || 'general') === 'vehicle' ? '🚗' : r.is_runway ? '🛫' : '✈'}</span>
+                                <span style={{ flex: 1, color: r.is_runway ? '#fcd34d' : '#e2e8f0', fontSize: '11px' }}>{r.name}{r.is_runway && (r.end_a_name || r.end_b_name) ? ` (${[r.end_a_name, r.end_b_name].filter(Boolean).join('/')})` : ''}</span>
                                 {routePath.length > 0 && <span style={{ fontSize: '9px', color: '#64748b' }}>({routePath.length}נק)</span>}
                                 {r.notes && <span title={r.notes} style={{ fontSize: '10px', color: '#fbbf24', cursor: 'default' }}>📝</span>}
                                 {hasMap && <button onClick={() => { setDrawingRouteId(r.id); setRouteDraftPoints(routePath); }}
                                   style={{ padding: '1px 5px', background: drawingRouteId === r.id ? '#92400e' : '#1e293b', color: drawingRouteId === r.id ? '#fcd34d' : '#94a3b8', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✏️</button>}
-                                {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [] }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
+                                {routePath.length > 0 && <button title="נקה את כל נקודות המסלול" onClick={async () => { if (!await customConfirm('לנקות את כל נקודות המסלול?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: r.name, color: r.color || '#3b82f6', notes: r.notes || '', route_path: [], route_category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || null, end_b_name: r.end_b_name || null }) }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#451a03', color: '#fb923c', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>🗑</button>}
-                                <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '', category: r.route_category || 'general' }); setShowAirfieldRouteForm(true); }}
+                                <button onClick={() => { setEditingAirfieldRoute(r); setAirfieldRouteForm({ name: r.name, airfield_id: String(selectedAdminAirfieldId), color: r.color || '#3b82f6', notes: r.notes || '', category: r.route_category || 'general', is_runway: r.is_runway || false, end_a_name: r.end_a_name || '', end_b_name: r.end_b_name || '' }); setShowAirfieldRouteForm(true); }}
                                   style={{ padding: '1px 5px', background: '#1e3a5f', color: '#93c5fd', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✎</button>
                                 <button onClick={async () => { if (!await customConfirm('למחוק?')) return; await fetch(`${API_URL}/airfield-routes/${r.id}`, { method: 'DELETE' }); fetch(`${API_URL}/airfield-routes`).then(res => res.ok ? res.json() : []).then(setAdminAirfieldRoutes).catch(() => {}); }}
                                   style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
@@ -33287,7 +33386,7 @@ CHARLIE,1,301,`}
                         if (routeDragPreview && routeDragPreview.pts.length >= 2) {
                           const route = adminAirfieldRoutes.find((r: any) => r.id === drag.id);
                           if (route) {
-                            await fetch(`${API_URL}/airfield-routes/${drag.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color, notes: route.notes || '', route_path: routeDragPreview.pts, route_category: route.route_category || 'general' }) });
+                            await fetch(`${API_URL}/airfield-routes/${drag.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: route.name, color: route.color, notes: route.notes || '', route_path: routeDragPreview.pts, route_category: route.route_category || 'general', is_runway: route.is_runway || false, end_a_name: route.end_a_name || null, end_b_name: route.end_b_name || null }) });
                             setAdminAirfieldRoutes((prev: any[]) => prev.map((r: any) => r.id === drag.id ? { ...r, route_path: routeDragPreview.pts } : r));
                           }
                         }

@@ -1021,6 +1021,9 @@ async function initDb() {
 
   // Element navigation routing: route_category on routes + element_nav_routes table
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS route_category VARCHAR(20) DEFAULT 'general'`);
+  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS is_runway BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_a_name VARCHAR(20)`);
+  await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_b_name VARCHAR(20)`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS element_nav_routes (
       element_id INTEGER PRIMARY KEY REFERENCES airfield_elements(id) ON DELETE CASCADE,
@@ -5944,10 +5947,10 @@ app.get('/api/airfield-routes', async (req, res) => {
 
 app.post('/api/airfield-routes', async (req, res) => {
   try {
-    const { airfield_id, name, color, route_path, notes, route_category } = req.body;
+    const { airfield_id, name, color, route_path, notes, route_category, is_runway, end_a_name, end_b_name } = req.body;
     const result = await pool.query(
-      `INSERT INTO airfield_routes (airfield_id, name, color, route_path, notes, route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general']
+      `INSERT INTO airfield_routes (airfield_id, name, color, route_path, notes, route_category, is_runway, end_a_name, end_b_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [airfield_id, name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general', is_runway || false, end_a_name || null, end_b_name || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield route' }); }
@@ -5955,10 +5958,10 @@ app.post('/api/airfield-routes', async (req, res) => {
 
 app.put('/api/airfield-routes/:id', async (req, res) => {
   try {
-    const { name, color, route_path, notes, route_category } = req.body;
+    const { name, color, route_path, notes, route_category, is_runway, end_a_name, end_b_name } = req.body;
     const result = await pool.query(
-      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4, route_category=$5 WHERE id=$6 RETURNING *`,
-      [name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general', req.params.id]
+      `UPDATE airfield_routes SET name=$1, color=$2, route_path=$3, notes=$4, route_category=$5, is_runway=$6, end_a_name=$7, end_b_name=$8 WHERE id=$9 RETURNING *`,
+      [name, color || '#3b82f6', JSON.stringify(route_path || []), notes || null, route_category || 'general', is_runway || false, end_a_name || null, end_b_name || null, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update airfield route' }); }
@@ -5969,6 +5972,38 @@ app.delete('/api/airfield-routes/:id', async (req, res) => {
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
+});
+
+app.get('/api/runway-conflict', async (req, res) => {
+  try {
+    const routeId = Number(req.query.route_id);
+    if (!routeId) return res.json([]);
+    const { rows: links } = await pool.query(
+      `SELECT route_id_a, route_id_b FROM route_links WHERE route_id_a = $1 OR route_id_b = $1`,
+      [routeId]
+    );
+    const linkedRouteIds = links.map(l => Number(l.route_id_a) === routeId ? Number(l.route_id_b) : Number(l.route_id_a));
+    const routesToCheck = [routeId, ...linkedRouteIds];
+    const { rows } = await pool.query(
+      `SELECT DISTINCT s.id, s.call_sign, s.callsign
+       FROM strips s
+       WHERE s.aircraft_positions IS NOT NULL
+         AND jsonb_array_length(s.aircraft_positions) > 0
+         AND EXISTS (
+           SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+           WHERE (ac->>'taxi_dest_route_id')::int = ANY($1::int[])
+              OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements(ac->'taxi_via_route_ids') via
+                WHERE via::int = ANY($1::int[])
+              )
+         )`,
+      [routesToCheck]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('runway-conflict error:', err.message);
+    res.status(500).json({ error: 'Failed to check runway conflict' });
+  }
 });
 
 // ── Element Nav Routes ────────────────────────────────────────────────────────
