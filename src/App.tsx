@@ -17722,6 +17722,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     if (canvas && ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
+    setMapShapes([]);
   };
 
   useEffect(() => {
@@ -22090,6 +22091,27 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               touchAction: 'none', zIndex: 200
             }}
           />
+
+          {/* Shapes SVG overlay — renders circles & rectangles from mapShapes */}
+          {(mapShapes.length > 0 || (shapePreview && (drawTool === 'circle' || drawTool === 'rect'))) && (
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 201, overflow: 'visible' }}>
+              {mapShapes.map(shape => shape.type === 'rect'
+                ? <rect key={shape.id} x={shape.x} y={shape.y} width={shape.w} height={shape.h}
+                    fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} rx={2} />
+                : <ellipse key={shape.id} cx={shape.x + shape.w / 2} cy={shape.y + shape.h / 2} rx={shape.w / 2} ry={shape.h / 2}
+                    fill={shape.filled ? shape.color + '55' : 'none'} stroke={shape.color} strokeWidth={shape.strokeWidth} />
+              )}
+              {shapePreview && (drawTool === 'circle' || drawTool === 'rect') && (() => {
+                const px = Math.min(shapePreview.x1, shapePreview.x2);
+                const py = Math.min(shapePreview.y1, shapePreview.y2);
+                const pw = Math.abs(shapePreview.x2 - shapePreview.x1);
+                const ph = Math.abs(shapePreview.y2 - shapePreview.y1);
+                return drawTool === 'rect'
+                  ? <rect x={px} y={py} width={pw} height={ph} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} rx={2} />
+                  : <ellipse cx={px + pw / 2} cy={py + ph / 2} rx={pw / 2} ry={ph / 2} fill={shapeFilled ? penColor + '33' : 'none'} stroke={penColor} strokeWidth={penSize} strokeDasharray="6 3" opacity={0.85} />;
+              })()}
+            </svg>
+          )}
 
           </div>{/* /Map 1 panel wrapper */}
 
