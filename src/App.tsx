@@ -9451,7 +9451,21 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const ptToRouteDist = (px: number, py: number, r: any) => { const p = parsePts(r); return _ptPolySegDist(px, py, p); };
         const NAV_DS: Record<string,string> = { close:'סגור', open:'פתוח', off:'כבוי', stop:'עצור', go:'עבור', blink:'מנצנץ' };
         // Build set of currently blocked route IDs
+        // "לא שמיש" elements get a yellow warning — NOT counted as blockers even if they have blocking_statuses
+        const unusableRouteSet = new Set<number>((airfieldElements||[]).flatMap((ae: any) => {
+          if (ae.status !== 'לא שמיש') return [];
+          const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
+          return rels;
+        }));
+        const unusableRouteToElem: Record<number,string> = {};
+        (airfieldElements||[]).forEach((ae: any) => {
+          if (ae.status !== 'לא שמיש') return;
+          const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
+          rels.forEach((rid: number) => { unusableRouteToElem[rid] = ae.name; });
+        });
+        // Blocked routes: element's effective status matches blocking_statuses, but ONLY if element is NOT "לא שמיש"
         const blockedRouteSet = new Set<number>((airfieldElements||[]).flatMap((ae: any) => {
+          if (ae.status === 'לא שמיש') return []; // לא שמיש → yellow warning, never a hard blocker
           const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
           const bsts: string[] = Array.isArray(ae.blocking_statuses) ? ae.blocking_statuses : [];
           if (!rels.length || !bsts.length) return [];
@@ -9462,6 +9476,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         // Map blocked route → element name for display
         const blockedRouteToElem: Record<number,string> = {};
         (airfieldElements||[]).forEach((ae: any) => {
+          if (ae.status === 'לא שמיש') return;
           const rels: number[] = Array.isArray(ae.relevant_routes) ? ae.relevant_routes : [];
           const bsts: string[] = Array.isArray(ae.blocking_statuses) ? ae.blocking_statuses : [];
           if (!rels.length || !bsts.length) return;
@@ -9497,9 +9512,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         };
         const fromPt = fromPointId ? (points as any[]).find((p: any) => p.id === fromPointId) : null;
         const toPt = toPointId ? (points as any[]).find((p: any) => p.id === toPointId) : null;
-        // Split into clear vs blocked paths
+        // Split into clear / unusable (yellow) / blocked (red) paths
         const allSuggestedPaths: number[][] = (fromPt && toPt) ? findAllPaths(fromPt, toPt) : [];
-        const clearPaths = allSuggestedPaths.filter(path => !path.some((id: number) => blockedRouteSet.has(id)));
+        // Clear: no blocked AND no unusable routes
+        const clearPaths = allSuggestedPaths.filter(path =>
+          !path.some((id: number) => blockedRouteSet.has(id)) &&
+          !path.some((id: number) => unusableRouteSet.has(id))
+        );
+        // Unusable (yellow): passes through לא שמיש route, but NOT a hard-blocked route
+        const unusablePaths = allSuggestedPaths.filter(path =>
+          !path.some((id: number) => blockedRouteSet.has(id)) &&
+          path.some((id: number) => unusableRouteSet.has(id))
+        );
+        // Group unusable paths by the unusable element name
+        const unusablePathsByElem: Record<string, {path:number[];unusableIds:number[]}[]> = {};
+        for (const path of unusablePaths) {
+          const uIds = path.filter((id: number) => unusableRouteSet.has(id));
+          const key = [...new Set(uIds.map((id: number) => unusableRouteToElem[id] || `מסלול #${id}`))].join(', ');
+          if (!unusablePathsByElem[key]) unusablePathsByElem[key] = [];
+          unusablePathsByElem[key].push({ path, unusableIds: uIds });
+        }
+        // Blocked (red): passes through a hard-blocked route
         const blockedPaths = allSuggestedPaths.filter(path => path.some((id: number) => blockedRouteSet.has(id)));
         // Group blocked paths by the names of the blocking elements
         const blockedPathsByElem: Record<string, {path:number[];blockedIds:number[]}[]> = {};
@@ -9606,7 +9639,50 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 </div>
               )}
 
-              {/* Blocked paths — collapsed by blocking element */}
+              {/* Unusable paths (yellow) — collapsed by unusable element */}
+              {fromPt && toPt && Object.keys(unusablePathsByElem).length > 0 && (
+                <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: '10px', color: '#eab308', fontWeight: 'bold', marginBottom: '2px' }}>⚠️ מסלולים דרך אלמנט לא שמיש — לפי אלמנט:</div>
+                  {Object.entries(unusablePathsByElem).map(([elemName, entries]) => {
+                    const isOpen = navBlockedGroupsOpen['u_' + elemName] ?? false;
+                    return (
+                      <div key={elemName} style={{ background: '#1a1500', border: '1px solid #854d0e', borderRadius: '6px', overflow: 'hidden' }}>
+                        <button onClick={() => setNavBlockedGroupsOpen(prev => ({ ...prev, ['u_' + elemName]: !isOpen }))}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'none', border: 'none', color: '#fde68a', cursor: 'pointer', textAlign: 'right', direction: 'rtl', fontSize: '11px', fontWeight: 'bold' }}>
+                          <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '10px' }}>{isOpen ? '▲' : '▼'} {entries.length}</span>
+                          <span style={{ flex: 1 }}>⚠️ לא שמיש: {elemName}</span>
+                        </button>
+                        {isOpen && (
+                          <div style={{ borderTop: '1px solid #854d0e', padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {entries.map(({ path, unusableIds }, i) => {
+                              const isActive = path.join(',') === viaRouteIds.join(',');
+                              return (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: isActive ? '#052e16' : 'transparent', borderRadius: '4px', padding: '3px 4px' }}>
+                                  <span style={{ fontSize: '10px', color: '#64748b', minWidth: '14px' }}>{path.length}</span>
+                                  <span style={{ fontSize: '11px', color: '#fde68a', flex: 1 }}>
+                                    {path.map((id: number) => {
+                                      const name = airfieldRoutesLocal.find((r: any) => r.id === id)?.name || `#${id}`;
+                                      return unusableIds.includes(id)
+                                        ? <span key={id} style={{ color: '#eab308', fontWeight: 'bold' }}>{name}</span>
+                                        : <span key={id}>{name}</span>;
+                                    }).reduce<React.ReactNode[]>((acc, el2, i2) => i2 === 0 ? [el2] : [...acc, <span key={`u${i2}`} style={{ color: '#475569' }}> → </span>, el2], [])}
+                                  </span>
+                                  <button onClick={() => handleApplyPath(path)}
+                                    style={{ padding: '2px 8px', background: isActive ? '#16a34a' : '#422006', color: isActive ? 'white' : '#fde68a', border: `1px solid ${isActive ? '#16a34a' : '#854d0e'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>
+                                    {isActive ? '✓' : 'החל'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Blocked paths (red) — collapsed by blocking element */}
               {fromPt && toPt && Object.keys(blockedPathsByElem).length > 0 && (
                 <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: 'bold', marginBottom: '2px' }}>🚫 מסלולים חסומים — לפי אלמנט חוסם:</div>
