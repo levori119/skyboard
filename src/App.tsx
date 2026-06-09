@@ -28670,6 +28670,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     fontWeight: active ? 'bold' : 'normal' as const
   });
 
+  const sideNavItemStyle = (active: boolean): React.CSSProperties => ({
+    display: 'block',
+    width: '100%',
+    padding: '9px 14px',
+    background: active ? 'rgba(59,130,246,0.18)' : 'transparent',
+    color: active ? '#93c5fd' : '#94a3b8',
+    border: 'none',
+    borderRight: `3px solid ${active ? '#3b82f6' : 'transparent'}`,
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: (active ? 'bold' : 'normal') as const,
+    textAlign: 'right' as const,
+    direction: 'rtl' as const,
+    transition: 'background 0.12s, color 0.12s',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  });
+
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', direction: 'rtl' }}>
       <header style={{ background: '#1e293b', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -28685,42 +28704,69 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         </div>
       </header>
 
-      {/* Tabs */}
-      <div style={{ padding: '20px 30px 0', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-        {availableTabs.includes('presets') && <button onClick={() => setActiveTab('presets')} style={tabStyle(activeTab === 'presets')}>עמדות</button>}
-        {availableTabs.includes('sectors') && <button onClick={() => setActiveTab('sectors')} style={tabStyle(activeTab === 'sectors')}>נקודות העברה</button>}
-        {availableTabs.includes('maps') && <button onClick={() => setActiveTab('maps')} style={tabStyle(activeTab === 'maps')}>מפות</button>}
-        {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={tabStyle(activeTab === 'strips')}>פממים</button>}
-        {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={tabStyle(activeTab === 'crew')}>אנשי צוות</button>}
-        {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={tabStyle(activeTab === 'table_modes')}>מודי טבלה</button>}
-        {availableTabs.includes('work_groups') && <button onClick={() => setActiveTab('work_groups')} style={tabStyle(activeTab === 'work_groups')}>קבוצות עבודה</button>}
-        {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={tabStyle(activeTab === 'aids')}>עזרים לעמדה</button>}
-        {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={tabStyle(activeTab === 'serials')}>ספרורים</button>}
-        {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={tabStyle(activeTab === 'blocks')}>בלוקים</button>}
-        {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={tabStyle(activeTab === 'bdh')}>בד"ח</button>}
-        {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={tabStyle(activeTab === 'classic_strips')}>מבנה פ"מ למוד סטריפ</button>}
-        {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={tabStyle(activeTab === 'strip_windows')}>🪟 הגדרת חלון סטריפים</button>}
-        {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={tabStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
-        {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={tabStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
-        {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={tabStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
-        {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={tabStyle(activeTab === 'value_lists')}>📋 רשימות ערכים</button>}
-        {availableTabs.includes('contacts') && <button onClick={() => {
-          setActiveTab('contacts');
-          fetch(`${API_URL}/workstation-contacts/all`)
-            .then(r => r.ok ? r.json() : [])
-            .then((data: any[]) => {
-              const grouped: Record<number, any[]> = {};
-              data.forEach((c: any) => { if (!grouped[c.preset_id]) grouped[c.preset_id] = []; grouped[c.preset_id].push({ ...c, _key: c.id }); });
-              const ids = Object.keys(grouped).map(Number);
-              setAdminContactsShown(prev => { const existing = new Set(prev); ids.forEach(id => existing.add(id)); return Array.from(existing); });
-              setAdminContactsData(prev => ({ ...prev, ...grouped }));
-            }).catch(() => {});
-        }} style={tabStyle(activeTab === 'contacts')}>📡 קשרים</button>}
-        {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={tabStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
-      </div>
-      
-      <div style={{ padding: '0 30px 30px', display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, background: '#1e293b', borderRadius: '0 0 12px 12px', padding: '24px', minHeight: '500px' }}>
+      {/* Admin sidebar + content layout */}
+      <div style={{ padding: '16px 20px 20px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+
+        {/* Navigation Sidebar — appears on RIGHT in RTL */}
+        <div style={{ width: '210px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '16px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '8px' }}>
+
+          {/* Section: ניהול (admin only) */}
+          {effectiveMode === 'admin' && (
+            <>
+              <div style={{ padding: '12px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ניהול</div>
+              {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>✈ פממים</button>}
+              {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>👥 אנשי צוות</button>}
+              {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>📄 ספרורים</button>}
+              <div style={{ height: '1px', background: '#334155', margin: '4px 0' }} />
+            </>
+          )}
+
+          {/* Section: עמדות ותשתית */}
+          <div style={{ padding: '10px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>עמדות ותשתית</div>
+          {availableTabs.includes('presets') && <button onClick={() => setActiveTab('presets')} style={sideNavItemStyle(activeTab === 'presets')}>🖥 עמדות</button>}
+          {availableTabs.includes('sectors') && <button onClick={() => setActiveTab('sectors')} style={sideNavItemStyle(activeTab === 'sectors')}>📍 נקודות העברה</button>}
+          {availableTabs.includes('maps') && <button onClick={() => setActiveTab('maps')} style={sideNavItemStyle(activeTab === 'maps')}>🗺 מפות</button>}
+          {availableTabs.includes('work_groups') && <button onClick={() => setActiveTab('work_groups')} style={sideNavItemStyle(activeTab === 'work_groups')}>🔗 קבוצות עבודה</button>}
+          <div style={{ height: '1px', background: '#334155', margin: '4px 0' }} />
+
+          {/* Section: תצוגה */}
+          <div style={{ padding: '10px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>תצוגה</div>
+          {availableTabs.includes('table_modes') && <button onClick={() => setActiveTab('table_modes')} style={sideNavItemStyle(activeTab === 'table_modes')}>📊 מודי טבלה</button>}
+          {availableTabs.includes('classic_strips') && <button onClick={() => setActiveTab('classic_strips')} style={sideNavItemStyle(activeTab === 'classic_strips')}>📋 מבנה פ"מ</button>}
+          {availableTabs.includes('strip_windows') && <button onClick={() => { setActiveTab('strip_windows'); loadStripWindowLayouts(); }} style={sideNavItemStyle(activeTab === 'strip_windows')}>🪟 חלון סטריפים</button>}
+          <div style={{ height: '1px', background: '#334155', margin: '4px 0' }} />
+
+          {/* Section: תפעול */}
+          <div style={{ padding: '10px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>תפעול</div>
+          {availableTabs.includes('aids') && <button onClick={() => setActiveTab('aids')} style={sideNavItemStyle(activeTab === 'aids')}>🔧 עזרים לעמדה</button>}
+          {availableTabs.includes('blocks') && <button onClick={() => setActiveTab('blocks')} style={sideNavItemStyle(activeTab === 'blocks')}>🧱 בלוקים</button>}
+          {availableTabs.includes('bdh') && <button onClick={() => setActiveTab('bdh')} style={sideNavItemStyle(activeTab === 'bdh')}>☑ בד"ח</button>}
+          {availableTabs.includes('contacts') && <button onClick={() => {
+            setActiveTab('contacts');
+            fetch(`${API_URL}/workstation-contacts/all`)
+              .then(r => r.ok ? r.json() : [])
+              .then((data: any[]) => {
+                const grouped: Record<number, any[]> = {};
+                data.forEach((c: any) => { if (!grouped[c.preset_id]) grouped[c.preset_id] = []; grouped[c.preset_id].push({ ...c, _key: c.id }); });
+                const ids = Object.keys(grouped).map(Number);
+                setAdminContactsShown(prev => { const existing = new Set(prev); ids.forEach(id => existing.add(id)); return Array.from(existing); });
+                setAdminContactsData(prev => ({ ...prev, ...grouped }));
+              }).catch(() => {});
+          }} style={sideNavItemStyle(activeTab === 'contacts')}>📡 קשרים</button>}
+          <div style={{ height: '1px', background: '#334155', margin: '4px 0' }} />
+
+          {/* Section: בסיסים ונתונים */}
+          <div style={{ padding: '10px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>בסיסים ונתונים</div>
+          {availableTabs.includes('airfields') && <button onClick={() => setActiveTab('airfields')} style={sideNavItemStyle(activeTab === 'airfields')}>🛬 שדות תעופה</button>}
+          {availableTabs.includes('base_statuses') && <button onClick={() => setActiveTab('base_statuses')} style={sideNavItemStyle(activeTab === 'base_statuses')}>🏛 סטטוס בסיסים</button>}
+          {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={sideNavItemStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
+          {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>📋 רשימות ערכים</button>}
+          {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
+
+        </div>{/* end sidebar */}
+
+        {/* Main Content Area */}
+        <div style={{ flex: 1, background: '#1e293b', borderRadius: '12px', padding: '24px', minHeight: '500px', minWidth: 0 }}>
           
           {/* Presets Tab */}
           {activeTab === 'presets' && (
@@ -31824,90 +31870,6 @@ CHARLIE,1,301,`}
             </SettingsModal>
           )}
 
-        </div>
-
-        {/* Help panel — left side */}
-        {(() => {
-          const helpData: Record<string, { title: string; sections: { heading: string; body: string }[] }> = {
-            presets: {
-              title: '📋 עמדות — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'שם העמדה, המפה המוצגת ברקע, נקודות ההעברה הרלוונטיות (הסקטורים שיופיעו בסרגל הצד), ספי עומס (חלקי / מלא) ומסנן שאילתות ברירת מחדל.' },
-                { heading: 'על מה זה משפיע?', body: 'כל מפעיל שנכנס לעמדה זו יראה את המפה, הנקודות וסף העומס שהוגדרו. מסנן הניהול מצמצם את הפממים המוצגים לפי כלל שהגדרת.' },
-                { heading: 'שיטת עבודה', body: 'צור עמדה לכל תפקיד מבצעי. ודא שנקודות ההעברה של כל עמדה תואמות לאחריות הגיאוגרפית שלה. ניתן לשכפל עמדה קיימת כנקודת התחלה.' },
-              ]
-            },
-            sectors: {
-              title: '📍 נקודות העברה — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'שם ותווית עברית לכל נקודת העברה, קטגוריה (מרחב / מערכת / אחר), ושכנים — נקודות שמופיעות כאפשרויות העברה זו לצד זו.' },
-                { heading: 'על מה זה משפיע?', body: 'הנקודות שמוגדרות לעמדה מופיעות בסרגל הצד ועל המפה כסמנים. כשמעבירים פמם — ניתן לבחור רק מנקודות אלו.' },
-                { heading: 'שיטת עבודה', body: 'הגדר נקודה לכל מרחב גיאוגרפי או מערכת. הוסף שכנים לנקודות שרלוונטיות זו לזו. לאחר מכן שייך נקודות לעמדות בלשונית "עמדות".' },
-              ]
-            },
-            maps: {
-              title: '🗺️ מפות — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'שם מפה ותמונה (PNG / JPG). המפה תוצג ברקע תצוגת העמדה כשמוד המפה פעיל.' },
-                { heading: 'על מה זה משפיע?', body: 'כל עמדה שמוגדרת עם מפה זו תציג אותה ברקע. פממים מוצבים עליה ידנית על-ידי המפעיל.' },
-                { heading: 'שיטת עבודה', body: 'העלה מפה ייעודית לכל אזור מבצעי. שייך אותה לעמדה הרלוונטית בלשונית "עמדות". מומלץ תמונות ברזולוציה גבוהה בפורמט PNG.' },
-              ]
-            },
-            strips: {
-              title: '✈️ פממים — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'יצירת פממים ידנית או ייבוא מ-CSV / Excel. שדות: כינוי, טייסת, מספר מערך, משימה, גובה, זמן המראה, נשק, יעדים, ערכה, כותרת, מבצע.' },
-                { heading: 'על מה זה משפיע?', body: 'הפממים שנוצרים כאן יכולים להיות מופצים לעמדות (לשונית הפצה) או להישאר בבריכה הכללית עד שמפעיל מושך אותם לעמדה.' },
-                { heading: 'שיטת עבודה', body: 'ייבא קובץ CSV/Excel בתחילת כל מבצע. השתמש ב"הפצה" לשיוך פממים לעמדות אוטומטית. ניתן גם ליצור פמם ידנית במהלך שיגור.' },
-              ]
-            },
-            crew: {
-              title: '👤 אנשי צוות — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'שם של כל חבר צוות שיכול להיכנס לעמדה. מסומן "מנהל" מקנה גישה לניהול המערכת.' },
-                { heading: 'על מה זה משפיע?', body: 'לכל חבר צוות שמור פרופיל כתב יד נפרד לזיהוי ספרות. כשחבר צוות נכנס לעמדה, הוא בוחר את שמו ממסך הכניסה.' },
-                { heading: 'שיטת עבודה', body: 'הוסף את כל אנשי הצוות לפני תחילת התורנות. הגדר מנהל אחד לפחות. כל אחד יוכל לכייל את כתב ידו ממסך הכניסה לפני הכניסה לעמדה.' },
-              ]
-            },
-            table_modes: {
-              title: '📊 מודי טבלה — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'שם המוד, אילו עמודות יוצגו ובאיזה סדר, האם עמודה ניתנת לעריכה (הקלדה / כתב יד), ואיזו עמדה משתמשת במוד זה.' },
-                { heading: 'על מה זה משפיע?', body: 'כשמפעיל עובר למוד טבלה בעמדתו, הטבלה תציג את העמודות שהגדרת. עמודות הניתנות לעריכה מאפשרות עדכון ישיר מהטבלה.' },
-                { heading: 'שיטת עבודה', body: 'צור מוד טבלה מותאם לכל סוג עמדה. בחר רק את השדות הרלוונטיים לאותו תפקיד. הגדר עמודות "קפואות" כדי שיישארו גלויות בגלילה אופקית.' },
-              ]
-            },
-            work_groups: {
-              title: '🤝 קבוצות עבודה — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'קבוצות של עמדות שיכולות לשלוח ולקבל פתקיות שיתופיות (sticky notes) אחת מהשנייה.' },
-                { heading: 'על מה זה משפיע?', body: 'כפתור "הפץ ▶" בפתקית ישלח אותה לכל העמדות שנמצאות באותה קבוצת עבודה. עמדות מחוץ לקבוצה לא יוכלו לקבל פתקיות.' },
-                { heading: 'שיטת עבודה', body: 'צור קבוצה לכל "תא" מבצעי (לדוגמה: מרחבי + מנהל). הוסף לקבוצה את כל העמדות שצריכות לתקשר. עמדה יכולה להשתייך ליותר מקבוצה אחת.' },
-              ]
-            },
-            aids: {
-              title: '🗂️ עזרים לעמדה — מדריך הגדרה',
-              sections: [
-                { heading: 'מה מגדירים כאן?', body: 'קבוצת עזרים לכל עמדה — כל פריט יכול להיות טקסט (נוהל, תדרים, הוראות) או תמונה (תרשים, טבלת אמ"כ, מפה ייעודית).' },
-                { heading: 'על מה זה משפיע?', body: 'פאנל העזרים מוצג מימין לסייד-בר של הפממים בעמדה. המפעיל יכול לפתוח ולסגור כל פריט בנפרד. הפאנל מוצג רק כשיש קבוצה משויכת לעמדה.' },
-                { heading: 'שיטת עבודה', body: 'צור קבוצה נפרדת לכל עמדה עם תוכן ייעודי. אם כמה עמדות צריכות אותו חומר — השתמש ב"קשר" (שיתוף, עדכון מרכזי). אם כל עמדה מותאמת בנפרד — השתמש ב"שכפול".' },
-              ]
-            },
-          };
-          const help = helpData[activeTab];
-          if (!help) return null;
-          return (
-            <div style={{ width: '250px', flexShrink: 0, background: '#1e293b', borderRadius: '0 0 12px 12px', padding: '18px 16px', marginTop: 0, direction: 'rtl', alignSelf: 'flex-start' }}>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#93c5fd', marginBottom: '16px', borderBottom: '1px solid #334155', paddingBottom: '10px' }}>{help.title}</div>
-              {help.sections.map(sec => (
-                <div key={sec.heading} style={{ marginBottom: '16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#60a5fa', marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{sec.heading}</div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>{sec.body}</div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
 
         {/* Airfields Tab */}
         {activeTab === 'airfields' && (() => {
@@ -34124,6 +34086,7 @@ CHARLIE,1,301,`}
         {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
 
 
+        </div>
       </div>
       {showClassicTransferHelp && <ClassicTransferHelpModal lightMode={false} onClose={() => setShowClassicTransferHelp(false)} />}
 
