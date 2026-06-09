@@ -14807,6 +14807,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isCivilianMode = myPresetConfig?.preset_type === 'civilian';
   const isTowerMode = myPresetConfig?.preset_role === 'tower';
   const isMmiMode = myPresetConfig?.preset_role === 'mmi';
+  const [mmiAllContacts, setMmiAllContacts] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    if (!isMmiMode) return;
+    fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(d => setMmiAllContacts(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [isMmiMode]);
   const mmiConnectedPresets = React.useMemo(() => {
     if (!isMmiMode || !myPresetConfig) return [] as { id: number; name: string; freqs: string }[];
     const myTfPts = ((myPresetConfig.classic_transfer_points || []) as any[]).map((p: any) => Number(p.sector_id));
@@ -14822,7 +14827,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return [...ptf, ...prc, ...prel].some((sid: number) => myAllSectors.has(sid));
       })
       .map((p: any) => {
-        const contacts = allDashContacts.filter((c: any) => Number(c.preset_id) === Number(p.id));
+        const contacts = mmiAllContacts.filter((c: any) => Number(c.preset_id) === Number(p.id));
         const freqs = contacts
           .filter((c: any) => c.frequency)
           .map((c: any) => (c.device_type ? `${c.device_type} ` : '') + c.frequency)
@@ -14830,7 +14835,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           .join(' | ');
         return { id: Number(p.id), name: String(p.name || ''), freqs };
       });
-  }, [isMmiMode, myPresetConfig, workstationPresets, allDashContacts, session.presetId]);
+  }, [isMmiMode, myPresetConfig, workstationPresets, mmiAllContacts, session.presetId]);
   const isFlightZonesMode = myPresetConfig?.flight_zones_mode === true;
   const isMapZonesMode = useMapZonesActive;
   const isDualMapMode = !isGroundMode && !isClassicMode && !isCivilianMode && myPresetConfig?.dual_map_mode === true && !!myPresetConfig?.map2_id;
