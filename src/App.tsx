@@ -17926,7 +17926,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             );
           })()}
           {/* Load badge */}
-          {loadLevel !== 'none' && !muteLoadAlerts && (
+          {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
             <div
               className={loadLevel === 'full' ? 'load-badge-full' : 'load-badge-partial'}
               style={{
@@ -18110,6 +18110,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     </div>
                   )}
                   {/* ─── עומס ───────────────────────────────────── */}
+                  {!isGroundMgmtMode && <>
                   <div style={{ padding: '6px 12px', fontSize: '10px', color: '#64748b', borderTop: '1px solid #334155', borderBottom: '1px solid #1e3a5f' }}>עומס והתראות</div>
                   {/* Load forecast toggle */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
@@ -18129,6 +18130,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {muteLoadAlerts ? '🔔 הפעל' : '🔕 השתק'} עומס
                     </button>
                   </div>
+                  </>}
                   {/* Block alert */}
                   <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', borderBottom: '1px solid #1e3a5f' }}>
                     <span style={{ fontSize: '12px', color: muteBlockAlerts ? '#64748b' : '#86efac' }}>
