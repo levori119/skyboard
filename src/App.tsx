@@ -7685,7 +7685,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
+            <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 900, direction: 'rtl', maxWidth: '340px' }} data-nopan>
               {/* Header — always visible, flashing */}
               <div className="conflict-alert-flash"
                 style={{ background: '#7f1d1d', border: '2px solid #ef4444', borderRadius: showConflictPanel ? '10px 10px 0 0' : '10px', padding: '8px 12px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
@@ -7726,7 +7726,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
           {/* Yellow caution panel — blocking elements that are non-operational */}
           {malfunctionWarnings.length > 0 && (
-            <div style={{ position: 'absolute', top: routeConflicts.length > 0 ? '78px' : '8px', right: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }} data-nopan>
+            <div style={{ position: 'absolute', bottom: routeConflicts.length > 0 ? '78px' : '8px', right: '8px', zIndex: 890, direction: 'rtl', maxWidth: '320px' }} data-nopan>
               <div style={{ background: '#713f12', border: '2px solid #eab308', borderRadius: showMalfunctionPanel ? '10px 10px 0 0' : '10px', padding: '7px 11px', color: '#fef08a', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', boxShadow: '0 0 12px rgba(234,179,8,0.35)' }}
                 onClick={() => setShowMalfunctionPanel(p => !p)}>
                 <span style={{ fontSize: '18px' }}>⚠️</span>
