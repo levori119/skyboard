@@ -6294,8 +6294,36 @@ app.put('/api/preset-active-crew/:presetId', async (req, res) => {
 // --- Route Links ---
 app.get('/api/route-links', async (req, res) => {
   try {
-    const { preset_id } = req.query;
-    if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+    const { preset_id, airfield_id } = req.query;
+    if (airfield_id) {
+      const aid = Number(airfield_id);
+      const { rows } = await pool.query(
+        `SELECT rl.id,
+                rl.preset_id_a, pa.name AS preset_name_a,
+                rl.route_id_a,  ra.name AS route_name_a, ra.airfield_id AS airfield_id_a,
+                rl.preset_id_b, pb.name AS preset_name_b,
+                rl.route_id_b,  rb.name AS route_name_b, rb.airfield_id AS airfield_id_b
+         FROM route_links rl
+         JOIN workstation_presets pa ON pa.id = rl.preset_id_a
+         JOIN workstation_presets pb ON pb.id = rl.preset_id_b
+         JOIN airfield_routes ra ON ra.id = rl.route_id_a
+         JOIN airfield_routes rb ON rb.id = rl.route_id_b
+         WHERE ra.airfield_id = $1 OR rb.airfield_id = $1`,
+        [aid]
+      );
+      const normalized = rows.map(r => {
+        if (Number(r.airfield_id_a) === aid) return r;
+        return {
+          id: r.id,
+          preset_id_a: r.preset_id_b, preset_name_a: r.preset_name_b,
+          route_id_a:  r.route_id_b,  route_name_a:  r.route_name_b, airfield_id_a: r.airfield_id_b,
+          preset_id_b: r.preset_id_a, preset_name_b: r.preset_name_a,
+          route_id_b:  r.route_id_a,  route_name_b:  r.route_name_a, airfield_id_b: r.airfield_id_a,
+        };
+      });
+      return res.json(normalized);
+    }
+    if (!preset_id) return res.status(400).json({ error: 'preset_id or airfield_id required' });
     const pid = Number(preset_id);
     const { rows } = await pool.query(
       `SELECT rl.id,
