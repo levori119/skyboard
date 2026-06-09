@@ -31807,21 +31807,7 @@ CHARLIE,1,301,`}
             if (selectedAdminAirfieldId === id) { setSelectedAdminAirfieldId(null); setAirfieldPoints([]); }
           };
           const duplicateAirfield = async (id: number) => {
-            const src = adminAirfields.find((a: any) => a.id === id);
-            if (!src) return;
-            const newName = `עותק של ${src.name}`;
-            const res = await fetch(`${API_URL}/airfields`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                name: newName,
-                base_id: src.base_id || null,
-                custom_name: src.custom_name || null,
-                map_id: src.map_id || null,
-                sids: Array.isArray(src.sids) ? src.sids : [],
-                stars: Array.isArray(src.stars) ? src.stars : [],
-              })
-            });
+            const res = await fetch(`${API_URL}/airfields/${id}/duplicate`, { method: 'POST' });
             if (!res.ok) { alert('שכפול נכשל'); return; }
             const dup = await res.json();
             const updatedList = await fetch(`${API_URL}/airfields`);
@@ -31835,6 +31821,10 @@ CHARLIE,1,301,`}
             setShowAirfieldForm(true);
             setShowElementsSection(true);
             loadAirfieldPoints(dup.id);
+            loadAirfieldPolygons(dup.id);
+            loadAirfieldElements(dup.id);
+            loadAirfieldSectors(dup.id);
+            loadAirfieldStatusTypes(dup.id);
             if (dup.map_id) loadMapById(dup.map_id.toString());
           };
           const addPointAt = async (x_pct: number, y_pct: number) => {

@@ -3460,6 +3460,137 @@ app.delete('/api/airfields/:id', async (req, res) => {
   }
 });
 
+// ── Airfield Duplicate ────────────────────────────────────────────────────────
+app.post('/api/airfields/:id/duplicate', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const srcId = parseInt(req.params.id);
+
+    // 1. Fetch source airfield
+    const srcR = await client.query('SELECT * FROM airfields WHERE id=$1', [srcId]);
+    if (!srcR.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Not found' }); }
+    const src = srcR.rows[0];
+
+    // 2. Create new airfield
+    const newName = `עותק של ${src.name}`;
+    const newAF = await client.query(
+      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [newName, src.notes, src.map_id, src.sids, src.stars, src.base_id, src.custom_name]
+    );
+    const newId = newAF.rows[0].id;
+
+    // 3. Copy points — build old→new map
+    const pointMap = {};
+    const oldPoints = (await client.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const pt of oldPoints) {
+      const nr = await client.query(
+        'INSERT INTO airfield_points (airfield_id,name,x_pct,y_pct,display_order,color,marker,density_warn,point_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+        [newId, pt.name, pt.x_pct, pt.y_pct, pt.display_order, pt.color || '#3b82f6', pt.marker || 'circle', pt.density_warn ?? 3, pt.point_type]
+      );
+      pointMap[pt.id] = nr.rows[0].id;
+    }
+
+    // 4. Copy routes — build old→new map
+    const routeMap = {};
+    const oldRoutes = (await client.query('SELECT * FROM airfield_routes WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const r of oldRoutes) {
+      const nr = await client.query(
+        'INSERT INTO airfield_routes (airfield_id,name,color,route_path,notes,route_category) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+        [newId, r.name, r.color || '#3b82f6', r.route_path, r.notes, r.route_category || 'general']
+      );
+      routeMap[r.id] = nr.rows[0].id;
+    }
+
+    // 5. Copy elements — build old→new map
+    const elementMap = {};
+    const oldElements = (await client.query('SELECT * FROM airfield_elements WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const el of oldElements) {
+      const remappedRoutes = Array.isArray(el.relevant_routes)
+        ? el.relevant_routes.map(rid => routeMap[rid] ?? rid)
+        : [];
+      const nr = await client.query(
+        `INSERT INTO airfield_elements
+          (airfield_id,element_type_id,name,status,note,x_pct,y_pct,category,camera_url,
+           display_state,blink_rate,blink_colors,open_icon_key,close_icon_key,rotation,relevant_routes,blocking_statuses)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+        [newId, el.element_type_id, el.name, el.status || 'תקין', el.note,
+         el.x_pct, el.y_pct, el.category || '', el.camera_url,
+         el.display_state || 'normal', el.blink_rate ?? 1.0, el.blink_colors,
+         el.open_icon_key, el.close_icon_key, el.rotation ?? 0,
+         JSON.stringify(remappedRoutes),
+         JSON.stringify(Array.isArray(el.blocking_statuses) ? el.blocking_statuses : [])]
+      );
+      elementMap[el.id] = nr.rows[0].id;
+    }
+
+    // 6. Copy element_nav_routes (remap element, from_point, to_point, via_route_ids)
+    const oldNavs = (await client.query(
+      `SELECT enr.* FROM element_nav_routes enr
+       JOIN airfield_elements ae ON ae.id=enr.element_id
+       WHERE ae.airfield_id=$1`, [srcId]
+    )).rows;
+    for (const nav of oldNavs) {
+      const newElId = elementMap[nav.element_id];
+      if (!newElId) continue;
+      const newFrom = nav.from_point_id ? (pointMap[nav.from_point_id] ?? null) : null;
+      const newTo   = nav.to_point_id   ? (pointMap[nav.to_point_id]   ?? null) : null;
+      const oldVia  = Array.isArray(nav.via_route_ids) ? nav.via_route_ids : (nav.via_route_ids ? JSON.parse(nav.via_route_ids) : []);
+      const newVia  = oldVia.map(rid => routeMap[rid] ?? rid);
+      await client.query(
+        `INSERT INTO element_nav_routes (element_id,from_point_id,to_point_id,via_route_ids,updated_at)
+         VALUES ($1,$2,$3,$4,NOW()) ON CONFLICT (element_id) DO NOTHING`,
+        [newElId, newFrom, newTo, JSON.stringify(newVia)]
+      );
+    }
+
+    // 7. Copy polygons — build old→new map for parent_id remapping
+    const polygonMap = {};
+    const oldPolygons = (await client.query('SELECT * FROM airfield_polygons WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    // First pass: insert without parent_id
+    for (const pg of oldPolygons) {
+      const nr = await client.query(
+        'INSERT INTO airfield_polygons (airfield_id,name,color,notes,polygon,sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
+        [newId, pg.name, pg.color || '#3b82f6', pg.notes, pg.polygon, pg.sort_order ?? 0]
+      );
+      polygonMap[pg.id] = nr.rows[0].id;
+    }
+    // Second pass: fix parent_id references
+    for (const pg of oldPolygons) {
+      if (pg.parent_id && polygonMap[pg.parent_id]) {
+        await client.query('UPDATE airfield_polygons SET parent_id=$1 WHERE id=$2', [polygonMap[pg.parent_id], polygonMap[pg.id]]);
+      }
+    }
+
+    // 8. Copy sectors
+    const oldSectors = (await client.query('SELECT * FROM airfield_sectors WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const sec of oldSectors) {
+      await client.query(
+        'INSERT INTO airfield_sectors (airfield_id,name,notes,rect,sort_order) VALUES ($1,$2,$3,$4,$5)',
+        [newId, sec.name, sec.notes, sec.rect, sec.sort_order ?? 0]
+      );
+    }
+
+    // 9. Copy status types
+    const oldStatuses = (await client.query('SELECT * FROM airfield_status_types WHERE airfield_id=$1 ORDER BY id', [srcId])).rows;
+    for (const st of oldStatuses) {
+      await client.query(
+        'INSERT INTO airfield_status_types (airfield_id,name,color,sort_order) VALUES ($1,$2,$3,$4)',
+        [newId, st.name, st.color || '#6b7280', st.sort_order ?? 0]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json(newAF.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Duplicate airfield error:', err);
+    res.status(500).json({ error: 'Failed to duplicate airfield' });
+  } finally {
+    client.release();
+  }
+});
+
 app.put('/api/airfields/:id/vector', async (req, res) => {
   try {
     const { vector_data } = req.body;
