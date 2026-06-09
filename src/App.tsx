@@ -29206,9 +29206,21 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
                     סופרים: פ"ממים באוויר בעמדה + פ"ממים שממריאים תוך 10 ד' + העברות נכנסות (באוויר או ממריאים תוך 10 ד')
                   </p>
-                  <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
-                    הגדרת סף קונפליקט גובה מוגדרת כעת בכל נקודת העברה בנפרד (בלשונית "נקודות העברה").
-                  </p>
+                  <div style={{ marginTop: '12px', borderTop: '1px solid #334155', paddingTop: '12px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', color: '#f472b6', fontSize: '13px' }}>⚠️ סף קונפליקט גובה בין פ"ממים (רגליים):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="99000"
+                      step="100"
+                      value={presetForm.conflict_alt_delta}
+                      onChange={e => setPresetForm(p => ({ ...p, conflict_alt_delta: Math.max(0, parseInt(e.target.value) || 0) }))}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ec4899', borderRadius: '6px', background: '#0f172a', color: '#f472b6', fontSize: '16px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
+                    />
+                    <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
+                      טווח גובה שבו שני פ"ממים נחשבים קונפליקט. לדוגמה: 1000 = ±1000 רגל. 0 = כבוי.
+                    </p>
+                  </div>
                 </div>
 
                 {/* Relevant Control Stations */}
