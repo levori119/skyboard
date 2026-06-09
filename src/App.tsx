@@ -8555,7 +8555,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       })()}
                     </div>
                     {isMenuOpen && (
-                      <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
+                      <div style={{ position: 'absolute', ...(groundQuickMenu && groundQuickMenu.y < window.innerHeight / 2 ? { top: 'calc(100% + 4px)' } : { bottom: 'calc(100% + 4px)' }), left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '160px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס לכל המבנה</div>
                         {GROUND_STATUSES.map(s => (
@@ -8625,7 +8625,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       })()}
                     </div>
                     {isMenuOpen && (
-                      <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
+                      <div style={{ position: 'absolute', ...(groundQuickMenu && groundQuickMenu.y < window.innerHeight / 2 ? { top: 'calc(100% + 4px)' } : { bottom: 'calc(100% + 4px)' }), left: '50%', transform: 'translateX(-50%)', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '6px', zIndex: 100, minWidth: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.7)' }}
                         onClick={e => e.stopPropagation()}>
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
                         {GROUND_STATUSES.map(s => (
