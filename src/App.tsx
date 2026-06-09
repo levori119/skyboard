@@ -21268,7 +21268,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             <div style={{ fontSize: '7px', color: '#94a3b8', textAlign: 'center', marginTop: '1px' }}>{Math.round(mapZoom * 100)}%</div>
             <div style={{ width: '100%', height: '1px', background: '#334155', margin: '2px 0' }} />
             {/* Blind map toggle */}
-            {mapZones.length > 0 && (
+            {!!mapImg && (
               <button
                 onClick={() => setBlindMapMode(v => !v)}
                 title={blindMapMode ? 'בטל מפה עיוורת' : 'מפה עיוורת — הסתר רקע, הצג אזורים בקווי מתאר'}
