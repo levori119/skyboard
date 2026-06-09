@@ -8928,7 +8928,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }}
               style={{ cursor: 'grab', padding: '6px 10px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', userSelect: 'none', direction: 'rtl' }}>
               <span style={{ fontSize: '14px' }}>📷</span>
-              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mapDisplaySettings.showNames !== false ? panel.name : '📷'}</span>
+              <span style={{ color: '#7dd3fc', fontWeight: 'bold', fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{panel.name}</span>
               <button onClick={() => setCameraPanels(prev => prev.map(p => p.id === panel.id ? { ...p, expanded: !p.expanded } : p))}
                 title={panel.expanded ? 'כווץ' : 'הגדל'}
                 style={{ padding: '2px 7px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}>
