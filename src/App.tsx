@@ -28781,10 +28781,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       </header>
 
       {/* Admin sidebar + content layout */}
-      <div style={{ padding: '16px 20px 20px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+      <div style={{ padding: '10px 14px 14px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
 
         {/* Navigation Sidebar — appears on RIGHT in RTL */}
-        <div style={{ width: '210px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '16px', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '8px' }}>
+        <div style={{ width: '190px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '8px' }}>
 
           {/* Section: ניהול (admin only) */}
           {effectiveMode === 'admin' && (
@@ -28842,7 +28842,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         </div>{/* end sidebar */}
 
         {/* Main Content Area */}
-        <div style={{ flex: 1, background: '#1e293b', borderRadius: '12px', padding: '24px', minHeight: '500px', minWidth: 0 }}>
+        <div style={{ flex: 1, background: '#1e293b', borderRadius: '12px', padding: '18px', minHeight: '500px', minWidth: 0 }}>
           
           {/* Presets Tab */}
           {activeTab === 'presets' && (
@@ -32044,7 +32044,7 @@ CHARLIE,1,301,`}
             <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: '16px', direction: 'ltr', alignItems: 'flex-start' }}>
 
               {/* RIGHT panel: list + editor controls */}
-              <div style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
+              <div style={{ width: '400px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', maxHeight: 'calc(100vh - 110px)' }}>
 
                 {/* Airfield selector */}
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -33201,7 +33201,7 @@ CHARLIE,1,301,`}
 
               {/* MAP area (large, fills remaining space) */}
               {hasMap && showAirfieldForm && (
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 160px)', overflow: 'hidden' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 110px)', overflow: 'hidden' }}>
                   {/* Zoom toolbar */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: '#0f172a', borderBottom: '1px solid #1e3a5f', flexShrink: 0 }}>
                     <button onClick={() => setAdminMapZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} style={{ width: '22px', height: '22px', background: '#1e293b', color: 'white', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', lineHeight: 1 }}>−</button>
