@@ -5692,6 +5692,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
   const [transferPending, setTransferPending] = useState<{ stripId: string; sectorId: number; aircraftIdx: number; stripName: string; totalCount: number } | null>(null);
   const [sidModal, setSidModal] = useState<{ strip: any; idx: number } | null>(null);
+  const [sidSectorPick, setSidSectorPick] = useState<{ label: string; sector_ids: number[] } | null>(null);
   const [elemEditModal, setElemEditModal] = useState<{ el: any; name: string; category: string; status: string; note: string; displayState: string; blinkRate: number; openIconKey: string; closeIconKey: string; rotation: number; cameraUrl: string; hiddenOnMap: boolean } | null>(null);
   const [cameraPanels, setCameraPanels] = useState<{ id: number; url: string; name: string; dragPos: { x: number; y: number }; expanded: boolean }[]>([]);
   const nextCamId = useRef(0);
@@ -6450,9 +6451,16 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         : ac
     );
   };
-  const parseAirfieldSids = (raw: any): { label: string; sector_id: number | null }[] => {
+  const parseAirfieldSids = (raw: any): { label: string; sector_ids: number[] }[] => {
     const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw || '[]') : []);
-    return arr.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
+    return arr.map((s: any) => {
+      if (typeof s === 'string') return { label: s, sector_ids: [] };
+      const label = s.label || s.name || '';
+      const sector_ids: number[] = Array.isArray(s.sector_ids)
+        ? s.sector_ids.map(Number).filter(Boolean)
+        : s.sector_id ? [Number(s.sector_id)] : [];
+      return { label, sector_ids };
+    });
   };
 
   const transferSectors = allSectors.filter(s => presetSectors.includes(s.id));
@@ -6511,8 +6519,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
   const airfieldSidList = parseAirfieldSids(airfield?.sids);
   const sidTransferEntries: { sidLabel: string; sectorId: number }[] = airfieldSidList
-    .filter(s => s.sector_id != null)
-    .map(s => ({ sidLabel: s.label, sectorId: s.sector_id! }));
+    .flatMap(s => s.sector_ids.map(id => ({ sidLabel: s.label, sectorId: id })));
 
   const handleAircraftStatusCycle = (strip: any, idx: number) => {
     const positions = getAircraftPositions(strip);
@@ -9869,21 +9876,29 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const applyTakeoff = (pts: any[]) => pts.map((x: any) =>
           affectedIndices.includes(x.idx) ? { ...x, status: 'takeoff', takeoff_runway: sidRunwayName || null } : x
         );
-        const confirmSid = (sid: { label: string; sector_id: number | null }) => {
+        const closeSidModal = () => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); setSidSectorPick(null); };
+        const confirmSid = (sid: { label: string; sector_ids: number[] }) => {
+          if (sid.sector_ids.length > 1) { setSidSectorPick(sid); return; }
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
           onUpdateAircraft(String(strip.id), applyTakeoff(positions));
-          if (sid.sector_id) onTransfer(String(strip.id), sid.sector_id);
-          setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
+          if (sid.sector_ids[0]) onTransfer(String(strip.id), sid.sector_ids[0]);
+          closeSidModal();
+        };
+        const confirmSidWithSector = (sid: { label: string; sector_ids: number[] }, sectorId: number) => {
+          if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
+          onUpdateAircraft(String(strip.id), applyTakeoff(positions));
+          onTransfer(String(strip.id), sectorId);
+          closeSidModal();
         };
         const skipSid = () => {
           onUpdateAircraft(String(strip.id), applyTakeoff(positions));
-          setSidModal(null); setSidPreStep(false); setSidPartialSelected([]);
+          closeSidModal();
         };
 
         if (allAircraft && totalCount > 1 && sidPreStep) {
           return (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}>
+              onClick={closeSidModal}>
               <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #fca5a5', direction: 'rtl' }}
                 onClick={e => e.stopPropagation()}>
                 <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — בחר מטוסים</div>
@@ -9904,7 +9919,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     style={{ flex: 2, padding: '9px', background: sidPartialSelected.length > 0 ? '#1d4ed8' : '#334155', color: 'white', border: 'none', borderRadius: '8px', cursor: sidPartialSelected.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}
                   >המשך → בחר SID ({sidPartialSelected.length}/{totalCount})</button>
                   <button onClick={() => { setSidPartialSelected([]); setSidPreStep(false); }} style={{ flex: 1, padding: '9px', background: '#475569', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>כל המבנה</button>
-                  <button onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }} style={{ flex: 1, padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+                  <button onClick={closeSidModal} style={{ flex: 1, padding: '9px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
                 </div>
               </div>
             </div>
@@ -10005,9 +10020,35 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           );
         }
 
+        if (sidSectorPick) {
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={closeSidModal}>
+              <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #7c3aed', direction: 'rtl' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>↗ SID {sidSectorPick.label} — לאיזו עמדה?</div>
+                <div style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '18px' }}>פמ"מ: <strong style={{ color: 'white' }}>{callSign}</strong></div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                  {sidSectorPick.sector_ids.map(sectorId => {
+                    const sec = allSectors.find((s: any) => s.id === sectorId);
+                    return (
+                      <button key={sectorId} onClick={() => confirmSidWithSector(sidSectorPick, sectorId)}
+                        style={{ padding: '10px 16px', background: '#1d4ed8', color: 'white', border: '1px solid #3b82f6', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right' }}>
+                        {sec?.name || `עמדה ${sectorId}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => setSidSectorPick(null)}
+                  style={{ width: '100%', padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>← חזור</button>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}>
+            onClick={closeSidModal}>
             <div style={{ background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '340px', width: '90%', border: '1px solid #334155', direction: 'rtl' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fca5a5', marginBottom: '4px' }}>✈️ המראה — בחר SID</div>
@@ -10018,9 +10059,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                 {sids.map(sid => (
                   <button key={sid.label} onClick={() => confirmSid(sid)}
-                    style={{ padding: '10px 16px', background: sid.sector_id ? '#1d4ed8' : '#1e3a5f', color: 'white', border: `1px solid ${sid.sector_id ? '#3b82f6' : '#334155'}`, borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    style={{ padding: '10px 16px', background: sid.sector_ids.length > 0 ? '#1d4ed8' : '#1e3a5f', color: 'white', border: `1px solid ${sid.sector_ids.length > 0 ? '#3b82f6' : '#334155'}`, borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span>{sid.label}</span>
-                    {sid.sector_id && <span style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal' }}>העברה אוטומטית ↗</span>}
+                    {sid.sector_ids.length === 1 && <span style={{ fontSize: '10px', color: '#93c5fd', fontWeight: 'normal' }}>העברה אוטומטית ↗</span>}
+                    {sid.sector_ids.length > 1 && <span style={{ fontSize: '10px', color: '#c4b5fd', fontWeight: 'normal' }}>{sid.sector_ids.length} עמדות ↗</span>}
                   </button>
                 ))}
               </div>
@@ -10029,7 +10071,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   style={{ flex: 1, padding: '8px', background: '#334155', color: '#e2e8f0', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                   המרא ללא SID
                 </button>
-                <button onClick={() => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); }}
+                <button onClick={closeSidModal}
                   style={{ flex: 1, padding: '8px', background: '#0f172a', color: '#64748b', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                   ביטול
                 </button>
@@ -28272,7 +28314,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showNewModePicker, setShowNewModePicker] = useState(false);
   const [newCivilTableName, setNewCivilTableName] = useState('');
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
-  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', sids: [] as { label: string; sector_id: number | null }[], stars: [] as string[], newSid: '', newStar: '' });
+  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', sids: [] as { label: string; sector_ids: number[] }[], stars: [] as string[], newSid: '', newSidLabel: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
@@ -32040,7 +32082,7 @@ CHARLIE,1,301,`}
             if (res.status === 409) { alert((await res.json()).error || 'שם שדה תעופה כבר קיים'); return; }
             if (res.ok) {
               const savedAirfield = await res.json();
-              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' });
+              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' });
               const updated = await fetch(`${API_URL}/airfields`);
               if (updated.ok) setAdminAirfields(await updated.json());
               setSelectedAdminAirfieldId(savedAirfield.id);
@@ -32061,11 +32103,11 @@ CHARLIE,1,301,`}
             const updatedList = await fetch(`${API_URL}/airfields`);
             if (updatedList.ok) setAdminAirfields(await updatedList.json());
             const rawSids = Array.isArray(dup.sids) ? dup.sids : (typeof dup.sids === 'string' ? JSON.parse(dup.sids || '[]') : []);
-            const dupSids = rawSids.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || '', sector_id: s.sector_id || null });
+            const dupSids = rawSids.map((s: any) => { if (typeof s === 'string') return { label: s, sector_ids: [] }; const ids = Array.isArray(s.sector_ids) ? s.sector_ids.map(Number).filter(Boolean) : s.sector_id ? [Number(s.sector_id)] : []; return { label: s.label || '', sector_ids: ids }; });
             const dupStars = Array.isArray(dup.stars) ? dup.stars : (typeof dup.stars === 'string' ? JSON.parse(dup.stars || '[]') : []);
             setEditingAirfield(dup);
             setSelectedAdminAirfieldId(dup.id);
-            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', sids: dupSids, stars: dupStars, newSid: '', newStar: '' });
+            setAirfieldForm({ name: dup.name, base_id: dup.base_id?.toString() || '', custom_name: dup.custom_name || '', map_id: dup.map_id?.toString() || '', sids: dupSids, stars: dupStars, newSid: '', newSidLabel: '', newStar: '' });
             setShowAirfieldForm(true);
             setShowElementsSection(true);
             loadAirfieldPoints(dup.id);
@@ -32152,9 +32194,9 @@ CHARLIE,1,301,`}
                       const af = adminAirfields.find((a: any) => a.id === id);
                       if (!af) return;
                       const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []);
-                      const afSids = rawSids.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
+                      const afSids = rawSids.map((s: any) => { if (typeof s === 'string') return { label: s, sector_ids: [] }; const ids = Array.isArray(s.sector_ids) ? s.sector_ids.map(Number).filter(Boolean) : s.sector_id ? [Number(s.sector_id)] : []; return { label: s.label || s.name || '', sector_ids: ids }; });
                       const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []);
-                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newStar: '' });
+                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newSidLabel: '', newStar: '' });
                       setSelectedAdminAirfieldId(af.id);
                       loadAirfieldPoints(af.id);
                       setShowAirfieldForm(true);
@@ -32169,7 +32211,7 @@ CHARLIE,1,301,`}
                       <option key={af.id} value={af.id}>{af.name}</option>
                     ))}
                   </select>
-                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
+                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
                     style={{ padding: '6px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>+ חדש</button>
                   {selectedAdminAirfieldId && (<>
                     <button onClick={() => duplicateAirfield(selectedAdminAirfieldId)}
@@ -32257,7 +32299,7 @@ CHARLIE,1,301,`}
                         style={{ flex: 1, padding: '7px', background: canSave ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canSave ? 1 : 0.5 }}>
                         {editingAirfield ? 'שמור' : 'צור'}
                       </button>); })()}
-                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
+                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
                         style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
                     </div>
 
@@ -32269,28 +32311,53 @@ CHARLIE,1,301,`}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: adminAFExpanded.has('sids') ? '800px' : '0', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
                         {airfieldForm.sids.map((sid, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ flex: 1, color: '#93c5fd', fontSize: '12px', fontFamily: 'monospace' }}>{sid.label}</span>
-                            {sid.sector_id && <span style={{ fontSize: '9px', color: '#60a5fa', background: '#1e3a5f', padding: '1px 4px', borderRadius: '3px' }}>→ {sectors.find(s => s.id === sid.sector_id)?.name || sid.sector_id}</span>}
-                            <button onClick={() => setAirfieldForm(p => ({ ...p, sids: p.sids.filter((_, j) => j !== i) }))}
-                              style={{ padding: '1px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                          <div key={i} style={{ background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '6px 8px', marginBottom: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: sid.sector_ids.length > 0 ? '4px' : 0 }}>
+                              <span style={{ flex: 1, color: '#93c5fd', fontSize: '12px', fontFamily: 'monospace', fontWeight: 'bold' }}>{sid.label}</span>
+                              <button onClick={() => setAirfieldForm(p => ({ ...p, sids: p.sids.filter((_, j) => j !== i) }))}
+                                style={{ padding: '1px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>✕</button>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginBottom: '4px' }}>
+                              {sid.sector_ids.map(secId => {
+                                const sec = sectors.find((s: any) => s.id === secId);
+                                return (
+                                  <span key={secId} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '9px', color: '#60a5fa', background: '#1e3a5f', padding: '1px 5px', borderRadius: '3px' }}>
+                                    → {sec?.name || secId}
+                                    <button onClick={() => setAirfieldForm(p => ({ ...p, sids: p.sids.map((s, j) => j === i ? { ...s, sector_ids: s.sector_ids.filter(id => id !== secId) } : s) }))}
+                                      style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '9px', padding: '0', lineHeight: 1 }}>✕</button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <div style={{ display: 'flex', gap: '3px' }}>
+                              <select defaultValue="" onChange={e => { const secId = Number(e.target.value); if (!secId) return; setAirfieldForm(p => ({ ...p, sids: p.sids.map((s, j) => j === i && !s.sector_ids.includes(secId) ? { ...s, sector_ids: [...s.sector_ids, secId] } : s) })); e.target.value = ''; }}
+                                style={{ flex: 1, padding: '2px 5px', background: '#0a0f1a', border: '1px solid #334155', borderRadius: '3px', color: '#94a3b8', fontSize: '10px', direction: 'rtl' }}>
+                                <option value="">+ הוסף עמדה...</option>
+                                {sectors.filter((s: any) => !sid.sector_ids.includes(s.id)).map((s: any) => (
+                                  <option key={s.id} value={String(s.id)}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         ))}
-                        <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                          <input value={airfieldForm.newSidLabel} onChange={e => setAirfieldForm(p => ({ ...p, newSidLabel: e.target.value }))}
+                            placeholder="שם SID (לדוג׳ ALPHA)"
+                            style={{ flex: 1, padding: '3px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }} />
                           <select value={airfieldForm.newSid} onChange={e => setAirfieldForm(p => ({ ...p, newSid: e.target.value }))}
                             style={{ flex: 1, padding: '3px 6px', background: '#0f172a', border: '1px solid #1e3a5f', borderRadius: '4px', color: airfieldForm.newSid ? 'white' : '#475569', fontSize: '11px', direction: 'rtl' }}>
-                            <option value="">— בחר נקודת העברה —</option>
-                            {sectors.filter(s => !airfieldForm.sids.some(sid => sid.sector_id === s.id)).map(s => (
+                            <option value="">— עמדה (אופציונלי) —</option>
+                            {sectors.map((s: any) => (
                               <option key={s.id} value={String(s.id)}>{s.name}</option>
                             ))}
                           </select>
                           <button onClick={() => {
-                            if (!airfieldForm.newSid) return;
-                            const sec = sectors.find(s => s.id === Number(airfieldForm.newSid));
-                            if (!sec) return;
-                            setAirfieldForm(p => ({ ...p, sids: [...p.sids, { label: sec.name, sector_id: sec.id }], newSid: '' }));
+                            const label = airfieldForm.newSidLabel.trim() || (airfieldForm.newSid ? sectors.find((s: any) => s.id === Number(airfieldForm.newSid))?.name : '');
+                            if (!label) return;
+                            const secId = airfieldForm.newSid ? Number(airfieldForm.newSid) : null;
+                            setAirfieldForm(p => ({ ...p, sids: [...p.sids, { label, sector_ids: secId ? [secId] : [] }], newSid: '', newSidLabel: '' }));
                           }}
-                            style={{ padding: '3px 8px', background: airfieldForm.newSid ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '4px', cursor: airfieldForm.newSid ? 'pointer' : 'not-allowed', fontSize: '11px' }}>+</button>
+                            style={{ padding: '3px 8px', background: (airfieldForm.newSidLabel.trim() || airfieldForm.newSid) ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '4px', cursor: (airfieldForm.newSidLabel.trim() || airfieldForm.newSid) ? 'pointer' : 'not-allowed', fontSize: '11px' }}>+</button>
                         </div>
                       </div>
                     </div>
