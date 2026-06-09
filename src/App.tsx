@@ -9429,16 +9429,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           if (p1.length < 2 || p2.length < 2) return false;
           // 1. Geometric intersection of segments
           for (let i = 0; i < p1.length - 1; i++) for (let j = 0; j < p2.length - 1; j++) if (segIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
+          // 2. Endpoint of r1 near any VERTEX of r2 (and vice versa)
+          //    Checks both endpoint-to-endpoint (junction) and endpoint-to-intermediate-vertex (T-junction)
+          //    Deliberately avoids checking arbitrary interior points on segments — that causes false positives
+          //    when two routes happen to be geometrically close but don't share a defined node.
+          const NEAR_V = 4;
           const eps1 = [p1[0], p1[p1.length - 1]];
           const eps2 = [p2[0], p2[p2.length - 1]];
-          // 2. Endpoint-to-endpoint (shared junction): generous tolerance
-          const NEAR_EE = 4;
-          for (const a of eps1) for (const b of eps2) if (Math.hypot(a.x - b.x, a.y - b.y) < NEAR_EE) return true;
-          // 3. Endpoint lies on body of other route (T-junction): strict tolerance
-          //    Use a tight threshold so nearby-but-unconnected routes (like C near F's middle) don't false-trigger
-          const NEAR_T = 1.2;
-          for (const ep of eps1) if (_ptPolySegDist(ep.x, ep.y, p2) < NEAR_T) return true;
-          for (const ep of eps2) if (_ptPolySegDist(ep.x, ep.y, p1) < NEAR_T) return true;
+          for (const ep of eps1) for (const v of p2) if (Math.hypot(ep.x - v.x, ep.y - v.y) < NEAR_V) return true;
+          for (const ep of eps2) for (const v of p1) if (Math.hypot(ep.x - v.x, ep.y - v.y) < NEAR_V) return true;
           return false;
         };
         const catLabel: Record<string, string> = { general: 'כללי', aircraft: 'מטוסים', vehicle: 'כלי רכב' };
