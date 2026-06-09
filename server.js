@@ -6002,7 +6002,7 @@ app.get('/api/runway-conflict', async (req, res) => {
     const runwayNames = routeRows.flatMap(r => [r.name, r.end_a_name, r.end_b_name].filter(Boolean));
     // Aircraft taxi conflicts (strips with aircraft positions using this runway route)
     const { rows: acRows } = await pool.query(
-      `SELECT DISTINCT s.id, s.call_sign, s.callsign, 'aircraft' AS type, NULL AS name
+      `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'aircraft' AS type, NULL AS name
        FROM strips s
        WHERE s.aircraft_positions IS NOT NULL
          AND jsonb_array_length(s.aircraft_positions) > 0
@@ -6020,7 +6020,7 @@ app.get('/api/runway-conflict', async (req, res) => {
     let tcRows = [];
     if (runwayNames.length > 0) {
       const { rows } = await pool.query(
-        `SELECT DISTINCT s.id, s.call_sign, s.callsign, 'takeoff_clearance' AS type, NULL AS name
+        `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'takeoff_clearance' AS type, NULL AS name
          FROM strips s
          WHERE s.aircraft_positions IS NOT NULL
            AND jsonb_array_length(s.aircraft_positions) > 0

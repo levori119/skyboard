@@ -6031,6 +6031,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [sidRunwayName, setSidRunwayName] = React.useState<string | null>(null);
   const [sidRunwayRouteId, setSidRunwayRouteId] = React.useState<number | null>(null);
   const [runwayConflicts, setRunwayConflicts] = React.useState<Record<number, {id:number;call_sign:string;callsign:string}[]>>({});
+  const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[]}[]>([]);
 
   // Reset runway step state when sidModal closes; load conflicts when it opens
   React.useEffect(() => {
@@ -9940,7 +9941,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           );
         }
 
-        const runwayRoutesForStep = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield?.id));
+        const _stepAfId = airfield?.id ?? myPresetConfig?.airfield_id;
+        const runwayRoutesForStep = (airfieldRoutes || []).filter((r: any) => r.is_runway && _stepAfId && Number(r.airfield_id) === Number(_stepAfId));
         if (runwayRoutesForStep.length > 0 && sidRunwayName === null) {
           return (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -16538,6 +16540,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, []);
 
+  // Poll live runway conflicts every 5s in ground mode
+  React.useEffect(() => {
+    if (!isGroundMode) { setLiveRunwayConflicts([]); return; }
+    const afId = activeAirfield?.id ?? myPresetConfig?.airfield_id;
+    if (!afId) return;
+    const poll = async () => {
+      const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(afId));
+      if (rwRoutes.length === 0) { setLiveRunwayConflicts([]); return; }
+      try {
+        const results = await Promise.all(rwRoutes.map(async (r: any) => {
+          const res = await fetch(`${API_URL}/runway-conflict?route_id=${r.id}`);
+          const conflicts: any[] = res.ok ? await res.json() : [];
+          return { routeName: r.end_a_name && r.end_b_name ? `${r.end_a_name}/${r.end_b_name}` : r.name, conflicts };
+        }));
+        setLiveRunwayConflicts(results.filter(r => r.conflicts.length > 0).map(r => ({
+          routeName: r.routeName,
+          conflicts: r.conflicts.map((c: any) => ({
+            type: c.type,
+            name: c.name || '',
+            callsign: c.call_sign || c.callsign || ''
+          }))
+        })));
+      } catch { setLiveRunwayConflicts([]); }
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
+  }, [isGroundMode, activeAirfield?.id, myPresetConfig?.airfield_id, airfieldRoutes]);
+
   // Poll preset config (partial_load / full_load thresholds) every 10s so
   // changes made in the AdminDashboard propagate to this session automatically.
   useEffect(() => {
@@ -19676,6 +19707,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
         >
+          {/* Live runway conflict banner */}
+          {isGroundMode && liveRunwayConflicts.length > 0 && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9990, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+              <span style={{ fontSize: '18px' }}>⚠️</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px' }}>קונפליקט מסלול!</span>
+              {liveRunwayConflicts.map((rc, i) => (
+                <span key={i} style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '2px 8px' }}>
+                  מסלול {rc.routeName}:&nbsp;
+                  {rc.conflicts.map((c, ci) => (
+                    <span key={ci}>
+                      {c.type === 'vehicle' ? `🚗 ${c.name || 'רכב'}` : c.type === 'takeoff_clearance' ? `✈️ ${c.callsign} (אישור המראה)` : `✈️ ${c.callsign}`}
+                      {ci < rc.conflicts.length - 1 ? ' · ' : ''}
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </div>
+          )}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];
