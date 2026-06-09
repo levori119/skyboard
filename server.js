@@ -6051,6 +6051,81 @@ app.get('/api/runway-conflict', async (req, res) => {
   }
 });
 
+// ── Live runway conflicts for an airfield (includes cross-airfield links) ──────
+app.get('/api/live-runway-conflicts', async (req, res) => {
+  try {
+    const airfieldId = Number(req.query.airfield_id);
+    if (!airfieldId) return res.json([]);
+    // 1. Direct runway routes for this airfield
+    const { rows: directRw } = await pool.query(
+      `SELECT id, name, end_a_name, end_b_name FROM airfield_routes WHERE airfield_id=$1 AND is_runway=true`,
+      [airfieldId]
+    );
+    // 2. All routes for this airfield — find if any link to runway routes in other airfields
+    const { rows: myRoutes } = await pool.query(
+      `SELECT id FROM airfield_routes WHERE airfield_id=$1`, [airfieldId]
+    );
+    const myRouteIds = myRoutes.map(r => Number(r.id));
+    let linkedRw = [];
+    if (myRouteIds.length > 0) {
+      const { rows: links } = await pool.query(
+        `SELECT rl.route_id_a, rl.route_id_b, ar.id, ar.name, ar.end_a_name, ar.end_b_name
+         FROM route_links rl
+         JOIN airfield_routes ar ON ar.is_runway=true AND (
+           (rl.route_id_a = ANY($1::int[]) AND ar.id = rl.route_id_b) OR
+           (rl.route_id_b = ANY($1::int[]) AND ar.id = rl.route_id_a)
+         )`,
+        [myRouteIds]
+      );
+      linkedRw = links.map(l => ({ id: l.id, name: l.name, end_a_name: l.end_a_name, end_b_name: l.end_b_name }));
+    }
+    // Deduplicate runway routes
+    const seen = new Set();
+    const allRw = [...directRw, ...linkedRw].filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+    if (allRw.length === 0) return res.json([]);
+    // 3. For each runway route, fetch conflicts (reuse same logic as /api/runway-conflict)
+    const results = [];
+    for (const rw of allRw) {
+      const { rows: linkRows } = await pool.query(
+        `SELECT route_id_a, route_id_b FROM route_links WHERE route_id_a=$1 OR route_id_b=$1`, [rw.id]
+      );
+      const linked = linkRows.map(l => Number(l.route_id_a) === rw.id ? Number(l.route_id_b) : Number(l.route_id_a));
+      const routesToCheck = [rw.id, ...linked];
+      const runwayNames = [rw.name, rw.end_a_name, rw.end_b_name].filter(Boolean);
+      const { rows: acRows } = await pool.query(
+        `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'aircraft' AS type, NULL AS name
+         FROM strips s WHERE s.aircraft_positions IS NOT NULL AND jsonb_array_length(s.aircraft_positions)>0
+         AND EXISTS (SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+           WHERE (ac->>'taxi_dest_route_id')::int = ANY($1::int[])
+              OR EXISTS (SELECT 1 FROM jsonb_array_elements(ac->'taxi_via_route_ids') via WHERE via::int = ANY($1::int[])))`,
+        [routesToCheck]
+      );
+      const { rows: tcRows } = await pool.query(
+        `SELECT DISTINCT s.id, s.callsign, s.callsign AS call_sign, 'takeoff_clearance' AS type, NULL AS name
+         FROM strips s WHERE s.aircraft_positions IS NOT NULL AND jsonb_array_length(s.aircraft_positions)>0
+         AND EXISTS (SELECT 1 FROM jsonb_array_elements(s.aircraft_positions) ac
+           WHERE ac->>'status'='takeoff' AND ac->>'takeoff_runway'=ANY($1::text[]))`,
+        [runwayNames]
+      );
+      const { rows: vhRows } = await pool.query(
+        `SELECT DISTINCT ae.id, NULL AS call_sign, NULL AS callsign, 'vehicle' AS type, ae.name
+         FROM element_nav_routes enr JOIN airfield_elements ae ON ae.id=enr.element_id
+         WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(enr.via_route_ids) rid WHERE rid::int=ANY($1::int[]))`,
+        [routesToCheck]
+      );
+      const conflicts = [...acRows, ...tcRows, ...vhRows];
+      if (conflicts.length > 0) {
+        const routeName = rw.end_a_name && rw.end_b_name ? `${rw.end_a_name}/${rw.end_b_name}` : rw.name;
+        results.push({ routeName, conflicts });
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error('live-runway-conflicts error:', err.message);
+    res.status(500).json([]);
+  }
+});
+
 // ── Element Nav Routes ────────────────────────────────────────────────────────
 app.get('/api/element-nav', async (req, res) => {
   try {

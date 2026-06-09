@@ -16540,23 +16540,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return () => clearInterval(interval);
   }, []);
 
-  // Poll live runway conflicts every 5s in ground mode
+  // Poll live runway conflicts every 5s in ground mode (uses new endpoint that covers cross-airfield links)
   React.useEffect(() => {
     if (!isGroundMode) { setLiveRunwayConflicts([]); return; }
     const afId = activeAirfield?.id ?? myPresetConfig?.airfield_id;
     if (!afId) return;
     const poll = async () => {
-      const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(afId));
-      if (rwRoutes.length === 0) { setLiveRunwayConflicts([]); return; }
       try {
-        const results = await Promise.all(rwRoutes.map(async (r: any) => {
-          const res = await fetch(`${API_URL}/runway-conflict?route_id=${r.id}`);
-          const conflicts: any[] = res.ok ? await res.json() : [];
-          return { routeName: r.end_a_name && r.end_b_name ? `${r.end_a_name}/${r.end_b_name}` : r.name, conflicts };
-        }));
-        setLiveRunwayConflicts(results.filter(r => r.conflicts.length > 0).map(r => ({
+        const res = await fetch(`${API_URL}/live-runway-conflicts?airfield_id=${afId}`);
+        if (!res.ok) { setLiveRunwayConflicts([]); return; }
+        const data: any[] = await res.json();
+        setLiveRunwayConflicts(data.map((r: any) => ({
           routeName: r.routeName,
-          conflicts: r.conflicts.map((c: any) => ({
+          conflicts: (r.conflicts || []).map((c: any) => ({
             type: c.type,
             name: c.name || '',
             callsign: c.call_sign || c.callsign || ''
@@ -16567,7 +16563,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     poll();
     const iv = setInterval(poll, 5000);
     return () => clearInterval(iv);
-  }, [isGroundMode, activeAirfield?.id, myPresetConfig?.airfield_id, airfieldRoutes]);
+  }, [isGroundMode, activeAirfield?.id, myPresetConfig?.airfield_id]);
 
   // Poll preset config (partial_load / full_load thresholds) every 10s so
   // changes made in the AdminDashboard propagate to this session automatically.
