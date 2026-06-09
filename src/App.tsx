@@ -28930,7 +28930,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                 </div>
 
                 {/* Show serials toggle */}
-                <div style={{ marginTop: '15px' }}>
+                {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>📡 הצגת ספרורים בעמדה:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
                     {[{ val: true, label: '✅ כן — הצג כפתור ספרורים' }, { val: false, label: '🚫 לא — הסתר ספרורים' }].map(opt => (
@@ -28944,10 +28944,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
                     קובע אם הכפתור 📡 ספרורים יוצג בכותרת העמדה (וגם עמודת הספרורים בטבלה).
                   </p>
-                </div>
+                </div>}
 
                 {/* Allow view switching toggle */}
-                <div style={{ marginTop: '15px' }}>
+                {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>🔁 אפשר מעבר בין מפה ↔ טבלה:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
                     {[{ val: true, label: '✅ כן — תפריט תצוגה זמין' }, { val: false, label: '🔒 לא — נעל לתצוגה אחת' }].map(opt => (
@@ -28961,7 +28961,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '11px', direction: 'rtl' }}>
                     כשמכובה — תפריט "תצוגה" מוסתר ולא ניתן לעבור בין מפה לטבלה. בעמדת סטריפים זה מוסתר אוטומטית בכל מקרה.
                   </p>
-                </div>
+                </div>}
 
                 {/* Base statuses toggle */}
                 <div style={{ marginTop: '15px' }}>
@@ -29090,7 +29090,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
-                <div style={{ marginTop: '15px' }}>
+                {presetForm.preset_type !== 'ground_mgmt' && <div style={{ marginTop: '15px' }}>
                   <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>📊 דש בורד:</label>
                   <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
                     {([{ val: true, label: '✅ מציג דש בורד' }, { val: false, label: '🚫 ללא דש בורד' }] as { val: boolean; label: string }[]).map(opt => (
@@ -29102,7 +29102,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     ))}
                   </div>
                   <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748b' }}>כשמופעל, כפתור 📊 דש בורד יופיע לכל מי שנכנס לעמדה זו (גם ללא הרשאת מנהל).</p>
-                </div>
+                </div>}
 
                 {/* Flight Zones Mode toggle */}
                 {presetForm.map_id && (
@@ -29303,7 +29303,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   </div>
                 )}
 
-                {blockTables.length > 0 && (
+                {presetForm.preset_type !== 'ground_mgmt' && blockTables.length > 0 && (
                   <div style={{ marginTop: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', color: '#94a3b8', fontSize: '14px' }}>טבלאות בלוקים רלוונטיות לעמדה:</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
