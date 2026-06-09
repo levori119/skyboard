@@ -6116,7 +6116,52 @@ app.get('/api/live-runway-conflicts', async (req, res) => {
       const conflicts = [...acRows, ...tcRows, ...vhRows];
       if (conflicts.length > 0) {
         const routeName = rw.end_a_name && rw.end_b_name ? `${rw.end_a_name}/${rw.end_b_name}` : rw.name;
-        results.push({ routeName, conflicts });
+        // Recommendations: find elements that can block this runway
+        // Priority 1: elements with relevant_routes containing any routesToCheck
+        // Priority 2: elements whose name contains any runway name token
+        const nameTokens = [rw.name, rw.end_a_name, rw.end_b_name].filter(Boolean);
+        const { rows: recRows } = await pool.query(
+          `SELECT ae.id, ae.name, ae.display_state, ae.category, ae.airfield_id,
+                  ae.blocking_statuses, aet.can_change_status, aet.allowed_statuses
+           FROM airfield_elements ae
+           JOIN airfield_element_types aet ON aet.id = ae.element_type_id
+           WHERE aet.can_change_status = true
+             AND (
+               EXISTS (
+                 SELECT 1 FROM jsonb_array_elements(COALESCE(ae.relevant_routes,'[]'::jsonb)) rr
+                 WHERE rr::int = ANY($1::int[])
+               )
+               OR (${nameTokens.map((_, i) => `ae.name ILIKE $${i + 2}`).join(' OR ')})
+             )
+             AND ae.category NOT IN ('camera','כלי רכב')
+           ORDER BY
+             CASE WHEN EXISTS (
+               SELECT 1 FROM jsonb_array_elements(COALESCE(ae.relevant_routes,'[]'::jsonb)) rr
+               WHERE rr::int = ANY($1::int[])
+             ) THEN 0 ELSE 1 END,
+             ae.id`,
+          [routesToCheck, ...nameTokens.map(t => `%${t}%`)]
+        );
+        // Category-level default blocking status when blocking_statuses is empty
+        const categoryBlockDefault = { 'STOP BAR': 'מנצנץ', 'רמזורים': 'מנצנץ', 'מחסומים': 'סגור' };
+        const recommendations = recRows.map(r => {
+          const bs = Array.isArray(r.blocking_statuses) ? r.blocking_statuses : (r.blocking_statuses ? JSON.parse(r.blocking_statuses) : []);
+          const as_ = Array.isArray(r.allowed_statuses) ? r.allowed_statuses : (r.allowed_statuses ? JSON.parse(r.allowed_statuses) : []);
+          // Determine effective blocking_statuses: explicit > category default > first allowed
+          const effectiveBlocking = bs.length > 0 ? bs
+            : categoryBlockDefault[r.category] ? [categoryBlockDefault[r.category]]
+            : as_.length > 0 ? [as_[0]] : [];
+          return {
+            id: r.id,
+            name: r.name,
+            category: r.category,
+            display_state: r.display_state,
+            airfield_id: r.airfield_id,
+            blocking_statuses: effectiveBlocking,
+            allowed_statuses: as_,
+          };
+        }).filter(r => r.blocking_statuses.length > 0);
+        results.push({ routeName, conflicts, recommendations });
       }
     }
     res.json(results);
