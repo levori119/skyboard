@@ -8206,6 +8206,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             const opStatusColors: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
             const opColor = opStatusColors[el.status] || sColor;
             const statusIconEmoji: string | null = (() => { const si = typeof el.type_status_icons === 'object' && !Array.isArray(el.type_status_icons) ? el.type_status_icons : (typeof el.type_status_icons === 'string' ? (() => { try { return JSON.parse(el.type_status_icons); } catch { return null; } })() : null); return si && el.status ? (si[el.status] || null) : null; })();
+            const statusMapIcon: string | null = statusIconEmoji?.startsWith('MAP:') ? statusIconEmoji : null;
+            const statusEmojiOnly: string | null = statusIconEmoji && !statusIconEmoji.startsWith('MAP:') ? statusIconEmoji : null;
             // Display state: normal / blink / open / close
             const dState = el.display_state || 'normal';
             const isBlinking = dState === 'blink';
@@ -8267,11 +8269,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     </div>
                   ) : isSvgIcon ? (
                     <div style={{ ...(isBlinking ? ({ '--blink-rate': `${blinkRate}s` } as React.CSSProperties) : {}), width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))', outline: canChangeStatus ? `2px solid ${isClosed ? '#ef4444' : isOff ? '#475569' : isStop ? '#ef4444' : isGo ? '#22c55e' : isOpen ? '#22c55e' : opColor}` : 'none', borderRadius: '4px', background: isCatHighlighted ? '#3b82f622' : canChangeStatus ? (isClosed ? '#ef444422' : opColor + '22') : 'transparent', transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined }}>
-                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : effectiveMapIconKey, 26, el.status, dState)}
+                      {renderGroundSvgIcon(isClosed ? (el.close_icon_key || el.type_close_icon || effectiveMapIconKey) : isOpen ? (el.open_icon_key || el.type_open_icon || effectiveMapIconKey) : (statusMapIcon || effectiveMapIconKey), 26, el.status, dState)}
                     </div>
                   ) : (
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isClosed ? '#1e293b' : isOff ? '#1e293b' : (isTakul || isLaTakin || isLaShamish) ? '#ef4444' : elColor, border: isBeingEdited ? '3px solid #f59e0b' : isCatHighlighted ? '3px solid #3b82f6' : isClosed ? '3px solid #ef4444' : isOff ? '3px solid #475569' : (isLaTakin || isLaShamish) ? '3px solid #ef4444' : isTakin ? '3px solid #22c55e' : isOpen ? '3px solid #22c55e' : isShamish ? '4px solid #22c55e' : `2px solid ${canChangeStatus ? opColor : sColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', boxShadow: isBeingEdited ? '0 0 10px #f59e0b88' : isCatHighlighted ? '0 0 10px #3b82f688' : isClosed ? '0 0 8px #ef444488' : (isLaTakin || isLaShamish) ? '0 0 8px #ef444488' : isTakin ? '0 0 6px #22c55e88' : canChangeStatus ? `0 0 6px ${opColor}88` : isShamish ? '0 0 6px #22c55e88' : '0 1px 4px rgba(0,0,0,0.5)', margin: '0 auto', transition: 'box-shadow 0.2s, border 0.2s', opacity: isOff ? 0.5 : 1, transform: iconRotation ? `rotate(${iconRotation}deg)` : undefined, animation: isBlinking ? `af-elem-blink ${blinkRate}s step-end infinite` : undefined }}>
-                      {isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (statusIconEmoji || el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
+                      {isOff ? '○' : !(isTakul || isLaTakin || isLaShamish) && (statusEmojiOnly || el.type_icon || (el.category === 'camera' ? '📷' : '🔧'))}
                     </div>
                   )}
                   {/* X overlay for SVG icons — לא תקין / לא שמיש only (not for closed) */}
@@ -28214,6 +28216,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   }, [etPreviewMode]);
   const [editingElementType, setEditingElementType] = useState<any | null>(null);
   const [showElementTypeSection, setShowElementTypeSection] = useState(false);
+  const [customStatusInput, setCustomStatusInput] = useState('');
+  const [openStatusIconPicker, setOpenStatusIconPicker] = useState<string|null>(null);
   // Airfield elements (per-airfield)
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [adminAirfieldElements, setAdminAirfieldElements] = useState<any[]>([]);
@@ -33799,45 +33803,93 @@ CHARLIE,1,301,`}
               </div>
               {elementTypeForm.can_change_status && (
                 <div style={{ padding: '10px', background: '#0f172a', borderRadius: '6px', border: '1px solid #1d4ed8' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '7px' }}>סטטוסים מותרים (ריק = כולם):</div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {/* Quick preset status buttons */}
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>בחר מרשימה מהירה:</div>
+                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '10px' }}>
                     {ET_STATUS_OPTS.map(s => {
                       const isOn = elementTypeForm.allowed_statuses.includes(s);
                       const scol: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
                       return (
                         <button type="button" key={s} onClick={() => setElementTypeFormAndRef((p: any) => ({ ...p, allowed_statuses: isOn ? p.allowed_statuses.filter((x: any) => x !== s) : [...p.allowed_statuses, s] }))}
-                          style={{ padding: '5px 12px', background: isOn ? (scol[s] || '#888') + '22' : 'transparent', border: `1px solid ${isOn ? (scol[s] || '#888') : '#334155'}`, borderRadius: '6px', color: isOn ? (scol[s] || '#e2e8f0') : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: isOn ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: scol[s] || '#888', display: 'inline-block' }} />
+                          style={{ padding: '4px 10px', background: isOn ? (scol[s] || '#888') + '22' : 'transparent', border: `1px solid ${isOn ? (scol[s] || '#888') : '#334155'}`, borderRadius: '6px', color: isOn ? (scol[s] || '#e2e8f0') : '#64748b', cursor: 'pointer', fontSize: '12px', fontWeight: isOn ? 'bold' : 'normal', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: scol[s] || '#888', display: 'inline-block', opacity: isOn ? 1 : 0.35 }} />
                           {s}
                         </button>
                       );
                     })}
                   </div>
-                  {(elementTypeForm.allowed_statuses.includes('פתוח') || elementTypeForm.allowed_statuses.includes('סגור')) && (
-                    <div style={{ marginTop: '8px', padding: '6px 8px', background: '#0a1628', borderRadius: '6px', border: '1px dashed #1e3a5f' }}>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>💡 כדי להגדיר אייקון לפתוח/סגור — לחץ על "פתוח" או "סגור" בתצוגה המקדימה למטה</div>
-                    </div>
-                  )}
+                  {/* Custom status add */}
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', borderTop: '1px solid #1e3a5f', paddingTop: '8px', marginBottom: '8px' }}>
+                    <input
+                      value={customStatusInput}
+                      onChange={e => setCustomStatusInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { const v = customStatusInput.trim(); if (v && !elementTypeForm.allowed_statuses.includes(v)) { setElementTypeFormAndRef((p: any) => ({ ...p, allowed_statuses: [...p.allowed_statuses, v] })); setCustomStatusInput(''); } } }}
+                      placeholder="הוסף סטטוס ידני..."
+                      style={{ flex: 1, padding: '5px 8px', background: '#0a1628', border: '1px solid #334155', borderRadius: '5px', color: '#e2e8f0', fontSize: '12px', direction: 'rtl' }}
+                    />
+                    <button type="button"
+                      onClick={() => { const v = customStatusInput.trim(); if (v && !elementTypeForm.allowed_statuses.includes(v)) { setElementTypeFormAndRef((p: any) => ({ ...p, allowed_statuses: [...p.allowed_statuses, v] })); setCustomStatusInput(''); } }}
+                      style={{ padding: '5px 12px', background: '#1d4ed8', border: 'none', borderRadius: '5px', color: 'white', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>+ הוסף</button>
+                  </div>
+                  {/* Active statuses with per-status icon picker */}
                   {elementTypeForm.allowed_statuses.length > 0 && (
-                    <div style={{ marginTop: '8px', padding: '8px 10px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f' }}>
-                      <div style={{ fontSize: '10px', color: '#60a5fa', marginBottom: '6px', fontWeight: 'bold' }}>🎯 אמוג׳י לכל סטטוס (אופציונלי):</div>
+                    <div style={{ borderTop: '1px solid #1e3a5f', paddingTop: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '6px', fontWeight: 'bold' }}>סטטוסים פעילים — בחר אייקון:</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         {elementTypeForm.allowed_statuses.map((s: string) => {
                           const scol2: Record<string, string> = { 'דולק': '#22c55e', 'כבוי': '#64748b', 'מנצנץ': '#f59e0b', 'נוסע': '#3b82f6', 'עומד': '#a855f7', 'פתוח': '#22c55e', 'סגור': '#ef4444' };
+                          const curIcon = elementTypeForm.status_icons[s] || '';
+                          const isPickerOpen = openStatusIconPicker === s;
                           return (
-                            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '11px', color: scol2[s] || '#94a3b8', minWidth: '42px', fontWeight: 'bold' }}>{s}:</span>
-                              <input
-                                value={elementTypeForm.status_icons[s] || ''}
-                                onChange={e => setElementTypeFormAndRef((p: any) => ({ ...p, status_icons: { ...p.status_icons, [s]: e.target.value } }))}
-                                placeholder="אמוג׳י…"
-                                style={{ width: '68px', padding: '2px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', fontSize: '15px', direction: 'rtl', textAlign: 'center' }}
-                              />
-                              {elementTypeForm.status_icons[s] && <span style={{ fontSize: '20px', lineHeight: 1 }}>{elementTypeForm.status_icons[s]}</span>}
+                            <div key={s} style={{ background: '#0a1628', borderRadius: '6px', border: `1px solid ${isPickerOpen ? '#3b82f6' : '#1e3a5f'}`, overflow: 'hidden' }}>
+                              {/* Status row */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px' }}>
+                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: scol2[s] || '#60a5fa', flexShrink: 0 }} />
+                                <span style={{ fontSize: '12px', color: scol2[s] || '#94a3b8', fontWeight: 'bold', flex: 1 }}>{s}</span>
+                                {/* Icon picker toggle */}
+                                <button type="button"
+                                  onClick={() => setOpenStatusIconPicker(isPickerOpen ? null : s)}
+                                  title="בחר אייקון"
+                                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 8px', background: isPickerOpen ? '#1e3a5f' : '#0f172a', border: `1px solid ${isPickerOpen ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', color: '#93c5fd', fontSize: '11px', minWidth: '48px', justifyContent: 'center' }}>
+                                  {curIcon ? (
+                                    curIcon.startsWith('MAP:')
+                                      ? <span style={{ display: 'flex', alignItems: 'center' }}>{renderGroundSvgIcon(curIcon, 15)}</span>
+                                      : <span style={{ fontSize: '14px' }}>{curIcon}</span>
+                                  ) : <span style={{ color: '#475569', fontSize: '10px' }}>ללא</span>}
+                                  <span style={{ fontSize: '9px', color: '#64748b' }}>{isPickerOpen ? '▲' : '▼'}</span>
+                                </button>
+                                {/* Remove status */}
+                                <button type="button"
+                                  onClick={() => { setElementTypeFormAndRef((p: any) => { const si = { ...p.status_icons }; delete si[s]; return { ...p, allowed_statuses: p.allowed_statuses.filter((x: any) => x !== s), status_icons: si }; }); if (openStatusIconPicker === s) setOpenStatusIconPicker(null); }}
+                                  style={{ width: '20px', height: '20px', background: '#7f1d1d44', border: '1px solid #ef444455', borderRadius: '4px', color: '#fca5a5', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+                              </div>
+                              {/* Inline icon picker grid */}
+                              {isPickerOpen && (
+                                <div style={{ borderTop: '1px solid #1e3a5f', padding: '8px', background: '#060f1e' }}>
+                                  <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '5px' }}>בחר אייקון מפה:</div>
+                                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                    <button type="button" title="ללא אייקון"
+                                      onClick={() => { setElementTypeFormAndRef((p: any) => { const si = { ...p.status_icons }; delete si[s]; return { ...p, status_icons: si }; }); setOpenStatusIconPicker(null); }}
+                                      style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: !curIcon ? '#0c2a4a' : '#0f172a', border: `1px solid ${!curIcon ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: '#64748b' }}>—</button>
+                                    {GROUND_SVG_ICON_KEYS.map(({ key, label }) => (
+                                      <button type="button" key={key} title={label}
+                                        onClick={() => { setElementTypeFormAndRef((p: any) => ({ ...p, status_icons: { ...p.status_icons, [s]: key } })); setOpenStatusIconPicker(null); }}
+                                        style={{ width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: curIcon === key ? '#1e3a5f' : '#0f172a', border: `2px solid ${curIcon === key ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', padding: '3px' }}>
+                                        {renderGroundSvgIcon(key, 22)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
                       </div>
+                    </div>
+                  )}
+                  {(elementTypeForm.allowed_statuses.includes('פתוח') || elementTypeForm.allowed_statuses.includes('סגור')) && (
+                    <div style={{ marginTop: '8px', padding: '6px 8px', background: '#0a1628', borderRadius: '6px', border: '1px dashed #1e3a5f' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>💡 לאייקון פתוח/סגור ניתן גם להשתמש בתצוגה המקדימה למטה</div>
                     </div>
                   )}
                 </div>
