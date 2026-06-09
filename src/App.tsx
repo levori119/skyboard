@@ -6526,13 +6526,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     const a = positions.find(x => x.idx === idx)!;
     const statuses: GroundStatusKey[] = ['none', 'taxi', 'lineup', 'takeoff'];
     const nextStatus = statuses[(statuses.indexOf(a.status) + 1) % statuses.length];
-    if (nextStatus === 'takeoff' && airfield) {
-      const sids = parseAirfieldSids(airfield.sids);
-      const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
-      if (sids.length > 0 || rwRoutes.length > 0) {
-        setSidModal({ strip, idx });
-        return;
-      }
+    if (nextStatus === 'takeoff') {
+      setSidModal({ strip, idx });
+      return;
     }
     const updated = positions.map(x => x.idx === idx ? { ...x, status: nextStatus } : x);
     onUpdateAircraft(String(strip.id), updated);
@@ -8568,11 +8564,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס לכל המבנה</div>
                         {GROUND_STATUSES.map(s => (
                           <button key={s.key} onClick={() => {
-                            if (s.key === 'takeoff' && airfield) {
-                              const sids = parseAirfieldSids(airfield.sids);
-                              const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
-                              if (sids.length > 0 || rwRoutes.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
-                            }
+                            if (s.key === 'takeoff') { setGroundQuickMenu(null); setSidModal({ strip, idx: -1 }); return; }
                             const positions = getAircraftPositions(strip); const updated = positions.map(x => ({ ...x, status: s.key as GroundStatusKey })); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
                           }}
                             style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: acsAtPoint[0].status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${acsAtPoint[0].status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: acsAtPoint[0].status === s.key ? 'bold' : 'normal' }}>
@@ -8639,11 +8631,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', marginBottom: '5px', textAlign: 'center' }}>שנה סטטוס</div>
                         {GROUND_STATUSES.map(s => (
                           <button key={s.key} onClick={() => {
-                            if (s.key === 'takeoff' && airfield) {
-                              const sids = parseAirfieldSids(airfield.sids);
-                              const rwRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(airfield.id));
-                              if (sids.length > 0 || rwRoutes.length > 0) { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }
-                            }
+                            if (s.key === 'takeoff') { setGroundQuickMenu(null); setSidModal({ strip, idx: ac.idx }); return; }
                             const positions = getAircraftPositions(strip); const updated = positions.map(x => x.idx === ac.idx ? { ...x, status: s.key as GroundStatusKey } : x); onUpdateAircraft(String(strip.id), updated); setGroundQuickMenu(null);
                           }}
                             style={{ display: 'block', width: '100%', padding: '4px 8px', marginBottom: '3px', background: ac.status === s.key ? s.bg : 'transparent', color: s.color, border: `1px solid ${ac.status === s.key ? s.dot : '#1e293b'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '11px', textAlign: 'right', fontWeight: ac.status === s.key ? 'bold' : 'normal' }}>
