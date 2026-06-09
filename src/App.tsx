@@ -27913,7 +27913,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [showNewModePicker, setShowNewModePicker] = useState(false);
   const [newCivilTableName, setNewCivilTableName] = useState('');
   const [adminAirfields, setAdminAirfields] = useState<any[]>([]);
-  const [airfieldForm, setAirfieldForm] = useState({ name: '', map_id: '', sids: [] as { label: string; sector_id: number | null }[], stars: [] as string[], newSid: '', newStar: '' });
+  const [airfieldForm, setAirfieldForm] = useState({ name: '', base_id: '', custom_name: '', map_id: '', sids: [] as { label: string; sector_id: number | null }[], stars: [] as string[], newSid: '', newStar: '' });
   const [editingAirfield, setEditingAirfield] = useState<any | null>(null);
   const [showAirfieldForm, setShowAirfieldForm] = useState(false);
   const [airfieldPoints, setAirfieldPoints] = useState<any[]>([]);
@@ -31706,14 +31706,15 @@ CHARLIE,1,301,`}
             await loadAirfieldStatusTypes(airfieldId);
           };
           const saveAirfield = async () => {
-            if (!airfieldForm.name.trim()) return;
+            const hasBaseAndName = adminAviationBases.length > 0 ? (airfieldForm.base_id && airfieldForm.custom_name.trim()) : airfieldForm.name.trim();
+            if (!hasBaseAndName) return;
             const method = editingAirfield ? 'PUT' : 'POST';
             const url = editingAirfield ? `${API_URL}/airfields/${editingAirfield.id}` : `${API_URL}/airfields`;
-            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: airfieldForm.name, base_id: airfieldForm.base_id ? Number(airfieldForm.base_id) : null, custom_name: airfieldForm.custom_name.trim() || null, map_id: airfieldForm.map_id ? Number(airfieldForm.map_id) : null, sids: airfieldForm.sids, stars: airfieldForm.stars }) });
             if (res.status === 409) { alert((await res.json()).error || 'שם שדה תעופה כבר קיים'); return; }
             if (res.ok) {
               const savedAirfield = await res.json();
-              setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' });
+              setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' });
               const updated = await fetch(`${API_URL}/airfields`);
               if (updated.ok) setAdminAirfields(await updated.json());
               setSelectedAdminAirfieldId(savedAirfield.id);
@@ -31806,7 +31807,7 @@ CHARLIE,1,301,`}
                       const rawSids = Array.isArray(af.sids) ? af.sids : (typeof af.sids === 'string' ? JSON.parse(af.sids || '[]') : []);
                       const afSids = rawSids.map((s: any) => typeof s === 'string' ? { label: s, sector_id: null } : { label: s.label || s.name || '', sector_id: s.sector_id || null });
                       const afStars = Array.isArray(af.stars) ? af.stars : (typeof af.stars === 'string' ? JSON.parse(af.stars || '[]') : []);
-                      setAirfieldForm({ name: af.name, map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newStar: '' });
+                      setAirfieldForm({ name: af.name, base_id: af.base_id?.toString() || '', custom_name: af.custom_name || '', map_id: af.map_id?.toString() || '', sids: afSids, stars: afStars, newSid: '', newStar: '' });
                       setSelectedAdminAirfieldId(af.id);
                       loadAirfieldPoints(af.id);
                       setShowAirfieldForm(true);
@@ -31821,7 +31822,7 @@ CHARLIE,1,301,`}
                       <option key={af.id} value={af.id}>{af.name}</option>
                     ))}
                   </select>
-                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
+                  <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
                     style={{ padding: '6px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>+ חדש</button>
                   {selectedAdminAirfieldId && (
                     <button onClick={async () => { if (await customConfirm('למחוק את השדה?')) deleteAirfield(selectedAdminAirfieldId); }}
@@ -31834,17 +31835,29 @@ CHARLIE,1,301,`}
                 {showAirfieldForm && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
-                      <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>שם שדה התעופה:</label>
-                      {adminAviationBases.length > 0 ? (
-                        <select value={airfieldForm.name}
-                          onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))}
-                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: airfieldForm.name ? 'white' : '#64748b', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box' }}>
+                      {adminAviationBases.length > 0 ? (<>
+                        <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>בסיס:</label>
+                        <select value={airfieldForm.base_id}
+                          onChange={e => setAirfieldForm(p => ({ ...p, base_id: e.target.value }))}
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.base_id ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: airfieldForm.base_id ? 'white' : '#64748b', fontSize: '13px', direction: 'rtl', boxSizing: 'border-box', marginBottom: '8px' }}>
                           <option value="">— בחר בסיס —</option>
-                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.name}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
+                          {adminAviationBases.map((b: any) => <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>)}
                         </select>
-                      ) : (
-                        <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="לדוגמה: נבטים"
-                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                        <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>שם השדה:</label>
+                        <input value={airfieldForm.custom_name} onChange={e => setAirfieldForm(p => ({ ...p, custom_name: e.target.value }))} placeholder="לדוגמה: אווירי"
+                          style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: `1px solid ${airfieldForm.custom_name.trim() ? '#3b82f6' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                        {airfieldForm.base_id && airfieldForm.custom_name.trim() && (
+                          <div style={{ marginTop: '6px', fontSize: '11px', color: '#7dd3fc', direction: 'rtl', background: '#0c2a40', borderRadius: '4px', padding: '4px 8px' }}>
+                            שם מלא: <strong>{adminAviationBases.find((b: any) => String(b.id) === String(airfieldForm.base_id))?.name} — {airfieldForm.custom_name.trim()}</strong>
+                          </div>
+                        )}
+                      </>) : (
+                        <>
+                          <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', marginBottom: '4px' }}>שם שדה התעופה:</label>
+                          <input value={airfieldForm.name} onChange={e => setAirfieldForm(p => ({ ...p, name: e.target.value }))} placeholder="לדוגמה: נבטים"
+                            style={{ width: '100%', padding: '7px 9px', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box', direction: 'rtl' }} />
+                          <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#64748b' }}>הגדר בסיסי תעופה בלשונית "✈️ בסיסים" כדי לבחור מרשימה.</p>
+                        </>
                       )}
                     </div>
                     <div>
@@ -31864,7 +31877,8 @@ CHARLIE,1,301,`}
                               const reader = new FileReader();
                               reader.onload = async ev => {
                                 const imageData = ev.target?.result as string;
-                                const mapName = airfieldForm.name.trim() || file.name.replace(/\.[^.]+$/, '');
+                                const selBase = adminAviationBases.find((b: any) => String(b.id) === String(airfieldForm.base_id));
+                                const mapName = (selBase && airfieldForm.custom_name.trim() ? `${selBase.name} — ${airfieldForm.custom_name.trim()}` : airfieldForm.name.trim()) || file.name.replace(/\.[^.]+$/, '');
                                 const res = await fetch(`${API_URL}/maps`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: mapName, image_data: imageData }) });
                                 if (res.status === 409) { alert((await res.json()).error || 'שם מפה כבר קיים'); return; }
                                 if (res.ok) { const newMap = await res.json(); const mapsRes = await fetch(`${API_URL}/maps`); if (mapsRes.ok) setMaps(await mapsRes.json()); setAirfieldForm(p => ({ ...p, map_id: String(newMap.id) })); setAdminSelMapSrc(imageData); }
@@ -31875,11 +31889,12 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={saveAirfield} disabled={!airfieldForm.name.trim()}
-                        style={{ flex: 1, padding: '7px', background: airfieldForm.name.trim() ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: airfieldForm.name.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: airfieldForm.name.trim() ? 1 : 0.5 }}>
+                      {(() => { const canSave = adminAviationBases.length > 0 ? !!(airfieldForm.base_id && airfieldForm.custom_name.trim()) : !!airfieldForm.name.trim(); return (
+                      <button onClick={saveAirfield} disabled={!canSave}
+                        style={{ flex: 1, padding: '7px', background: canSave ? '#1d4ed8' : '#1e293b', color: 'white', border: 'none', borderRadius: '6px', cursor: canSave ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canSave ? 1 : 0.5 }}>
                         {editingAirfield ? 'שמור' : 'צור'}
-                      </button>
-                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
+                      </button>); })()}
+                      <button onClick={() => { setShowAirfieldForm(false); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); }}
                         style={{ padding: '7px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
                     </div>
 

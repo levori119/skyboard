@@ -859,6 +859,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS notes TEXT`);
   // Airfield vector data
   await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS vector_data JSONB DEFAULT NULL`);
+  // Airfield base + custom name (base_id → aviation_bases, custom_name = sub-name portion)
+  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS base_id INTEGER REFERENCES aviation_bases(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE airfields ADD COLUMN IF NOT EXISTS custom_name VARCHAR(100)`);
   // Airfield element types (global list: כבל, רשת, כבאית, etc.)
   await pool.query(`CREATE TABLE IF NOT EXISTS airfield_element_types (
     id SERIAL PRIMARY KEY,
@@ -3352,7 +3355,7 @@ app.put('/api/classic-strip-tables/:id/rows', async (req, res) => {
 // --- Airfields API (GROUND workstation) ---
 app.get('/api/airfields', async (req, res) => {
   try {
-    const afs = await pool.query('SELECT * FROM airfields ORDER BY name');
+    const afs = await pool.query('SELECT af.*, ab.name as base_name, ab.code as base_code FROM airfields af LEFT JOIN aviation_bases ab ON ab.id = af.base_id ORDER BY af.name');
     const pts = await pool.query('SELECT * FROM airfield_points ORDER BY airfield_id, display_order, id');
     const fields = afs.rows.map(af => ({
       ...af,
@@ -3367,14 +3370,19 @@ app.get('/api/airfields', async (req, res) => {
 
 app.post('/api/airfields', async (req, res) => {
   try {
-    const { name, notes, map_id, sids, stars } = req.body;
-    const dup = await pool.query('SELECT id FROM airfields WHERE LOWER(name) = LOWER($1)', [name]);
+    const { name, notes, map_id, sids, stars, base_id, custom_name } = req.body;
+    let fullName = name || '';
+    if (base_id && custom_name?.trim()) {
+      const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
+      if (baseRes.rows.length) fullName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
+    }
+    const dup = await pool.query('SELECT id FROM airfields WHERE LOWER(name) = LOWER($1)', [fullName]);
     if (dup.rows.length) return res.status(409).json({ error: 'שם שדה תעופה כבר קיים' });
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
     const result = await pool.query(
-      'INSERT INTO airfields (name, notes, map_id, sids, stars) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-      [name, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars)]
+      'INSERT INTO airfields (name, notes, map_id, sids, stars, base_id, custom_name) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [fullName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null]
     );
     const airfieldId = result.rows[0].id;
     for (const sid of newSids) {
@@ -3395,7 +3403,12 @@ app.post('/api/airfields', async (req, res) => {
 
 app.put('/api/airfields/:id', async (req, res) => {
   try {
-    const { name, notes, map_id, sids, stars } = req.body;
+    const { name, notes, map_id, sids, stars, base_id, custom_name } = req.body;
+    let resolvedName = name || '';
+    if (base_id && custom_name?.trim()) {
+      const baseRes = await pool.query('SELECT name FROM aviation_bases WHERE id=$1', [base_id]);
+      if (baseRes.rows.length) resolvedName = `${baseRes.rows[0].name} - ${custom_name.trim()}`;
+    }
     const newSids = Array.isArray(sids) ? sids : [];
     const newStars = Array.isArray(stars) ? stars : [];
 
@@ -3426,8 +3439,8 @@ app.put('/api/airfields/:id', async (req, res) => {
     }
 
     const result = await pool.query(
-      'UPDATE airfields SET name=$1, notes=$2, map_id=$3, sids=$4, stars=$5 WHERE id=$6 RETURNING *',
-      [name, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), req.params.id]
+      'UPDATE airfields SET name=$1, notes=$2, map_id=$3, sids=$4, stars=$5, base_id=$6, custom_name=$7 WHERE id=$8 RETURNING *',
+      [resolvedName, notes || null, map_id || null, JSON.stringify(newSids), JSON.stringify(newStars), base_id || null, custom_name?.trim() || null, req.params.id]
     );
     const pts = await pool.query('SELECT * FROM airfield_points WHERE airfield_id=$1 ORDER BY display_order, id', [req.params.id]);
     res.json({ ...result.rows[0], points: pts.rows });
