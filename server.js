@@ -1025,6 +1025,16 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_a_name VARCHAR(20)`);
   await pool.query(`ALTER TABLE airfield_routes ADD COLUMN IF NOT EXISTS end_b_name VARCHAR(20)`);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS workstation_collab_state (
+      preset_id INTEGER PRIMARY KEY REFERENCES workstation_presets(id) ON DELETE CASCADE,
+      pen_strokes JSONB DEFAULT '[]',
+      map_shapes JSONB DEFAULT '[]',
+      conflict_resolutions JSONB DEFAULT '{}',
+      clear_at TEXT DEFAULT '',
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS element_nav_routes (
       element_id INTEGER PRIMARY KEY REFERENCES airfield_elements(id) ON DELETE CASCADE,
       from_point_id INTEGER REFERENCES airfield_points(id) ON DELETE SET NULL,
@@ -6423,6 +6433,48 @@ app.delete('/api/route-links/:id', async (req, res) => {
     await pool.query('DELETE FROM route_links WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete route link' }); }
+});
+
+// ── Workstation Collab State ──────────────────────────────────────────────────
+app.get('/api/collab-state/:presetId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM workstation_collab_state WHERE preset_id = $1',
+      [req.params.presetId]
+    );
+    if (rows.length === 0) return res.json({ pen_strokes: [], map_shapes: [], conflict_resolutions: {}, clear_at: '' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/collab-state/:presetId', async (req, res) => {
+  try {
+    const { new_strokes = [], new_shapes = [], removed_shape_ids = [], conflict_resolutions = {}, clear_at } = req.body;
+    const presetId = req.params.presetId;
+    const { rows } = await pool.query('SELECT * FROM workstation_collab_state WHERE preset_id = $1', [presetId]);
+    let existing = rows[0] || { pen_strokes: [], map_shapes: [], conflict_resolutions: {}, clear_at: '' };
+    if (clear_at) {
+      existing = { pen_strokes: [], map_shapes: new_shapes, conflict_resolutions, clear_at };
+    } else {
+      const strokeMap = new Map();
+      (existing.pen_strokes || []).forEach(s => strokeMap.set(s.id, s));
+      (new_strokes || []).forEach(s => strokeMap.set(s.id, s));
+      existing.pen_strokes = Array.from(strokeMap.values());
+      const shapeMap = new Map();
+      (existing.map_shapes || []).forEach(s => shapeMap.set(s.id, s));
+      (new_shapes || []).forEach(s => shapeMap.set(s.id, s));
+      (removed_shape_ids || []).forEach(id => shapeMap.delete(id));
+      existing.map_shapes = Array.from(shapeMap.values());
+      existing.conflict_resolutions = { ...(existing.conflict_resolutions || {}), ...conflict_resolutions };
+    }
+    await pool.query(
+      `INSERT INTO workstation_collab_state (preset_id, pen_strokes, map_shapes, conflict_resolutions, clear_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (preset_id) DO UPDATE SET pen_strokes=$2, map_shapes=$3, conflict_resolutions=$4, clear_at=$5, updated_at=NOW()`,
+      [presetId, JSON.stringify(existing.pen_strokes), JSON.stringify(existing.map_shapes), JSON.stringify(existing.conflict_resolutions), existing.clear_at || '']
+    );
+    res.json(existing);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 const PORT = process.env.PORT || 3001;

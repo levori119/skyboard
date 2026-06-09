@@ -14303,6 +14303,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const isDrawingRef = useRef(false);
   const lastPosRef = useRef<{x: number; y: number} | null>(null);
 
+  // ── Workstation sharing (collab) ──────────────────────────────────────────
+  const [collabEnabled, setCollabEnabled] = useState(false);
+  const collabSessionId = useRef<string>(Math.random().toString(36).slice(2, 10));
+  type PenStroke = { id: string; points: { x: number; y: number }[]; color: string; size: number; eraser: boolean };
+  const penStrokeLogRef = useRef<PenStroke[]>([]);
+  const currentStrokeRef = useRef<PenStroke | null>(null);
+  const drawnRemoteStrokeIds = useRef<Set<string>>(new Set());
+  const lastCollabClearAt = useRef<string>('');
+  const removedShapeIdsRef = useRef<string[]>([]);
+  const pushedStrokeIds = useRef<Set<string>>(new Set());
+  const pushedShapeIds = useRef<Set<string>>(new Set());
+  // ref to always-fresh sync function (avoids stale closure in setInterval)
+  const syncCollabFnRef = useRef<() => void>(() => {});
+
   const [pendingDeleteStrip, setPendingDeleteStrip] = React.useState<{ stripId: string; callSign: string; durationMs: number } | null>(null);
   const deleteStripUndoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => {
@@ -17799,10 +17813,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    lastPosRef.current = {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
-    };
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    lastPosRef.current = { x, y };
+    if (collabEnabled) {
+      currentStrokeRef.current = {
+        id: `${collabSessionId.current}-${Date.now()}`,
+        points: [{ x, y }],
+        color: penColor,
+        size: penSize,
+        eraser: eraserMode
+      };
+    }
   };
 
   const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -17828,21 +17850,126 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     ctx.stroke();
     
     lastPosRef.current = { x, y };
+    if (collabEnabled && currentStrokeRef.current) {
+      currentStrokeRef.current.points.push({ x, y });
+    }
   };
 
   const stopDrawing = () => {
     isDrawingRef.current = false;
     lastPosRef.current = null;
+    if (collabEnabled && currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
+      const stroke = currentStrokeRef.current;
+      penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
+      drawnRemoteStrokeIds.current.add(stroke.id);
+    }
+    currentStrokeRef.current = null;
   };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (canvas && ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     setMapShapes([]);
+    if (collabEnabled && session.presetId) {
+      const clearAt = new Date().toISOString();
+      lastCollabClearAt.current = clearAt;
+      penStrokeLogRef.current = [];
+      pushedStrokeIds.current = new Set();
+      drawnRemoteStrokeIds.current = new Set();
+      fetch(`${API_URL}/collab-state/${session.presetId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear_at: clearAt, new_shapes: [], conflict_resolutions: {} })
+      }).catch(() => {});
+    }
   };
+
+  // Sync collab state every 3 seconds when enabled
+  useEffect(() => {
+    syncCollabFnRef.current = async () => {
+      if (!collabEnabled || !session.presetId) return;
+      const newStrokes = penStrokeLogRef.current.filter(s => !pushedStrokeIds.current.has(s.id));
+      const newShapes = mapShapes.filter(s => !pushedShapeIds.current.has(s.id));
+      const removedIds = removedShapeIdsRef.current.splice(0);
+      const conflictResObj: Record<string, { note: string; resolvedWith: string[] }> = {};
+      tableConflictResolutions.forEach((v, k) => {
+        conflictResObj[k] = { note: v.note, resolvedWith: Array.from(v.resolvedWith) };
+      });
+      try {
+        const res = await fetch(`${API_URL}/collab-state/${session.presetId}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_strokes: newStrokes, new_shapes: newShapes, removed_shape_ids: removedIds, conflict_resolutions: conflictResObj })
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        newStrokes.forEach(s => pushedStrokeIds.current.add(s.id));
+        mapShapes.forEach(s => pushedShapeIds.current.add(s.id));
+        // Handle remote clear
+        if (data.clear_at && data.clear_at !== lastCollabClearAt.current) {
+          lastCollabClearAt.current = data.clear_at;
+          const canvas = canvasRef.current;
+          const ctx = canvas?.getContext('2d');
+          if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+          penStrokeLogRef.current = [];
+          pushedStrokeIds.current = new Set();
+          drawnRemoteStrokeIds.current = new Set();
+          setMapShapes([]);
+          return;
+        }
+        // Draw remote pen strokes not yet on canvas
+        const allRemote: PenStroke[] = Array.isArray(data.pen_strokes) ? data.pen_strokes : [];
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (canvas && ctx) {
+          allRemote.forEach(stroke => {
+            if (drawnRemoteStrokeIds.current.has(stroke.id)) return;
+            drawnRemoteStrokeIds.current.add(stroke.id);
+            penStrokeLogRef.current = [...penStrokeLogRef.current, stroke];
+            if (stroke.points.length < 2) return;
+            ctx.beginPath();
+            ctx.globalCompositeOperation = stroke.eraser ? 'destination-out' : 'source-over';
+            ctx.strokeStyle = stroke.eraser ? 'rgba(0,0,0,1)' : stroke.color;
+            ctx.lineWidth = stroke.eraser ? stroke.size * 10 : stroke.size;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for (let i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            ctx.stroke();
+          });
+        }
+        // Merge remote shapes
+        const remoteShapes: MapShape[] = Array.isArray(data.map_shapes) ? data.map_shapes : [];
+        if (remoteShapes.length > 0) {
+          setMapShapes(prev => {
+            const prevIds = new Set(prev.map(s => s.id));
+            const toAdd = remoteShapes.filter(s => !prevIds.has(s.id));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+          });
+        }
+        // Merge remote conflict resolutions
+        const remoteCR: Record<string, { note: string; resolvedWith: string[] }> = data.conflict_resolutions || {};
+        if (Object.keys(remoteCR).length > 0) {
+          setTableConflictResolutions(prev => {
+            const next = new Map(prev);
+            let changed = false;
+            Object.entries(remoteCR).forEach(([sid, val]) => {
+              if (!next.has(sid)) { next.set(sid, { note: val.note, resolvedWith: new Set(val.resolvedWith) }); changed = true; }
+            });
+            return changed ? next : prev;
+          });
+        }
+      } catch {}
+    };
+  });
+
+  useEffect(() => {
+    if (!collabEnabled || !session.presetId) return;
+    // Reset sync tracking when enabling
+    pushedStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
+    pushedShapeIds.current = new Set();
+    drawnRemoteStrokeIds.current = new Set(penStrokeLogRef.current.map(s => s.id));
+    const interval = setInterval(() => syncCollabFnRef.current(), 3000);
+    return () => clearInterval(interval);
+  }, [collabEnabled, session.presetId]);
 
   useEffect(() => {
     const resizeCanvas = () => {
@@ -21441,6 +21568,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   </button>
                 </div>
               )}
+              {/* Sharing toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', borderTop: '1px solid #334155', paddingTop: '6px', marginTop: '2px' }}>
+                <button
+                  onClick={() => setCollabEnabled(v => !v)}
+                  title={collabEnabled ? 'כבה שיתוף עמדה' : 'הפעל שיתוף עמדה — ציור וסימונים יסונכרנו בין כל מי שנמצא בעמדה'}
+                  style={{ flex: 1, padding: '3px 0', fontSize: '10px', background: collabEnabled ? '#14532d' : '#1e293b', color: collabEnabled ? '#86efac' : '#94a3b8', border: `1px solid ${collabEnabled ? '#16a34a' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                  {collabEnabled ? '👥 שיתוף פעיל' : '👥 שיתוף עמדה'}
+                </button>
+              </div>
               {/* Clear + Close */}
               <div style={{ display: 'flex', gap: '4px', marginTop: '2px' }}>
                 <button onClick={clearCanvas}
