@@ -5984,8 +5984,9 @@ app.get('/api/runway-conflict', async (req, res) => {
     );
     const linkedRouteIds = links.map(l => Number(l.route_id_a) === routeId ? Number(l.route_id_b) : Number(l.route_id_a));
     const routesToCheck = [routeId, ...linkedRouteIds];
-    const { rows } = await pool.query(
-      `SELECT DISTINCT s.id, s.call_sign, s.callsign
+    // Aircraft taxi conflicts (strips with aircraft positions using this runway route)
+    const { rows: acRows } = await pool.query(
+      `SELECT DISTINCT s.id, s.call_sign, s.callsign, 'aircraft' AS type, NULL AS name
        FROM strips s
        WHERE s.aircraft_positions IS NOT NULL
          AND jsonb_array_length(s.aircraft_positions) > 0
@@ -5999,7 +6000,18 @@ app.get('/api/runway-conflict', async (req, res) => {
          )`,
       [routesToCheck]
     );
-    res.json(rows);
+    // Vehicle conflicts: airfield elements with element_nav_routes using this runway route
+    const { rows: vhRows } = await pool.query(
+      `SELECT DISTINCT ae.id, NULL AS call_sign, NULL AS callsign, 'vehicle' AS type, ae.name
+       FROM element_nav_routes enr
+       JOIN airfield_elements ae ON ae.id = enr.element_id
+       WHERE EXISTS (
+         SELECT 1 FROM jsonb_array_elements(enr.via_route_ids) rid
+         WHERE rid::int = ANY($1::int[])
+       )`,
+      [routesToCheck]
+    );
+    res.json([...acRows, ...vhRows]);
   } catch (err) {
     console.error('runway-conflict error:', err.message);
     res.status(500).json({ error: 'Failed to check runway conflict' });

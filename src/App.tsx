@@ -9978,7 +9978,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         </div>
                         {hasConflict && (
                           <div style={{ fontSize: '10px', color: '#f87171', marginBottom: '8px', paddingRight: '4px' }}>
-                            {conflicts.map((c: any) => c.call_sign || c.callsign || `פמ #${c.id}`).join(', ')} — מוסע למסלול זה
+                            {conflicts.map((c: any, ci: number) => (
+                              <span key={ci} style={{ display: 'inline-block', marginLeft: '6px' }}>
+                                {c.type === 'vehicle'
+                                  ? `🚗 ${c.name || `רכב #${c.id}`} — נמצא על מסלול זה`
+                                  : `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — מוסע למסלול זה`}
+                              </span>
+                            ))}
                           </div>
                         )}
                         <div style={{ display: 'flex', gap: '6px' }}>
