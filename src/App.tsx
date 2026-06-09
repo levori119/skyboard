@@ -21549,14 +21549,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
                   const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
                   const zoneColor = zone.color || '#3b82f6';
-                  const strokeColor = lightMode ? zoneColor : 'rgba(255,255,255,0.55)';
-                  const textColor = lightMode ? zoneColor : 'rgba(255,255,255,0.7)';
+                  const strokeColor = lightMode ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.55)';
+                  const textColor = lightMode ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.7)';
                   return (
                     <g key={zone.id}>
                       {zone.polygon.length >= 3 && (
-                        <polygon points={pts} fill={lightMode ? zoneColor : 'none'} fillOpacity={lightMode ? 0.12 : 0} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={lightMode ? 0.85 : 1} strokeDasharray="none" />
+                        <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
                       )}
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fillOpacity={lightMode ? 1 : 0.7} fontSize="2.8" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="2.8" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
                     </g>
                   );
                 })}
