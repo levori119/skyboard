@@ -7565,7 +7565,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         )}
 
         <div ref={mapRef}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: groundMapDragRef.current ? 'grabbing' : (groundMapZoom !== 1 ? 'grab' : 'default') }}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default' }}
           onWheel={e => {
             if (hideStrips) return;
             if (focusedSectorId) return;
@@ -7586,23 +7586,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               }
               return next;
             });
-          }}
-          onMouseDown={e => {
-            if (hideStrips) return;
-            if (focusedSectorId) return;
-            if (e.button !== 0) return;
-            // Only start pan drag if not clicking on an overlay button/interactive element
-            const target = e.target as HTMLElement;
-            if (target.closest('button,input,select,label,a,[data-nopan]')) return;
-            groundMapDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: groundMapPan.x, startPanY: groundMapPan.y };
-            const onMove = (ev: MouseEvent) => {
-              const d = groundMapDragRef.current;
-              if (!d) return;
-              setGroundMapPan({ x: d.startPanX + (ev.clientX - d.startX), y: d.startPanY + (ev.clientY - d.startY) });
-            };
-            const onUp = () => { groundMapDragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
           }}
         >
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
