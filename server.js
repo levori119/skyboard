@@ -1068,6 +1068,7 @@ async function initDb() {
       sort_order INTEGER DEFAULT 0
     )
   `);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS true_bearing INT`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS runway_notams (
       id SERIAL PRIMARY KEY,
@@ -6069,20 +6070,20 @@ app.get('/api/airfield-runways', async (req, res) => {
 });
 app.post('/api/airfield-runways', async (req, res) => {
   try {
-    const { airfield_id, name, heading_a, heading_b, length_ft, length_m, sort_order } = req.body;
+    const { airfield_id, name, heading_a, heading_b, true_bearing, length_ft, length_m, sort_order } = req.body;
     const { rows } = await pool.query(
-      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, length_ft, length_m, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-      [airfield_id, name || '', heading_a || '', heading_b || '', length_ft || null, length_m || null, sort_order || 0]
+      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, length_ft, length_m, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, length_ft || null, length_m || null, sort_order || 0]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield runway' }); }
 });
 app.put('/api/airfield-runways/:id', async (req, res) => {
   try {
-    const { name, heading_a, heading_b, length_ft, length_m, sort_order } = req.body;
+    const { name, heading_a, heading_b, true_bearing, length_ft, length_m, sort_order } = req.body;
     const { rows } = await pool.query(
-      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, length_ft=$4, length_m=$5, sort_order=$6 WHERE id=$7 RETURNING *',
-      [name || '', heading_a || '', heading_b || '', length_ft || null, length_m || null, sort_order || 0, req.params.id]
+      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, length_ft=$5, length_m=$6, sort_order=$7 WHERE id=$8 RETURNING *',
+      [name || '', heading_a || '', heading_b || '', true_bearing || null, length_ft || null, length_m || null, sort_order || 0, req.params.id]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update airfield runway' }); }

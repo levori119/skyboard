@@ -23629,7 +23629,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         if (!n.shorten_amount_ft || !totalFt) return null;
                                         const ratio = Math.min(n.shorten_amount_ft / totalFt, 0.85);
                                         const notamH = Math.max(Math.round(ratio * RH), 8);
-                                        const notamY = n.shorten_end === 'a' ? RY : RY + RH - notamH;
+                                        const notamY = RY;
                                         const labelY = notamY + notamH / 2 + 4;
                                         return (
                                           <g key={ni}>
@@ -23649,17 +23649,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       {stripeXs.map((x: number, i: number) => <rect key={i} x={x} y={RY + RH - STRIPE_H - 3} width={STRIPE_W} height={STRIPE_H} fill="#22c55e" opacity="0.75" rx="1" />)}
                                       {/* Centerline dashes */}
                                       {[0, 1, 2, 3].map((i: number) => <rect key={i} x={VIEWW / 2 - 1} y={RY + STRIPE_H + 10 + i * 18} width="2" height="10" fill={lightMode ? '#94a3b8' : '#374151'} rx="1" />)}
-                                      {/* Heading A at top */}
-                                      <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.heading_a || ''}</text>
-                                      {/* Heading B at bottom */}
-                                      <text x={VIEWW / 2} y={VIEWH - 2} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.heading_b || ''}</text>
+                                      {/* Runway name at top */}
+                                      <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
+                                      {/* True bearing at bottom */}
+                                      <text x={VIEWW / 2} y={VIEWH - 2} textAnchor="middle" fontSize="9" fill={lightMode ? '#6366f1' : '#6366f1'}>{rw.true_bearing ? `${rw.true_bearing}°` : ''}</text>
                                       {/* Text NOTAM warning badge */}
                                       {textNotams.length > 0 && <circle cx={RX + RW - 4} cy={RY + 6} r="5" fill="#f59e0b" />}
                                       {textNotams.length > 0 && <text x={RX + RW - 4} y={RY + 9} textAnchor="middle" fontSize="6" fill="#000" fontWeight="bold">{textNotams.length}</text>}
                                     </svg>
                                     {/* Name + length below diagram */}
                                     <div style={{ textAlign: 'center', maxWidth: `${VIEWW}px` }}>
-                                      <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>{rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}</div>
+                                      <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>{rw.name || '—'}</div>
                                       {rw.length_ft && <div style={{ fontSize: '8px', color: T.muted, whiteSpace: 'nowrap' }}>{Number(rw.length_ft).toLocaleString()}ft{rw.length_m ? `/${Number(rw.length_m).toLocaleString()}m` : ''}</div>}
                                     </div>
                                     {/* Text NOTAM chips */}
@@ -23669,7 +23669,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     {/* GRF per direction */}
                                     {(() => {
                                       const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
-                                      const headings = [rw.heading_a, rw.heading_b].filter(Boolean);
+                                      const headings = [rw.name].filter(Boolean);
                                       const grfEntries = airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id);
                                       if (grfEntries.length === 0) return null;
                                       return (
@@ -23764,16 +23764,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       return (
                                         <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#78350f44'}`, paddingBottom: '8px' }}>
                                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24', marginBottom: '4px' }}>
-                                            {rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}
+                                            {rw.name || '—'}
                                             <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#64748b', marginRight: '6px' }}>({notams.length} NOTAM{notams.length !== 1 ? 'S' : ''})</span>
                                           </div>
                                           {shorts.map((n: any) => (
                                             <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '3px', fontSize: '10px' }}>
                                               <span style={{ color: '#f97316', flexShrink: 0 }}>✂</span>
                                               <div style={{ color: lightMode ? '#78350f' : '#fed7aa', flex: 1 }}>
-                                                קיצור קצה {n.shorten_end === 'a' ? (rw.heading_a || 'א') : (rw.heading_b || 'ב')}:
-                                                {n.shorten_amount_ft ? ` ${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}
-                                                {n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}
+                                                קיצור:{n.shorten_amount_ft ? ` ${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}{n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}
+                                                {(rw.length_m && n.shorten_amount_m) ? <span style={{ color: '#fbbf24', fontWeight: 'bold', marginRight: '4px' }}>{' '}• אורך בפועל: {(Number(rw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m{rw.length_ft && n.shorten_amount_ft ? ` / ${(Number(rw.length_ft) - Number(n.shorten_amount_ft)).toLocaleString()}ft` : ''}</span> : null}
                                               </div>
                                             </div>
                                           ))}
@@ -23808,7 +23807,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       return (
                                         <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#6ee7b7' : '#1e4a3444'}`, paddingBottom: '8px' }}>
                                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', marginBottom: '5px' }}>
-                                            {rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}
+                                            {rw.name || '—'}
                                           </div>
                                           {grfEntries.map((g: any) => {
                                             const isExpired = g.valid_until && new Date(g.valid_until) < new Date();
@@ -23859,7 +23858,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               return (
                                 <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#fef9c3' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', direction: 'rtl' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || `${editRw.heading_a || ''}/${editRw.heading_b || ''}`}</span>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || '—'}</span>
                                     <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
@@ -23867,7 +23866,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
                                       <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
                                         {n.notam_type === 'shortening'
-                                          ? `קיצור קצה ${n.shorten_end === 'a' ? (editRw.heading_a || 'א') : (editRw.heading_b || 'ב')}: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}`
+                                          ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${editRw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(editRw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
                                           : (n.text_content || '')}
                                       </div>
                                       <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); refreshNotams(); }} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>
@@ -23883,15 +23882,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '10px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                       ) : (
                                         <div>
-                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '3px' }}>קצה לקצר:</div>
-                                          <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, end: 'a' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.end === 'a' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>{editRw.heading_a || 'קצה א'}</button>
-                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, end: 'b' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.end === 'b' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>{editRw.heading_b || 'קצה ב'}</button>
-                                          </div>
+                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '3px' }}>כמות הקיצור (מסף הנחיתה):</div>
                                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                             <input value={workstationNotamNewForm.ft} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
                                             <input value={workstationNotamNewForm.m} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
                                           </div>
+                                          {editRw.length_m && workstationNotamNewForm.m ? (
+                                            <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginTop: '4px', textAlign: 'right' }}>
+                                              ✈ אורך בפועל: {(Number(editRw.length_m) - Number(workstationNotamNewForm.m)).toLocaleString()}m{editRw.length_ft && workstationNotamNewForm.ft ? ` / ${(Number(editRw.length_ft) - Number(workstationNotamNewForm.ft)).toLocaleString()}ft` : ''}
+                                            </div>
+                                          ) : null}
                                         </div>
                                       )}
                                       <div style={{ display: 'flex', gap: '4px', marginTop: '5px', justifyContent: 'flex-end' }}>
@@ -23919,7 +23919,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               if (!editRw) return null;
                               const CONTAMINANTS = ['','יבש','רטוב','שלג רטוב','שלג יבש','שלג דחוס','בוץ שלג','קרח','כפור','קרח רטוב','ממוס כימי','חול'];
                               const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
-                              const headings = [editRw.heading_a, editRw.heading_b].filter(Boolean);
+                              const headings = [editRw.name].filter(Boolean);
                               const refreshGrf = () => {
                                 const afId = myPresetConfig?.airfield_id;
                                 if (!afId) return;
@@ -23929,7 +23929,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               return (
                                 <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '10px', direction: 'rtl', zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#ecfdf5' : '#071c13', paddingBottom: '4px', borderBottom: `1px solid ${lightMode ? '#6ee7b7' : '#166534'}`, zIndex: 1 }}>
-                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 GRF — {editRw.name || `${editRw.heading_a || ''}/${editRw.heading_b || ''}`}</span>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 GRF — {editRw.name || '—'}</span>
                                     <button onClick={() => { setWorkstationGrfEditRwId(null); setWorkstationGrfForm(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {headings.map((h: string) => {
@@ -24174,7 +24174,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   </div>
                                 </div>
                                 {/* Landing Runways */}
-                                <datalist id="atis-rw">{airfieldRunways.flatMap((rw: any) => [rw.heading_a, rw.heading_b].filter(Boolean).map((h: string) => <option key={h} value={h} />))}</datalist>
+                                <datalist id="atis-rw">{airfieldRunways.filter((rw: any) => rw.name).map((rw: any) => <option key={rw.id} value={rw.name} />)}</datalist>
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>✈ מסלולי נחיתה</div>
@@ -29529,7 +29529,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
-  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; length_ft: string; length_m: string } | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; true_bearing: string; length_ft: string; length_m: string } | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
   const [adminRunwayGrfForm, setAdminRunwayGrfForm] = useState<{ runwayId: number; heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
@@ -33498,7 +33498,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈ מסלולים ({adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
-                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', length_ft: '', length_m: '' }); setAdminRunwayEditId(null); }}
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', true_bearing: '', length_ft: '', length_m: '' }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>
                           )}
                           <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
@@ -33509,10 +33509,10 @@ CHARLIE,1,301,`}
                             <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #166534' }}>
                               <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', textAlign: 'right' }}>{adminRunwayEditId ? 'עריכת מסלול' : 'מסלול חדש'}</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
-                                <input value={adminRunwayForm.name} onChange={e => setAdminRunwayForm(p => p && ({ ...p, name: e.target.value }))} placeholder="שם (למשל 09/27)" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }} />
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <input value={adminRunwayForm.heading_a} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a: e.target.value }))} placeholder="כיוון א" maxLength={4} style={{ flex: 1, padding: '4px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', textAlign: 'center' }} />
-                                  <input value={adminRunwayForm.heading_b} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b: e.target.value }))} placeholder="כיוון ב" maxLength={4} style={{ flex: 1, padding: '4px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', textAlign: 'center' }} />
+                                <input value={adminRunwayForm.name} onChange={e => setAdminRunwayForm(p => p && ({ ...p, name: e.target.value }))} placeholder="שם מסלול (18, 01R...)" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }} />
+                                <div style={{ position: 'relative' }}>
+                                  <input value={adminRunwayForm.true_bearing} onChange={e => setAdminRunwayForm(p => p && ({ ...p, true_bearing: e.target.value }))} placeholder="כיוון אמיתי" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#93c5fd', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' as const }} />
+                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
                                 </div>
                               </div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '6px' }}>
@@ -33531,7 +33531,7 @@ CHARLIE,1,301,`}
                                   const form = adminRunwayForm;
                                   if (!form) return;
                                   const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
-                                  const body = { airfield_id: afId, name: form.name, heading_a: form.heading_a, heading_b: form.heading_b, length_ft: form.length_ft ? Number(form.length_ft) : null, length_m: form.length_m ? Number(form.length_m) : null };
+                                  const body = { airfield_id: afId, name: form.name, true_bearing: form.true_bearing ? Number(form.true_bearing) : null, length_ft: form.length_ft ? Number(form.length_ft) : null, length_m: form.length_m ? Number(form.length_m) : null };
                                   if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   setAdminRunwayForm(null); setAdminRunwayEditId(null);
@@ -33545,18 +33545,18 @@ CHARLIE,1,301,`}
                             const notams = adminRunwayNotams[rw.id] || [];
                             const notamOpen = adminAFExpanded.has(`rw_notam_${rw.id}`);
                             const grfOpen = adminAFExpanded.has(`rw_grf_${rw.id}`);
-                            const rwGrfCount = [rw.heading_a, rw.heading_b].filter(h => h && adminRunwayGrf[`${rw.id}_${h}`]).length;
+                            const rwGrfCount = rw.name && adminRunwayGrf[`${rw.id}_${rw.name}`] ? 1 : 0;
                             return (
                               <div key={rw.id} style={{ background: '#0f2744', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '6px 8px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl' }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#86efac' }}>{rw.name || '—'}</div>
                                     <div style={{ fontSize: '10px', color: '#93c5fd' }}>
-                                      {rw.heading_a && rw.heading_b ? `${rw.heading_a} / ${rw.heading_b}` : ''}
-                                      {rw.length_ft ? <span style={{ marginRight: '8px', color: '#cbd5e1' }}>{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
+                                      {rw.true_bearing ? <span style={{ marginLeft: '6px', fontFamily: 'monospace' }}>{rw.true_bearing}°</span> : ''}
+                                      {rw.length_ft ? <span style={{ color: '#cbd5e1' }}>{' '}{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
                                     </div>
                                   </div>
-                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '' }); setAdminRunwayEditId(rw.id); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', true_bearing: rw.true_bearing?.toString() || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '' }); setAdminRunwayEditId(rw.id); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                   <button onClick={() => toggleAFSec(`rw_notam_${rw.id}`)} style={{ padding: '2px 6px', background: notamOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${notams.length > 0 ? '#92400e' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: notams.length > 0 ? '#fbbf24' : '#64748b' }} title="NOTAMs">⚠ {notams.length > 0 ? notams.length : ''}</button>
                                   <button onClick={() => toggleAFSec(`rw_grf_${rw.id}`)} style={{ padding: '2px 6px', background: grfOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${rwGrfCount > 0 ? '#166534' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: rwGrfCount > 0 ? '#34d399' : '#64748b' }} title="GRF — מצב פני מסלול">🛬 GRF</button>
@@ -33565,7 +33565,7 @@ CHARLIE,1,301,`}
                                 {grfOpen && (() => {
                                   const CONTAMINANTS = ['','יבש','רטוב','שלג רטוב','שלג יבש','שלג דחוס','בוץ שלג','קרח','כפור','קרח רטוב','ממוס כימי','חול'];
                                   const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
-                                  const headings = [rw.heading_a, rw.heading_b].filter(Boolean);
+                                  const headings = [rw.name].filter(Boolean);
                                   return (
                                     <div style={{ marginTop: '6px', borderTop: '1px solid #0e4f3a', paddingTop: '6px', direction: 'rtl' }}>
                                       <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#34d399', marginBottom: '6px' }}>🛬 GRF — מצב פני מסלול</div>
@@ -33703,7 +33703,7 @@ CHARLIE,1,301,`}
                                       <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: '#0c1824', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', direction: 'rtl', border: '1px solid #1e3a5f' }}>
                                         <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : '#cbd5e1' }}>
                                           {n.notam_type === 'shortening'
-                                            ? `קיצור קצה ${n.shorten_end === 'a' ? (rw.heading_a || 'א') : (rw.heading_b || 'ב')}: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}`
+                                            ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${rw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(rw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
                                             : (n.text_content || '')}
                                         </div>
                                         <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '1px 5px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: '#fca5a5', flexShrink: 0 }}>✕</button>
@@ -33719,15 +33719,16 @@ CHARLIE,1,301,`}
                                         {adminRunwayNewNotam!.type === 'text'
                                           ? <textarea value={adminRunwayNewNotam!.text} onChange={e => setAdminRunwayNewNotam(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן NOTAM..." rows={2} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
                                           : <div style={{ direction: 'rtl' }}>
-                                              <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>קצה לקיצור:</div>
-                                              <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
-                                                <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, end: 'a' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.end === 'a' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#86efac' }}>{rw.heading_a || 'קצה א'}</button>
-                                                <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, end: 'b' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.end === 'b' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#86efac' }}>{rw.heading_b || 'קצה ב'}</button>
-                                              </div>
+                                              <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>כמות הקיצור (מסף הנחיתה):</div>
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                                 <input value={adminRunwayNewNotam!.ft} onChange={e => { const v = e.target.value; setAdminRunwayNewNotam(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }} />
                                                 <input value={adminRunwayNewNotam!.m} onChange={e => { const v = e.target.value; setAdminRunwayNewNotam(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }} />
                                               </div>
+                                              {rw.length_m && adminRunwayNewNotam!.m ? (
+                                                <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginTop: '4px', textAlign: 'right' }}>
+                                                  ✈ אורך בפועל: {(Number(rw.length_m) - Number(adminRunwayNewNotam!.m)).toLocaleString()}m{rw.length_ft && adminRunwayNewNotam!.ft ? ` / ${(Number(rw.length_ft) - Number(adminRunwayNewNotam!.ft)).toLocaleString()}ft` : ''}
+                                                </div>
+                                              ) : null}
                                             </div>
                                         }
                                         <div style={{ display: 'flex', gap: '4px', marginTop: '5px', justifyContent: 'flex-end' }}>
