@@ -24045,10 +24045,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>{rw.name || '—'}</div>
                                       {rw.length_ft && <div style={{ fontSize: '8px', color: T.muted, whiteSpace: 'nowrap' }}>{Number(rw.length_ft).toLocaleString()}ft{rw.length_m ? `/${Number(rw.length_m).toLocaleString()}m` : ''}</div>}
                                     </div>
-                                    {/* Text NOTAM chips */}
-                                    {textNotams.map((n: any) => (
-                                      <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
-                                    ))}
                                     {/* Runway lighting controls */}
                                     {(() => {
                                       const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
@@ -24096,6 +24092,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         </div>
                                       );
                                     })()}
+                                    {/* Text NOTAM chips */}
+                                    {textNotams.map((n: any) => (
+                                      <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
+                                    ))}
                                     {/* GRF per direction */}
                                     {(() => {
                                       const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
