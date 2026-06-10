@@ -799,6 +799,8 @@ async function initDb() {
   `);
   await pool.query(`ALTER TABLE workstation_presets DROP CONSTRAINT IF EXISTS workstation_presets_parent_base_id_fkey`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
+  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
+  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
   // pressure_inhg lives on aviation_bases (parent base for shared pressure)
   await pool.query(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
@@ -5979,6 +5981,28 @@ app.patch('/api/base-statuses/:id/air-defense', async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update air defense status' }); }
+});
+
+app.patch('/api/base-statuses/:id/notam', async (req, res) => {
+  try {
+    const { notam_text } = req.body;
+    const result = await pool.query(
+      `UPDATE base_statuses SET notam_text=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
+      [notam_text || null, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update notam text' }); }
+});
+
+app.patch('/api/base-statuses/:id/atis', async (req, res) => {
+  try {
+    const { atis_text } = req.body;
+    const result = await pool.query(
+      `UPDATE base_statuses SET atis_text=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
+      [atis_text || null, req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update atis text' }); }
 });
 
 app.delete('/api/base-statuses/:id', async (req, res) => {

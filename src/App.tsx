@@ -14785,6 +14785,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [presetLinks, setPresetLinks] = useState<any[]>([]);
   const [baseStatuses, setBaseStatuses] = useState<any[]>([]);
   const [basePanelOpen, setBasePanelOpen] = useState(false);
+  const [bsInfoModal, setBsInfoModal] = useState<{ bs: any; mode: 'notam' | 'atis' } | null>(null);
+  const [bsInfoEditText, setBsInfoEditText] = useState('');
   const [madaniyotOpen, setMadaniyotOpen] = useState(false);
   const [bsGroupByStatus, setBsGroupByStatus] = useState(false);
   const prevBaseAdRef = useRef<Record<number, string>>({});
@@ -24584,6 +24586,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const hasPrev = true; // contacts section always renders above
                     const _bsRow = (bs: any) => {
                       const adColor = ALL_MAZAA_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.muted;
+                      const hasNotam = !!(bs.notam_text && bs.notam_text.trim());
+                      const hasAtis = !!(bs.atis_text && bs.atis_text.trim());
                       return (
                         <div key={bs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, gap: '4px', direction: 'rtl', fontSize: '11px' }}>
                           <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
@@ -24593,6 +24597,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
                             {bs.air_defense_status || '—'}
                           </span>
+                          <button
+                            onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); }}
+                            title="NOTAM"
+                            style={{ flexShrink: 0, padding: '1px 5px', borderRadius: '3px', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1.4 }}
+                          >⚠ NOTAM</button>
+                          <button
+                            onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); }}
+                            title="ATIS"
+                            style={{ flexShrink: 0, padding: '1px 5px', borderRadius: '3px', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1.4 }}
+                          >📻 ATIS</button>
                         </div>
                       );
                     };
@@ -25378,6 +25392,56 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       ))}
 
       {/* Flight Zones Assignment Dialog */}
+      {/* Base Status NOTAM / ATIS Info Modal */}
+      {bsInfoModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 99990, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setBsInfoModal(null)}>
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', width: '90%', maxWidth: '420px', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '20px' }}>{bsInfoModal.mode === 'notam' ? '⚠️' : '📻'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 'bold', color: bsInfoModal.mode === 'notam' ? '#fbbf24' : '#38bdf8', fontSize: '14px' }}>
+                  {bsInfoModal.mode === 'notam' ? 'NOTAM' : 'ATIS'} — {bsInfoModal.bs.name}{bsInfoModal.bs.code ? ` (${bsInfoModal.bs.code})` : ''}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                  {bsInfoModal.mode === 'notam' ? 'הודעות לטייסים — ריכוז NOTAM' : 'מידע מטאו ושדה — ATIS'}
+                </div>
+              </div>
+              <button onClick={() => setBsInfoModal(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0' }}>✕</button>
+            </div>
+            <textarea
+              value={bsInfoEditText}
+              onChange={e => setBsInfoEditText(e.target.value)}
+              placeholder={bsInfoModal.mode === 'notam' ? 'הכנס טקסט NOTAM...' : 'הכנס טקסט ATIS...'}
+              rows={7}
+              style={{ width: '100%', background: '#0f172a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '8px', color: '#e2e8f0', fontSize: '13px', padding: '10px 12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }}
+            />
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setBsInfoModal(null)}
+                style={{ padding: '7px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                ביטול
+              </button>
+              <button onClick={async () => {
+                const field = bsInfoModal.mode === 'notam' ? 'notam_text' : 'atis_text';
+                const body: any = {};
+                body[field] = bsInfoEditText || null;
+                const updated = await fetch(`${API_URL}/base-statuses/${bsInfoModal.bs.id}/${bsInfoModal.mode}`, {
+                  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                }).then(r => r.ok ? r.json() : null).catch(() => null);
+                if (updated) {
+                  setBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
+                }
+                setBsInfoModal(null);
+              }}
+                style={{ padding: '7px 20px', background: bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e', color: 'white', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                שמור
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       {/* מז"א Alert Notifications */}
       {adAlerts.length > 0 && createPortal(
         <div style={{ position: 'fixed', bottom: '24px', left: '24px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '10px', direction: 'rtl', pointerEvents: 'none' }}>
