@@ -1081,6 +1081,31 @@ async function initDb() {
     )
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfield_atis (
+      id SERIAL PRIMARY KEY,
+      airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+      letter CHAR(1) NOT NULL DEFAULT 'A',
+      obs_time VARCHAR(6),
+      approach_type VARCHAR(50),
+      landing_runway VARCHAR(100),
+      departure_runway VARCHAR(100),
+      ceiling_value INTEGER,
+      ceiling_type VARCHAR(10),
+      visibility VARCHAR(20),
+      weather_phenomena TEXT,
+      temperature INTEGER,
+      dewpoint INTEGER,
+      wind_direction INTEGER,
+      wind_speed INTEGER,
+      wind_gust INTEGER,
+      altimeter_qnh VARCHAR(20),
+      notam_info TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(airfield_id)
+    )
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS runway_grf (
       id SERIAL PRIMARY KEY,
       runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
@@ -6101,6 +6126,45 @@ app.delete('/api/runway-notams/:id', async (req, res) => {
     await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete runway notam' }); }
+});
+
+app.get('/api/airfield-atis', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    const { rows } = await pool.query('SELECT * FROM airfield_atis WHERE airfield_id=$1', [airfield_id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch ATIS' }); }
+});
+app.post('/api/airfield-atis', async (req, res) => {
+  try {
+    const { airfield_id, letter, obs_time, approach_type, landing_runway, departure_runway,
+            ceiling_value, ceiling_type, visibility, weather_phenomena,
+            temperature, dewpoint, wind_direction, wind_speed, wind_gust,
+            altimeter_qnh, notam_info } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO airfield_atis (airfield_id, letter, obs_time, approach_type, landing_runway, departure_runway,
+        ceiling_value, ceiling_type, visibility, weather_phenomena, temperature, dewpoint,
+        wind_direction, wind_speed, wind_gust, altimeter_qnh, notam_info, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+       ON CONFLICT (airfield_id) DO UPDATE SET
+        letter=$2, obs_time=$3, approach_type=$4, landing_runway=$5, departure_runway=$6,
+        ceiling_value=$7, ceiling_type=$8, visibility=$9, weather_phenomena=$10,
+        temperature=$11, dewpoint=$12, wind_direction=$13, wind_speed=$14, wind_gust=$15,
+        altimeter_qnh=$16, notam_info=$17, updated_at=NOW()
+       RETURNING *`,
+      [airfield_id, letter || 'A', obs_time || null, approach_type || null, landing_runway || null,
+       departure_runway || null, ceiling_value ?? null, ceiling_type || null, visibility || null,
+       weather_phenomena || null, temperature ?? null, dewpoint ?? null, wind_direction ?? null,
+       wind_speed ?? null, wind_gust ?? null, altimeter_qnh || null, notam_info || null]
+    );
+    res.json(rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to save ATIS' }); }
+});
+app.delete('/api/airfield-atis/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_atis WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete ATIS' }); }
 });
 
 app.get('/api/runway-grf', async (req, res) => {

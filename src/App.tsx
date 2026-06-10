@@ -14183,6 +14183,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
+  const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
+  const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
+  const [workstationAtisForm, setWorkstationAtisForm] = useState<{ letter: string; obs_time: string; approach_type: string; landing_runway: string; departure_runway: string; ceiling_value: string; ceiling_type: string; visibility: string; weather_phenomena: string; temperature: string; dewpoint: string; wind_direction: string; wind_speed: string; wind_gust: string; altimeter_qnh: string; notam_info: string } | null>(null);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -16572,6 +16575,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
+        fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
       }
     };
     loadAirfieldsAndConfig();
@@ -23905,6 +23909,187 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                               );
                             })()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ATIS Section */}
+                  {(isTowerMode || isGroundMode) && myPresetConfig?.airfield_id && (() => {
+                    const atisAirfield = airfields.find((a: any) => a.id === myPresetConfig?.airfield_id);
+                    const PHONETIC: Record<string, string> = { A:'ALPHA',B:'BRAVO',C:'CHARLIE',D:'DELTA',E:'ECHO',F:'FOXTROT',G:'GOLF',H:'HOTEL',I:'INDIA',J:'JULIET',K:'KILO',L:'LIMA',M:'MIKE',N:'NOVEMBER',O:'OSCAR',P:'PAPA',Q:'QUEBEC',R:'ROMEO',S:'SIERRA',T:'TANGO',U:'UNIFORM',V:'VICTOR',W:'WHISKEY',X:'XRAY',Y:'YANKEE',Z:'ZULU' };
+                    const CEIL_LBL: Record<string,string> = { OVC:'OVERCAST',BKN:'BROKEN',SCT:'SCATTERED',FEW:'FEW',SKC:'SKY CLEAR',CAVOK:'CAVOK' };
+                    const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+                    const dw: Record<string,string> = { '0':'ZERO','1':'ONE','2':'TWO','3':'THREE','4':'FOUR','5':'FIVE','6':'SIX','7':'SEVEN','8':'EIGHT','9':'NINE' };
+                    const spell = (s: string | number) => String(s).replace(/[^0-9]/g,'').split('').map(c => dw[c] || c).join(' ');
+                    const ceilWords = (v: string): string => {
+                      const n = parseInt(v); if (isNaN(n) || n === 0) return v;
+                      const parts: string[] = [];
+                      const th = Math.floor(n / 1000); const hu = Math.floor((n % 1000) / 100);
+                      if (th > 0) parts.push(`${spell(String(th))} THOUSAND`);
+                      if (hu > 0) parts.push(`${spell(String(hu))} HUNDRED`);
+                      if (n % 100 !== 0) parts.push(spell(String(n % 100).padStart(2,'0')));
+                      return parts.join(' ');
+                    };
+                    const generateAtis = (f: any): string => {
+                      const ph = PHONETIC[f.letter?.toUpperCase()] || f.letter || 'ALPHA';
+                      const lines: string[] = [];
+                      lines.push(`${(atisAirfield?.name || 'AERODROME').toUpperCase()} INFORMATION ${ph}.`);
+                      if (f.obs_time) lines.push(`${f.obs_time} ZULU`);
+                      const wx: string[] = [];
+                      if (f.ceiling_value && f.ceiling_type && f.ceiling_type !== 'SKC' && f.ceiling_type !== 'CAVOK') wx.push(`MEASURED CEILING ${ceilWords(f.ceiling_value)} ${CEIL_LBL[f.ceiling_type] || f.ceiling_type}`);
+                      else if (f.ceiling_type === 'SKC') wx.push('SKY CLEAR');
+                      else if (f.ceiling_type === 'CAVOK') wx.push('CAVOK');
+                      if (f.visibility) wx.push(`VISIBILITY ${f.visibility}`);
+                      if (f.weather_phenomena) wx.push(f.weather_phenomena.toUpperCase());
+                      if (wx.length > 0) lines.push(wx.join('. ') + '.');
+                      const tp: string[] = [];
+                      if (f.temperature !== '') { const tv = parseInt(f.temperature); if (!isNaN(tv)) tp.push(`TEMPERATURE ${tv < 0 ? 'MINUS ' : ''}${spell(String(Math.abs(tv)))}`); }
+                      if (f.dewpoint !== '') { const dv = parseInt(f.dewpoint); if (!isNaN(dv)) tp.push(`DEWPOINT ${dv < 0 ? 'MINUS ' : ''}${spell(String(Math.abs(dv)))}`); }
+                      if (tp.length > 0) lines.push(tp.join('. ') + '.');
+                      if (f.wind_direction !== '' || f.wind_speed !== '') {
+                        const dir = f.wind_direction !== '' ? spell(String(parseInt(f.wind_direction)||0).padStart(3,'0')) : 'VARIABLE';
+                        let ws = `WIND ${dir} AT ${f.wind_speed || '0'}`;
+                        if (f.wind_gust) ws += `, GUSTS ${f.wind_gust}`;
+                        lines.push(ws + '.');
+                      }
+                      if (f.altimeter_qnh) lines.push(`ALTIMETER ${spell(f.altimeter_qnh)}.`);
+                      if (f.approach_type) lines.push(`${f.approach_type.toUpperCase()} APPROACH IN USE.`);
+                      if (f.landing_runway) lines.push(`LANDING RUNWAY ${f.landing_runway.toUpperCase()}.`);
+                      if (f.departure_runway) lines.push(`DEPARTURE RUNWAY ${f.departure_runway.toUpperCase()}.`);
+                      if (f.notam_info) lines.push(f.notam_info.toUpperCase() + '.');
+                      lines.push(`ADVISE YOU HAVE INFORMATION ${ph}.`);
+                      return lines.join('\n');
+                    };
+                    const emptyForm = () => ({ letter:'A', obs_time:'', approach_type:'ILS', landing_runway:'', departure_runway:'', ceiling_value:'', ceiling_type:'OVC', visibility:'', weather_phenomena:'', temperature:'', dewpoint:'', wind_direction:'', wind_speed:'', wind_gust:'', altimeter_qnh:'', notam_info:'' });
+                    const nextLetter = (l: string) => { const idx = LETTERS.indexOf(l?.toUpperCase()); return idx >= 0 ? LETTERS[(idx+1)%26] : 'A'; };
+                    const nowUTC = () => { const d = new Date(); return `${String(d.getUTCHours()).padStart(2,'0')}${String(d.getUTCMinutes()).padStart(2,'0')}`; };
+                    const refreshAtis = () => { const afId = myPresetConfig?.airfield_id; if (!afId) return; fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0]||null) : null)).catch(() => {}); };
+                    const dbToForm = (a: any) => ({ letter: a.letter||'A', obs_time: a.obs_time||'', approach_type: a.approach_type||'', landing_runway: a.landing_runway||'', departure_runway: a.departure_runway||'', ceiling_value: a.ceiling_value !== null ? String(a.ceiling_value) : '', ceiling_type: a.ceiling_type||'OVC', visibility: a.visibility !== null ? String(a.visibility) : '', weather_phenomena: a.weather_phenomena||'', temperature: a.temperature !== null ? String(a.temperature) : '', dewpoint: a.dewpoint !== null ? String(a.dewpoint) : '', wind_direction: a.wind_direction !== null ? String(a.wind_direction) : '', wind_speed: a.wind_speed !== null ? String(a.wind_speed) : '', wind_gust: a.wind_gust !== null ? String(a.wind_gust) : '', altimeter_qnh: a.altimeter_qnh||'', notam_info: a.notam_info||'' });
+                    const f = workstationAtisForm;
+                    const displayText = f ? generateAtis(f) : (workstationAtis ? generateAtis(dbToForm(workstationAtis)) : null);
+                    const upd = (k: string, v: string) => setWorkstationAtisForm((p: any) => p && ({ ...p, [k]: v }));
+                    const inputSt = { padding: '4px 6px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', boxSizing: 'border-box' as const };
+                    return (
+                      <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
+                        <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#eff6ff' : '#0a1628', borderBottom: workstationAtisOpen ? `1px solid ${T.border}` : 'none' }}>
+                          <span style={{ fontSize: '10px', color: T.muted }}>{workstationAtisOpen ? '▲' : '▼'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd' }}>📻 ATIS</span>
+                            {workstationAtis && !f && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '3px', padding: '0 6px', fontFamily: 'monospace' }}>{workstationAtis.letter}</span>}
+                          </div>
+                          {workstationAtisOpen && !f && (
+                            <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
+                          )}
+                        </div>
+                        {workstationAtisOpen && (
+                          <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#080f1e', direction: 'rtl' }}>
+                            {f ? (
+                              <div>
+                                {/* Row 1: Letter + Time */}
+                                <div style={{ display: 'flex', gap: '5px', marginBottom: '5px', alignItems: 'flex-end' }}>
+                                  <div style={{ flexShrink: 0 }}>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>אות ATIS</div>
+                                    <select value={f.letter} onChange={e => upd('letter', e.target.value)} style={{ width: '44px', padding: '4px 2px', background: lightMode ? '#dbeafe' : '#0f172a', border: '1px solid #1d4ed8', borderRadius: '4px', color: lightMode ? '#1e3a8a' : '#93c5fd', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>
+                                      {LETTERS.map(l => <option key={l} value={l}>{l}</option>)}
+                                    </select>
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>שעה (UTC)</div>
+                                    <div style={{ display: 'flex', gap: '3px' }}>
+                                      <input value={f.obs_time} onChange={e => upd('obs_time', e.target.value)} placeholder="HHmm" maxLength={4} style={{ ...inputSt, flex: 1, direction: 'ltr', fontFamily: 'monospace', fontSize: '12px' }} />
+                                      <button onClick={() => upd('obs_time', nowUTC())} style={{ padding: '2px 6px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '8px', whiteSpace: 'nowrap' }}>עכשיו</button>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Runways */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '5px' }}>
+                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>מסלול נחיתה</div><input value={f.landing_runway} onChange={e => upd('landing_runway', e.target.value)} placeholder="e.g. 01R AND 01L" list="atis-rw" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
+                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>מסלול המראה</div><input value={f.departure_runway} onChange={e => upd('departure_runway', e.target.value)} placeholder="e.g. 30" list="atis-rw" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
+                                </div>
+                                <datalist id="atis-rw">{airfieldRunways.flatMap((rw: any) => [rw.heading_a, rw.heading_b].filter(Boolean).map((h: string) => <option key={h} value={h} />))}</datalist>
+                                {/* Approach type */}
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '3px' }}>סוג גישה</div>
+                                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                                    {['ILS','VOR','NDB','RNAV','VISUAL','VOR/DME'].map(ap => (
+                                      <button key={ap} onClick={() => upd('approach_type', f.approach_type === ap ? '' : ap)} style={{ padding: '2px 6px', background: f.approach_type === ap ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: f.approach_type === ap ? '#fff' : (lightMode ? '#334155' : '#94a3b8'), border: `1px solid ${f.approach_type === ap ? '#1d4ed8' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontFamily: 'monospace' }}>{ap}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {/* Ceiling */}
+                                <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', alignItems: 'flex-end' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>תקרת ענן (ft)</div>
+                                    <input value={f.ceiling_value} onChange={e => upd('ceiling_value', e.target.value)} placeholder="e.g. 3000" type="number" style={{ ...inputSt, width: '100%', direction: 'ltr' }} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>סוג</div>
+                                    <div style={{ display: 'flex', gap: '2px' }}>
+                                      {['OVC','BKN','SCT','FEW','SKC','CAVOK'].map(ct => (
+                                        <button key={ct} onClick={() => upd('ceiling_type', ct)} style={{ padding: '3px 4px', background: f.ceiling_type === ct ? '#0369a1' : (lightMode ? '#e2e8f0' : '#1e293b'), color: f.ceiling_type === ct ? '#fff' : (lightMode ? '#334155' : '#94a3b8'), border: `1px solid ${f.ceiling_type === ct ? '#0369a1' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontFamily: 'monospace' }}>{ct}</button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Visibility + Phenomena */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: '4px', marginBottom: '5px' }}>
+                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>ראות</div><input value={f.visibility} onChange={e => upd('visibility', e.target.value)} placeholder="10KM" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
+                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>תופעות מזג אוויר</div><input value={f.weather_phenomena} onChange={e => upd('weather_phenomena', e.target.value)} placeholder="RAIN, FOG, SMOKE..." style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
+                                </div>
+                                {/* Temp + Dew + Wind */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '3px', marginBottom: '5px' }}>
+                                  {([['temperature','טמפ °C',''],['dewpoint','טל °C',''],['wind_direction','כיוון רוח','270'],['wind_speed','עוצמה kt',''],['wind_gust','גאסט kt','']]) .map(([key, label, ph]) => (
+                                    <div key={key}><div style={{ fontSize: '7px', color: '#64748b', marginBottom: '2px' }}>{label}</div><input value={(f as any)[key]} onChange={e => upd(key, e.target.value)} placeholder={ph} type="number" style={{ ...inputSt, width: '100%', direction: 'ltr', padding: '3px 4px', fontSize: '10px' }} /></div>
+                                  ))}
+                                </div>
+                                {/* QNH */}
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>QNH / Altimeter</div>
+                                  <input value={f.altimeter_qnh} onChange={e => upd('altimeter_qnh', e.target.value)} placeholder="e.g. 1013 or 29.92" style={{ ...inputSt, width: '100%', direction: 'ltr' }} />
+                                </div>
+                                {/* NOTAMs */}
+                                <div style={{ marginBottom: '6px' }}>
+                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>NOTAMs / מידע תפעולי</div>
+                                  <textarea value={f.notam_info} onChange={e => upd('notam_info', e.target.value)} placeholder="e.g. ARMEL VOR OUT OF SERVICE" rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', resize: 'vertical', direction: 'ltr', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                                </div>
+                                {/* Live ATIS preview */}
+                                <div style={{ background: lightMode ? '#0f172a' : '#020817', borderRadius: '5px', padding: '7px 9px', marginBottom: '7px', fontFamily: 'monospace', fontSize: '10px', color: '#86efac', whiteSpace: 'pre-wrap', direction: 'ltr', lineHeight: 1.6, border: '1px solid #166534' }}>
+                                  {displayText}
+                                </div>
+                                <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
+                                  <button onClick={() => setWorkstationAtisForm(null)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
+                                  <button onClick={async () => {
+                                    const snap = workstationAtisForm; if (!snap || !myPresetConfig?.airfield_id) return;
+                                    const toInt = (v: string) => v !== '' ? parseInt(v) : null;
+                                    const body = { airfield_id: myPresetConfig.airfield_id, letter: snap.letter, obs_time: snap.obs_time||null, approach_type: snap.approach_type||null, landing_runway: snap.landing_runway||null, departure_runway: snap.departure_runway||null, ceiling_value: toInt(snap.ceiling_value), ceiling_type: snap.ceiling_type||null, visibility: snap.visibility||null, weather_phenomena: snap.weather_phenomena||null, temperature: toInt(snap.temperature), dewpoint: toInt(snap.dewpoint), wind_direction: toInt(snap.wind_direction), wind_speed: toInt(snap.wind_speed), wind_gust: toInt(snap.wind_gust), altimeter_qnh: snap.altimeter_qnh||null, notam_info: snap.notam_info||null };
+                                    const res = await fetch(`${API_URL}/airfield-atis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                    if (res.ok) { setWorkstationAtisForm(null); refreshAtis(); }
+                                  }} style={{ padding: '4px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>שמור ATIS</button>
+                                </div>
+                              </div>
+                            ) : workstationAtis ? (
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                                  <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '6px', padding: '2px 10px', fontFamily: 'monospace', flexShrink: 0 }}>{workstationAtis.letter}</span>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd' }}>INFORMATION {PHONETIC[workstationAtis.letter] || workstationAtis.letter}</div>
+                                    {workstationAtis.obs_time && <div style={{ fontSize: '9px', color: '#64748b' }}>{workstationAtis.obs_time}Z{workstationAtis.updated_at ? ` · עודכן ${new Date(workstationAtis.updated_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : ''}</div>}
+                                  </div>
+                                  <button onClick={async () => { if (!window.confirm('למחוק את ה-ATIS?')) return; await fetch(`${API_URL}/airfield-atis/${workstationAtis.id}`, { method: 'DELETE' }); setWorkstationAtis(null); }} style={{ padding: '2px 6px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>
+                                </div>
+                                <div style={{ background: lightMode ? '#0f172a' : '#020817', borderRadius: '5px', padding: '8px 10px', fontFamily: 'monospace', fontSize: '10px', color: '#86efac', whiteSpace: 'pre-wrap', direction: 'ltr', lineHeight: 1.6, border: '1px solid #166534', marginBottom: '6px' }}>
+                                  {displayText}
+                                </div>
+                                <button onClick={() => { if (displayText) navigator.clipboard.writeText(displayText); }} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px solid #166534', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>📋 העתק ATIS</button>
+                              </div>
+                            ) : (
+                              <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '8px' }}>אין ATIS פעיל</div>
+                                <button onClick={() => setWorkstationAtisForm({ ...emptyForm(), obs_time: nowUTC() })} style={{ padding: '5px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>📻 צור ATIS</button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
