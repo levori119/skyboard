@@ -5629,7 +5629,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5680,6 +5680,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   hideStrips?: boolean;
   externalCatHighlight?: Set<string>;
   externalHiddenElements?: Set<number>;
+  topOffset?: number;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -6593,7 +6594,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative', paddingTop: topOffset ? `${topOffset}px` : undefined }}>
       {/* RIGHT panel — Strips list (collapsible like aids) */}
       <div style={{ ...PANEL, width: stripsPinned ? `${rightPanelW}px` : 32, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1, transition: 'width 0.2s', overflow: 'hidden', ...(hideStrips && { display: 'none' }) }}>
         {/* Header */}
@@ -19752,7 +19753,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         <div
           ref={tableScrollRef}
           id="map-area"
-          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined }}
+          style={{ flex: 1, position: 'relative', background: (isGroundMode || isClassicMode || isCivilianMode) ? (lightMode ? '#f1f5f9' : T.bg) : tableMode ? (tableDragOver ? (lightMode ? '#dbeafe' : '#1a2744') : (T.bgAlt)) : (lightMode ? '#94a3b8' : '#0d1117'), overflow: (isGroundMode || isClassicMode || isCivilianMode) ? 'hidden' : tableMode ? 'auto' : 'hidden', minHeight: 0, transition: 'background 0.15s', contain: 'paint', display: (isGroundMode || isClassicMode || isCivilianMode) ? 'flex' : undefined, flexDirection: isGroundMode ? 'column' : undefined }}
           onDragOver={tableMode ? e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (tableSidebarDragId.current) setTableDragOver(true); } : undefined}
           onDragLeave={tableMode ? () => setTableDragOver(false) : undefined}
           onDrop={tableMode ? e => {
@@ -19784,7 +19785,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         >
           {/* Live runway conflict banner */}
           {isGroundMode && liveRunwayConflicts.length > 0 && (
-            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9990, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+            <div style={{ position: 'relative', zIndex: 10, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate', flexShrink: 0 }}>
               {liveRunwayConflicts.map((rc, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                   {/* Conflict info */}
@@ -19919,6 +19920,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 hideStrips={isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
+                topOffset={liveRunwayConflicts.length > 0 ? Math.max(40, liveRunwayConflicts.reduce((acc, rc) => acc + 30 + (rc.recommendations?.length > 0 ? 26 : 0), 22)) : 0}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
