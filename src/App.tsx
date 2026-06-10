@@ -24408,7 +24408,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               if (!editRw) return null;
                               const CONTAMINANTS = ['','יבש','רטוב','שלג רטוב','שלג יבש','שלג דחוס','בוץ שלג','קרח','כפור','קרח רטוב','ממוס כימי','חול'];
                               const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
-                              const headings = [editRw.name].filter(Boolean);
+                              const headings = editRw.name ? editRw.name.split('/').map((h: string) => h.trim()).filter(Boolean) : [];
                               const refreshGrf = () => {
                                 const afId = myPresetConfig?.airfield_id;
                                 if (!afId) return;
@@ -24529,7 +24529,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                             const toInt = (v: string) => v !== '' ? Number(v) : null;
                                             const body = { runway_id: editRw.id, heading: snap.heading, rwycc_t: toInt(snap.rwycc_t), coverage_t: toInt(snap.coverage_t), depth_t: snap.depth_t||null, contaminant_t: snap.contaminant_t||null, rwycc_m: toInt(snap.rwycc_m), coverage_m: toInt(snap.coverage_m), depth_m: snap.depth_m||null, contaminant_m: snap.contaminant_m||null, rwycc_r: toInt(snap.rwycc_r), coverage_r: toInt(snap.coverage_r), depth_r: snap.depth_r||null, contaminant_r: snap.contaminant_r||null, notes: snap.notes||null };
                                             const res = await fetch(`${API_URL}/runway-grf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                            if (res.ok) { setWorkstationGrfForm(null); refreshGrf(); }
+                                            if (res.ok) { setWorkstationGrfForm(null); refreshGrf(); } else { const err = await res.json().catch(() => ({})); alert(`שגיאה בשמירת GRF: ${err?.error || res.status}`); }
                                           }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>שמור GRF</button>
                                         </div>
                                       </div>
