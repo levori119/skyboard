@@ -5765,8 +5765,8 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [squadronCollapse, setSquadronCollapse] = React.useState<Record<string, 'open' | 'half' | 'closed'>>({});
   const [openActionMenu, setOpenActionMenu] = useState<string | null>(null);
   const [actionMenuRect, setActionMenuRect] = useState<{ left: number; bottom: number } | null>(null);
-  const [rightPanelW, setRightPanelW] = useState(300);
-  const [leftPanelW, setLeftPanelW] = useState(180);
+  const [rightPanelW, setRightPanelW] = useState(360);
+  const [leftPanelW, setLeftPanelW] = useState(280);
   const stripsPinned = stripsPinnedProp ?? true;
   const panelResizeRef = React.useRef<{ which: 'right' | 'left'; startX: number; startW: number } | null>(null);
   const startPanelResize = (which: 'right' | 'left') => (e: React.MouseEvent) => {
@@ -6594,7 +6594,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const HDR: React.CSSProperties = { background: headerBg, color: headerColor, padding: '6px 10px', fontSize: '13px', fontWeight: 'bold', textAlign: 'center', flexShrink: 0, borderBottom: `1px solid ${border}` };
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', height: '100%', direction: 'rtl', position: 'relative', paddingTop: topOffset ? `${topOffset}px` : undefined }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, direction: 'rtl', position: 'relative' }}>
       {/* RIGHT panel — Strips list (collapsible like aids) */}
       <div style={{ ...PANEL, width: stripsPinned ? `${rightPanelW}px` : 32, flexShrink: 0, borderInlineStart: 'none', borderLeft: `1px solid ${border}`, order: 1, transition: 'width 0.2s', overflow: 'hidden', ...(hideStrips && { display: 'none' }) }}>
         {/* Header */}
@@ -19959,7 +19959,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 hideStrips={isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
-                topOffset={liveRunwayConflicts.length > 0 ? Math.max(40, liveRunwayConflicts.reduce((acc, rc) => acc + 30 + (rc.recommendations?.length > 0 ? 26 : 0), 22)) : 0}
+                topOffset={0}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
