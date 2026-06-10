@@ -8258,9 +8258,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             return (
               <div key={el.id}
                 style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%,-50%) scale(${1/effectiveMapScale})`, transformOrigin: 'center center', pointerEvents: 'all', zIndex: isCatHighlighted || isBeingEdited ? 20 : 12, textAlign: 'center', cursor: 'pointer' }}
-                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}${el.camera_url ? '\nלחיצה: הצג מצלמה' : canHaveRoute ? '\nלחיצה: הגדר/הפעל מסלול' : ''}`}
-                onClick={(e) => { e.stopPropagation(); if (el.camera_url) { if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } else if (canHaveRoute) { if (elemNavData[el.id]?.viaRouteIds?.length > 0) { startRouteAnim(el.id, 1.0); } else { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } } }}
-                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!el.camera_url && canHaveRoute) { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}>
+                title={`${el.name}${el.status ? ` [${el.status}]` : ''}${el.note ? ` — ${el.note}` : ''}${dState !== 'normal' ? ` (${dState})` : ''}`}
+                onClick={(e) => { e.stopPropagation(); if (el.camera_url) { if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } else if (canChangeStatus) { setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } else if (canHaveRoute) { if (elemNavData[el.id]?.viaRouteIds?.length > 0) { startRouteAnim(el.id, 1.0); } else { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } } }}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                 {/* Conflict alert ring — pulsing red */}
                 {conflictElementIds.has(el.id) && (
                   <div className="conflict-ring" style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: '3px solid #ef4444', pointerEvents: 'none', zIndex: 25 }} />
@@ -8273,7 +8273,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {isBeingEdited && (
                   <div style={{ position: 'absolute', top: '-8px', left: '50%', transform: 'translateX(-50%)', width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #f59e0b', boxShadow: '0 0 16px #f59e0b99', pointerEvents: 'none' }} />
                 )}
-                <div onClick={el.camera_url ? (e) => { e.stopPropagation(); if (cameraPanels.some(p => p.url === el.camera_url)) return; const id = nextCamId.current++; const off = (cameraPanels.length % 6) * 28; setCameraPanels(prev => [...prev, { id, url: el.camera_url, name: el.name, dragPos: { x: 80 + off, y: 80 + off }, expanded: false }]); } : (!canHaveRoute && canChangeStatus) ? (e) => { e.stopPropagation(); setElemStatusPicker({ el, x: e.clientX, y: e.clientY }); } : undefined}>
+                <div>
                   {el.category === 'camera' ? (
                     <div style={{ width: '26px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.7))' }}>
                       <svg width="26" height="20" viewBox="0 0 26 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8348,6 +8348,30 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 {el.camera_url && el.category === 'camera' && (
                   <div style={{ fontSize: '7px', color: '#60a5fa', background: '#0c1a2ecc', padding: '0px 3px', borderRadius: '2px', marginTop: '1px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>📷 לחץ לצפייה</div>
                 )}
+                {/* Route button — for canHaveRoute elements (tap instead of right-click) */}
+                {canHaveRoute && !el.camera_url && (
+                  <button
+                    onClick={e => { e.stopPropagation(); if (elemNavData[el.id]?.viaRouteIds?.length > 0) { startRouteAnim(el.id, 1.0); } else { const existing = elemNavData[el.id] || { fromPointId: null, toPointId: null, viaRouteIds: [] }; setElemNavModal({ el, fromPointId: existing.fromPointId, toPointId: existing.toPointId, viaRouteIds: [...existing.viaRouteIds] }); } }}
+                    style={{ display: 'block', margin: '2px auto 0', padding: '1px 5px', fontSize: '8px', background: '#1e3a5fcc', border: '1px solid #3b82f655', borderRadius: '3px', color: '#60a5fa', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    title="הגדר/הפעל מסלול">
+                    🛣 {elemNavData[el.id]?.viaRouteIds?.length > 0 ? 'הפעל' : 'מסלול'}
+                  </button>
+                )}
+                {/* Large STOP button — shown only when this element is in a conflict */}
+                {conflictElementIds.has(el.id) && canChangeStatus && onUpdateElementDisplayState && (() => {
+                  const catBlockDs: Record<string,string> = { 'STOP BAR':'blink', 'רמזורים':'blink', 'מחסומים':'close' };
+                  const blockDs = catBlockDs[el.category] || 'blink';
+                  const curDs = el.display_state || 'normal';
+                  const alreadyBlocked = curDs === blockDs;
+                  return (
+                    <button
+                      onClick={e => { e.stopPropagation(); onUpdateElementDisplayState(el.id, alreadyBlocked ? 'normal' : blockDs); }}
+                      style={{ display: 'block', margin: '3px auto 0', padding: '5px 10px', fontSize: '13px', fontWeight: 'bold', background: alreadyBlocked ? '#14532d' : '#7f1d1d', border: `2px solid ${alreadyBlocked ? '#22c55e' : '#ef4444'}`, borderRadius: '7px', color: alreadyBlocked ? '#86efac' : '#fca5a5', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: alreadyBlocked ? '0 0 8px #22c55e66' : '0 0 10px #ef444466', minWidth: '56px' }}
+                      title={alreadyBlocked ? 'שחרר חסימה' : 'עצור / חסום מסלול'}>
+                      {alreadyBlocked ? '✓ חסום' : '🛑 עצור'}
+                    </button>
+                  );
+                })()}
                 {/* Delete button — only for dynamically-added vehicles (כלי רכב) */}
                 {onDeleteElement && el.category === 'כלי רכב' && (
                   <button
