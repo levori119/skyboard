@@ -6114,7 +6114,14 @@ app.get('/api/live-runway-conflicts', async (req, res) => {
         [routesToCheck]
       );
       const conflicts = [...acRows, ...tcRows, ...vhRows];
-      if (conflicts.length > 0) {
+      // Only a real conflict when there is BOTH a vehicle AND an aircraft on the runway
+      // (or a taxiing aircraft AND one with takeoff clearance).
+      // A single takeoff clearance alone is NOT a conflict.
+      const hasVehicle = vhRows.length > 0;
+      const hasAircraft = acRows.length > 0 || tcRows.length > 0;
+      const hasTaxiAndTakeoff = acRows.length > 0 && tcRows.length > 0;
+      const isRealConflict = (hasVehicle && hasAircraft) || hasTaxiAndTakeoff;
+      if (isRealConflict) {
         const routeName = rw.end_a_name && rw.end_b_name ? `${rw.end_a_name}/${rw.end_b_name}` : rw.name;
         // Recommendations: find elements that can block this runway
         // Priority 1: elements with relevant_routes containing any routesToCheck
