@@ -1080,6 +1080,20 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS runway_grf (
+      id SERIAL PRIMARY KEY,
+      runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
+      heading VARCHAR(4) NOT NULL,
+      rwycc_t INTEGER, coverage_t INTEGER, depth_t VARCHAR(10), contaminant_t VARCHAR(50),
+      rwycc_m INTEGER, coverage_m INTEGER, depth_m VARCHAR(10), contaminant_m VARCHAR(50),
+      rwycc_r INTEGER, coverage_r INTEGER, depth_r VARCHAR(10), contaminant_r VARCHAR(50),
+      reported_at TIMESTAMPTZ DEFAULT NOW(),
+      valid_until TIMESTAMPTZ,
+      notes TEXT,
+      UNIQUE(runway_id, heading)
+    )
+  `);
 
   console.log('Database initialized');
 }
@@ -6087,6 +6101,53 @@ app.delete('/api/runway-notams/:id', async (req, res) => {
     await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete runway notam' }); }
+});
+
+app.get('/api/runway-grf', async (req, res) => {
+  try {
+    const { airfield_id, runway_id } = req.query;
+    let rows;
+    if (airfield_id) {
+      ({ rows } = await pool.query(
+        'SELECT rg.* FROM runway_grf rg JOIN airfield_runways ar ON rg.runway_id = ar.id WHERE ar.airfield_id=$1 ORDER BY rg.runway_id, rg.heading',
+        [airfield_id]
+      ));
+    } else if (runway_id) {
+      ({ rows } = await pool.query('SELECT * FROM runway_grf WHERE runway_id=$1 ORDER BY heading', [runway_id]));
+    } else { rows = []; }
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch GRF' }); }
+});
+
+app.post('/api/runway-grf', async (req, res) => {
+  try {
+    const { runway_id, heading, rwycc_t, coverage_t, depth_t, contaminant_t,
+            rwycc_m, coverage_m, depth_m, contaminant_m,
+            rwycc_r, coverage_r, depth_r, contaminant_r, notes } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO runway_grf (runway_id, heading, rwycc_t, coverage_t, depth_t, contaminant_t,
+        rwycc_m, coverage_m, depth_m, contaminant_m, rwycc_r, coverage_r, depth_r, contaminant_r,
+        notes, reported_at, valid_until)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),NOW() + INTERVAL '8 hours')
+       ON CONFLICT (runway_id, heading) DO UPDATE SET
+        rwycc_t=$3, coverage_t=$4, depth_t=$5, contaminant_t=$6,
+        rwycc_m=$7, coverage_m=$8, depth_m=$9, contaminant_m=$10,
+        rwycc_r=$11, coverage_r=$12, depth_r=$13, contaminant_r=$14,
+        notes=$15, reported_at=NOW(), valid_until=NOW() + INTERVAL '8 hours'
+       RETURNING *`,
+      [runway_id, heading, rwycc_t ?? null, coverage_t ?? null, depth_t || null, contaminant_t || null,
+       rwycc_m ?? null, coverage_m ?? null, depth_m || null, contaminant_m || null,
+       rwycc_r ?? null, coverage_r ?? null, depth_r || null, contaminant_r || null, notes || null]
+    );
+    res.json(rows[0]);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to save GRF' }); }
+});
+
+app.delete('/api/runway-grf/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM runway_grf WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete GRF' }); }
 });
 
 app.get('/api/runway-conflict', async (req, res) => {

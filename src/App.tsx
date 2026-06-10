@@ -14178,6 +14178,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
+  const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -16566,6 +16567,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (afId) {
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
+        fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
       }
     };
     loadAirfieldsAndConfig();
@@ -23648,6 +23650,36 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     {textNotams.map((n: any) => (
                                       <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
                                     ))}
+                                    {/* GRF per direction */}
+                                    {(() => {
+                                      const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
+                                      const headings = [rw.heading_a, rw.heading_b].filter(Boolean);
+                                      const grfEntries = airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id);
+                                      if (grfEntries.length === 0) return null;
+                                      return (
+                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                                          {headings.map((h: string) => {
+                                            const grf = grfEntries.find((g: any) => g.heading === h);
+                                            if (!grf) return null;
+                                            const isExpired = grf.valid_until && new Date(grf.valid_until) < new Date();
+                                            return (
+                                              <div key={h} style={{ display: 'flex', alignItems: 'center', gap: '2px', direction: 'ltr', opacity: isExpired ? 0.55 : 1 }}>
+                                                <span style={{ fontSize: '8px', fontWeight: 'bold', color: '#86efac', fontFamily: 'monospace', width: '16px', textAlign: 'center', flexShrink: 0 }}>{h}</span>
+                                                {(['t','m','r'] as const).map((k, ki) => {
+                                                  const code = grf[`rwycc_${k}`];
+                                                  return (
+                                                    <span key={k} title={['T','M','R'][ki]} style={{ fontSize: '9px', fontWeight: 'bold', color: code !== null && code !== undefined ? (RWYCC_COLOR[code] || '#94a3b8') : '#475569', background: lightMode ? '#d1fae5' : '#071c13', borderRadius: '2px', padding: '0 3px', fontFamily: 'monospace', border: `1px solid ${code !== null && code !== undefined ? (RWYCC_COLOR[code] + '66') : 'transparent'}` }}>
+                                                      {code !== null && code !== undefined ? code : '?'}
+                                                    </span>
+                                                  );
+                                                })}
+                                                {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginRight: '2px' }}>פג</span>}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })}
@@ -28825,6 +28857,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
   const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; length_ft: string; length_m: string } | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
+  const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
+  const [adminRunwayGrfForm, setAdminRunwayGrfForm] = useState<{ runwayId: number; heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [airfieldActiveSubTab, setAirfieldActiveSubTab] = useState<'points'|'routes'|'elements'|'polygons'|'sectors'|'statustypes'>('points');
   // Polygon drawing state
   const [drawingPolygonId, setDrawingPolygonId] = useState<number|null>(null);
@@ -32429,16 +32463,21 @@ CHARLIE,1,301,`}
             else setAdminAirfieldElements([]);
           };
           const loadAirfieldRunways = async (airfieldId: number) => {
-            const [rr, nr] = await Promise.all([
+            const [rr, nr, gr] = await Promise.all([
               fetch(`${API_URL}/airfield-runways?airfield_id=${airfieldId}`),
-              fetch(`${API_URL}/runway-notams?airfield_id=${airfieldId}`)
+              fetch(`${API_URL}/runway-notams?airfield_id=${airfieldId}`),
+              fetch(`${API_URL}/runway-grf?airfield_id=${airfieldId}`)
             ]);
             const runways = rr.ok ? await rr.json() : [];
             const allNotams: any[] = nr.ok ? await nr.json() : [];
+            const allGrf: any[] = gr.ok ? await gr.json() : [];
             setAdminAirfieldRunways(runways);
             const byRunway: Record<number, any[]> = {};
             for (const n of allNotams) { if (!byRunway[n.runway_id]) byRunway[n.runway_id] = []; byRunway[n.runway_id].push(n); }
             setAdminRunwayNotams(byRunway);
+            const grfByKey: Record<string, any> = {};
+            for (const g of allGrf) { grfByKey[`${g.runway_id}_${g.heading}`] = g; }
+            setAdminRunwayGrf(grfByKey);
           };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
@@ -32831,6 +32870,8 @@ CHARLIE,1,301,`}
                           {adminAirfieldRunways.map((rw: any) => {
                             const notams = adminRunwayNotams[rw.id] || [];
                             const notamOpen = adminAFExpanded.has(`rw_notam_${rw.id}`);
+                            const grfOpen = adminAFExpanded.has(`rw_grf_${rw.id}`);
+                            const rwGrfCount = [rw.heading_a, rw.heading_b].filter(h => h && adminRunwayGrf[`${rw.id}_${h}`]).length;
                             return (
                               <div key={rw.id} style={{ background: '#0f2744', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '6px 8px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl' }}>
@@ -32844,7 +32885,143 @@ CHARLIE,1,301,`}
                                   <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '' }); setAdminRunwayEditId(rw.id); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                   <button onClick={() => toggleAFSec(`rw_notam_${rw.id}`)} style={{ padding: '2px 6px', background: notamOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${notams.length > 0 ? '#92400e' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: notams.length > 0 ? '#fbbf24' : '#64748b' }} title="NOTAMs">⚠ {notams.length > 0 ? notams.length : ''}</button>
+                                  <button onClick={() => toggleAFSec(`rw_grf_${rw.id}`)} style={{ padding: '2px 6px', background: grfOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${rwGrfCount > 0 ? '#166534' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: rwGrfCount > 0 ? '#34d399' : '#64748b' }} title="GRF — מצב פני מסלול">🛬 GRF</button>
                                 </div>
+                                {/* GRF sub-section */}
+                                {grfOpen && (() => {
+                                  const CONTAMINANTS = ['','יבש','רטוב','שלג רטוב','שלג יבש','שלג דחוס','בוץ שלג','קרח','כפור','קרח רטוב','ממוס כימי','חול'];
+                                  const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
+                                  const headings = [rw.heading_a, rw.heading_b].filter(Boolean);
+                                  return (
+                                    <div style={{ marginTop: '6px', borderTop: '1px solid #0e4f3a', paddingTop: '6px', direction: 'rtl' }}>
+                                      <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#34d399', marginBottom: '6px' }}>🛬 GRF — מצב פני מסלול</div>
+                                      {headings.map((h: string) => {
+                                        const gk = `${rw.id}_${h}`;
+                                        const saved = adminRunwayGrf[gk];
+                                        const isEditing = adminRunwayGrfForm?.runwayId === rw.id && adminRunwayGrfForm?.heading === h;
+                                        if (!isEditing) {
+                                          return (
+                                            <div key={h} style={{ marginBottom: '5px', background: '#0c2a1e', borderRadius: '5px', padding: '5px 7px', border: '1px solid #1e4a34' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#86efac', fontFamily: 'monospace', flexShrink: 0 }}>{h}</span>
+                                                <div style={{ flex: 1 }}>
+                                                  {saved ? (
+                                                    <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                      {(['t','m','r'] as const).map((k, ki) => {
+                                                        const lbl = ['T','M','R'][ki];
+                                                        const code = saved[`rwycc_${k}`];
+                                                        return (
+                                                          <span key={k} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                                            <span style={{ fontSize: '7px', color: '#64748b' }}>{lbl}</span>
+                                                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: code !== null && code !== undefined ? (RWYCC_COLOR[code] || '#94a3b8') : '#475569', background: '#071c13', borderRadius: '3px', padding: '1px 5px', minWidth: '20px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                                              {code !== null && code !== undefined ? code : '—'}
+                                                            </span>
+                                                          </span>
+                                                        );
+                                                      })}
+                                                      <span style={{ fontSize: '8px', color: '#64748b', marginRight: 'auto' }}>{saved.reported_at ? new Date(saved.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                                    </div>
+                                                  ) : (
+                                                    <span style={{ fontSize: '9px', color: '#475569' }}>אין GRF</span>
+                                                  )}
+                                                </div>
+                                                <button onClick={() => {
+                                                  const d = saved || {};
+                                                  const toStr = (v: any) => v !== null && v !== undefined ? String(v) : '';
+                                                  setAdminRunwayGrfForm({ runwayId: rw.id, heading: h, rwycc_t: toStr(d.rwycc_t), coverage_t: toStr(d.coverage_t), depth_t: d.depth_t||'', contaminant_t: d.contaminant_t||'', rwycc_m: toStr(d.rwycc_m), coverage_m: toStr(d.coverage_m), depth_m: d.depth_m||'', contaminant_m: d.contaminant_m||'', rwycc_r: toStr(d.rwycc_r), coverage_r: toStr(d.coverage_r), depth_r: d.depth_r||'', contaminant_r: d.contaminant_r||'', notes: d.notes||'' });
+                                                }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e4a34', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: '#34d399', flexShrink: 0 }}>
+                                                  {saved ? '✏' : '+ הזן'}
+                                                </button>
+                                                {saved && <button onClick={async () => {
+                                                  await fetch(`${API_URL}/runway-grf/${saved.id}`, { method: 'DELETE' });
+                                                  setAdminRunwayGrf(p => { const n = { ...p }; delete n[gk]; return n; });
+                                                }} style={{ padding: '2px 5px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: '#fca5a5', flexShrink: 0 }}>✕</button>}
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                        const f = adminRunwayGrfForm!;
+                                        const thirds = [
+                                          { k: 't', label: 'נגיעה (T)' },
+                                          { k: 'm', label: 'אמצע (M)' },
+                                          { k: 'r', label: 'סוף (R)' },
+                                        ];
+                                        const upd = (field: string, val: string) => setAdminRunwayGrfForm((p: any) => p && ({ ...p, [field]: val }));
+                                        return (
+                                          <div key={h} style={{ marginBottom: '6px', background: '#071c13', borderRadius: '6px', padding: '7px 8px', border: '1px solid #22c55e44' }}>
+                                            <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#86efac', marginBottom: '6px', fontFamily: 'monospace' }}>GRF מסלול {h}</div>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '5px' }}>
+                                              <thead>
+                                                <tr>
+                                                  <th style={{ color: '#64748b', textAlign: 'right', paddingBottom: '3px', width: '55px' }}></th>
+                                                  {thirds.map(t => <th key={t.k} style={{ color: '#34d399', textAlign: 'center', paddingBottom: '3px', fontSize: '9px' }}>{t.label}</th>)}
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                <tr>
+                                                  <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>RWYCC (0-6)</td>
+                                                  {thirds.map(t => (
+                                                    <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                      <select value={(f as any)[`rwycc_${t.k}`]} onChange={e => upd(`rwycc_${t.k}`, e.target.value)} style={{ width: '38px', padding: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: (f as any)[`rwycc_${t.k}`] !== '' ? (RWYCC_COLOR[Number((f as any)[`rwycc_${t.k}`])] || '#fff') : '#fff', fontSize: '10px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>
+                                                        <option value="">-</option>
+                                                        {[0,1,2,3,4,5,6].map(v => <option key={v} value={v}>{v}</option>)}
+                                                      </select>
+                                                    </td>
+                                                  ))}
+                                                </tr>
+                                                <tr>
+                                                  <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>כיסוי %</td>
+                                                  {thirds.map(t => (
+                                                    <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                      <select value={(f as any)[`coverage_${t.k}`]} onChange={e => upd(`coverage_${t.k}`, e.target.value)} style={{ width: '50px', padding: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: '#fff', fontSize: '9px' }}>
+                                                        <option value="">-</option>
+                                                        {[10,25,50,75,100].map(v => <option key={v} value={v}>{v}%</option>)}
+                                                      </select>
+                                                    </td>
+                                                  ))}
+                                                </tr>
+                                                <tr>
+                                                  <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>עומק (ס"מ/NR)</td>
+                                                  {thirds.map(t => (
+                                                    <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                      <input value={(f as any)[`depth_${t.k}`]} onChange={e => upd(`depth_${t.k}`, e.target.value)} placeholder="NR" style={{ width: '38px', padding: '2px 3px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: '#fff', fontSize: '9px', textAlign: 'center', direction: 'ltr' }} />
+                                                    </td>
+                                                  ))}
+                                                </tr>
+                                                <tr>
+                                                  <td style={{ color: '#94a3b8' }}>מזהם</td>
+                                                  {thirds.map(t => (
+                                                    <td key={t.k} style={{ textAlign: 'center' }}>
+                                                      <select value={(f as any)[`contaminant_${t.k}`]} onChange={e => upd(`contaminant_${t.k}`, e.target.value)} style={{ width: '58px', padding: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: '#fff', fontSize: '8px' }}>
+                                                        {CONTAMINANTS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                                                      </select>
+                                                    </td>
+                                                  ))}
+                                                </tr>
+                                              </tbody>
+                                            </table>
+                                            <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder="הערות GRF (אופציונלי)" style={{ width: '100%', padding: '3px 6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: 'rtl' }} />
+                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                              <button onClick={() => setAdminRunwayGrfForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>ביטול</button>
+                                              <button onClick={async () => {
+                                                const snap = adminRunwayGrfForm; if (!snap) return;
+                                                const toInt = (v: string) => v !== '' ? Number(v) : null;
+                                                const body = { runway_id: snap.runwayId, heading: snap.heading, rwycc_t: toInt(snap.rwycc_t), coverage_t: toInt(snap.coverage_t), depth_t: snap.depth_t||null, contaminant_t: snap.contaminant_t||null, rwycc_m: toInt(snap.rwycc_m), coverage_m: toInt(snap.coverage_m), depth_m: snap.depth_m||null, contaminant_m: snap.contaminant_m||null, rwycc_r: toInt(snap.rwycc_r), coverage_r: toInt(snap.coverage_r), depth_r: snap.depth_r||null, contaminant_r: snap.contaminant_r||null, notes: snap.notes||null };
+                                                const res = await fetch(`${API_URL}/runway-grf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                                if (res.ok) {
+                                                  const savedRow = await res.json();
+                                                  setAdminRunwayGrf(p => ({ ...p, [`${snap.runwayId}_${snap.heading}`]: savedRow }));
+                                                  setAdminRunwayGrfForm(null);
+                                                  setAirfieldRunwayGrf(prev => { const idx = prev.findIndex((g: any) => g.runway_id === snap.runwayId && g.heading === snap.heading); if (idx >= 0) { const n = [...prev]; n[idx] = savedRow; return n; } return [...prev, savedRow]; });
+                                                }
+                                              }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>שמור GRF</button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })()}
                                 {/* NOTAM sub-section */}
                                 {notamOpen && (
                                   <div style={{ marginTop: '6px', borderTop: '1px solid #1e3a5f', paddingTop: '6px' }}>
