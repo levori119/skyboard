@@ -23773,6 +23773,53 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     {textNotams.map((n: any) => (
                                       <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
                                     ))}
+                                    {/* Runway lighting controls */}
+                                    {(() => {
+                                      const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
+                                      const LVN = ['כבוי', 'חלש', 'בינוני', 'חזק'];
+                                      const active = lt.centerline_level > 0 || lt.edge_level > 0 || lt.threshold_lights > 0 || lt.end_lights > 0;
+                                      const setLv = (type: 'centerline_level' | 'edge_level' | 'threshold_lights' | 'end_lights', lv: number) => {
+                                        const up = { ...lt, [type]: lv };
+                                        setRunwayLighting((p: any) => ({ ...p, [rw.id]: up }));
+                                        fetch(`${API_URL}/runway-lighting/${rw.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(up) });
+                                      };
+                                      const turnOffAll = () => {
+                                        const up = { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
+                                        setRunwayLighting((p: any) => ({ ...p, [rw.id]: up }));
+                                        fetch(`${API_URL}/runway-lighting/${rw.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(up) });
+                                      };
+                                      const LTYPES: { type: 'centerline_level'|'edge_level'|'threshold_lights'|'end_lights'; icon: string; label: string; lvc: string[]; lvg: string[] }[] = [
+                                        { type: 'centerline_level',  icon: '─', label: 'מרכז מסלול',  lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
+                                        { type: 'edge_level',        icon: '▌', label: 'קצוות מסלול', lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
+                                        { type: 'threshold_lights',  icon: '🟩', label: 'מפתן (ירוק)', lvc: ['#166534','#22c55e','#bbf7d0'], lvg: ['none','0 0 2px #22c55eaa','0 0 5px #bbf7d0cc'] },
+                                        { type: 'end_lights',        icon: '🔴', label: 'קצה (אדום)',  lvc: ['#7f1d1d','#ef4444','#fca5a5'], lvg: ['none','0 0 2px #ef4444aa','0 0 5px #fca5a5cc'] },
+                                      ];
+                                      return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', direction: 'rtl', marginBottom: '1px' }}>
+                                            <span style={{ fontSize: '8px', color: active ? '#d97706' : '#475569', fontWeight: active ? 'bold' : 'normal' }}>💡 תאורות</span>
+                                            {active && <button onClick={e => { e.stopPropagation(); turnOffAll(); }} style={{ fontSize: '7px', padding: '1px 4px', background: '#7f1d1d', border: '1px solid #ef444488', borderRadius: '2px', cursor: 'pointer', color: '#fca5a5', lineHeight: 1 }} title="כבה את כל התאורות">כבה הכל</button>}
+                                          </div>
+                                          {LTYPES.map(({ type, icon, label, lvc, lvg }) => {
+                                            const level = lt[type];
+                                            const onColor = lvc[Math.max(level - 1, 0)];
+                                            return (
+                                              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '2px', direction: 'ltr' }}>
+                                                <span title={label} style={{ fontSize: '9px', flexShrink: 0, width: '14px', textAlign: 'center', color: level > 0 ? onColor : '#475569', lineHeight: 1 }}>{icon}</span>
+                                                {[1, 2, 3].map(lv => (
+                                                  <div
+                                                    key={lv}
+                                                    onClick={e => { e.stopPropagation(); setLv(type, level === lv ? 0 : lv); }}
+                                                    title={LVN[lv]}
+                                                    style={{ width: '11px', height: '7px', borderRadius: '1px', cursor: 'pointer', background: level >= lv ? lvc[lv - 1] : (lightMode ? '#cbd5e133' : '#1e293b'), border: `1px solid ${level >= lv ? lvc[lv - 1] : '#334155'}`, boxShadow: level >= lv ? lvg[lv - 1] : 'none', transition: 'background 0.12s, box-shadow 0.12s' }}
+                                                  />
+                                                ))}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
                                     {/* GRF per direction */}
                                     {(() => {
                                       const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
@@ -23797,45 +23844,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                                   );
                                                 })}
                                                 {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginRight: '2px' }}>פג</span>}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      );
-                                    })()}
-                                    {/* Runway lighting controls */}
-                                    {(() => {
-                                      const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
-                                      const LVN = ['כבוי', 'חלש', 'בינוני', 'חזק'];
-                                      const active = lt.centerline_level > 0 || lt.edge_level > 0 || lt.threshold_lights > 0 || lt.end_lights > 0;
-                                      const setLv = (type: 'centerline_level' | 'edge_level' | 'threshold_lights' | 'end_lights', lv: number) => {
-                                        const up = { ...lt, [type]: lv };
-                                        setRunwayLighting((p: any) => ({ ...p, [rw.id]: up }));
-                                        fetch(`${API_URL}/runway-lighting/${rw.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(up) });
-                                      };
-                                      // Per-type config: [icon, title, on-colors, on-glows]
-                                      const LTYPES: { type: 'centerline_level'|'edge_level'|'threshold_lights'|'end_lights'; icon: string; label: string; lvc: string[]; lvg: string[] }[] = [
-                                        { type: 'centerline_level',  icon: '─', label: 'מרכז מסלול',  lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
-                                        { type: 'edge_level',        icon: '▌', label: 'קצוות מסלול', lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
-                                        { type: 'threshold_lights',  icon: '🟩', label: 'מפתן (ירוק)', lvc: ['#166534','#22c55e','#bbf7d0'], lvg: ['none','0 0 2px #22c55eaa','0 0 5px #bbf7d0cc'] },
-                                        { type: 'end_lights',        icon: '🔴', label: 'קצה (אדום)',  lvc: ['#7f1d1d','#ef4444','#fca5a5'], lvg: ['none','0 0 2px #ef4444aa','0 0 5px #fca5a5cc'] },
-                                      ];
-                                      return (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
-                                          {LTYPES.map(({ type, icon, label, lvc, lvg }) => {
-                                            const level = lt[type];
-                                            const onColor = lvc[Math.max(level - 1, 0)];
-                                            return (
-                                              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '2px', direction: 'ltr' }}>
-                                                <span title={label} style={{ fontSize: '9px', flexShrink: 0, width: '14px', textAlign: 'center', color: level > 0 ? onColor : '#475569', lineHeight: 1 }}>{icon}</span>
-                                                {[1, 2, 3].map(lv => (
-                                                  <div
-                                                    key={lv}
-                                                    onClick={e => { e.stopPropagation(); setLv(type, level === lv ? 0 : lv); }}
-                                                    title={LVN[lv]}
-                                                    style={{ width: '11px', height: '7px', borderRadius: '1px', cursor: 'pointer', background: level >= lv ? lvc[lv - 1] : (lightMode ? '#cbd5e133' : '#1e293b'), border: `1px solid ${level >= lv ? lvc[lv - 1] : '#334155'}`, boxShadow: level >= lv ? lvg[lv - 1] : 'none', transition: 'background 0.12s, box-shadow 0.12s' }}
-                                                  />
-                                                ))}
                                               </div>
                                             );
                                           })}
