@@ -5629,7 +5629,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5681,6 +5681,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   externalCatHighlight?: Set<string>;
   externalHiddenElements?: Set<number>;
   topOffset?: number;
+  liveRunwayConflicts?: {routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[];
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -7592,6 +7593,47 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             });
           }}
         >
+          {/* ── Live runway conflict banner — positioned above map only ── */}
+          {liveRunwayConflicts && liveRunwayConflicts.length > 0 && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate' }}>
+              {liveRunwayConflicts.map((rc, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
+                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>קונפליקט מסלול {rc.routeName}:</span>
+                    {rc.conflicts.map((c, ci) => (
+                      <span key={ci} style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '1px 7px', whiteSpace: 'nowrap' }}>
+                        {c.type === 'vehicle' ? `🚗 ${c.name || 'רכב'}` : c.type === 'takeoff_clearance' ? `✈️ ${c.callsign} (אישור המראה)` : `✈️ ${c.callsign}`}
+                      </span>
+                    ))}
+                  </div>
+                  {rc.recommendations && rc.recommendations.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                      <span style={{ color: '#fcd34d', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>💡 המלץ לסגור:</span>
+                      {rc.recommendations.map(rec => {
+                        const hebrewToDsMap: Record<string,string> = { 'מנצנץ':'blink','כבוי':'off','סגור':'close','פתוח':'open','עצור':'stop','עבור':'go','דולק':'open','רגיל':'normal' };
+                        const targetHeb = rec.blocking_statuses[0] || '';
+                        const targetDs = hebrewToDsMap[targetHeb] || targetHeb;
+                        const curDs = rec.display_state || 'normal';
+                        const alreadyBlocking = rec.blocking_statuses.some(s => (hebrewToDsMap[s] || s) === curDs);
+                        const icon = rec.category === 'STOP BAR' ? '🛑' : rec.category === 'רמזורים' ? '🚦' : rec.category === 'מחסומים' ? '🚧' : '🔒';
+                        return (
+                          <button key={rec.id}
+                            onClick={() => { if (!alreadyBlocking && targetDs && onUpdateElementDisplayState) onUpdateElementDisplayState(rec.id, targetDs); }}
+                            disabled={alreadyBlocking}
+                            title={alreadyBlocking ? `${rec.name} כבר פעיל (${targetHeb})` : `הפעל ${rec.name} → ${targetHeb}`}
+                            style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px', cursor: alreadyBlocking ? 'default' : 'pointer', border: `1px solid ${alreadyBlocking ? '#15803d' : '#fbbf24'}`, background: alreadyBlocking ? '#14532d' : '#92400e', color: alreadyBlocking ? '#86efac' : '#fef3c7', whiteSpace: 'nowrap', opacity: alreadyBlocking ? 0.8 : 1 }}>
+                            {icon} {rec.name}{alreadyBlocking ? ' ✓' : ` → ${targetHeb}`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* ── Fixed UI panels (outside inner wrapper — never scaled/transformed) ── */}
 
           {/* Sector list panel + Add vehicle button — always visible, top-right */}
@@ -19824,48 +19866,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
         >
-          {/* Live runway conflict banner */}
-          {isGroundMode && liveRunwayConflicts.length > 0 && (
-            <div style={{ position: 'relative', zIndex: 10, background: '#7f1d1d', borderBottom: '2px solid #dc2626', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: '5px', direction: 'rtl', animation: 'groundTakeoffFlash 0.8s ease-in-out infinite alternate', flexShrink: 0 }}>
-              {liveRunwayConflicts.map((rc, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
-                  {/* Conflict info */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
-                    <span style={{ fontSize: '16px' }}>⚠️</span>
-                    <span style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}>קונפליקט מסלול {rc.routeName}:</span>
-                    {rc.conflicts.map((c, ci) => (
-                      <span key={ci} style={{ color: '#fecaca', fontSize: '12px', background: '#991b1b', borderRadius: '4px', padding: '1px 7px', whiteSpace: 'nowrap' }}>
-                        {c.type === 'vehicle' ? `🚗 ${c.name || 'רכב'}` : c.type === 'takeoff_clearance' ? `✈️ ${c.callsign} (אישור המראה)` : `✈️ ${c.callsign}`}
-                      </span>
-                    ))}
-                  </div>
-                  {/* Recommendations */}
-                  {rc.recommendations && rc.recommendations.length > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
-                      <span style={{ color: '#fcd34d', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>💡 המלץ לסגור:</span>
-                      {rc.recommendations.map(rec => {
-                        const hebrewToDsMap: Record<string,string> = { 'מנצנץ':'blink','כבוי':'off','סגור':'close','פתוח':'open','עצור':'stop','עבור':'go','דולק':'open','רגיל':'normal' };
-                        const targetHeb = rec.blocking_statuses[0] || '';
-                        const targetDs = hebrewToDsMap[targetHeb] || targetHeb;
-                        const curDs = rec.display_state || 'normal';
-                        const alreadyBlocking = rec.blocking_statuses.some(s => (hebrewToDsMap[s] || s) === curDs);
-                        const icon = rec.category === 'STOP BAR' ? '🛑' : rec.category === 'רמזורים' ? '🚦' : rec.category === 'מחסומים' ? '🚧' : '🔒';
-                        return (
-                          <button key={rec.id}
-                            onClick={() => { if (!alreadyBlocking && targetDs) handleUpdateElementDisplayState(rec.id, targetDs); }}
-                            disabled={alreadyBlocking}
-                            title={alreadyBlocking ? `${rec.name} כבר פעיל (${targetHeb})` : `הפעל ${rec.name} → ${targetHeb}`}
-                            style={{ padding: '2px 8px', fontSize: '11px', fontWeight: 'bold', borderRadius: '5px', cursor: alreadyBlocking ? 'default' : 'pointer', border: `1px solid ${alreadyBlocking ? '#15803d' : '#fbbf24'}`, background: alreadyBlocking ? '#14532d' : '#92400e', color: alreadyBlocking ? '#86efac' : '#fef3c7', whiteSpace: 'nowrap', opacity: alreadyBlocking ? 0.8 : 1 }}>
-                            {icon} {rec.name}{alreadyBlocking ? ' ✓' : ` → ${targetHeb}`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
           {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
           {isGroundMgmtMode && (() => {
             const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
@@ -19962,6 +19962,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
                 topOffset={0}
+                liveRunwayConflicts={liveRunwayConflicts}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
