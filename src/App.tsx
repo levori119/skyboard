@@ -8521,7 +8521,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
               const i = arr.indexOf(key);
               return i < 0 ? 0 : i;
             };
-            const SLOT_GAP = 34; // px between stacked chips (~22px single-line, ~34px when sub-label present + 2px gap)
+            const SLOT_GAP = 46; // px between stacked chips (~24px single-line, ~42px with takeoff-time row + border + gap)
             return sortedStrips.map((strip: any) => {
             const aircraft = getEffectivePositions(strip);
             const placed = aircraft.filter(ac => ac.point_id);
