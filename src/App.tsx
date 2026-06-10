@@ -6031,7 +6031,6 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [sidRunwayName, setSidRunwayName] = React.useState<string | null>(null);
   const [sidRunwayRouteId, setSidRunwayRouteId] = React.useState<number | null>(null);
   const [runwayConflicts, setRunwayConflicts] = React.useState<Record<number, {id:number;call_sign:string;callsign:string}[]>>({});
-  const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
 
   // Reset runway step state when sidModal closes; load conflicts when it opens
   React.useEffect(() => {
@@ -14116,6 +14115,7 @@ const AdminDashboard: React.FC<{
 // --- דשבורד עמדה ---
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
+  const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
