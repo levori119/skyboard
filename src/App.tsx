@@ -6042,7 +6042,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
       setRunwayConflicts({});
       return;
     }
-    const afId = airfield?.id ?? myPresetConfig?.airfield_id;
+    const afId = airfield?.id ?? null;
     const runwayRoutes = (airfieldRoutes || []).filter((r: any) => r.is_runway && (afId ? Number(r.airfield_id) === Number(afId) : false));
     if (runwayRoutes.length === 0) return;
     Promise.all(runwayRoutes.map((r: any) =>
@@ -10007,7 +10007,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           );
         }
 
-        const _stepAfId = airfield?.id ?? myPresetConfig?.airfield_id;
+        const _stepAfId = airfield?.id ?? null;
         const runwayRoutesForStep = (airfieldRoutes || []).filter((r: any) => r.is_runway && _stepAfId && Number(r.airfield_id) === Number(_stepAfId));
         if (runwayRoutesForStep.length > 0 && sidRunwayName === null) {
           return (
