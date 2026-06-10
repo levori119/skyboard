@@ -14185,7 +14185,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
-  const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number }>>({});
+  const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number; threshold_lights: number; end_lights: number }>>({});
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
   const [workstationAtisForm, setWorkstationAtisForm] = useState<Record<string, any> | null>(null);
@@ -23649,6 +23649,57 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       {stripeXs.map((x: number, i: number) => <rect key={i} x={x} y={RY + RH - STRIPE_H - 3} width={STRIPE_W} height={STRIPE_H} fill="#22c55e" opacity="0.75" rx="1" />)}
                                       {/* Centerline dashes */}
                                       {[0, 1, 2, 3].map((i: number) => <rect key={i} x={VIEWW / 2 - 1} y={RY + STRIPE_H + 10 + i * 18} width="2" height="10" fill={lightMode ? '#94a3b8' : '#374151'} rx="1" />)}
+                                      {/* ===== RUNWAY LIGHTING VISUALIZATION ===== */}
+                                      {(() => {
+                                        const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
+                                        const anyOn = lt.centerline_level > 0 || lt.edge_level > 0 || lt.threshold_lights > 0 || lt.end_lights > 0;
+                                        if (!anyOn) return null;
+                                        // Edge lights: 10 dots along each side
+                                        const EL_N = 10;
+                                        const elStep = (RH - 8) / (EL_N - 1);
+                                        const elYs = Array.from({ length: EL_N }, (_: any, i: number) => RY + 4 + i * elStep);
+                                        // Centerline lights: 6 dots in middle zone (skip 20px top/bottom for threshold/end)
+                                        const CL_N = 6;
+                                        const clStep = (RH - 44) / (CL_N - 1);
+                                        const clYs = Array.from({ length: CL_N }, (_: any, i: number) => RY + 22 + i * clStep);
+                                        // Threshold / end lights: 5 dots across width
+                                        const TH_N = 5;
+                                        const thXStep = (RW - 12) / (TH_N - 1);
+                                        const thXs = Array.from({ length: TH_N }, (_: any, i: number) => RX + 6 + i * thXStep);
+                                        // Color tables indexed by level-1 (0=lv1, 1=lv2, 2=lv3)
+                                        const edgeC  = ['#92400e', '#d97706', '#fffbeb'];
+                                        const clC    = ['#78350f', '#b45309', '#fef9c3'];
+                                        const thC    = ['#166534', '#22c55e', '#bbf7d0'];
+                                        const endC   = ['#7f1d1d', '#ef4444', '#fca5a5'];
+                                        const rs     = [1.2, 1.7, 2.3];
+                                        const ops    = [0.6, 0.85, 1];
+                                        const glowR  = [0, 0, 3.8];
+                                        const glowOp = [0, 0, 0.35];
+                                        const dot = (cx: number, cy: number, lv: number, cols: string[], glowCol: string) => {
+                                          if (!lv) return null;
+                                          const li = lv - 1;
+                                          return (
+                                            <g>
+                                              {glowR[li] > 0 && <circle cx={cx} cy={cy} r={glowR[li]} fill={glowCol} opacity={glowOp[li]} />}
+                                              <circle cx={cx} cy={cy} r={rs[li]} fill={cols[li]} opacity={ops[li]} />
+                                            </g>
+                                          );
+                                        };
+                                        return (
+                                          <g>
+                                            {/* Edge lights — left */}
+                                            {lt.edge_level > 0 && elYs.map((y: number, i: number) => <g key={`el${i}`}>{dot(RX + 1.5, y, lt.edge_level, edgeC, '#fef3c7')}</g>)}
+                                            {/* Edge lights — right */}
+                                            {lt.edge_level > 0 && elYs.map((y: number, i: number) => <g key={`er${i}`}>{dot(RX + RW - 1.5, y, lt.edge_level, edgeC, '#fef3c7')}</g>)}
+                                            {/* Centerline lights */}
+                                            {lt.centerline_level > 0 && clYs.map((y: number, i: number) => <g key={`cl${i}`}>{dot(VIEWW / 2, y, lt.centerline_level, clC, '#fef9c3')}</g>)}
+                                            {/* Threshold lights (green) */}
+                                            {lt.threshold_lights > 0 && thXs.map((x: number, i: number) => <g key={`th${i}`}>{dot(x, RY + 5, lt.threshold_lights, thC, '#bbf7d0')}</g>)}
+                                            {/* End lights (red) */}
+                                            {lt.end_lights > 0 && thXs.map((x: number, i: number) => <g key={`en${i}`}>{dot(x, RY + RH - 5, lt.end_lights, endC, '#fca5a5')}</g>)}
+                                          </g>
+                                        );
+                                      })()}
                                       {/* Runway name at top */}
                                       <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
                                       {/* True bearing at bottom */}
@@ -23698,29 +23749,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     })()}
                                     {/* Runway lighting controls */}
                                     {(() => {
-                                      const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0 };
-                                      const LVC = ['', '#78350f', '#d97706', '#facc15'];
-                                      const LVG = ['', 'none', '0 0 3px #d97706aa', '0 0 5px #facc15cc'];
+                                      const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0, threshold_lights: 0, end_lights: 0 };
                                       const LVN = ['כבוי', 'חלש', 'בינוני', 'חזק'];
-                                      const active = lt.centerline_level > 0 || lt.edge_level > 0;
-                                      const setLv = (type: 'centerline_level' | 'edge_level', lv: number) => {
+                                      const active = lt.centerline_level > 0 || lt.edge_level > 0 || lt.threshold_lights > 0 || lt.end_lights > 0;
+                                      const setLv = (type: 'centerline_level' | 'edge_level' | 'threshold_lights' | 'end_lights', lv: number) => {
                                         const up = { ...lt, [type]: lv };
                                         setRunwayLighting((p: any) => ({ ...p, [rw.id]: up }));
                                         fetch(`${API_URL}/runway-lighting/${rw.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(up) });
                                       };
+                                      // Per-type config: [icon, title, on-colors, on-glows]
+                                      const LTYPES: { type: 'centerline_level'|'edge_level'|'threshold_lights'|'end_lights'; icon: string; label: string; lvc: string[]; lvg: string[] }[] = [
+                                        { type: 'centerline_level',  icon: '─', label: 'מרכז מסלול',  lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
+                                        { type: 'edge_level',        icon: '▌', label: 'קצוות מסלול', lvc: ['#78350f','#d97706','#fffbeb'], lvg: ['none','0 0 2px #d97706aa','0 0 5px #fef3c7cc'] },
+                                        { type: 'threshold_lights',  icon: '🟩', label: 'מפתן (ירוק)', lvc: ['#166534','#22c55e','#bbf7d0'], lvg: ['none','0 0 2px #22c55eaa','0 0 5px #bbf7d0cc'] },
+                                        { type: 'end_lights',        icon: '🔴', label: 'קצה (אדום)',  lvc: ['#7f1d1d','#ef4444','#fca5a5'], lvg: ['none','0 0 2px #ef4444aa','0 0 5px #fca5a5cc'] },
+                                      ];
                                       return (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
-                                          {(['centerline_level', 'edge_level'] as const).map((type, ti) => {
+                                          {LTYPES.map(({ type, icon, label, lvc, lvg }) => {
                                             const level = lt[type];
+                                            const onColor = lvc[Math.max(level - 1, 0)];
                                             return (
                                               <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '2px', direction: 'ltr' }}>
-                                                <span title={ti === 0 ? 'מרכז מסלול' : 'קצוות מסלול'} style={{ fontSize: '9px', flexShrink: 0, width: '14px', textAlign: 'center', color: level > 0 ? '#facc15' : '#475569', lineHeight: 1 }}>{ti === 0 ? '💡' : '▌'}</span>
+                                                <span title={label} style={{ fontSize: '9px', flexShrink: 0, width: '14px', textAlign: 'center', color: level > 0 ? onColor : '#475569', lineHeight: 1 }}>{icon}</span>
                                                 {[1, 2, 3].map(lv => (
                                                   <div
                                                     key={lv}
                                                     onClick={e => { e.stopPropagation(); setLv(type, level === lv ? 0 : lv); }}
                                                     title={LVN[lv]}
-                                                    style={{ width: '11px', height: '7px', borderRadius: '1px', cursor: 'pointer', background: level >= lv ? LVC[lv] : (lightMode ? '#cbd5e133' : '#1e293b'), border: `1px solid ${level >= lv ? LVC[lv] : '#334155'}`, boxShadow: level >= lv ? LVG[lv] : 'none', transition: 'background 0.12s, box-shadow 0.12s' }}
+                                                    style={{ width: '11px', height: '7px', borderRadius: '1px', cursor: 'pointer', background: level >= lv ? lvc[lv - 1] : (lightMode ? '#cbd5e133' : '#1e293b'), border: `1px solid ${level >= lv ? lvc[lv - 1] : '#334155'}`, boxShadow: level >= lv ? lvg[lv - 1] : 'none', transition: 'background 0.12s, box-shadow 0.12s' }}
                                                   />
                                                 ))}
                                               </div>

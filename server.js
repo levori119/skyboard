@@ -1069,6 +1069,8 @@ async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS true_bearing INT`);
+  await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS runway_notams (
       id SERIAL PRIMARY KEY,
@@ -6236,13 +6238,13 @@ app.get('/api/runway-lighting', async (req, res) => {
 });
 app.put('/api/runway-lighting/:runway_id', async (req, res) => {
   try {
-    const { centerline_level = 0, edge_level = 0 } = req.body;
+    const { centerline_level = 0, edge_level = 0, threshold_lights = 0, end_lights = 0 } = req.body;
     const { rows } = await pool.query(
-      `INSERT INTO runway_lighting (runway_id, centerline_level, edge_level, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (runway_id) DO UPDATE SET centerline_level=$2, edge_level=$3, updated_at=NOW()
+      `INSERT INTO runway_lighting (runway_id, centerline_level, edge_level, threshold_lights, end_lights, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (runway_id) DO UPDATE SET centerline_level=$2, edge_level=$3, threshold_lights=$4, end_lights=$5, updated_at=NOW()
        RETURNING *`,
-      [req.params.runway_id, centerline_level, edge_level]
+      [req.params.runway_id, centerline_level, edge_level, threshold_lights, end_lights]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update runway lighting' }); }
