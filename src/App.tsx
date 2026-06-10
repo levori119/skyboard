@@ -14116,6 +14116,8 @@ const AdminDashboard: React.FC<{
 const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
+  const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
+  const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
@@ -16539,6 +16541,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const interval = setInterval(loadAirfieldsAndConfig, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
+  React.useEffect(() => {
+    if (!isGroundMgmtMode) { setActiveTakeoffs([]); return; }
+    const afId = activeAirfield?.id ?? myPresetConfig?.airfield_id;
+    if (!afId) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/active-takeoffs?airfield_id=${afId}`);
+        if (!res.ok) { setActiveTakeoffs([]); return; }
+        const data: any[] = await res.json();
+        setActiveTakeoffs(data.map((t: any) => ({
+          stripId: t.stripId,
+          callsign: t.callsign || '',
+          runway: t.runway || '',
+          routeName: t.routeName || '',
+        })));
+      } catch { setActiveTakeoffs([]); }
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
+  }, [isGroundMgmtMode, activeAirfield?.id, myPresetConfig?.airfield_id]);
 
   // Poll live runway conflicts every 5s in ground mode (uses new endpoint that covers cross-airfield links)
   React.useEffect(() => {
@@ -19753,6 +19778,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               ))}
             </div>
           )}
+          {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
+          {isGroundMgmtMode && (() => {
+            const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
+            if (visible.length === 0) return null;
+            return (
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9989, background: '#78350f', borderBottom: '2px solid #f59e0b', padding: '5px 14px', display: 'flex', flexDirection: 'column', gap: '4px', direction: 'rtl' }}>
+                {visible.map(t => (
+                  <div key={t.stripId} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '15px' }}>✈️</span>
+                    <span style={{ color: '#fde68a', fontWeight: 'bold', fontSize: '13px' }}>
+                      המראה על מסלול {t.routeName}:
+                    </span>
+                    <span style={{ color: '#fef3c7', fontSize: '12px', background: '#92400e', borderRadius: '4px', padding: '1px 8px', fontWeight: 'bold' }}>
+                      {t.callsign}
+                    </span>
+                    <button
+                      onClick={() => setDismissedTakeoffs(prev => new Set([...prev, String(t.stripId)]))}
+                      title="סגור התראה"
+                      style={{ marginRight: 'auto', padding: '0 6px', fontSize: '13px', background: 'transparent', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', cursor: 'pointer', lineHeight: '18px' }}>
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           {/* Ground View */}
           {isGroundMode && (() => {
             const presetSectors: number[] = myPresetConfig?.relevant_sectors || [];

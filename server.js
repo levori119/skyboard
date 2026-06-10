@@ -6178,6 +6178,62 @@ app.get('/api/live-runway-conflicts', async (req, res) => {
   }
 });
 
+// ── Active Takeoffs (for ground-mgmt notification banner) ─────────────────────
+// Returns strips with active takeoff clearance on runways associated with the given airfield
+// (including runways in linked airfields via route_links).
+app.get('/api/active-takeoffs', async (req, res) => {
+  try {
+    const airfieldId = Number(req.query.airfield_id);
+    if (!airfieldId) return res.json([]);
+    // 1. Direct runway routes
+    const { rows: directRw } = await pool.query(
+      `SELECT id, name, end_a_name, end_b_name FROM airfield_routes WHERE airfield_id=$1 AND is_runway=true`,
+      [airfieldId]
+    );
+    // 2. Linked runway routes (via route_links)
+    const { rows: myRoutes } = await pool.query(`SELECT id FROM airfield_routes WHERE airfield_id=$1`, [airfieldId]);
+    const myRouteIds = myRoutes.map(r => Number(r.id));
+    let linkedRw = [];
+    if (myRouteIds.length > 0) {
+      const { rows: links } = await pool.query(
+        `SELECT ar.id, ar.name, ar.end_a_name, ar.end_b_name
+         FROM route_links rl
+         JOIN airfield_routes ar ON ar.is_runway=true AND (
+           (rl.route_id_a = ANY($1::int[]) AND ar.id = rl.route_id_b) OR
+           (rl.route_id_b = ANY($1::int[]) AND ar.id = rl.route_id_a)
+         )`,
+        [myRouteIds]
+      );
+      linkedRw = links;
+    }
+    const seen = new Set();
+    const allRw = [...directRw, ...linkedRw].filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+    if (allRw.length === 0) return res.json([]);
+    // 3. For each runway, find strips with takeoff clearance
+    const results = [];
+    for (const rw of allRw) {
+      const runwayNames = [rw.name, rw.end_a_name, rw.end_b_name].filter(Boolean);
+      const { rows } = await pool.query(
+        `SELECT DISTINCT s.id, s.callsign, ac->>'takeoff_runway' AS takeoff_runway
+         FROM strips s, jsonb_array_elements(s.aircraft_positions) ac
+         WHERE s.aircraft_positions IS NOT NULL
+           AND jsonb_array_length(s.aircraft_positions) > 0
+           AND ac->>'status' = 'takeoff'
+           AND ac->>'takeoff_runway' = ANY($1::text[])`,
+        [runwayNames]
+      );
+      for (const row of rows) {
+        const routeName = rw.end_a_name && rw.end_b_name ? `${rw.end_a_name}/${rw.end_b_name}` : rw.name;
+        results.push({ stripId: row.id, callsign: row.callsign, runway: row.takeoff_runway, routeName });
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    console.error('active-takeoffs error:', err.message);
+    res.status(500).json([]);
+  }
+});
+
 // ── Element Nav Routes ────────────────────────────────────────────────────────
 app.get('/api/element-nav', async (req, res) => {
   try {
