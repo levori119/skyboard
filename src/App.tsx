@@ -14176,6 +14176,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [civAssignments, setCivAssignments] = useState<CivAssignment[]>([]);
   const [civStrips, setCivStrips] = useState<any[]>([]);
   const [airfields, setAirfields] = useState<any[]>([]);
+  const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
+  const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -16560,6 +16562,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       fetch(`${API_URL}/aviation-bases`).then(r => r.ok ? r.json() : []).then(setAviationBases).catch(() => {});
       fetch(`${API_URL}/airfield-routes`).then(r => r.ok ? r.json() : []).then(setAirfieldRoutes).catch(() => {});
       fetch(`${API_URL}/airfield-element-types`).then(r => r.ok ? r.json() : []).then(setAirfieldElementTypes).catch(() => {});
+      const afId = myPresetConfig?.airfield_id;
+      if (afId) {
+        fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
+        fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
+      }
     };
     loadAirfieldsAndConfig();
     const interval = setInterval(loadAirfieldsAndConfig, 10000);
@@ -23567,6 +23574,90 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })()}
 
+                  {/* Runway Diagram Widget — shown for tower/ground when runways exist */}
+                  {(isTowerMode || isGroundMode) && airfieldRunways.length > 0 && (() => {
+                    const rwWidgetOpen = !aidExpandedIds.has('__runway_widget_closed__');
+                    const VIEWW = 56; const VIEWH = 144;
+                    const RX = 4; const RY = 18; const RW = VIEWW - 8; const RH = VIEWH - 36;
+                    const STRIPE_COUNT = 7; const STRIPE_W = 4;
+                    const STRIPE_GAP = Math.floor((RW - STRIPE_COUNT * STRIPE_W) / (STRIPE_COUNT + 1));
+                    const stripeXs = Array.from({ length: STRIPE_COUNT }, (_: any, i: number) => RX + STRIPE_GAP + i * (STRIPE_W + STRIPE_GAP));
+                    const STRIPE_H = 11;
+                    return (
+                      <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
+                        <div
+                          onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__runway_widget_closed__') ? s.delete('__runway_widget_closed__') : s.add('__runway_widget_closed__'); return s; })}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#f0fdf4' : '#052e16', borderBottom: rwWidgetOpen ? `1px solid ${T.border}` : 'none' }}
+                        >
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>✈ מסלולים ({airfieldRunways.length})</span>
+                          <span style={{ fontSize: '10px', color: T.muted }}>{rwWidgetOpen ? '▲' : '▼'}</span>
+                        </div>
+                        {rwWidgetOpen && (
+                          <div style={{ padding: '6px 4px', direction: 'rtl', overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start', flexWrap: 'nowrap' }}>
+                              {airfieldRunways.map((rw: any) => {
+                                const rwNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
+                                const shortenNotams = rwNotams.filter((n: any) => n.notam_type === 'shortening');
+                                const textNotams = rwNotams.filter((n: any) => n.notam_type === 'text');
+                                const totalFt = rw.length_ft || 0;
+                                const hasNotam = rwNotams.length > 0;
+                                return (
+                                  <div key={rw.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                                    <svg viewBox={`0 0 ${VIEWW} ${VIEWH}`} width={VIEWW} height={VIEWH} style={{ display: 'block', filter: hasNotam ? 'drop-shadow(0 0 4px #ef444466)' : 'none' }}>
+                                      {/* Runway background */}
+                                      <rect x={RX} y={RY} width={RW} height={RH} fill={lightMode ? '#d1fae5' : '#1a2e1e'} stroke="#22c55e" strokeWidth="2" rx="2" />
+                                      {/* NOTAM shortening areas */}
+                                      {shortenNotams.map((n: any, ni: number) => {
+                                        if (!n.shorten_amount_ft || !totalFt) return null;
+                                        const ratio = Math.min(n.shorten_amount_ft / totalFt, 0.85);
+                                        const notamH = Math.max(Math.round(ratio * RH), 8);
+                                        const notamY = n.shorten_end === 'a' ? RY : RY + RH - notamH;
+                                        const labelY = notamY + notamH / 2 + 4;
+                                        return (
+                                          <g key={ni}>
+                                            <rect x={RX} y={notamY} width={RW} height={notamH} fill="#ef444455" stroke="#ef4444" strokeWidth="1.5" rx="1" />
+                                            {notamH > 14 && (
+                                              <text x={RX + RW / 2} y={labelY} textAnchor="middle" fontSize="7" fill="#ef4444" fontWeight="bold">
+                                                {n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}'` : ''}
+                                                {n.shorten_amount_m ? `/${Number(n.shorten_amount_m).toLocaleString()}m` : ''}
+                                              </text>
+                                            )}
+                                          </g>
+                                        );
+                                      })}
+                                      {/* Top threshold stripes */}
+                                      {stripeXs.map((x: number, i: number) => <rect key={i} x={x} y={RY + 3} width={STRIPE_W} height={STRIPE_H} fill="#22c55e" opacity="0.75" rx="1" />)}
+                                      {/* Bottom threshold stripes */}
+                                      {stripeXs.map((x: number, i: number) => <rect key={i} x={x} y={RY + RH - STRIPE_H - 3} width={STRIPE_W} height={STRIPE_H} fill="#22c55e" opacity="0.75" rx="1" />)}
+                                      {/* Centerline dashes */}
+                                      {[0, 1, 2, 3].map((i: number) => <rect key={i} x={VIEWW / 2 - 1} y={RY + STRIPE_H + 10 + i * 18} width="2" height="10" fill={lightMode ? '#94a3b8' : '#374151'} rx="1" />)}
+                                      {/* Heading A at top */}
+                                      <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.heading_a || ''}</text>
+                                      {/* Heading B at bottom */}
+                                      <text x={VIEWW / 2} y={VIEWH - 2} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.heading_b || ''}</text>
+                                      {/* Text NOTAM warning badge */}
+                                      {textNotams.length > 0 && <circle cx={RX + RW - 4} cy={RY + 6} r="5" fill="#f59e0b" />}
+                                      {textNotams.length > 0 && <text x={RX + RW - 4} y={RY + 9} textAnchor="middle" fontSize="6" fill="#000" fontWeight="bold">{textNotams.length}</text>}
+                                    </svg>
+                                    {/* Name + length below diagram */}
+                                    <div style={{ textAlign: 'center', maxWidth: `${VIEWW}px` }}>
+                                      <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>{rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}</div>
+                                      {rw.length_ft && <div style={{ fontSize: '8px', color: T.muted, whiteSpace: 'nowrap' }}>{Number(rw.length_ft).toLocaleString()}ft{rw.length_m ? `/${Number(rw.length_m).toLocaleString()}m` : ''}</div>}
+                                    </div>
+                                    {/* Text NOTAM chips */}
+                                    {textNotams.map((n: any) => (
+                                      <div key={n.id} title={n.text_content} style={{ fontSize: '8px', color: '#fbbf24', background: lightMode ? '#fefce8' : '#1c1400', border: '1px solid #f59e0b33', borderRadius: '3px', padding: '1px 4px', maxWidth: `${VIEWW + 4}px`, textAlign: 'center', wordBreak: 'break-word', direction: 'rtl', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.text_content}</div>
+                                    ))}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Contacts Panel (session-only) */}
                   {(() => {
                     const hasPrev = aidGroup || aidBlockTables.length > 0 || workGroupNotes.length > 0 || presetLinks.length > 0;
@@ -28729,6 +28820,11 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminAirfieldPolygons, setAdminAirfieldPolygons] = useState<any[]>([]);
   const [adminAirfieldSectors, setAdminAirfieldSectors] = useState<any[]>([]);
   const [adminAirfieldStatusTypes, setAdminAirfieldStatusTypes] = useState<any[]>([]);
+  const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
+  const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
+  const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; length_ft: string; length_m: string } | null>(null);
+  const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [airfieldActiveSubTab, setAirfieldActiveSubTab] = useState<'points'|'routes'|'elements'|'polygons'|'sectors'|'statustypes'>('points');
   // Polygon drawing state
   const [drawingPolygonId, setDrawingPolygonId] = useState<number|null>(null);
@@ -32332,6 +32428,18 @@ CHARLIE,1,301,`}
             if (r.ok) setAdminAirfieldElements(await r.json());
             else setAdminAirfieldElements([]);
           };
+          const loadAirfieldRunways = async (airfieldId: number) => {
+            const [rr, nr] = await Promise.all([
+              fetch(`${API_URL}/airfield-runways?airfield_id=${airfieldId}`),
+              fetch(`${API_URL}/runway-notams?airfield_id=${airfieldId}`)
+            ]);
+            const runways = rr.ok ? await rr.json() : [];
+            const allNotams: any[] = nr.ok ? await nr.json() : [];
+            setAdminAirfieldRunways(runways);
+            const byRunway: Record<number, any[]> = {};
+            for (const n of allNotams) { if (!byRunway[n.runway_id]) byRunway[n.runway_id] = []; byRunway[n.runway_id].push(n); }
+            setAdminRunwayNotams(byRunway);
+          };
           const loadAirfieldPoints = async (airfieldId: number) => {
             setAdminSelMapSrc(null);
             const [ptRes, afRes] = await Promise.all([
@@ -32351,6 +32459,7 @@ CHARLIE,1,301,`}
             await loadAirfieldPolygons(airfieldId);
             await loadAirfieldSectors(airfieldId);
             await loadAirfieldStatusTypes(airfieldId);
+            await loadAirfieldRunways(airfieldId);
             fetch(`${API_URL}/route-links?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
             setShowAddRouteLinkForm(false);
@@ -32398,6 +32507,7 @@ CHARLIE,1,301,`}
             loadAirfieldElements(dup.id);
             loadAirfieldSectors(dup.id);
             loadAirfieldStatusTypes(dup.id);
+            loadAirfieldRunways(dup.id);
             if (dup.map_id) loadMapById(dup.map_id.toString());
           };
           const addPointAt = async (x_pct: number, y_pct: number) => {
@@ -32668,6 +32778,133 @@ CHARLIE,1,301,`}
                         </div>
                       </div>
                     </div>
+
+                    {/* Runways section */}
+                    {(editingAirfield || selectedAdminAirfieldId) && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
+                          <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈ מסלולים ({adminAirfieldRunways.length})</div>
+                          {adminAFExpanded.has('runways') && adminRunwayForm === null && (
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', length_ft: '', length_m: '' }); setAdminRunwayEditId(null); }}
+                              style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>
+                          )}
+                          <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('runways') ? '3000px' : '0', overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
+                          {/* Add/Edit runway form */}
+                          {adminRunwayForm !== null && (
+                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #166534' }}>
+                              <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', textAlign: 'right' }}>{adminRunwayEditId ? 'עריכת מסלול' : 'מסלול חדש'}</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
+                                <input value={adminRunwayForm.name} onChange={e => setAdminRunwayForm(p => p && ({ ...p, name: e.target.value }))} placeholder="שם (למשל 09/27)" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', direction: 'rtl' }} />
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <input value={adminRunwayForm.heading_a} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a: e.target.value }))} placeholder="כיוון א" maxLength={4} style={{ flex: 1, padding: '4px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', textAlign: 'center' }} />
+                                  <input value={adminRunwayForm.heading_b} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b: e.target.value }))} placeholder="כיוון ב" maxLength={4} style={{ flex: 1, padding: '4px 4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', textAlign: 'center' }} />
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '6px' }}>
+                                <div style={{ position: 'relative' }}>
+                                  <input value={adminRunwayForm.length_ft} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_ft: v, length_m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="אורך ft" type="number" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
+                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>ft</span>
+                                </div>
+                                <div style={{ position: 'relative' }}>
+                                  <input value={adminRunwayForm.length_m} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_m: v, length_ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="אורך m" type="number" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
+                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>m</span>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                <button onClick={() => { setAdminRunwayForm(null); setAdminRunwayEditId(null); }} style={{ padding: '4px 10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                                <button onClick={async () => {
+                                  const form = adminRunwayForm;
+                                  if (!form) return;
+                                  const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                                  const body = { airfield_id: afId, name: form.name, heading_a: form.heading_a, heading_b: form.heading_b, length_ft: form.length_ft ? Number(form.length_ft) : null, length_m: form.length_m ? Number(form.length_m) : null };
+                                  if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                  else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                  setAdminRunwayForm(null); setAdminRunwayEditId(null);
+                                  if (afId) loadAirfieldRunways(afId);
+                                }} style={{ padding: '4px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>שמור</button>
+                              </div>
+                            </div>
+                          )}
+                          {/* Runway list */}
+                          {adminAirfieldRunways.map((rw: any) => {
+                            const notams = adminRunwayNotams[rw.id] || [];
+                            const notamOpen = adminAFExpanded.has(`rw_notam_${rw.id}`);
+                            return (
+                              <div key={rw.id} style={{ background: '#0f2744', border: '1px solid #1e3a5f', borderRadius: '6px', padding: '6px 8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl' }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#86efac' }}>{rw.name || '—'}</div>
+                                    <div style={{ fontSize: '10px', color: '#93c5fd' }}>
+                                      {rw.heading_a && rw.heading_b ? `${rw.heading_a} / ${rw.heading_b}` : ''}
+                                      {rw.length_ft ? <span style={{ marginRight: '8px', color: '#cbd5e1' }}>{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
+                                    </div>
+                                  </div>
+                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '' }); setAdminRunwayEditId(rw.id); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
+                                  <button onClick={() => toggleAFSec(`rw_notam_${rw.id}`)} style={{ padding: '2px 6px', background: notamOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${notams.length > 0 ? '#92400e' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: notams.length > 0 ? '#fbbf24' : '#64748b' }} title="NOTAMs">⚠ {notams.length > 0 ? notams.length : ''}</button>
+                                </div>
+                                {/* NOTAM sub-section */}
+                                {notamOpen && (
+                                  <div style={{ marginTop: '6px', borderTop: '1px solid #1e3a5f', paddingTop: '6px' }}>
+                                    {notams.map((n: any) => (
+                                      <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: '#0c1824', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', direction: 'rtl', border: '1px solid #1e3a5f' }}>
+                                        <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : '#cbd5e1' }}>
+                                          {n.notam_type === 'shortening'
+                                            ? `קיצור קצה ${n.shorten_end === 'a' ? (rw.heading_a || 'א') : (rw.heading_b || 'ב')}: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}`
+                                            : (n.text_content || '')}
+                                        </div>
+                                        <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '1px 5px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: '#fca5a5', flexShrink: 0 }}>✕</button>
+                                      </div>
+                                    ))}
+                                    {/* Add NOTAM form */}
+                                    {adminRunwayNewNotam?.runwayId === rw.id ? (
+                                      <div style={{ background: '#0c1824', borderRadius: '4px', padding: '6px', border: '1px solid #1e3a5f', marginTop: '4px' }}>
+                                        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', direction: 'rtl' }}>
+                                          <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.type === 'text' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>טקסט</button>
+                                          <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.type === 'shortening' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>קיצור</button>
+                                        </div>
+                                        {adminRunwayNewNotam!.type === 'text'
+                                          ? <textarea value={adminRunwayNewNotam!.text} onChange={e => setAdminRunwayNewNotam(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן NOTAM..." rows={2} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
+                                          : <div style={{ direction: 'rtl' }}>
+                                              <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>קצה לקיצור:</div>
+                                              <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                                                <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, end: 'a' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.end === 'a' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#86efac' }}>{rw.heading_a || 'קצה א'}</button>
+                                                <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, end: 'b' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.end === 'b' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#86efac' }}>{rw.heading_b || 'קצה ב'}</button>
+                                              </div>
+                                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                                <input value={adminRunwayNewNotam!.ft} onChange={e => { const v = e.target.value; setAdminRunwayNewNotam(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }} />
+                                                <input value={adminRunwayNewNotam!.m} onChange={e => { const v = e.target.value; setAdminRunwayNewNotam(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }} />
+                                              </div>
+                                            </div>
+                                        }
+                                        <div style={{ display: 'flex', gap: '4px', marginTop: '5px', justifyContent: 'flex-end' }}>
+                                          <button onClick={() => setAdminRunwayNewNotam(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
+                                          <button onClick={async () => {
+                                            const notamSnap = adminRunwayNewNotam;
+                                            if (!notamSnap) return;
+                                            const body: any = { runway_id: rw.id, notam_type: notamSnap.type };
+                                            if (notamSnap.type === 'text') body.text_content = notamSnap.text;
+                                            else { body.shorten_end = notamSnap.end; body.shorten_amount_ft = notamSnap.ft ? Number(notamSnap.ft) : null; body.shorten_amount_m = notamSnap.m ? Number(notamSnap.m) : null; }
+                                            await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                            setAdminRunwayNewNotam(null);
+                                            const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
+                                            if (afId) loadAirfieldRunways(afId);
+                                          }} style={{ padding: '3px 10px', background: '#b45309', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>הוסף</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button onClick={() => setAdminRunwayNewNotam({ runwayId: rw.id, type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px dashed #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#64748b', direction: 'rtl' }}>+ NOTAM</button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Cameras section */}
                     {(editingAirfield || selectedAdminAirfieldId) && (

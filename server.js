@@ -1055,6 +1055,32 @@ async function initDb() {
     )
   `);
 
+  // Airfield runways + NOTAMs
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfield_runways (
+      id SERIAL PRIMARY KEY,
+      airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+      name VARCHAR(20),
+      heading_a VARCHAR(4),
+      heading_b VARCHAR(4),
+      length_ft INTEGER,
+      length_m INTEGER,
+      sort_order INTEGER DEFAULT 0
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS runway_notams (
+      id SERIAL PRIMARY KEY,
+      runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE,
+      notam_type VARCHAR(20) DEFAULT 'text',
+      text_content TEXT,
+      shorten_end VARCHAR(2),
+      shorten_amount_ft INTEGER,
+      shorten_amount_m INTEGER,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -5982,6 +6008,85 @@ app.delete('/api/airfield-routes/:id', async (req, res) => {
     await pool.query('DELETE FROM airfield_routes WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield route' }); }
+});
+
+// ── Airfield Runways ──
+app.get('/api/airfield-runways', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const { rows } = await pool.query('SELECT * FROM airfield_runways WHERE airfield_id=$1 ORDER BY sort_order, id', [airfield_id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get airfield runways' }); }
+});
+app.post('/api/airfield-runways', async (req, res) => {
+  try {
+    const { airfield_id, name, heading_a, heading_b, length_ft, length_m, sort_order } = req.body;
+    const { rows } = await pool.query(
+      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, length_ft, length_m, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+      [airfield_id, name || '', heading_a || '', heading_b || '', length_ft || null, length_m || null, sort_order || 0]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create airfield runway' }); }
+});
+app.put('/api/airfield-runways/:id', async (req, res) => {
+  try {
+    const { name, heading_a, heading_b, length_ft, length_m, sort_order } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, length_ft=$4, length_m=$5, sort_order=$6 WHERE id=$7 RETURNING *',
+      [name || '', heading_a || '', heading_b || '', length_ft || null, length_m || null, sort_order || 0, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update airfield runway' }); }
+});
+app.delete('/api/airfield-runways/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_runways WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete airfield runway' }); }
+});
+
+// ── Runway NOTAMs ──
+app.get('/api/runway-notams', async (req, res) => {
+  try {
+    const { runway_id, airfield_id } = req.query;
+    if (airfield_id) {
+      const { rows } = await pool.query(
+        'SELECT rn.* FROM runway_notams rn JOIN airfield_runways ar ON rn.runway_id = ar.id WHERE ar.airfield_id=$1 ORDER BY rn.id',
+        [airfield_id]
+      );
+      return res.json(rows);
+    }
+    if (!runway_id) return res.json([]);
+    const { rows } = await pool.query('SELECT * FROM runway_notams WHERE runway_id=$1 ORDER BY id', [runway_id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get runway notams' }); }
+});
+app.post('/api/runway-notams', async (req, res) => {
+  try {
+    const { runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
+    const { rows } = await pool.query(
+      'INSERT INTO runway_notams (runway_id, notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [runway_id, notam_type || 'text', text_content || null, shorten_end || null, shorten_amount_ft || null, shorten_amount_m || null]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create runway notam' }); }
+});
+app.put('/api/runway-notams/:id', async (req, res) => {
+  try {
+    const { notam_type, text_content, shorten_end, shorten_amount_ft, shorten_amount_m } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE runway_notams SET notam_type=$1, text_content=$2, shorten_end=$3, shorten_amount_ft=$4, shorten_amount_m=$5 WHERE id=$6 RETURNING *',
+      [notam_type, text_content || null, shorten_end || null, shorten_amount_ft || null, shorten_amount_m || null, req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update runway notam' }); }
+});
+app.delete('/api/runway-notams/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete runway notam' }); }
 });
 
 app.get('/api/runway-conflict', async (req, res) => {
