@@ -14182,7 +14182,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [rwNotamSummaryOpen, setRwNotamSummaryOpen] = useState(false);
   const [rwGrfSummaryOpen, setRwGrfSummaryOpen] = useState(false);
   const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
-  const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
+  const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number; threshold_lights: number; end_lights: number }>>({});
@@ -23618,13 +23618,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 const rwNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                 const shortenNotams = rwNotams.filter((n: any) => n.notam_type === 'shortening');
                                 const textNotams = rwNotams.filter((n: any) => n.notam_type === 'text');
+                                const closedNotams = rwNotams.filter((n: any) => n.notam_type === 'closed');
+                                const isClosed = closedNotams.length > 0;
                                 const totalFt = rw.length_ft || 0;
                                 const hasNotam = rwNotams.length > 0;
                                 return (
                                   <div key={rw.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                                    <svg viewBox={`0 0 ${VIEWW} ${VIEWH}`} width={VIEWW} height={VIEWH} style={{ display: 'block', filter: hasNotam ? 'drop-shadow(0 0 4px #ef444466)' : 'none' }}>
+                                    <svg viewBox={`0 0 ${VIEWW} ${VIEWH}`} width={VIEWW} height={VIEWH} style={{ display: 'block', filter: isClosed ? 'drop-shadow(0 0 6px #ef4444cc)' : hasNotam ? 'drop-shadow(0 0 4px #ef444466)' : 'none' }}>
                                       {/* Runway background */}
-                                      <rect x={RX} y={RY} width={RW} height={RH} fill={lightMode ? '#d1fae5' : '#1a2e1e'} stroke="#22c55e" strokeWidth="2" rx="2" />
+                                      <rect x={RX} y={RY} width={RW} height={RH} fill={isClosed ? '#2a0000' : (lightMode ? '#d1fae5' : '#1a2e1e')} stroke={isClosed ? '#ef4444' : '#22c55e'} strokeWidth={isClosed ? 3 : 2} rx="2" className={isClosed ? 'runway-closed-rect' : undefined} />
                                       {/* NOTAM shortening areas */}
                                       {shortenNotams.map((n: any, ni: number) => {
                                         if (!n.shorten_amount_ft || !totalFt) return null;
@@ -23705,9 +23707,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
                                       {/* True bearing at bottom */}
                                       <text x={VIEWW / 2} y={VIEWH - 2} textAnchor="middle" fontSize="9" fill={lightMode ? '#6366f1' : '#6366f1'}>{rw.true_bearing ? `${rw.true_bearing}°` : ''}</text>
+                                      {/* Closed runway — big red X */}
+                                      {isClosed && (
+                                        <g className="runway-closed-x">
+                                          <line x1={RX + 2} y1={RY + 2} x2={RX + RW - 2} y2={RY + RH - 2} stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                                          <line x1={RX + RW - 2} y1={RY + 2} x2={RX + 2} y2={RY + RH - 2} stroke="#ef4444" strokeWidth="5" strokeLinecap="round" />
+                                        </g>
+                                      )}
                                       {/* Text NOTAM warning badge */}
                                       {textNotams.length > 0 && <circle cx={RX + RW - 4} cy={RY + 6} r="5" fill="#f59e0b" />}
                                       {textNotams.length > 0 && <text x={RX + RW - 4} y={RY + 9} textAnchor="middle" fontSize="6" fill="#000" fontWeight="bold">{textNotams.length}</text>}
+                                      {/* Closed runway badge */}
+                                      {isClosed && <circle cx={RX + RW / 2} cy={RY + RH / 2} r="8" fill="#7f1d1d" stroke="#ef4444" strokeWidth="1.5" />}
+                                      {isClosed && <text x={RX + RW / 2} y={RY + RH / 2 + 4} textAnchor="middle" fontSize="10" fill="#fca5a5" fontWeight="bold">✕</text>}
                                     </svg>
                                     {/* Name + length below diagram */}
                                     <div style={{ textAlign: 'center', maxWidth: `${VIEWW}px` }}>
@@ -23819,6 +23831,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       const notams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                       const shorts = notams.filter((n: any) => n.notam_type === 'shortening');
                                       const texts = notams.filter((n: any) => n.notam_type === 'text');
+                                      const closeds = notams.filter((n: any) => n.notam_type === 'closed');
                                       return (
                                         <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#78350f44'}`, paddingBottom: '8px' }}>
                                           <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24', marginBottom: '4px' }}>
@@ -23834,6 +23847,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                               </div>
                                             </div>
                                           ))}
+                                          {closeds.length > 0 && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px', padding: '4px 6px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '5px', border: '1px solid #ef444466' }}>
+                                              <span style={{ fontSize: '14px', flexShrink: 0 }}>🚫</span>
+                                              <div style={{ color: '#fca5a5', fontWeight: 'bold', fontSize: '10px' }}>מסלול סגור</div>
+                                            </div>
+                                          )}
                                           {texts.map((n: any) => (
                                             <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '3px', fontSize: '10px' }}>
                                               <span style={{ color: '#f59e0b', flexShrink: 0 }}>•</span>
@@ -23922,8 +23941,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
                                   {editNotams.map((n: any) => (
                                     <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
-                                      <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
-                                        {n.notam_type === 'shortening'
+                                      <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
+                                        {n.notam_type === 'closed'
+                                          ? '🚫 מסלול סגור'
+                                          : n.notam_type === 'shortening'
                                           ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${editRw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(editRw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
                                           : (n.text_content || '')}
                                       </div>
@@ -23932,11 +23953,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   ))}
                                   {workstationNotamNewForm ? (
                                     <div style={{ background: lightMode ? '#fff' : '#0c1400', borderRadius: '5px', padding: '7px 8px', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, marginTop: '4px' }}>
-                                      <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
+                                      <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', flexWrap: 'wrap' }}>
                                         <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>טקסט</button>
                                         <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>קיצור מסלול</button>
+                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'closed' ? '#7f1d1d' : 'transparent', border: `1px solid ${workstationNotamNewForm.type === 'closed' ? '#ef4444' : '#92400e'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: workstationNotamNewForm.type === 'closed' ? '#fca5a5' : '#fbbf24', fontWeight: workstationNotamNewForm.type === 'closed' ? 'bold' : 'normal' }}>🚫 סגור מסלול</button>
                                       </div>
-                                      {workstationNotamNewForm.type === 'text' ? (
+                                      {workstationNotamNewForm.type === 'closed' ? (
+                                        <div style={{ textAlign: 'center', padding: '8px 4px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '5px', border: '1px solid #ef4444' }}>
+                                          <div style={{ fontSize: '22px', marginBottom: '3px' }}>🚫</div>
+                                          <div style={{ fontSize: '10px', color: '#fca5a5', fontWeight: 'bold' }}>המסלול יסומן כסגור</div>
+                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>X אדום יוצג על המסלול במפה</div>
+                                        </div>
+                                      ) : workstationNotamNewForm.type === 'text' ? (
                                         <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '10px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                       ) : (
                                         <div>
@@ -23958,7 +23986,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                           const f = workstationNotamNewForm; if (!f) return;
                                           const body: any = { runway_id: editRw.id, notam_type: f.type };
                                           if (f.type === 'text') body.text_content = f.text;
-                                          else { body.shorten_end = f.end; body.shorten_amount_ft = f.ft ? Number(f.ft) : null; body.shorten_amount_m = f.m ? Number(f.m) : null; }
+                                          else if (f.type === 'shortening') { body.shorten_end = f.end; body.shorten_amount_ft = f.ft ? Number(f.ft) : null; body.shorten_amount_m = f.m ? Number(f.m) : null; }
                                           await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                           setWorkstationNotamNewForm(null);
                                           refreshNotams();
@@ -29606,7 +29634,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
   const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; true_bearing: string; length_ft: string; length_m: string } | null>(null);
-  const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
+  const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
   const [adminRunwayGrfForm, setAdminRunwayGrfForm] = useState<{ runwayId: number; heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [airfieldActiveSubTab, setAirfieldActiveSubTab] = useState<'points'|'routes'|'elements'|'polygons'|'sectors'|'statustypes'>('points');
@@ -33777,8 +33805,10 @@ CHARLIE,1,301,`}
                                   <div style={{ marginTop: '6px', borderTop: '1px solid #1e3a5f', paddingTop: '6px' }}>
                                     {notams.map((n: any) => (
                                       <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: '#0c1824', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', direction: 'rtl', border: '1px solid #1e3a5f' }}>
-                                        <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : '#cbd5e1' }}>
-                                          {n.notam_type === 'shortening'
+                                        <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : '#cbd5e1' }}>
+                                          {n.notam_type === 'closed'
+                                            ? '🚫 מסלול סגור'
+                                            : n.notam_type === 'shortening'
                                             ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${rw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(rw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
                                             : (n.text_content || '')}
                                         </div>
@@ -33788,13 +33818,20 @@ CHARLIE,1,301,`}
                                     {/* Add NOTAM form */}
                                     {adminRunwayNewNotam?.runwayId === rw.id ? (
                                       <div style={{ background: '#0c1824', borderRadius: '4px', padding: '6px', border: '1px solid #1e3a5f', marginTop: '4px' }}>
-                                        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', direction: 'rtl' }}>
+                                        <div style={{ display: 'flex', gap: '4px', marginBottom: '4px', direction: 'rtl', flexWrap: 'wrap' }}>
                                           <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.type === 'text' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>טקסט</button>
                                           <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.type === 'shortening' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>קיצור</button>
+                                          <button onClick={() => setAdminRunwayNewNotam(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '3px', background: adminRunwayNewNotam!.type === 'closed' ? '#7f1d1d' : 'transparent', border: `1px solid ${adminRunwayNewNotam!.type === 'closed' ? '#ef4444' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: adminRunwayNewNotam!.type === 'closed' ? '#fca5a5' : '#f87171', fontWeight: adminRunwayNewNotam!.type === 'closed' ? 'bold' : 'normal' }}>🚫 סגור</button>
                                         </div>
                                         {adminRunwayNewNotam!.type === 'text'
                                           ? <textarea value={adminRunwayNewNotam!.text} onChange={e => setAdminRunwayNewNotam(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן NOTAM..." rows={2} style={{ width: '100%', padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px', direction: 'rtl', resize: 'none', boxSizing: 'border-box' }} />
-                                          : <div style={{ direction: 'rtl' }}>
+                                          : adminRunwayNewNotam!.type === 'closed' ? (
+                                            <div style={{ textAlign: 'center', padding: '8px 4px', background: '#1a0000', borderRadius: '5px', border: '1px solid #ef4444' }}>
+                                              <div style={{ fontSize: '20px', marginBottom: '2px' }}>🚫</div>
+                                              <div style={{ fontSize: '10px', color: '#fca5a5', fontWeight: 'bold' }}>המסלול יסומן כסגור</div>
+                                              <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>X אדום יוצג על המסלול במפה</div>
+                                            </div>
+                                          ) : <div style={{ direction: 'rtl' }}>
                                               <div style={{ fontSize: '10px', color: '#94a3b8', marginBottom: '3px' }}>כמות הקיצור (מסף הנחיתה):</div>
                                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                                 <input value={adminRunwayNewNotam!.ft} onChange={e => { const v = e.target.value; setAdminRunwayNewNotam(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '10px' }} />
@@ -33814,7 +33851,7 @@ CHARLIE,1,301,`}
                                             if (!notamSnap) return;
                                             const body: any = { runway_id: rw.id, notam_type: notamSnap.type };
                                             if (notamSnap.type === 'text') body.text_content = notamSnap.text;
-                                            else { body.shorten_end = notamSnap.end; body.shorten_amount_ft = notamSnap.ft ? Number(notamSnap.ft) : null; body.shorten_amount_m = notamSnap.m ? Number(notamSnap.m) : null; }
+                                            else if (notamSnap.type === 'shortening') { body.shorten_end = notamSnap.end; body.shorten_amount_ft = notamSnap.ft ? Number(notamSnap.ft) : null; body.shorten_amount_m = notamSnap.m ? Number(notamSnap.m) : null; }
                                             await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                             setAdminRunwayNewNotam(null);
                                             const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;

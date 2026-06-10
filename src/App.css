@@ -109,6 +109,20 @@
 .ground-takeoff-flash {
   animation: groundTakeoffFlash 0.7s ease-in-out infinite;
 }
+@keyframes runway-closed-stroke-flash {
+  0%, 100% { stroke: #ef4444; stroke-opacity: 1; }
+  50% { stroke: #7f1d1d; stroke-opacity: 0.45; }
+}
+@keyframes runway-closed-x-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.runway-closed-rect {
+  animation: runway-closed-stroke-flash 0.75s ease-in-out infinite;
+}
+.runway-closed-x {
+  animation: runway-closed-x-flash 0.75s ease-in-out infinite;
+}
 :root {
   --bg-dark: #0f172a;
   --strip-bg: #1e293b;
