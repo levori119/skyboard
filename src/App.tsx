@@ -14287,6 +14287,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
+  const [recentTakeoffTimes, setRecentTakeoffTimes] = React.useState<Record<string, number>>({});
+  const [rwNow, setRwNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const WINDOW_MS = 3 * 60 * 1000;
+    const now = Date.now();
+    const activeSet = new Set((activeTakeoffs || []).map((t: any) => t.runway).filter(Boolean));
+    setRecentTakeoffTimes(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const t of (activeTakeoffs || [])) {
+        if (t.runway && !next[t.runway]) { next[t.runway] = now; changed = true; }
+      }
+      for (const heading of Object.keys(next)) {
+        if (!activeSet.has(heading) && (now - next[heading]) >= WINDOW_MS) { delete next[heading]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [activeTakeoffs]);
+  React.useEffect(() => {
+    const iv = setInterval(() => setRwNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
   const [peerMsgs, setPeerMsgs] = React.useState<{id: number; from_preset_id: number|null; from_preset_name: string|null; message: string; created_at: string}[]>([]);
   const [composeModal, setComposeModal] = React.useState<{recipients: {id: number; name: string}[]; title: string} | null>(null);
   const [composeText, setComposeText] = React.useState('');
