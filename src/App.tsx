@@ -7807,7 +7807,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}`}</style>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}`}</style>
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
@@ -8025,6 +8025,42 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       </g>
                     ))}
                     {r.notes && <title>{r.notes}</title>}
+                  </g>
+                );
+              })}
+            </svg>
+          )}
+
+          {/* ── Closed-runway blinking red line overlay ── */}
+          {imgBounds && (airfieldRunways || []).some((rw: any) =>
+            rw.start_x_pct != null && rw.end_x_pct != null &&
+            (airfieldRunwayNotams || []).some((n: any) => n.runway_id === rw.id && n.notam_type === 'closed')
+          ) && (
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={{ position: 'absolute', top: imgBounds.top, left: imgBounds.left, width: imgBounds.width, height: imgBounds.height, pointerEvents: 'none', zIndex: 16 }}>
+              {(airfieldRunways || []).map((rw: any) => {
+                if (rw.start_x_pct == null || rw.end_x_pct == null) return null;
+                const isClosedRw = (airfieldRunwayNotams || []).some((n: any) => n.runway_id === rw.id && n.notam_type === 'closed');
+                if (!isClosedRw) return null;
+                return (
+                  <g key={rw.id} className="rw-closed-line">
+                    <line
+                      x1={rw.start_x_pct} y1={rw.start_y_pct}
+                      x2={rw.end_x_pct}   y2={rw.end_y_pct}
+                      stroke="#7f1d1d" strokeWidth="2.2" strokeLinecap="round"
+                    />
+                    <line
+                      x1={rw.start_x_pct} y1={rw.start_y_pct}
+                      x2={rw.end_x_pct}   y2={rw.end_y_pct}
+                      stroke="#ef4444" strokeWidth="1.2" strokeLinecap="round"
+                      strokeDasharray="2.5,1.5"
+                    />
+                    <line
+                      x1={rw.start_x_pct} y1={rw.start_y_pct}
+                      x2={rw.end_x_pct}   y2={rw.end_y_pct}
+                      stroke="#fca5a5" strokeWidth="0.4" strokeLinecap="round"
+                      opacity="0.6"
+                    />
                   </g>
                 );
               })}
