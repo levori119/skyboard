@@ -23955,13 +23955,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div
                           onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__runway_widget_closed__') ? s.delete('__runway_widget_closed__') : s.add('__runway_widget_closed__'); return s; })}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#f0fdf4' : '#052e16', borderBottom: rwWidgetOpen ? `1px solid ${T.border}` : 'none' }}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>✈ מסלולים ({airfieldRunways.length})</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                             <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${airfieldRunwayNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>⚠ ריכוז NOTAMs</button>
                             <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
-                            <span style={{ fontSize: '10px', color: T.muted }}>{rwWidgetOpen ? '▲' : '▼'}</span>
                           </div>
                         </div>
                         {rwWidgetOpen && (
@@ -24638,14 +24638,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     };
                     return (
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
-                        <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#eff6ff' : '#0a1628', borderBottom: workstationAtisOpen ? `1px solid ${T.border}` : 'none' }}>
-                          <span style={{ fontSize: '10px', color: T.muted }}>{workstationAtisOpen ? '▲' : '▼'}</span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd' }}>📻 ATIS</span>
+                        <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: workstationAtisOpen ? '4px' : 0 }}>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{workstationAtisOpen ? '▼' : '▶'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl', flex: 1, justifyContent: 'flex-end', padding: '0 4px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📻 ATIS</span>
                             {workstationAtis && !f && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '3px', padding: '0 6px', fontFamily: 'monospace' }}>{workstationAtis.letter}</span>}
                           </div>
                           {workstationAtisOpen && !f && (
-                            <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
+                            <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', flexShrink: 0 }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
                           )}
                         </div>
                         {f && (
@@ -25100,13 +25100,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   return (
                     <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                       {/* Elements sub-header */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', background: T.bgAlt, borderBottom: elSecOpen ? `1px solid ${T.border}` : 'none' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: T.text, whiteSpace: 'nowrap' }}>🔧 אלמנטים ({airfieldElements.length})</span>
-                        <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
-                          title={elSecOpen ? 'הסתר אלמנטים' : 'הצג אלמנטים'}
-                          style={{ background: 'transparent', border: `1px solid ${T.borderLight}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', padding: '1px 5px', color: T.muted }}>
-                          {elSecOpen ? '▲' : '▼'}
-                        </button>
+                      <div onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: elSecOpen ? '4px' : 0 }}>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{elSecOpen ? '▼' : '▶'}</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🔧 אלמנטים ({airfieldElements.length})</span>
                       </div>
                       {elSecOpen && (
                         <div style={{ maxHeight: '180px', overflowY: 'auto', direction: 'rtl', padding: '4px' }}>
