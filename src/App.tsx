@@ -14188,7 +14188,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number }>>({});
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
-  const [workstationAtisForm, setWorkstationAtisForm] = useState<{ letter: string; obs_time: string; approach_type: string; landing_runway: string; departure_runway: string; ceiling_value: string; ceiling_type: string; visibility: string; weather_phenomena: string; temperature: string; dewpoint: string; wind_direction: string; wind_speed: string; wind_gust: string; altimeter_qnh: string; notam_info: string } | null>(null);
+  const [workstationAtisForm, setWorkstationAtisForm] = useState<Record<string, any> | null>(null);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -24078,11 +24078,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       lines.push(`${(atisAirfield?.name || 'AERODROME').toUpperCase()} INFORMATION ${ph}.`);
                       if (f.obs_time) lines.push(`${f.obs_time} ZULU`);
                       const wx: string[] = [];
-                      if (f.ceiling_value && f.ceiling_type && f.ceiling_type !== 'SKC' && f.ceiling_type !== 'CAVOK') wx.push(`MEASURED CEILING ${ceilWords(f.ceiling_value)} ${CEIL_LBL[f.ceiling_type] || f.ceiling_type}`);
-                      else if (f.ceiling_type === 'SKC') wx.push('SKY CLEAR');
-                      else if (f.ceiling_type === 'CAVOK') wx.push('CAVOK');
+                      const layers: {type:string,value:string}[] = Array.isArray(f.cloud_layers) ? f.cloud_layers
+                        : (f.ceiling_type ? [{ type: f.ceiling_type, value: String(f.ceiling_value ?? '') }] : []);
+                      if (layers.length > 0) {
+                        const firstType = layers[0].type;
+                        if (firstType === 'SKC' || firstType === 'CLR') { wx.push('SKY CLEAR'); }
+                        else if (firstType === 'CAVOK') { wx.push('CAVOK'); }
+                        else {
+                          const ceilStr = layers.filter(l => !['SKC','CLR','CAVOK'].includes(l.type)).map(l =>
+                            l.value ? `MEASURED CEILING ${ceilWords(l.value)} ${CEIL_LBL[l.type] || l.type}` : (CEIL_LBL[l.type] || l.type)
+                          ).join(', ');
+                          if (ceilStr) wx.push(ceilStr);
+                        }
+                      }
                       if (f.visibility) wx.push(`VISIBILITY ${f.visibility}`);
-                      if (f.weather_phenomena) wx.push(f.weather_phenomena.toUpperCase());
+                      const wxPheno: string[] = Array.isArray(f.weather_phenomena) ? f.weather_phenomena : (f.weather_phenomena ? [f.weather_phenomena] : []);
+                      wxPheno.forEach((p: string) => { if (p) wx.push(p.toUpperCase()); });
                       if (wx.length > 0) lines.push(wx.join('. ') + '.');
                       const tp: string[] = [];
                       if (f.temperature !== '') { const tv = parseInt(f.temperature); if (!isNaN(tv)) tp.push(`TEMPERATURE ${tv < 0 ? 'MINUS ' : ''}${spell(String(Math.abs(tv)))}`); }
@@ -24095,18 +24106,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         lines.push(ws + '.');
                       }
                       if (f.altimeter_qnh) lines.push(`ALTIMETER ${spell(f.altimeter_qnh)}.`);
-                      if (f.approach_type) lines.push(`${f.approach_type.toUpperCase()} APPROACH IN USE.`);
-                      if (f.landing_runway) lines.push(`LANDING RUNWAY ${f.landing_runway.toUpperCase()}.`);
-                      if (f.departure_runway) lines.push(`DEPARTURE RUNWAY ${f.departure_runway.toUpperCase()}.`);
+                      const lrws: {rw:string,approach:string}[] = Array.isArray(f.landing_runways) ? f.landing_runways
+                        : (f.landing_runway ? [{ rw: String(f.landing_runway), approach: f.approach_type || '' }] : []);
+                      lrws.forEach(({ rw, approach }) => {
+                        if (approach) lines.push(`${approach.toUpperCase()} APPROACH IN USE.`);
+                        if (rw) lines.push(`LANDING RUNWAY ${rw.toUpperCase()}.`);
+                      });
+                      const drws: string[] = Array.isArray(f.departure_runways) ? f.departure_runways
+                        : (f.departure_runway ? [String(f.departure_runway)] : []);
+                      drws.forEach(rw => { if (rw) lines.push(`DEPARTURE RUNWAY ${rw.toUpperCase()}.`); });
                       if (f.notam_info) lines.push(f.notam_info.toUpperCase() + '.');
                       lines.push(`ADVISE YOU HAVE INFORMATION ${ph}.`);
                       return lines.join('\n');
                     };
-                    const emptyForm = () => ({ letter:'A', obs_time:'', approach_type:'ILS', landing_runway:'', departure_runway:'', ceiling_value:'', ceiling_type:'OVC', visibility:'', weather_phenomena:'', temperature:'', dewpoint:'', wind_direction:'', wind_speed:'', wind_gust:'', altimeter_qnh:'', notam_info:'' });
+                    const emptyForm = () => ({ letter:'A', obs_time:'', landing_runways:[{rw:'',approach:'ILS'}], departure_runways:[''], cloud_layers:[{type:'OVC',value:''}], visibility:'', weather_phenomena:[] as string[], temperature:'', dewpoint:'', wind_direction:'', wind_speed:'', wind_gust:'', altimeter_qnh:'', notam_info:'' });
                     const nextLetter = (l: string) => { const idx = LETTERS.indexOf(l?.toUpperCase()); return idx >= 0 ? LETTERS[(idx+1)%26] : 'A'; };
                     const nowUTC = () => { const d = new Date(); return `${String(d.getUTCHours()).padStart(2,'0')}${String(d.getUTCMinutes()).padStart(2,'0')}`; };
                     const refreshAtis = () => { const afId = myPresetConfig?.airfield_id; if (!afId) return; fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0]||null) : null)).catch(() => {}); };
-                    const dbToForm = (a: any) => ({ letter: a.letter||'A', obs_time: a.obs_time||'', approach_type: a.approach_type||'', landing_runway: a.landing_runway||'', departure_runway: a.departure_runway||'', ceiling_value: a.ceiling_value !== null ? String(a.ceiling_value) : '', ceiling_type: a.ceiling_type||'OVC', visibility: a.visibility !== null ? String(a.visibility) : '', weather_phenomena: a.weather_phenomena||'', temperature: a.temperature !== null ? String(a.temperature) : '', dewpoint: a.dewpoint !== null ? String(a.dewpoint) : '', wind_direction: a.wind_direction !== null ? String(a.wind_direction) : '', wind_speed: a.wind_speed !== null ? String(a.wind_speed) : '', wind_gust: a.wind_gust !== null ? String(a.wind_gust) : '', altimeter_qnh: a.altimeter_qnh||'', notam_info: a.notam_info||'' });
+                    const dbToForm = (a: any) => {
+                      let landing_runways: {rw:string,approach:string}[] = [{rw:'',approach:'ILS'}];
+                      try { if (a.landing_runway) { const p = JSON.parse(a.landing_runway); landing_runways = Array.isArray(p) ? p : [{rw:String(a.landing_runway),approach:a.approach_type||'ILS'}]; } } catch { landing_runways = a.landing_runway ? [{rw:String(a.landing_runway),approach:a.approach_type||'ILS'}] : [{rw:'',approach:'ILS'}]; }
+                      let departure_runways: string[] = [''];
+                      try { if (a.departure_runway) { const p = JSON.parse(a.departure_runway); departure_runways = Array.isArray(p) ? p : [String(a.departure_runway)]; } } catch { departure_runways = a.departure_runway ? [String(a.departure_runway)] : ['']; }
+                      let cloud_layers: {type:string,value:string}[] = [{type:'OVC',value:''}];
+                      try { if (a.ceiling_type?.startsWith('[')) { const p = JSON.parse(a.ceiling_type); if (Array.isArray(p)) cloud_layers = p; } else if (a.ceiling_type) { cloud_layers = [{type:a.ceiling_type, value:a.ceiling_value !== null ? String(a.ceiling_value) : ''}]; } } catch { cloud_layers = a.ceiling_type ? [{type:a.ceiling_type, value:a.ceiling_value !== null ? String(a.ceiling_value) : ''}] : [{type:'OVC',value:''}]; }
+                      const weather_phenomena: string[] = a.weather_phenomena ? a.weather_phenomena.trim().split(/\s+/).filter(Boolean) : [];
+                      return { letter:a.letter||'A', obs_time:a.obs_time||'', landing_runways, departure_runways, cloud_layers, visibility:a.visibility !== null ? String(a.visibility) : '', weather_phenomena, temperature:a.temperature !== null ? String(a.temperature) : '', dewpoint:a.dewpoint !== null ? String(a.dewpoint) : '', wind_direction:a.wind_direction !== null ? String(a.wind_direction) : '', wind_speed:a.wind_speed !== null ? String(a.wind_speed) : '', wind_gust:a.wind_gust !== null ? String(a.wind_gust) : '', altimeter_qnh:a.altimeter_qnh||'', notam_info:a.notam_info||'' };
+                    };
                     const f = workstationAtisForm;
                     const displayText = f ? generateAtis(f) : (workstationAtis ? generateAtis(dbToForm(workstationAtis)) : null);
                     const upd = (k: string, v: string) => setWorkstationAtisForm((p: any) => p && ({ ...p, [k]: v }));
@@ -24147,40 +24173,129 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     </div>
                                   </div>
                                 </div>
-                                {/* Runways */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '5px' }}>
-                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>מסלול נחיתה</div><input value={f.landing_runway} onChange={e => upd('landing_runway', e.target.value)} placeholder="e.g. 01R AND 01L" list="atis-rw" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
-                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>מסלול המראה</div><input value={f.departure_runway} onChange={e => upd('departure_runway', e.target.value)} placeholder="e.g. 30" list="atis-rw" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
-                                </div>
+                                {/* Landing Runways */}
                                 <datalist id="atis-rw">{airfieldRunways.flatMap((rw: any) => [rw.heading_a, rw.heading_b].filter(Boolean).map((h: string) => <option key={h} value={h} />))}</datalist>
-                                {/* Approach type */}
-                                <div style={{ marginBottom: '5px' }}>
-                                  <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '3px' }}>סוג גישה</div>
-                                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-                                    {['ILS','VOR','NDB','RNAV','VISUAL','VOR/DME'].map(ap => (
-                                      <button key={ap} onClick={() => upd('approach_type', f.approach_type === ap ? '' : ap)} style={{ padding: '2px 6px', background: f.approach_type === ap ? '#1d4ed8' : (lightMode ? '#e2e8f0' : '#1e293b'), color: f.approach_type === ap ? '#fff' : (lightMode ? '#334155' : '#94a3b8'), border: `1px solid ${f.approach_type === ap ? '#1d4ed8' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', fontFamily: 'monospace' }}>{ap}</button>
-                                    ))}
+                                <div style={{ marginBottom: '6px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>✈ מסלולי נחיתה</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, landing_runways: [...(p.landing_runways||[]), {rw:'',approach:'ILS'}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
                                   </div>
-                                </div>
-                                {/* Ceiling */}
-                                <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', alignItems: 'flex-end' }}>
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>תקרת ענן (ft)</div>
-                                    <input value={f.ceiling_value} onChange={e => upd('ceiling_value', e.target.value)} placeholder="e.g. 3000" type="number" style={{ ...inputSt, width: '100%', direction: 'ltr' }} />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>סוג</div>
-                                    <div style={{ display: 'flex', gap: '2px' }}>
-                                      {['OVC','BKN','SCT','FEW','SKC','CAVOK'].map(ct => (
-                                        <button key={ct} onClick={() => upd('ceiling_type', ct)} style={{ padding: '3px 4px', background: f.ceiling_type === ct ? '#0369a1' : (lightMode ? '#e2e8f0' : '#1e293b'), color: f.ceiling_type === ct ? '#fff' : (lightMode ? '#334155' : '#94a3b8'), border: `1px solid ${f.ceiling_type === ct ? '#0369a1' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontFamily: 'monospace' }}>{ct}</button>
-                                      ))}
+                                  {(f.landing_runways || []).map((lr: any, idx: number) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px', background: lightMode ? '#f1f5f9' : '#1e293b', borderRadius: '5px', padding: '4px 6px' }}>
+                                      <input value={lr.rw} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.landing_runways]; a[idx] = {...a[idx], rw: e.target.value}; return {...p, landing_runways: a}; })} placeholder="RW" list="atis-rw" style={{ ...inputSt, width: '46px', direction: 'ltr', fontFamily: 'monospace', fontWeight: 'bold' }} />
+                                      <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap', flex: 1 }}>
+                                        {['ILS','VOR','NDB','RNAV','VIS','CIRC'].map(ap => (
+                                          <button key={ap} onClick={() => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.landing_runways]; a[idx] = {...a[idx], approach: lr.approach === ap ? '' : ap}; return {...p, landing_runways: a}; })} style={{ padding: '1px 5px', background: lr.approach === ap ? '#1d4ed8' : 'transparent', color: lr.approach === ap ? '#fff' : '#64748b', border: `1px solid ${lr.approach === ap ? '#1d4ed8' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '8px', fontFamily: 'monospace' }}>{ap}</button>
+                                        ))}
+                                      </div>
+                                      <button onClick={() => setWorkstationAtisForm((p: any) => p && ({...p, landing_runways: p.landing_runways.filter((_: any, i: number) => i !== idx)}))} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '13px', flexShrink: 0 }}>✕</button>
                                     </div>
-                                  </div>
+                                  ))}
                                 </div>
-                                {/* Visibility + Phenomena */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: '4px', marginBottom: '5px' }}>
-                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>ראות</div><input value={f.visibility} onChange={e => upd('visibility', e.target.value)} placeholder="10KM" style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
-                                  <div><div style={{ fontSize: '8px', color: '#64748b', marginBottom: '2px' }}>תופעות מזג אוויר</div><input value={f.weather_phenomena} onChange={e => upd('weather_phenomena', e.target.value)} placeholder="RAIN, FOG, SMOKE..." style={{ ...inputSt, width: '100%', direction: 'ltr' }} /></div>
+                                {/* Departure Runways */}
+                                <div style={{ marginBottom: '6px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>🛫 מסלולי המראה</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, departure_runways: [...(p.departure_runways||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
+                                  </div>
+                                  {(f.departure_runways || []).map((rw: string, idx: number) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
+                                      <input value={rw} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.departure_runways]; a[idx] = e.target.value; return {...p, departure_runways: a}; })} placeholder="RW" list="atis-rw" style={{ ...inputSt, flex: 1, direction: 'ltr', fontFamily: 'monospace', fontWeight: 'bold' }} />
+                                      <button onClick={() => setWorkstationAtisForm((p: any) => p && ({...p, departure_runways: p.departure_runways.filter((_: any, i: number) => i !== idx)}))} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '13px', flexShrink: 0 }}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                                {/* Cloud Layers */}
+                                <div style={{ marginBottom: '6px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>☁ עננויות</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, cloud_layers: [...(p.cloud_layers||[]), {type:'SCT',value:''}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#0369a1', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
+                                  </div>
+                                  {(f.cloud_layers || []).map((cl: any, idx: number) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
+                                      <select value={cl.type} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.cloud_layers]; a[idx] = {...a[idx], type: e.target.value}; return {...p, cloud_layers: a}; })} style={{ padding: '3px 4px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                                        {['SKC','CLR','CAVOK','FEW','SCT','BKN','OVC','VV'].map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      {!['SKC','CLR','CAVOK'].includes(cl.type) && (
+                                        <input value={cl.value} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.cloud_layers]; a[idx] = {...a[idx], value: e.target.value}; return {...p, cloud_layers: a}; })} placeholder="ft" type="number" style={{ ...inputSt, width: '80px', direction: 'ltr' }} />
+                                      )}
+                                      <span style={{ fontSize: '9px', color: '#64748b', flex: 1 }}>{cl.type === 'BKN' || cl.type === 'OVC' ? '← תקרה' : cl.type === 'SKC' || cl.type === 'CLR' ? 'שמיים פנויים' : cl.type === 'CAVOK' ? 'CAVOK' : ''}</span>
+                                      <button onClick={() => setWorkstationAtisForm((p: any) => p && ({...p, cloud_layers: p.cloud_layers.filter((_: any, i: number) => i !== idx)}))} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '13px', flexShrink: 0 }}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                                {/* Visibility */}
+                                <div style={{ marginBottom: '5px' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1', marginBottom: '3px' }}>👁 ראות</div>
+                                  <input value={f.visibility} onChange={e => upd('visibility', e.target.value)} placeholder="10KM" style={{ ...inputSt, width: '120px', direction: 'ltr' }} />
+                                </div>
+                                {/* Weather Phenomena */}
+                                <div style={{ marginBottom: '6px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>⛈ תופעות מז"א</div>
+                                    <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, weather_phenomena: [...(p.weather_phenomena||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
+                                  </div>
+                                  {(f.weather_phenomena || []).map((ph: string, idx: number) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
+                                      <select value={ph} onChange={e => setWorkstationAtisForm((p: any) => { if (!p) return p; const a = [...p.weather_phenomena]; a[idx] = e.target.value; return {...p, weather_phenomena: a}; })} style={{ flex: 1, padding: '3px 4px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', fontFamily: 'monospace' }}>
+                                        <option value="">-- בחר תופעה --</option>
+                                        <optgroup label="ערפול">
+                                          <option value="FG">FG — ערפל</option>
+                                          <option value="BR">BR — אד (Mist)</option>
+                                          <option value="HZ">HZ — אובך</option>
+                                          <option value="FU">FU — עשן</option>
+                                          <option value="DU">DU — אבק</option>
+                                          <option value="SA">SA — חול</option>
+                                          <option value="VA">VA — אפר וולקני</option>
+                                        </optgroup>
+                                        <optgroup label="גשם / משקעים">
+                                          <option value="-RA">-RA — גשם קל</option>
+                                          <option value="RA">RA — גשם</option>
+                                          <option value="+RA">+RA — גשם חזק</option>
+                                          <option value="SHRA">SHRA — מקלחות גשם</option>
+                                          <option value="DZ">DZ — טפטוף</option>
+                                          <option value="FZRA">FZRA — גשם קופא</option>
+                                          <option value="FZDZ">FZDZ — טפטוף קופא</option>
+                                        </optgroup>
+                                        <optgroup label="שלג / קרח">
+                                          <option value="-SN">-SN — שלג קל</option>
+                                          <option value="SN">SN — שלג</option>
+                                          <option value="+SN">+SN — שלג כבד</option>
+                                          <option value="SHSN">SHSN — מקלחות שלג</option>
+                                          <option value="SG">SG — גרגירי שלג</option>
+                                          <option value="IC">IC — גבישי קרח</option>
+                                          <option value="PE">PE — כדורי קרח</option>
+                                          <option value="GR">GR — ברד</option>
+                                          <option value="GS">GS — ברד קטן</option>
+                                          <option value="BLSN">BLSN — שלג מתנשא</option>
+                                        </optgroup>
+                                        <optgroup label="סופות">
+                                          <option value="TS">TS — סופת רעמים</option>
+                                          <option value="TSRA">TSRA — סופת רעמים + גשם</option>
+                                          <option value="+TSRA">+TSRA — סופת רעמים + גשם חזק</option>
+                                          <option value="VCTS">VCTS — סופת רעמים בסביבה</option>
+                                          <option value="VCSH">VCSH — מקלחות בסביבה</option>
+                                          <option value="DS">DS — סופת אבק</option>
+                                          <option value="SS">SS — סופת חול</option>
+                                          <option value="SQ">SQ — סקוול</option>
+                                          <option value="FC">FC — עמוד אוויר / טורנדו</option>
+                                          <option value="PO">PO — סופת חול/אבק קטנה</option>
+                                        </optgroup>
+                                        <optgroup label="ערפל מיוחד">
+                                          <option value="FZFG">FZFG — ערפל קופא</option>
+                                          <option value="BCFG">BCFG — ערפל טלאים</option>
+                                          <option value="MIFG">MIFG — ערפל רדוד</option>
+                                          <option value="PRFG">PRFG — ערפל חלקי</option>
+                                        </optgroup>
+                                        <optgroup label="שילובים">
+                                          <option value="-RASN">-RASN — גשם + שלג קל</option>
+                                          <option value="BLDU">BLDU — אבק מתנשא</option>
+                                          <option value="BLSA">BLSA — חול מתנשא</option>
+                                        </optgroup>
+                                      </select>
+                                      <button onClick={() => setWorkstationAtisForm((p: any) => p && ({...p, weather_phenomena: p.weather_phenomena.filter((_: any, i: number) => i !== idx)}))} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '13px', flexShrink: 0 }}>✕</button>
+                                    </div>
+                                  ))}
                                 </div>
                                 {/* Temp + Dew + Wind */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '3px', marginBottom: '5px' }}>
@@ -24207,7 +24322,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <button onClick={async () => {
                                     const snap = workstationAtisForm; if (!snap || !myPresetConfig?.airfield_id) return;
                                     const toInt = (v: string) => v !== '' ? parseInt(v) : null;
-                                    const body = { airfield_id: myPresetConfig.airfield_id, letter: snap.letter, obs_time: snap.obs_time||null, approach_type: snap.approach_type||null, landing_runway: snap.landing_runway||null, departure_runway: snap.departure_runway||null, ceiling_value: toInt(snap.ceiling_value), ceiling_type: snap.ceiling_type||null, visibility: snap.visibility||null, weather_phenomena: snap.weather_phenomena||null, temperature: toInt(snap.temperature), dewpoint: toInt(snap.dewpoint), wind_direction: toInt(snap.wind_direction), wind_speed: toInt(snap.wind_speed), wind_gust: toInt(snap.wind_gust), altimeter_qnh: snap.altimeter_qnh||null, notam_info: snap.notam_info||null };
+                                    const lrws = (snap.landing_runways||[]).filter((l: any) => l.rw);
+                                    const drws = (snap.departure_runways||[]).filter(Boolean);
+                                    const clayers = (snap.cloud_layers||[]).filter((c: any) => c.type);
+                                    const wxP = (snap.weather_phenomena||[]).filter(Boolean);
+                                    const body = { airfield_id: myPresetConfig.airfield_id, letter: snap.letter, obs_time: snap.obs_time||null, approach_type: lrws[0]?.approach||null, landing_runway: lrws.length > 0 ? JSON.stringify(lrws) : null, departure_runway: drws.length > 0 ? JSON.stringify(drws) : null, ceiling_value: clayers.length > 0 && clayers[0].value ? toInt(clayers[0].value) : null, ceiling_type: clayers.length === 0 ? null : clayers.length === 1 ? clayers[0].type : JSON.stringify(clayers), visibility: snap.visibility||null, weather_phenomena: wxP.length > 0 ? wxP.join(' ') : null, temperature: toInt(snap.temperature), dewpoint: toInt(snap.dewpoint), wind_direction: toInt(snap.wind_direction), wind_speed: toInt(snap.wind_speed), wind_gust: toInt(snap.wind_gust), altimeter_qnh: snap.altimeter_qnh||null, notam_info: snap.notam_info||null };
                                     const res = await fetch(`${API_URL}/airfield-atis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                     if (res.ok) { setWorkstationAtisForm(null); refreshAtis(); }
                                   }} style={{ padding: '4px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>שמור ATIS</button>
