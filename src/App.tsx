@@ -14183,6 +14183,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
   const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
+  const [runwayLighting, setRunwayLighting] = useState<Record<number, { centerline_level: number; edge_level: number }>>({});
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
   const [workstationAtisForm, setWorkstationAtisForm] = useState<{ letter: string; obs_time: string; approach_type: string; landing_runway: string; departure_runway: string; ceiling_value: string; ceiling_type: string; visibility: string; weather_phenomena: string; temperature: string; dewpoint: string; wind_direction: string; wind_speed: string; wind_gust: string; altimeter_qnh: string; notam_info: string } | null>(null);
@@ -16576,6 +16577,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
+        fetch(`${API_URL}/runway-lighting?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((data: any[]) => { const m: Record<number, any> = {}; data.forEach(d => { m[d.runway_id] = d; }); setRunwayLighting(m); }).catch(() => {});
       }
     };
     loadAirfieldsAndConfig();
@@ -23682,6 +23684,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                                   );
                                                 })}
                                                 {isExpired && <span style={{ fontSize: '7px', color: '#ef4444', marginRight: '2px' }}>פג</span>}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
+                                    {/* Runway lighting controls */}
+                                    {(() => {
+                                      const lt = runwayLighting[rw.id] || { centerline_level: 0, edge_level: 0 };
+                                      const LVC = ['', '#78350f', '#d97706', '#facc15'];
+                                      const LVG = ['', 'none', '0 0 3px #d97706aa', '0 0 5px #facc15cc'];
+                                      const LVN = ['כבוי', 'חלש', 'בינוני', 'חזק'];
+                                      const active = lt.centerline_level > 0 || lt.edge_level > 0;
+                                      const setLv = (type: 'centerline_level' | 'edge_level', lv: number) => {
+                                        const up = { ...lt, [type]: lv };
+                                        setRunwayLighting((p: any) => ({ ...p, [rw.id]: up }));
+                                        fetch(`${API_URL}/runway-lighting/${rw.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(up) });
+                                      };
+                                      return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '3px', padding: '3px 3px 2px', background: active ? (lightMode ? '#fefce8' : '#1c140088') : (lightMode ? '#f1f5f9' : '#0f172a'), borderRadius: '4px', border: `1px solid ${active ? '#78350faa' : '#1e293b'}` }}>
+                                          {(['centerline_level', 'edge_level'] as const).map((type, ti) => {
+                                            const level = lt[type];
+                                            return (
+                                              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '2px', direction: 'ltr' }}>
+                                                <span title={ti === 0 ? 'מרכז מסלול' : 'קצוות מסלול'} style={{ fontSize: '9px', flexShrink: 0, width: '14px', textAlign: 'center', color: level > 0 ? '#facc15' : '#475569', lineHeight: 1 }}>{ti === 0 ? '💡' : '▌'}</span>
+                                                {[1, 2, 3].map(lv => (
+                                                  <div
+                                                    key={lv}
+                                                    onClick={e => { e.stopPropagation(); setLv(type, level === lv ? 0 : lv); }}
+                                                    title={LVN[lv]}
+                                                    style={{ width: '11px', height: '7px', borderRadius: '1px', cursor: 'pointer', background: level >= lv ? LVC[lv] : (lightMode ? '#cbd5e133' : '#1e293b'), border: `1px solid ${level >= lv ? LVC[lv] : '#334155'}`, boxShadow: level >= lv ? LVG[lv] : 'none', transition: 'background 0.12s, box-shadow 0.12s' }}
+                                                  />
+                                                ))}
                                               </div>
                                             );
                                           })}

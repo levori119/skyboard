@@ -1119,6 +1119,15 @@ async function initDb() {
       UNIQUE(runway_id, heading)
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS runway_lighting (
+      id SERIAL PRIMARY KEY,
+      runway_id INTEGER REFERENCES airfield_runways(id) ON DELETE CASCADE UNIQUE,
+      centerline_level INTEGER NOT NULL DEFAULT 0 CHECK (centerline_level BETWEEN 0 AND 3),
+      edge_level INTEGER NOT NULL DEFAULT 0 CHECK (edge_level BETWEEN 0 AND 3),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
 
   console.log('Database initialized');
 }
@@ -6212,6 +6221,30 @@ app.delete('/api/runway-grf/:id', async (req, res) => {
     await pool.query('DELETE FROM runway_grf WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete GRF' }); }
+});
+
+app.get('/api/runway-lighting', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    const { rows } = await pool.query(
+      `SELECT rl.* FROM runway_lighting rl JOIN airfield_runways ar ON rl.runway_id = ar.id WHERE ar.airfield_id = $1`,
+      [airfield_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch runway lighting' }); }
+});
+app.put('/api/runway-lighting/:runway_id', async (req, res) => {
+  try {
+    const { centerline_level = 0, edge_level = 0 } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO runway_lighting (runway_id, centerline_level, edge_level, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (runway_id) DO UPDATE SET centerline_level=$2, edge_level=$3, updated_at=NOW()
+       RETURNING *`,
+      [req.params.runway_id, centerline_level, edge_level]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update runway lighting' }); }
 });
 
 app.get('/api/runway-conflict', async (req, res) => {
