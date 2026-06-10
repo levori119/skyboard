@@ -14747,6 +14747,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [neighborPanelOpen, setNeighborPanelOpen] = useState(() => session.relevantSectors.length > 0);
   // Aids panel
   const [aidsPinned, setAidsPinned] = useState(true);
+  const [aidsPanelW, setAidsPanelW] = useState(220);
+  const aidsResizeRef = React.useRef<{ startX: number; startW: number } | null>(null);
+  const startAidsResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    aidsResizeRef.current = { startX: e.clientX, startW: aidsPanelW };
+    const onMove = (me: MouseEvent) => {
+      if (!aidsResizeRef.current) return;
+      const dx = aidsResizeRef.current.startX - me.clientX;
+      setAidsPanelW(Math.max(160, Math.min(560, aidsResizeRef.current.startW + dx)));
+    };
+    const onUp = () => { aidsResizeRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
   const [sdCatHighlight, setSdCatHighlight] = useState<Set<string>>(new Set());
   const [sdElemCollapsed, setSdElemCollapsed] = useState<Set<string>>(new Set());
   const [sdHiddenElements, setSdHiddenElements] = useState<Set<number>>(new Set());
@@ -23612,8 +23626,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode) return null;
-          return (
-            <div style={{ width: aidsPinned ? 220 : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: 'width 0.2s', overflow: 'visible', position: 'relative' }}>
+          return (<>
+            {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
+            <div style={{ width: aidsPinned ? aidsPanelW : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
               {/* Pin toggle */}
               <div style={{ padding: '6px 6px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: aidsPinned ? `1px solid ${T.border}` : 'none', flexShrink: 0 }}>
                 {aidsPinned && <span style={{ fontSize: '12px', fontWeight: 'bold', color: T.text, direction: 'rtl', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>{aidGroup ? aidGroup.name : 'עזרים'}</span>}
@@ -25070,7 +25085,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 </div>
               )}
             </div>
-          );
+          </>);
         })()}
 
         {/* ===== Load Forecast Panel ===== */}
