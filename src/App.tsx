@@ -23927,10 +23927,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               };
                               const toStr = (v: any) => v !== null && v !== undefined ? String(v) : '';
                               return (
-                                <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '6px', direction: 'rtl' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '10px', direction: 'rtl', zIndex: 9997, boxShadow: '0 10px 36px #00000099' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', position: 'sticky', top: 0, background: lightMode ? '#ecfdf5' : '#071c13', paddingBottom: '4px', borderBottom: `1px solid ${lightMode ? '#6ee7b7' : '#166534'}`, zIndex: 1 }}>
                                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 GRF — {editRw.name || `${editRw.heading_a || ''}/${editRw.heading_b || ''}`}</span>
-                                    <button onClick={() => { setWorkstationGrfEditRwId(null); setWorkstationGrfForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+                                    <button onClick={() => { setWorkstationGrfEditRwId(null); setWorkstationGrfForm(null); }} style={{ fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                   </div>
                                   {headings.map((h: string) => {
                                     const savedGrf = airfieldRunwayGrf.find((g: any) => g.runway_id === editRw.id && g.heading === h);
@@ -24123,9 +24123,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
                           )}
                         </div>
-                        {workstationAtisOpen && (
-                          <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#080f1e', direction: 'rtl' }}>
-                            {f ? (
+                        {f && (
+                          <div style={{ position: 'fixed', top: '55px', right: '270px', width: '420px', maxHeight: '88vh', overflowY: 'auto', background: lightMode ? '#f0f7ff' : '#060e1f', border: '1px solid #1d4ed8', borderRadius: '10px', boxShadow: '0 10px 40px #00000099', zIndex: 9998, direction: 'rtl' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: lightMode ? '#dbeafe' : '#0f1f3d', borderBottom: '1px solid #1d4ed833', borderRadius: '10px 10px 0 0', position: 'sticky', top: 0, zIndex: 1 }}>
+                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#93c5fd' }}>📻 ATIS — {PHONETIC[f.letter?.toUpperCase()] || f.letter}</span>
+                              <button onClick={() => setWorkstationAtisForm(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '16px', lineHeight: 1 }}>✕</button>
+                            </div>
+                            <div style={{ padding: '8px 10px' }}>
                               <div>
                                 {/* Row 1: Letter + Time */}
                                 <div style={{ display: 'flex', gap: '5px', marginBottom: '5px', alignItems: 'flex-end' }}>
@@ -24209,7 +24213,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   }} style={{ padding: '4px 14px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>שמור ATIS</button>
                                 </div>
                               </div>
-                            ) : workstationAtis ? (
+                            </div>
+                          </div>
+                        )}
+                        {workstationAtisOpen && !f && (
+                          <div style={{ padding: '6px', background: lightMode ? '#f0f7ff' : '#080f1e', direction: 'rtl' }}>
+                            {workstationAtis ? (
                               <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                                   <span style={{ fontSize: '22px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '6px', padding: '2px 10px', fontFamily: 'monospace', flexShrink: 0 }}>{workstationAtis.letter}</span>
