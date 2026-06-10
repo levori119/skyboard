@@ -14181,6 +14181,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
   const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
+  const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
+  const [workstationGrfForm, setWorkstationGrfForm] = useState<{ heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -23688,6 +23690,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       style={{ fontSize: '9px', padding: '1px 6px', background: workstationNotamEditRwId === rw.id ? '#92400e' : 'transparent', border: `1px solid ${hasNotam ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: hasNotam ? '#fbbf24' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
                                       title="עריכת NOTAMs"
                                     >⚠{rwNotams.length > 0 ? ` ${rwNotams.length}` : ''}</button>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setWorkstationGrfEditRwId(prev => prev === rw.id ? null : rw.id); setWorkstationGrfForm(null); }}
+                                      style={{ fontSize: '9px', padding: '1px 6px', background: workstationGrfEditRwId === rw.id ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id).length > 0 ? '#34d399' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
+                                      title="עריכת GRF — מצב פני מסלול"
+                                    >🛬 GRF</button>
                                   </div>
                                 );
                               })}
@@ -23759,6 +23766,142 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   ) : (
                                     <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: 'rtl', marginTop: '2px' }}>+ הוסף NOTAM</button>
                                   )}
+                                </div>
+                              );
+                            })()}
+                            {/* Workstation GRF management panel */}
+                            {workstationGrfEditRwId !== null && (() => {
+                              const editRw = airfieldRunways.find((r: any) => r.id === workstationGrfEditRwId);
+                              if (!editRw) return null;
+                              const CONTAMINANTS = ['','יבש','רטוב','שלג רטוב','שלג יבש','שלג דחוס','בוץ שלג','קרח','כפור','קרח רטוב','ממוס כימי','חול'];
+                              const RWYCC_COLOR: Record<number, string> = { 6:'#22c55e', 5:'#86efac', 4:'#eab308', 3:'#f97316', 2:'#ef4444', 1:'#b91c1c', 0:'#7f1d1d' };
+                              const headings = [editRw.heading_a, editRw.heading_b].filter(Boolean);
+                              const refreshGrf = () => {
+                                const afId = myPresetConfig?.airfield_id;
+                                if (!afId) return;
+                                fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r2 => r2.ok ? r2.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
+                              };
+                              const toStr = (v: any) => v !== null && v !== undefined ? String(v) : '';
+                              return (
+                                <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid ${lightMode ? '#34d399' : '#166534'}`, borderRadius: '6px', direction: 'rtl' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 GRF — {editRw.name || `${editRw.heading_a || ''}/${editRw.heading_b || ''}`}</span>
+                                    <button onClick={() => { setWorkstationGrfEditRwId(null); setWorkstationGrfForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  {headings.map((h: string) => {
+                                    const savedGrf = airfieldRunwayGrf.find((g: any) => g.runway_id === editRw.id && g.heading === h);
+                                    const isEditingThis = workstationGrfForm?.heading === h;
+                                    const isExpired = savedGrf && savedGrf.valid_until && new Date(savedGrf.valid_until) < new Date();
+                                    if (!isEditingThis) {
+                                      return (
+                                        <div key={h} style={{ marginBottom: '5px', background: lightMode ? '#d1fae5' : '#0c2a1e', borderRadius: '5px', padding: '5px 7px', border: `1px solid ${lightMode ? '#6ee7b7' : '#1e4a34'}` }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', fontFamily: 'monospace', flexShrink: 0 }}>{h}</span>
+                                            <div style={{ flex: 1 }}>
+                                              {savedGrf ? (
+                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center', opacity: isExpired ? 0.6 : 1 }}>
+                                                  {(['t','m','r'] as const).map((k, ki) => {
+                                                    const code = savedGrf[`rwycc_${k}`];
+                                                    return (
+                                                      <span key={k} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                                        <span style={{ fontSize: '7px', color: '#64748b' }}>{'TMR'[ki]}</span>
+                                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: code !== null && code !== undefined ? (RWYCC_COLOR[code] || '#94a3b8') : '#475569', background: lightMode ? '#f0fdf4' : '#071c13', borderRadius: '3px', padding: '1px 5px', minWidth: '20px', textAlign: 'center', fontFamily: 'monospace' }}>
+                                                          {code !== null && code !== undefined ? code : '—'}
+                                                        </span>
+                                                      </span>
+                                                    );
+                                                  })}
+                                                  {isExpired && <span style={{ fontSize: '7px', color: '#ef4444' }}>פג</span>}
+                                                  <span style={{ fontSize: '8px', color: '#64748b', marginRight: 'auto' }}>{savedGrf.reported_at ? new Date(savedGrf.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                                                </div>
+                                              ) : (
+                                                <span style={{ fontSize: '9px', color: '#475569' }}>אין GRF</span>
+                                              )}
+                                            </div>
+                                            <button onClick={() => {
+                                              const d = savedGrf || {};
+                                              setWorkstationGrfForm({ heading: h, rwycc_t: toStr(d.rwycc_t), coverage_t: toStr(d.coverage_t), depth_t: d.depth_t||'', contaminant_t: d.contaminant_t||'', rwycc_m: toStr(d.rwycc_m), coverage_m: toStr(d.coverage_m), depth_m: d.depth_m||'', contaminant_m: d.contaminant_m||'', rwycc_r: toStr(d.rwycc_r), coverage_r: toStr(d.coverage_r), depth_r: d.depth_r||'', contaminant_r: d.contaminant_r||'', notes: d.notes||'' });
+                                            }} style={{ padding: '2px 6px', background: 'transparent', border: `1px solid ${lightMode ? '#6ee7b7' : '#1e4a34'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: lightMode ? '#166534' : '#34d399', flexShrink: 0 }}>
+                                              {savedGrf ? '✏' : '+ הזן'}
+                                            </button>
+                                            {savedGrf && <button onClick={async () => {
+                                              await fetch(`${API_URL}/runway-grf/${savedGrf.id}`, { method: 'DELETE' });
+                                              refreshGrf();
+                                            }} style={{ padding: '2px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    const f = workstationGrfForm!;
+                                    const thirds = [{ k: 't', label: 'נגיעה (T)' }, { k: 'm', label: 'אמצע (M)' }, { k: 'r', label: 'סוף (R)' }];
+                                    const upd = (field: string, val: string) => setWorkstationGrfForm((p: any) => p && ({ ...p, [field]: val }));
+                                    return (
+                                      <div key={h} style={{ marginBottom: '6px', background: lightMode ? '#fff' : '#071c13', borderRadius: '6px', padding: '7px 8px', border: `1px solid ${lightMode ? '#34d399' : '#22c55e44'}` }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', marginBottom: '6px', fontFamily: 'monospace' }}>GRF מסלול {h}</div>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px', marginBottom: '5px' }}>
+                                          <thead>
+                                            <tr>
+                                              <th style={{ color: '#64748b', textAlign: 'right', paddingBottom: '3px', width: '55px' }}></th>
+                                              {thirds.map(t => <th key={t.k} style={{ color: lightMode ? '#166534' : '#34d399', textAlign: 'center', paddingBottom: '3px', fontSize: '9px' }}>{t.label}</th>)}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            <tr>
+                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>RWYCC (0-6)</td>
+                                              {thirds.map(t => (
+                                                <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                  <select value={(f as any)[`rwycc_${t.k}`]} onChange={e => upd(`rwycc_${t.k}`, e.target.value)} style={{ width: '38px', padding: '2px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: (f as any)[`rwycc_${t.k}`] !== '' ? (RWYCC_COLOR[Number((f as any)[`rwycc_${t.k}`])] || (lightMode ? '#1e293b' : '#fff')) : (lightMode ? '#1e293b' : '#fff'), fontSize: '10px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace' }}>
+                                                    <option value="">-</option>
+                                                    {[0,1,2,3,4,5,6].map(v => <option key={v} value={v}>{v}</option>)}
+                                                  </select>
+                                                </td>
+                                              ))}
+                                            </tr>
+                                            <tr>
+                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>כיסוי %</td>
+                                              {thirds.map(t => (
+                                                <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                  <select value={(f as any)[`coverage_${t.k}`]} onChange={e => upd(`coverage_${t.k}`, e.target.value)} style={{ width: '50px', padding: '2px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '9px' }}>
+                                                    <option value="">-</option>
+                                                    {[10,25,50,75,100].map(v => <option key={v} value={v}>{v}%</option>)}
+                                                  </select>
+                                                </td>
+                                              ))}
+                                            </tr>
+                                            <tr>
+                                              <td style={{ color: '#94a3b8', paddingBottom: '3px' }}>עומק (ס"מ/NR)</td>
+                                              {thirds.map(t => (
+                                                <td key={t.k} style={{ paddingBottom: '3px', textAlign: 'center' }}>
+                                                  <input value={(f as any)[`depth_${t.k}`]} onChange={e => upd(`depth_${t.k}`, e.target.value)} placeholder="NR" style={{ width: '38px', padding: '2px 3px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '9px', textAlign: 'center', direction: 'ltr' }} />
+                                                </td>
+                                              ))}
+                                            </tr>
+                                            <tr>
+                                              <td style={{ color: '#94a3b8' }}>מזהם</td>
+                                              {thirds.map(t => (
+                                                <td key={t.k} style={{ textAlign: 'center' }}>
+                                                  <select value={(f as any)[`contaminant_${t.k}`]} onChange={e => upd(`contaminant_${t.k}`, e.target.value)} style={{ width: '58px', padding: '2px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '3px', color: lightMode ? '#1e293b' : '#fff', fontSize: '8px' }}>
+                                                    {CONTAMINANTS.map(c => <option key={c} value={c}>{c || '—'}</option>)}
+                                                  </select>
+                                                </td>
+                                              ))}
+                                            </tr>
+                                          </tbody>
+                                        </table>
+                                        <input value={f.notes} onChange={e => upd('notes', e.target.value)} placeholder="הערות GRF (אופציונלי)" style={{ width: '100%', padding: '3px 6px', background: lightMode ? '#f0fdf4' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '9px', marginBottom: '6px', boxSizing: 'border-box', direction: 'rtl' }} />
+                                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                                          <button onClick={() => setWorkstationGrfForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>ביטול</button>
+                                          <button onClick={async () => {
+                                            const snap = workstationGrfForm; if (!snap) return;
+                                            const toInt = (v: string) => v !== '' ? Number(v) : null;
+                                            const body = { runway_id: editRw.id, heading: snap.heading, rwycc_t: toInt(snap.rwycc_t), coverage_t: toInt(snap.coverage_t), depth_t: snap.depth_t||null, contaminant_t: snap.contaminant_t||null, rwycc_m: toInt(snap.rwycc_m), coverage_m: toInt(snap.coverage_m), depth_m: snap.depth_m||null, contaminant_m: snap.contaminant_m||null, rwycc_r: toInt(snap.rwycc_r), coverage_r: toInt(snap.coverage_r), depth_r: snap.depth_r||null, contaminant_r: snap.contaminant_r||null, notes: snap.notes||null };
+                                            const res = await fetch(`${API_URL}/runway-grf`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                            if (res.ok) { setWorkstationGrfForm(null); refreshGrf(); }
+                                          }} style={{ padding: '3px 10px', background: '#166534', color: '#86efac', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '9px', fontWeight: 'bold' }}>שמור GRF</button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               );
                             })()}
