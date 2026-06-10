@@ -14179,6 +14179,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
+  const [rwNotamSummaryOpen, setRwNotamSummaryOpen] = useState(false);
+  const [rwGrfSummaryOpen, setRwGrfSummaryOpen] = useState(false);
   const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
   const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [workstationGrfEditRwId, setWorkstationGrfEditRwId] = useState<number | null>(null);
@@ -23602,7 +23604,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#f0fdf4' : '#052e16', borderBottom: rwWidgetOpen ? `1px solid ${T.border}` : 'none' }}
                         >
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#15803d' : '#86efac', whiteSpace: 'nowrap' }}>✈ מסלולים ({airfieldRunways.length})</span>
-                          <span style={{ fontSize: '10px', color: T.muted }}>{rwWidgetOpen ? '▲' : '▼'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${airfieldRunwayNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>⚠ ריכוז NOTAMs</button>
+                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
+                            <span style={{ fontSize: '10px', color: T.muted }}>{rwWidgetOpen ? '▲' : '▼'}</span>
+                          </div>
                         </div>
                         {rwWidgetOpen && (
                           <div style={{ padding: '6px 4px', direction: 'rtl', overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
@@ -23738,6 +23744,105 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 );
                               })}
                             </div>
+                            {/* NOTAM Summary floating panel */}
+                            {rwNotamSummaryOpen && (() => {
+                              const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
+                              const rwsWithNotams = airfieldRunways.filter((rw: any) => airfieldRunwayNotams.some((n: any) => n.runway_id === rw.id));
+                              return (
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '280px', maxHeight: '60vh', overflowY: 'auto', background: lightMode ? '#fffbeb' : '#1c1008', border: `1px solid #f59e0b`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: 'rtl' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#fef3c7' : '#2d1a00', borderBottom: '1px solid #f59e0b44', borderRadius: '8px 8px 0 0' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#f59e0b' }}>⚠ ריכוז NOTAMs — כל המסלולים</span>
+                                    <button onClick={() => setRwNotamSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  <div style={{ padding: '8px 10px' }}>
+                                    {rwsWithNotams.length === 0 ? (
+                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>אין NOTAMs פעילים</div>
+                                    ) : rwsWithNotams.map((rw: any) => {
+                                      const notams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
+                                      const shorts = notams.filter((n: any) => n.notam_type === 'shortening');
+                                      const texts = notams.filter((n: any) => n.notam_type === 'text');
+                                      return (
+                                        <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#78350f44'}`, paddingBottom: '8px' }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24', marginBottom: '4px' }}>
+                                            {rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}
+                                            <span style={{ fontWeight: 'normal', fontSize: '10px', color: '#64748b', marginRight: '6px' }}>({notams.length} NOTAM{notams.length !== 1 ? 'S' : ''})</span>
+                                          </div>
+                                          {shorts.map((n: any) => (
+                                            <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '3px', fontSize: '10px' }}>
+                                              <span style={{ color: '#f97316', flexShrink: 0 }}>✂</span>
+                                              <div style={{ color: lightMode ? '#78350f' : '#fed7aa', flex: 1 }}>
+                                                קיצור קצה {n.shorten_end === 'a' ? (rw.heading_a || 'א') : (rw.heading_b || 'ב')}:
+                                                {n.shorten_amount_ft ? ` ${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}
+                                                {n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}
+                                              </div>
+                                            </div>
+                                          ))}
+                                          {texts.map((n: any) => (
+                                            <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '3px', fontSize: '10px' }}>
+                                              <span style={{ color: '#f59e0b', flexShrink: 0 }}>•</span>
+                                              <div style={{ color: lightMode ? '#92400e' : '#fcd34d', flex: 1, wordBreak: 'break-word' }}>{n.text_content}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* GRF Summary floating panel */}
+                            {rwGrfSummaryOpen && (() => {
+                              const RWYCC_COLOR: Record<number,string> = { 6:'#22c55e',5:'#86efac',4:'#eab308',3:'#f97316',2:'#ef4444',1:'#b91c1c',0:'#7f1d1d' };
+                              const rwsWithGrf = airfieldRunways.filter((rw: any) => airfieldRunwayGrf.some((g: any) => g.runway_id === rw.id));
+                              return (
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '300px', maxHeight: '70vh', overflowY: 'auto', background: lightMode ? '#ecfdf5' : '#071c13', border: `1px solid #166534`, borderRadius: '8px', boxShadow: '0 8px 32px #00000088', zIndex: 9999, direction: 'rtl' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: lightMode ? '#d1fae5' : '#0c2a1e', borderBottom: '1px solid #16653444', borderRadius: '8px 8px 0 0' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#34d399' }}>🛬 ריכוז GRF — כל המסלולים</span>
+                                    <button onClick={() => setRwGrfSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  <div style={{ padding: '8px 10px' }}>
+                                    {rwsWithGrf.length === 0 ? (
+                                      <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>אין נתוני GRF</div>
+                                    ) : rwsWithGrf.map((rw: any) => {
+                                      const grfEntries = airfieldRunwayGrf.filter((g: any) => g.runway_id === rw.id);
+                                      return (
+                                        <div key={rw.id} style={{ marginBottom: '10px', borderBottom: `1px solid ${lightMode ? '#6ee7b7' : '#1e4a3444'}`, paddingBottom: '8px' }}>
+                                          <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#166534' : '#86efac', marginBottom: '5px' }}>
+                                            {rw.name || `${rw.heading_a || ''}/${rw.heading_b || ''}`}
+                                          </div>
+                                          {grfEntries.map((g: any) => {
+                                            const isExpired = g.valid_until && new Date(g.valid_until) < new Date();
+                                            return (
+                                              <div key={g.id} style={{ marginBottom: '4px', opacity: isExpired ? 0.55 : 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', direction: 'ltr' }}>
+                                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#86efac', fontFamily: 'monospace', width: '20px', flexShrink: 0 }}>{g.heading}</span>
+                                                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                    {(['t','m','r'] as const).map((k, ki) => {
+                                                      const code = g[`rwycc_${k}`];
+                                                      return (
+                                                        <span key={k} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                                          <span style={{ fontSize: '7px', color: '#64748b' }}>{'TMR'[ki]}</span>
+                                                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: code !== null && code !== undefined ? (RWYCC_COLOR[code] || '#94a3b8') : '#475569', background: lightMode ? '#f0fdf4' : '#020c06', borderRadius: '3px', padding: '1px 6px', minWidth: '22px', textAlign: 'center', fontFamily: 'monospace', border: `1px solid ${code !== null && code !== undefined ? (RWYCC_COLOR[code] + '44') : '#1e293b'}` }}>
+                                                            {code !== null && code !== undefined ? code : '—'}
+                                                          </span>
+                                                        </span>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                  {isExpired && <span style={{ fontSize: '8px', color: '#ef4444', marginRight: '4px' }}>פג תוקף</span>}
+                                                  {g.reported_at && <span style={{ fontSize: '8px', color: '#64748b', marginRight: 'auto' }}>{new Date(g.reported_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</span>}
+                                                </div>
+                                                {(g.notes) && <div style={{ fontSize: '9px', color: '#64748b', marginTop: '2px', paddingRight: '26px' }}>{g.notes}</div>}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                             {/* Workstation NOTAM management panel */}
                             {workstationNotamEditRwId !== null && (() => {
                               const editRw = airfieldRunways.find((r: any) => r.id === workstationNotamEditRwId);
