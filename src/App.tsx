@@ -14179,6 +14179,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
+  const [workstationNotamEditRwId, setWorkstationNotamEditRwId] = useState<number | null>(null);
+  const [workstationNotamNewForm, setWorkstationNotamNewForm] = useState<{ type: 'text' | 'shortening'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -23680,10 +23682,86 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         </div>
                                       );
                                     })()}
+                                    {/* NOTAM edit toggle button */}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setWorkstationNotamEditRwId(prev => prev === rw.id ? null : rw.id); setWorkstationNotamNewForm(null); }}
+                                      style={{ fontSize: '9px', padding: '1px 6px', background: workstationNotamEditRwId === rw.id ? '#92400e' : 'transparent', border: `1px solid ${hasNotam ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: hasNotam ? '#fbbf24' : '#475569', marginTop: '2px', whiteSpace: 'nowrap' }}
+                                      title="עריכת NOTAMs"
+                                    >⚠{rwNotams.length > 0 ? ` ${rwNotams.length}` : ''}</button>
                                   </div>
                                 );
                               })}
                             </div>
+                            {/* Workstation NOTAM management panel */}
+                            {workstationNotamEditRwId !== null && (() => {
+                              const editRw = airfieldRunways.find((r: any) => r.id === workstationNotamEditRwId);
+                              if (!editRw) return null;
+                              const editNotams = airfieldRunwayNotams.filter((n: any) => n.runway_id === editRw.id);
+                              const refreshNotams = () => {
+                                const afId = myPresetConfig?.airfield_id;
+                                if (!afId) return;
+                                Promise.all([
+                                  fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r2 => r2.ok ? r2.json() : []),
+                                  fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r2 => r2.ok ? r2.json() : [])
+                                ]).then(([notams, runways]) => { setAirfieldRunwayNotams(notams); setAirfieldRunways(runways); }).catch(() => {});
+                              };
+                              return (
+                                <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#fef9c3' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', direction: 'rtl' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || `${editRw.heading_a || ''}/${editRw.heading_b || ''}`}</span>
+                                    <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
+                                  {editNotams.map((n: any) => (
+                                    <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
+                                      <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
+                                        {n.notam_type === 'shortening'
+                                          ? `קיצור קצה ${n.shorten_end === 'a' ? (editRw.heading_a || 'א') : (editRw.heading_b || 'ב')}: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}`
+                                          : (n.text_content || '')}
+                                      </div>
+                                      <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); refreshNotams(); }} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>
+                                    </div>
+                                  ))}
+                                  {workstationNotamNewForm ? (
+                                    <div style={{ background: lightMode ? '#fff' : '#0c1400', borderRadius: '5px', padding: '7px 8px', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, marginTop: '4px' }}>
+                                      <div style={{ display: 'flex', gap: '4px', marginBottom: '5px' }}>
+                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>טקסט</button>
+                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>קיצור מסלול</button>
+                                      </div>
+                                      {workstationNotamNewForm.type === 'text' ? (
+                                        <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '10px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                                      ) : (
+                                        <div>
+                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '3px' }}>קצה לקצר:</div>
+                                          <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, end: 'a' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.end === 'a' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>{editRw.heading_a || 'קצה א'}</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, end: 'b' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.end === 'b' ? '#0f4c75' : 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>{editRw.heading_b || 'קצה ב'}</button>
+                                          </div>
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                            <input value={workstationNotamNewForm.ft} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
+                                            <input value={workstationNotamNewForm.m} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div style={{ display: 'flex', gap: '4px', marginTop: '5px', justifyContent: 'flex-end' }}>
+                                        <button onClick={() => setWorkstationNotamNewForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
+                                        <button onClick={async () => {
+                                          const f = workstationNotamNewForm; if (!f) return;
+                                          const body: any = { runway_id: editRw.id, notam_type: f.type };
+                                          if (f.type === 'text') body.text_content = f.text;
+                                          else { body.shorten_end = f.end; body.shorten_amount_ft = f.ft ? Number(f.ft) : null; body.shorten_amount_m = f.m ? Number(f.m) : null; }
+                                          await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                          setWorkstationNotamNewForm(null);
+                                          refreshNotams();
+                                        }} style={{ padding: '3px 10px', background: '#b45309', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>הוסף</button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: 'rtl', marginTop: '2px' }}>+ הוסף NOTAM</button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
