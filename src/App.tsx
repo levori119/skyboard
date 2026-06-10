@@ -15549,6 +15549,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const parentBaseId: number | null = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
   const canUpdatePressure: boolean = myPresetConfig?.can_update_pressure === true;
   const canUpdateMazaa: boolean = myPresetConfig?.can_update_mazaa === true;
+  const canUpdateAtis: boolean = myPresetConfig?.can_update_atis === true;
+  const canUpdateNotam: boolean = myPresetConfig?.can_update_notam === true;
   const myWorkGroupId: number | null = (() => {
     if (!session?.presetId) return null;
     const group = allWorkGroups.find((g: any) => g.members?.some((m: any) => Number(m.preset_id) === Number(session.presetId)));
@@ -24599,14 +24601,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           </span>
                           <button
                             onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); }}
-                            title="NOTAM"
-                            style={{ flexShrink: 0, padding: '1px 5px', borderRadius: '3px', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1.4 }}
-                          >⚠ NOTAM</button>
+                            title={hasNotam ? `NOTAM — ${bs.notam_text?.slice(0, 60)}` : 'NOTAM (ריק)'}
+                            style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
+                          >⚠{hasNotam && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#f59e0b', border: '1px solid #0f172a' }} />}</button>
                           <button
                             onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); }}
-                            title="ATIS"
-                            style={{ flexShrink: 0, padding: '1px 5px', borderRadius: '3px', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '9px', fontWeight: 'bold', lineHeight: 1.4 }}
-                          >📻 ATIS</button>
+                            title={hasAtis ? `ATIS — ${bs.atis_text?.slice(0, 60)}` : 'ATIS (ריק)'}
+                            style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
+                          >📻{hasAtis && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8', border: '1px solid #0f172a' }} />}</button>
                         </div>
                       );
                     };
@@ -25410,34 +25412,51 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
               <button onClick={() => setBsInfoModal(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0' }}>✕</button>
             </div>
-            <textarea
-              value={bsInfoEditText}
-              onChange={e => setBsInfoEditText(e.target.value)}
-              placeholder={bsInfoModal.mode === 'notam' ? 'הכנס טקסט NOTAM...' : 'הכנס טקסט ATIS...'}
-              rows={7}
-              style={{ width: '100%', background: '#0f172a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '8px', color: '#e2e8f0', fontSize: '13px', padding: '10px 12px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }}
-            />
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setBsInfoModal(null)}
-                style={{ padding: '7px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
-                ביטול
-              </button>
-              <button onClick={async () => {
-                const field = bsInfoModal.mode === 'notam' ? 'notam_text' : 'atis_text';
-                const body: any = {};
-                body[field] = bsInfoEditText || null;
-                const updated = await fetch(`${API_URL}/base-statuses/${bsInfoModal.bs.id}/${bsInfoModal.mode}`, {
-                  method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-                }).then(r => r.ok ? r.json() : null).catch(() => null);
-                if (updated) {
-                  setBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
-                }
-                setBsInfoModal(null);
-              }}
-                style={{ padding: '7px 20px', background: bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e', color: 'white', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
-                שמור
-              </button>
-            </div>
+            {(() => {
+              const canEdit = bsInfoModal.mode === 'atis' ? canUpdateAtis : canUpdateNotam;
+              return (
+                <>
+                  {!canEdit && (
+                    <div style={{ marginBottom: '10px', padding: '6px 10px', background: '#1e293b', borderRadius: '6px', border: '1px solid #334155', fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>👁</span>
+                      <span>קריאה בלבד — עמדה זו אינה מורשית לעדכון {bsInfoModal.mode === 'atis' ? 'ATIS' : 'NOTAM'}</span>
+                    </div>
+                  )}
+                  <textarea
+                    value={bsInfoEditText}
+                    onChange={canEdit ? (e => setBsInfoEditText(e.target.value)) : undefined}
+                    readOnly={!canEdit}
+                    placeholder={bsInfoModal.mode === 'notam' ? 'הכנס טקסט NOTAM...' : 'הכנס טקסט ATIS...'}
+                    rows={7}
+                    style={{ width: '100%', background: canEdit ? '#0f172a' : '#0a0f1a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '8px', color: canEdit ? '#e2e8f0' : '#94a3b8', fontSize: '13px', padding: '10px 12px', resize: canEdit ? 'vertical' : 'none', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, cursor: canEdit ? 'text' : 'default' }}
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setBsInfoModal(null)}
+                      style={{ padding: '7px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>
+                      {canEdit ? 'ביטול' : 'סגור'}
+                    </button>
+                    {canEdit && (
+                      <button onClick={async () => {
+                        const field = bsInfoModal.mode === 'notam' ? 'notam_text' : 'atis_text';
+                        const body: any = {};
+                        body[field] = bsInfoEditText || null;
+                        const updated = await fetch(`${API_URL}/base-statuses/${bsInfoModal.bs.id}/${bsInfoModal.mode}`, {
+                          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                        }).then(r => r.ok ? r.json() : null).catch(() => null);
+                        if (updated) {
+                          setBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
+                          setLiveBaseStatuses(prev => prev.map(b => b.id === updated.id ? updated : b));
+                        }
+                        setBsInfoModal(null);
+                      }}
+                        style={{ padding: '7px 20px', background: bsInfoModal.mode === 'notam' ? '#92400e' : '#0c4a6e', color: 'white', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                        שמור
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>,
         document.body
@@ -29561,6 +29580,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     blind_map_default: false as boolean,
     use_map_zones: false as boolean,
     can_update_mazaa: false as boolean,
+    can_update_atis: false as boolean,
+    can_update_notam: false as boolean,
     datk_show_minutes: '' as string | number,
     civilian_columns: [] as CivCol[],
     civilian_board_bg: '' as string,
@@ -30035,6 +30056,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           strip_window_id: (presetForm as any).strip_window_id ? Number((presetForm as any).strip_window_id) : null,
           use_map_zones: presetForm.use_map_zones === true,
           can_update_mazaa: presetForm.can_update_mazaa === true,
+          can_update_atis: (presetForm as any).can_update_atis === true,
+          can_update_notam: (presetForm as any).can_update_notam === true,
           datk_show_minutes: presetForm.datk_show_minutes !== '' ? Number(presetForm.datk_show_minutes) : null,
           civilian_columns: presetForm.civilian_columns || [],
           civilian_board_bg: presetForm.civilian_board_bg || '',
@@ -30055,7 +30078,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       setTimeout(() => setPresetSaveSuccess(false), 2500);
       if (!editingPreset) {
         setShowNewPresetModal(false);
-        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
+        setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] });
       } else if (saved) {
         editPreset(saved);
       }
@@ -30107,6 +30130,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
       strip_window_id: preset.strip_window_id || '',
       use_map_zones: preset.use_map_zones === true,
       can_update_mazaa: preset.can_update_mazaa === true,
+      can_update_atis: preset.can_update_atis === true,
+      can_update_notam: preset.can_update_notam === true,
       datk_show_minutes: preset.datk_show_minutes ?? '',
       civilian_columns: Array.isArray(preset.civilian_columns) ? preset.civilian_columns : [],
       civilian_board_bg: preset.civilian_board_bg || '',
@@ -30283,7 +30308,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ margin: 0, fontSize: '18px' }}>הגדרת עמדות</h2>
                 <button
-                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
+                  onClick={() => { const df = { name: '', map_id: '', relevant_sectors: [] as number[], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [] as string[], filter_query: null as QGroup | null, block_table_ids: [] as number[], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [] as { sector_id: number; label: string }[], classic_transfer_points: [] as { sector_id: number; label: string }[], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [] as number[], classic_incoming_partner_preset_ids: [] as number[], classic_outgoing_partner_preset_ids: [] as number[], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [] as number[], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, use_map_zones: false, datk_show_minutes: '' as string | number, can_update_mazaa: false, can_update_atis: false, can_update_notam: false, civilian_columns: [] as CivCol[], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }; setEditingPreset(null); setShowNewPresetModal(true); setPresetForm(df); setPresetFormInitial(JSON.stringify(df)); }}
                   style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
                   + חדש
                 </button>
@@ -30293,7 +30318,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
               {(!!editingPreset || showNewPresetModal) && <MaybeSettingsModal
                 show={true}
                 title={editingPreset ? `עריכת עמדה: ${editingPreset?.name || ''}` : 'עמדה חדשה'}
-                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                onClose={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                 wide
               >
               <div style={{ borderRadius: '8px', padding: '0', marginBottom: '20px' }}>
@@ -30896,6 +30921,40 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות "מעדכן" יכולות לשנות את מצב מז"א המרחבי עבור כל קבוצת העבודה. עמדות מגדל לוקחות מצב מז"א מסטטוס הבסיס שלהן.</p>
                 </div>
 
+                {/* can_update_atis / can_update_notam toggles — ground presets only */}
+                {(presetForm.preset_type === 'ground' || presetForm.preset_type === 'ground_mgmt') && (
+                  <div style={{ marginTop: '12px', padding: '12px', background: '#0a1628', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    <div style={{ marginBottom: '10px', color: '#7dd3fc', fontSize: '13px', fontWeight: 'bold' }}>📡 הרשאות עדכון ATIS / NOTAM (עמדת שדה תעופה)</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '12px' }}>📻 ATIS — מי יכול לעדכן:</label>
+                        <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                          {([{ val: true, label: '✏️ מעדכן' }, { val: false, label: '👁 קריאה בלבד' }] as { val: boolean; label: string }[]).map(opt => (
+                            <button key={String(opt.val)} type="button"
+                              onClick={() => setPresetForm(p => ({ ...p, can_update_atis: opt.val }))}
+                              style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${(presetForm as any).can_update_atis === opt.val ? '#38bdf8' : '#334155'}`, background: (presetForm as any).can_update_atis === opt.val ? '#0c2a40' : '#1e293b', color: (presetForm as any).can_update_atis === opt.val ? '#38bdf8' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: (presetForm as any).can_update_atis === opt.val ? 'bold' : 'normal' }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '5px', color: '#94a3b8', fontSize: '12px' }}>⚠️ NOTAM — מי יכול לעדכן:</label>
+                        <div style={{ display: 'flex', gap: '8px', direction: 'rtl' }}>
+                          {([{ val: true, label: '✏️ מעדכן' }, { val: false, label: '👁 קריאה בלבד' }] as { val: boolean; label: string }[]).map(opt => (
+                            <button key={String(opt.val)} type="button"
+                              onClick={() => setPresetForm(p => ({ ...p, can_update_notam: opt.val }))}
+                              style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${(presetForm as any).can_update_notam === opt.val ? '#f59e0b' : '#334155'}`, background: (presetForm as any).can_update_notam === opt.val ? '#1c1107' : '#1e293b', color: (presetForm as any).can_update_notam === opt.val ? '#fbbf24' : '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: (presetForm as any).can_update_notam === opt.val ? 'bold' : 'normal' }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#64748b' }}>עמדות "מעדכן" יכולות לשנות ATIS / NOTAM בפאנל סטטוס הבסיסים. כל שאר העמדות יראו קריאה בלבד.</p>
+                  </div>
+                )}
+
                 {/* מד עומס לפי מצב מז"א */}
                 {editingPreset && (
                   <div style={{ marginTop: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155' }}>
@@ -31343,7 +31402,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     <span style={{ color: '#4ade80', fontSize: '14px', fontWeight: 'bold', animation: 'fadeIn 0.3s' }}>✓ נשמר בהצלחה</span>
                   )}
                   <button
-                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
+                    onClick={() => { setEditingPreset(null); setShowNewPresetModal(false); setPresetFormInitial(null); setPresetForm({ name: '', map_id: '', relevant_sectors: [], table_mode_id: '', partial_load: 3, full_load: 5, conflict_alt_delta: 500, relevant_control_stations: [], filter_query: null, block_table_ids: [], vertical_time_based: true, view_alt_min: '', view_alt_max: '', display_mode: 'complex', classic_strip_table_id: '', classic_strip_table_id_night: '', classic_receive_points: [], classic_transfer_points: [], preset_type: 'normal', airfield_id: '', classic_partner_preset_ids: [], classic_incoming_partner_preset_ids: [], classic_outgoing_partner_preset_ids: [], show_serials: true, allow_view_switching: true, show_base_statuses: false, base_status_ids: [], preset_role: '', parent_base_id: '', can_update_pressure: false, show_dashboard: false, flight_zones_mode: false, datk_show_minutes: '', can_update_mazaa: false, can_update_atis: false, can_update_notam: false, use_map_zones: false, civilian_columns: [], civilian_board_bg: '', dual_map_mode: false, map2_id: '', dual_map_layout: 'side-by-side', dual_map_split: 50, suggest_alt_range: false, show_full_picture: false, blind_map_default: false, conflict_alt_rules: [] }); }}
                     style={{ padding: '10px 25px', background: '#475569', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
                   >
                     ביטול
