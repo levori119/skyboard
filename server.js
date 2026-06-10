@@ -1091,6 +1091,15 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS workstation_messages (
+    id SERIAL PRIMARY KEY,
+    from_preset_id INTEGER,
+    from_preset_name VARCHAR(100),
+    to_preset_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    seen BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  )`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS runway_notams (
       id SERIAL PRIMARY KEY,
@@ -6988,6 +6997,46 @@ app.put('/api/collab-state/:presetId', async (req, res) => {
       [presetId, JSON.stringify(existing.pen_strokes), JSON.stringify(existing.map_shapes), JSON.stringify(existing.conflict_resolutions), existing.clear_at || '']
     );
     res.json(existing);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Workstation Messages (peer notifications) ──
+app.post('/api/workstation-messages', async (req, res) => {
+  const { from_preset_id, from_preset_name, to_preset_ids, message } = req.body;
+  if (!message || !Array.isArray(to_preset_ids) || to_preset_ids.length === 0)
+    return res.status(400).json({ error: 'Missing fields' });
+  try {
+    for (const to_id of to_preset_ids) {
+      await pool.query(
+        'INSERT INTO workstation_messages (from_preset_id, from_preset_name, to_preset_id, message) VALUES ($1, $2, $3, $4)',
+        [from_preset_id || null, from_preset_name || null, to_id, message]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/workstation-messages', async (req, res) => {
+  const { preset_id } = req.query;
+  if (!preset_id) return res.status(400).json({ error: 'preset_id required' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM workstation_messages WHERE to_preset_id = $1 AND seen = false ORDER BY created_at',
+      [preset_id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/workstation-messages/seen', async (req, res) => {
+  const { preset_id, ids } = req.body;
+  try {
+    if (Array.isArray(ids) && ids.length > 0) {
+      await pool.query('UPDATE workstation_messages SET seen = true WHERE id = ANY($1::int[])', [ids]);
+    } else if (preset_id) {
+      await pool.query('UPDATE workstation_messages SET seen = true WHERE to_preset_id = $1', [preset_id]);
+    }
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

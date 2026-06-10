@@ -2525,12 +2525,13 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
 };
 
 // --- כרטיס קבלה בנקודת העברה (עם ספירה לאחור) ---
-const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField }: {
+const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField, onReply }: {
   t: any;
   isConflict: boolean;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
+  onReply?: () => void;
 }) => {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [countdownOver, setCountdownOver] = useState(false);
@@ -2596,6 +2597,11 @@ const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStrip
           style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>קבל</button>
         <button onClick={(e) => { e.stopPropagation(); onReject(t.id); }}
           style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>דחה</button>
+        {onReply && (
+          <button onClick={(e) => { e.stopPropagation(); onReply(); }}
+            title="שלח הודעה לשולח"
+            style={{ padding: '2px 5px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>💬</button>
+        )}
       </div>
       {editingAlt && altAnchor && (
         <HandwritingOverlay
@@ -3384,6 +3390,8 @@ const DraggableMapMarker = ({
   crossSectorConflictIds,
   onUpdateStripField,
   lightMode = false,
+  onSendMessage,
+  onReplyToTransfer,
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -3405,6 +3413,8 @@ const DraggableMapMarker = ({
   crossSectorConflictIds?: Set<string>;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   lightMode?: boolean;
+  onSendMessage?: (sectorId: number, subLabel?: string) => void;
+  onReplyToTransfer?: (transfer: any) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -3640,6 +3650,28 @@ const DraggableMapMarker = ({
           {markerHasConflict && <span style={{ fontSize: '9px', background: '#ef4444', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>⚠️ קונפליקט גובה</span>}
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>
+          {onSendMessage && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onSendMessage(marker.sectorId, marker.subLabel); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="שלח הודעה לעמדות בנקודה זו"
+              style={{
+                background: '#7c3aed',
+                border: 'none',
+                color: 'white',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '11px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              💬
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
             onPointerDown={(e) => e.stopPropagation()}
@@ -3718,6 +3750,7 @@ const DraggableMapMarker = ({
               onAccept={onAcceptTransfer}
               onReject={onRejectTransfer}
               onUpdateStripField={onUpdateStripField}
+              onReply={onReplyToTransfer ? () => onReplyToTransfer(t) : undefined}
             />
           ))}
         </div>
@@ -14218,6 +14251,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
   const [dismissedTakeoffs, setDismissedTakeoffs] = React.useState<Set<string>>(new Set());
+  const [peerMsgs, setPeerMsgs] = React.useState<{id: number; from_preset_id: number|null; from_preset_name: string|null; message: string; created_at: string}[]>([]);
+  const [composeModal, setComposeModal] = React.useState<{recipients: {id: number; name: string}[]; title: string} | null>(null);
+  const [composeText, setComposeText] = React.useState('');
+  const [composeSending, setComposeSending] = React.useState(false);
   const [strips, setStrips] = useState<any[]>([]);
   const [waitingStrips, setWaitingStrips] = useState<any[]>([]);
   const [allSectors, setAllSectors] = useState(session.relevantSectors);
@@ -14756,6 +14793,31 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const interval = setInterval(loadSerials, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Peer messages polling
+  React.useEffect(() => {
+    if (!session.presetId) return;
+    const poll = async () => {
+      try {
+        const msgs = await fetch(`${API_URL}/workstation-messages?preset_id=${session.presetId}`).then(r => r.ok ? r.json() : []);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          setPeerMsgs(prev => {
+            const existingIds = new Set(prev.map((m: any) => m.id));
+            const newMsgs = msgs.filter((m: any) => !existingIds.has(m.id));
+            return newMsgs.length === 0 ? prev : [...prev, ...newMsgs];
+          });
+          fetch(`${API_URL}/workstation-messages/seen`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: msgs.map((m: any) => m.id) })
+          }).catch(() => {});
+        }
+      } catch {}
+    };
+    poll();
+    const iv = setInterval(poll, 3000);
+    return () => clearInterval(iv);
+  }, [session.presetId]);
 
   const handleSerialSelect = async (stripId: string | number, controlStation: string, serialId: number | null, dismissed = false) => {
     const actedBy = session.crewMember ? (session.crewMember.name || null) : null;
@@ -17850,6 +17912,58 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  const handleSendMessageToMarker = (sectorId: number, subLabel?: string) => {
+    const sharedPresets = (workstationPresets as any[]).filter(p => {
+      if (Number(p.id) === Number(session.presetId)) return false;
+      const sids = new Set([
+        ...(p.relevant_sectors || []).map(Number),
+        ...((p.classic_transfer_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+        ...((p.classic_receive_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+      ]);
+      return sids.has(Number(sectorId));
+    });
+    const sector = allSectors.find((s: any) => Number(s.id) === Number(sectorId));
+    const ptLabel = subLabel || (sector as any)?.label_he || (sector as any)?.name || String(sectorId);
+    setComposeModal({
+      recipients: sharedPresets.map((p: any) => ({ id: Number(p.id), name: String(p.name || '') })),
+      title: `הודעה לעמדות ב"${ptLabel}"`
+    });
+    setComposeText('');
+  };
+
+  const handleReplyToTransfer = (transfer: any) => {
+    const fromPresetId = transfer.from_workstation_id ?? transfer.from_preset_id;
+    if (!fromPresetId) return;
+    const senderPreset = (workstationPresets as any[]).find(p => Number(p.id) === Number(fromPresetId));
+    const senderName = senderPreset?.name || transfer.from_preset_name || `עמדה ${fromPresetId}`;
+    const stripLabel = transfer.callSign || transfer.callsign || '?';
+    setComposeModal({
+      recipients: [{ id: Number(fromPresetId), name: senderName }],
+      title: `תגובה ל-${senderName} על ${stripLabel}`
+    });
+    setComposeText('');
+  };
+
+  const handleSendCompose = async () => {
+    if (!composeModal || !composeText.trim() || composeSending) return;
+    setComposeSending(true);
+    try {
+      await fetch(`${API_URL}/workstation-messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from_preset_id: session.presetId,
+          from_preset_name: session.workstationName || myPresetConfig?.name || '',
+          to_preset_ids: composeModal.recipients.map(r => r.id),
+          message: composeText.trim()
+        })
+      });
+      setComposeModal(null);
+      setComposeText('');
+    } catch (e) { console.error(e); }
+    setComposeSending(false);
+  };
+
   const handleCancelTransfer = async (transferId: string) => {
     try {
       await fetch(`${API_URL}/transfers/${transferId}/cancel`, { method: 'POST' });
@@ -18899,6 +19013,73 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         );
       })()}
 
+
+      {/* Peer message notification toasts */}
+      {peerMsgs.length > 0 && (
+        <div style={{ position: 'fixed', top: '64px', left: '50%', transform: 'translateX(-50%)', zIndex: 9985, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', pointerEvents: 'none' }}>
+          {peerMsgs.map((msg) => (
+            <div key={msg.id} style={{ background: '#4c1d95', border: '2px solid #7c3aed', borderRadius: '10px', padding: '10px 14px', minWidth: '280px', maxWidth: '420px', direction: 'rtl', boxShadow: '0 8px 24px rgba(0,0,0,0.6)', display: 'flex', gap: '10px', alignItems: 'flex-start', pointerEvents: 'auto' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '4px' }}>
+                  💬 {msg.from_preset_name || 'עמדה לא ידועה'}
+                </div>
+                <div style={{ fontSize: '13px', color: 'white', lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.message}</div>
+                <div style={{ fontSize: '10px', color: '#a78bfa', marginTop: '4px' }}>
+                  {new Date(msg.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+              <button onClick={() => setPeerMsgs(prev => prev.filter(m => m.id !== msg.id))}
+                style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: 'pointer', fontSize: '18px', padding: '0', lineHeight: 1, flexShrink: 0, marginTop: '-2px' }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compose message modal */}
+      {composeModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9986, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setComposeModal(null)}>
+          <div style={{ background: '#1e293b', border: '1.5px solid #7c3aed', borderRadius: '12px', padding: '20px', width: '360px', maxWidth: '95vw', direction: 'rtl', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '10px' }}>💬 {composeModal.title}</div>
+            {composeModal.recipients.length > 0 ? (
+              <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '10px' }}>
+                נמענים: {composeModal.recipients.map(r => r.name).join(', ')}
+              </div>
+            ) : (
+              <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '10px' }}>אין עמדות משותפות בנקודה זו</div>
+            )}
+            {composeModal.recipients.length > 0 && (
+              <>
+                <textarea
+                  autoFocus
+                  value={composeText}
+                  onChange={e => setComposeText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendCompose(); } }}
+                  placeholder="כתוב הודעה... (Enter לשליחה)"
+                  style={{ width: '100%', minHeight: '80px', background: '#0f172a', color: 'white', border: '1px solid #7c3aed', borderRadius: '6px', padding: '8px', fontSize: '13px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', outline: 'none' }}
+                />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                  <button onClick={handleSendCompose} disabled={!composeText.trim() || composeSending}
+                    style={{ padding: '8px 20px', background: composeText.trim() && !composeSending ? '#7c3aed' : '#374155', color: 'white', border: 'none', borderRadius: '6px', cursor: composeText.trim() && !composeSending ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 'bold' }}>
+                    {composeSending ? '...' : '📨 שלח'}
+                  </button>
+                  <button onClick={() => setComposeModal(null)}
+                    style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>
+                    ביטול
+                  </button>
+                </div>
+              </>
+            )}
+            {composeModal.recipients.length === 0 && (
+              <button onClick={() => setComposeModal(null)}
+                style={{ padding: '8px 16px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', marginTop: '8px' }}>
+                סגור
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Info Modal */}
       {showInfoModal && (() => {
@@ -22102,6 +22283,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 crossSectorConflictIds={crossSectorConflictIds}
                 onUpdateStripField={handleUpdateStripField}
                 lightMode={lightMode}
+                onSendMessage={handleSendMessageToMarker}
+                onReplyToTransfer={handleReplyToTransfer}
               />
             ))}
 
