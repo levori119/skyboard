@@ -33417,10 +33417,10 @@ CHARLIE,1,301,`}
                       setEditingAirfield(af);
                       loadMapById(af.map_id?.toString() || '');
                     }}
-                    style={{ flex: 1, padding: '6px 8px', background: '#0f172a', border: '1px solid #334155', borderRadius: '5px', color: selectedAdminAirfieldId ? 'white' : '#475569', fontSize: '12px', direction: 'rtl' }}>
-                    <option value="">— בחר שדה תעופה —</option>
+                    style={{ flex: 1, padding: '6px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
+                    <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>— בחר שדה תעופה —</option>
                     {adminAirfields.map((af: any) => (
-                      <option key={af.id} value={af.id}>{af.name}</option>
+                      <option key={af.id} value={af.id} style={{ background: '#1e293b', color: 'white' }}>{af.name}</option>
                     ))}
                   </select>
                   <button onClick={() => { setShowAirfieldForm(true); setEditingAirfield(null); setAirfieldForm({ name: '', base_id: '', custom_name: '', map_id: '', sids: [], stars: [], newSid: '', newSidLabel: '', newStar: '' }); setAdminSelMapSrc(null); setSelectedAdminAirfieldId(null); setAirfieldPoints([]); setPlacingPointMode(false); setAdminAFExpanded(new Set()); }}
