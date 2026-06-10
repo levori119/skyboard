@@ -5656,7 +5656,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [] }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [] }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5711,9 +5711,13 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   liveRunwayConflicts?: {routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[];
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
+  activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
+  // Runway takeoff highlighting — maps heading → timestamp when first seen in activeTakeoffs
+  const [recentTakeoffTimes, setRecentTakeoffTimes] = React.useState<Record<string, number>>({});
+  const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false });
@@ -5826,6 +5830,38 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     }
   }); // minimum datk to highlight; null = no filter
   const isFirstDatkMount = React.useRef(true);
+  // Track when each runway heading first appeared in activeTakeoffs; clear stale entries (>3 min + no longer active)
+  React.useEffect(() => {
+    const WINDOW_MS = 3 * 60 * 1000;
+    const now = Date.now();
+    const activeSet = new Set((activeTakeoffs || []).map((t: any) => t.runway).filter(Boolean));
+    setRecentTakeoffTimes(prev => {
+      const next = { ...prev };
+      let changed = false;
+      // Add timestamp for newly-seen headings
+      for (const t of (activeTakeoffs || [])) {
+        if (t.runway && !next[t.runway]) {
+          next[t.runway] = now;
+          changed = true;
+        }
+      }
+      // Remove headings that are no longer active AND past 3-minute window
+      for (const heading of Object.keys(next)) {
+        if (!activeSet.has(heading) && (now - next[heading]) >= WINDOW_MS) {
+          delete next[heading];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [activeTakeoffs]);
+
+  // Live clock for runway countdown timers — ticks every second
+  React.useEffect(() => {
+    const iv = setInterval(() => setRwNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
   React.useEffect(() => {
     setPolygonPickerNote(polygonStatusPicker?.currentStatus?.note || '');
     setPolygonPickerGrf(polygonStatusPicker?.currentStatus?.grf_status || null);
@@ -20142,6 +20178,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 liveRunwayConflicts={liveRunwayConflicts}
                 airfieldRunways={airfieldRunways}
                 airfieldRunwayNotams={airfieldRunwayNotams}
+                activeTakeoffs={activeTakeoffs}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
@@ -23847,11 +23884,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 const isClosed = closedNotams.length > 0;
                                 const totalFt = rw.length_ft || 0;
                                 const hasNotam = rwNotams.length > 0;
+                                // Takeoff highlight logic
+                                const RW_WINDOW_MS = 3 * 60 * 1000;
+                                const rwActiveHeadings = new Set((activeTakeoffs || []).map((t: any) => t.runway).filter(Boolean));
+                                const aIsActive = !!(rw.heading_a && rwActiveHeadings.has(rw.heading_a));
+                                const bIsActive = !!(rw.heading_b && rwActiveHeadings.has(rw.heading_b));
+                                const aRecentTs = rw.heading_a ? recentTakeoffTimes[rw.heading_a] : undefined;
+                                const bRecentTs = rw.heading_b ? recentTakeoffTimes[rw.heading_b] : undefined;
+                                const aIsRed = !aIsActive && !!bRecentTs && (rwNow - bRecentTs) < RW_WINDOW_MS;
+                                const bIsRed = !bIsActive && !!aRecentTs && (rwNow - aRecentTs) < RW_WINDOW_MS;
+                                const aRedSecsLeft = aIsRed ? Math.ceil((RW_WINDOW_MS - (rwNow - bRecentTs!)) / 1000) : 0;
+                                const bRedSecsLeft = bIsRed ? Math.ceil((RW_WINDOW_MS - (rwNow - aRecentTs!)) / 1000) : 0;
+                                const anyGreen = aIsActive || bIsActive;
+                                const anyRed = aIsRed || bIsRed;
+                                const fmtSecs = (s: number) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
                                 return (
                                   <div key={rw.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                                    <svg viewBox={`0 0 ${VIEWW} ${VIEWH}`} width={VIEWW} height={VIEWH} style={{ display: 'block', filter: isClosed ? 'drop-shadow(0 0 6px #ef4444cc)' : hasNotam ? 'drop-shadow(0 0 4px #ef444466)' : 'none' }}>
+                                    <svg viewBox={`0 0 ${VIEWW} ${VIEWH}`} width={VIEWW} height={VIEWH} style={{ display: 'block', filter: isClosed ? 'drop-shadow(0 0 6px #ef4444cc)' : anyGreen ? 'drop-shadow(0 0 8px #22c55ecc)' : anyRed ? 'drop-shadow(0 0 8px #ef4444aa)' : hasNotam ? 'drop-shadow(0 0 4px #ef444466)' : 'none' }}>
                                       {/* Runway background */}
-                                      <rect x={RX} y={RY} width={RW} height={RH} fill={isClosed ? '#2a0000' : (lightMode ? '#d1fae5' : '#1a2e1e')} stroke={isClosed ? '#ef4444' : '#22c55e'} strokeWidth={isClosed ? 3 : 2} rx="2" className={isClosed ? 'runway-closed-rect' : undefined} />
+                                      <rect x={RX} y={RY} width={RW} height={RH} fill={isClosed ? '#2a0000' : anyGreen ? (lightMode ? '#bbf7d0' : '#052e16') : anyRed ? (lightMode ? '#fee2e2' : '#1a0505') : (lightMode ? '#d1fae5' : '#1a2e1e')} stroke={isClosed ? '#ef4444' : anyGreen ? '#4ade80' : anyRed ? '#f87171' : '#22c55e'} strokeWidth={isClosed ? 3 : (anyGreen || anyRed) ? 3 : 2} rx="2" className={isClosed ? 'runway-closed-rect' : undefined} />
                                       {/* NOTAM shortening areas */}
                                       {shortenNotams.map((n: any, ni: number) => {
                                         if (!n.shorten_amount_ft || !totalFt) return null;
@@ -23932,6 +23983,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                       <text x={VIEWW / 2} y={14} textAnchor="middle" fontSize="11" fontWeight="bold" fill={lightMode ? '#4338ca' : '#818cf8'}>{rw.name || ''}</text>
                                       {/* True bearing at bottom */}
                                       <text x={VIEWW / 2} y={VIEWH - 2} textAnchor="middle" fontSize="9" fill={lightMode ? '#6366f1' : '#6366f1'}>{rw.true_bearing ? `${rw.true_bearing}°` : ''}</text>
+                                      {/* Takeoff highlight: heading_a end (top) — GREEN if active, RED if reciprocal */}
+                                      {!isClosed && aIsActive && (
+                                        <g>
+                                          <rect x={RX} y={RY} width={RW} height={16} fill="#16a34a" opacity="0.7" rx="1" />
+                                          <text x={RX + RW / 2} y={RY + 10} textAnchor="middle" fontSize="8" fill="#bbf7d0" fontWeight="bold">✈ {rw.heading_a}</text>
+                                        </g>
+                                      )}
+                                      {!isClosed && aIsRed && (
+                                        <g>
+                                          <rect x={RX} y={RY} width={RW} height={16} fill="#dc2626" opacity="0.75" rx="1" />
+                                          <text x={RX + RW / 2} y={RY + 7} textAnchor="middle" fontSize="7" fill="#fecaca" fontWeight="bold">{rw.heading_a}</text>
+                                          <text x={RX + RW / 2} y={RY + 14} textAnchor="middle" fontSize="6" fill="#fca5a5">{fmtSecs(aRedSecsLeft)}</text>
+                                        </g>
+                                      )}
+                                      {/* Takeoff highlight: heading_b end (bottom) — GREEN if active, RED if reciprocal */}
+                                      {!isClosed && bIsActive && (
+                                        <g>
+                                          <rect x={RX} y={RY + RH - 16} width={RW} height={16} fill="#16a34a" opacity="0.7" rx="1" />
+                                          <text x={RX + RW / 2} y={RY + RH - 5} textAnchor="middle" fontSize="8" fill="#bbf7d0" fontWeight="bold">✈ {rw.heading_b}</text>
+                                        </g>
+                                      )}
+                                      {!isClosed && bIsRed && (
+                                        <g>
+                                          <rect x={RX} y={RY + RH - 16} width={RW} height={16} fill="#dc2626" opacity="0.75" rx="1" />
+                                          <text x={RX + RW / 2} y={RY + RH - 9} textAnchor="middle" fontSize="7" fill="#fecaca" fontWeight="bold">{rw.heading_b}</text>
+                                          <text x={RX + RW / 2} y={RY + RH - 2} textAnchor="middle" fontSize="6" fill="#fca5a5">{fmtSecs(bRedSecsLeft)}</text>
+                                        </g>
+                                      )}
                                       {/* Closed runway — big red X */}
                                       {isClosed && (
                                         <g className="runway-closed-x">
