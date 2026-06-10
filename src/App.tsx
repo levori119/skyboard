@@ -14189,6 +14189,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [workstationAtis, setWorkstationAtis] = useState<any | null>(null);
   const [workstationAtisOpen, setWorkstationAtisOpen] = useState(false);
   const [workstationAtisForm, setWorkstationAtisForm] = useState<Record<string, any> | null>(null);
+  const [atisSpeaking, setAtisSpeaking] = useState(false);
   const [airfieldElements, setAirfieldElements] = useState<any[]>([]);
   const [airfieldElementTypes, setAirfieldElementTypes] = useState<any[]>([]);
   const [groundMapSrc, setGroundMapSrc] = useState<string | null>(null);
@@ -24194,6 +24195,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const displayText = f ? generateAtis(f) : (workstationAtis ? generateAtis(dbToForm(workstationAtis)) : null);
                     const upd = (k: string, v: string) => setWorkstationAtisForm((p: any) => p && ({ ...p, [k]: v }));
                     const inputSt = { padding: '4px 6px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', boxSizing: 'border-box' as const };
+                    const speakAtis = () => {
+                      if (!displayText) return;
+                      if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); return; }
+                      const u = new SpeechSynthesisUtterance(displayText);
+                      u.lang = 'en-US'; u.rate = 0.82; u.pitch = 1;
+                      u.onstart = () => setAtisSpeaking(true);
+                      u.onend = () => setAtisSpeaking(false);
+                      u.onerror = () => setAtisSpeaking(false);
+                      window.speechSynthesis.speak(u);
+                    };
                     return (
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', background: lightMode ? '#eff6ff' : '#0a1628', borderBottom: workstationAtisOpen ? `1px solid ${T.border}` : 'none' }}>
@@ -24371,9 +24382,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                   <textarea value={f.notam_info} onChange={e => upd('notam_info', e.target.value)} placeholder="e.g. ARMEL VOR OUT OF SERVICE" rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fff' : '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '10px', resize: 'vertical', direction: 'ltr', boxSizing: 'border-box', fontFamily: 'inherit' }} />
                                 </div>
                                 {/* Live ATIS preview */}
-                                <div style={{ background: lightMode ? '#0f172a' : '#020817', borderRadius: '5px', padding: '7px 9px', marginBottom: '7px', fontFamily: 'monospace', fontSize: '10px', color: '#86efac', whiteSpace: 'pre-wrap', direction: 'ltr', lineHeight: 1.6, border: '1px solid #166534' }}>
+                                <div style={{ background: lightMode ? '#0f172a' : '#020817', borderRadius: '5px', padding: '7px 9px', marginBottom: '4px', fontFamily: 'monospace', fontSize: '10px', color: '#86efac', whiteSpace: 'pre-wrap', direction: 'ltr', lineHeight: 1.6, border: '1px solid #166634' }}>
                                   {displayText}
                                 </div>
+                                <button onClick={speakAtis} style={{ width: '100%', padding: '4px', background: atisSpeaking ? '#1d4ed822' : 'transparent', border: `1px solid ${atisSpeaking ? '#3b82f6' : '#1d4ed844'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: atisSpeaking ? '#93c5fd' : '#60a5fa', marginBottom: '7px', fontWeight: 'bold', transition: 'all 0.15s' }}>
+                                  {atisSpeaking ? '⏹ עצור קריאה' : '🔊 קרא ATIS בקול'}
+                                </button>
                                 <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end' }}>
                                   <button onClick={() => setWorkstationAtisForm(null)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
                                   <button onClick={async () => {
@@ -24407,7 +24421,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <div style={{ background: lightMode ? '#0f172a' : '#020817', borderRadius: '5px', padding: '8px 10px', fontFamily: 'monospace', fontSize: '10px', color: '#86efac', whiteSpace: 'pre-wrap', direction: 'ltr', lineHeight: 1.6, border: '1px solid #166534', marginBottom: '6px' }}>
                                   {displayText}
                                 </div>
-                                <button onClick={() => { if (displayText) navigator.clipboard.writeText(displayText); }} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px solid #166534', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>📋 העתק ATIS</button>
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '0' }}>
+                                  <button onClick={() => { if (displayText) navigator.clipboard.writeText(displayText); }} style={{ flex: 1, padding: '4px', background: 'transparent', border: '1px solid #166534', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#34d399' }}>📋 העתק</button>
+                                  <button onClick={speakAtis} style={{ flex: 1, padding: '4px', background: atisSpeaking ? '#1d4ed822' : 'transparent', border: `1px solid ${atisSpeaking ? '#3b82f6' : '#1d4ed8'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: atisSpeaking ? '#93c5fd' : '#60a5fa', fontWeight: 'bold', transition: 'all 0.15s' }}>
+                                    {atisSpeaking ? '⏹ עצור' : '🔊 קרא'}
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div style={{ textAlign: 'center', padding: '10px 0' }}>
