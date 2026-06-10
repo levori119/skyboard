@@ -397,6 +397,7 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
     }}>
       <div style={{ 
         background: 'white', 
+        color: '#1e293b',
         padding: '40px', 
         borderRadius: '16px', 
         minWidth: '450px',
@@ -494,7 +495,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                   border: '2px solid #e2e8f0',
                   fontSize: '16px',
                   boxSizing: 'border-box',
-                  direction: 'rtl'
+                  direction: 'rtl',
+                  background: 'white',
+                  color: '#1e293b',
+                  colorScheme: 'light'
                 }}
               />
               {showCrewDropdown && (
