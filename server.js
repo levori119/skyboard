@@ -1084,6 +1084,11 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_m INT`);
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_m INT`);
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_m INT`);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS tora_b_m INT`);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS toda_b_m INT`);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_b_m INT`);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
+  await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`
@@ -6109,20 +6114,20 @@ app.get('/api/airfield-runways', async (req, res) => {
 });
 app.post('/api/airfield-runways', async (req, res) => {
   try {
-    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m } = req.body;
+    const { airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
     const { rows } = await pool.query(
-      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *',
-      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null]
+      'INSERT INTO airfield_runways (airfield_id, name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24) RETURNING *',
+      [airfield_id, name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create airfield runway' }); }
 });
 app.put('/api/airfield-runways/:id', async (req, res) => {
   try {
-    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m } = req.body;
+    const { name, heading_a, heading_b, true_bearing, heading_a_true, heading_b_true, length_ft, length_m, sort_order, start_x_pct, start_y_pct, end_x_pct, end_y_pct, tora_m, toda_m, asda_m, lda_m, clearway_m, tora_b_m, toda_b_m, asda_b_m, lda_b_m, clearway_b_m } = req.body;
     const { rows } = await pool.query(
-      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18 WHERE id=$19 RETURNING *',
-      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, req.params.id]
+      'UPDATE airfield_runways SET name=$1, heading_a=$2, heading_b=$3, true_bearing=$4, heading_a_true=$5, heading_b_true=$6, length_ft=$7, length_m=$8, sort_order=$9, start_x_pct=$10, start_y_pct=$11, end_x_pct=$12, end_y_pct=$13, tora_m=$14, toda_m=$15, asda_m=$16, lda_m=$17, clearway_m=$18, tora_b_m=$19, toda_b_m=$20, asda_b_m=$21, lda_b_m=$22, clearway_b_m=$23 WHERE id=$24 RETURNING *',
+      [name || '', heading_a || '', heading_b || '', true_bearing || null, heading_a_true ?? null, heading_b_true ?? null, length_ft || null, length_m || null, sort_order || 0, start_x_pct ?? null, start_y_pct ?? null, end_x_pct ?? null, end_y_pct ?? null, tora_m ?? null, toda_m ?? null, asda_m ?? null, lda_m ?? null, clearway_m ?? null, tora_b_m ?? null, toda_b_m ?? null, asda_b_m ?? null, lda_b_m ?? null, clearway_b_m ?? null, req.params.id]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update airfield runway' }); }

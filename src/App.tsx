@@ -29756,7 +29756,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
-  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_m: string; toda_m: string; asda_m: string; lda_m: string; clearway_m: string } | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string; tora_a_m: string; tora_a_ft: string; toda_a_m: string; toda_a_ft: string; asda_a_m: string; asda_a_ft: string; lda_a_m: string; lda_a_ft: string; clearway_a_m: string; clearway_a_ft: string; tora_b_m: string; tora_b_ft: string; toda_b_m: string; toda_b_ft: string; asda_b_m: string; asda_b_ft: string; lda_b_m: string; lda_b_ft: string; clearway_b_m: string; clearway_b_ft: string } | null>(null);
   const [placingRunwayEndpoint, setPlacingRunwayEndpoint] = useState<'start' | 'end' | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
@@ -33764,7 +33764,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈ מסלולים ({adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
-                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_m: '', toda_m: '', asda_m: '', lda_m: '', clearway_m: '' }); setAdminRunwayEditId(null); }}
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '', tora_a_m: '', tora_a_ft: '', toda_a_m: '', toda_a_ft: '', asda_a_m: '', asda_a_ft: '', lda_a_m: '', lda_a_ft: '', clearway_a_m: '', clearway_a_ft: '', tora_b_m: '', tora_b_ft: '', toda_b_m: '', toda_b_ft: '', asda_b_m: '', asda_b_ft: '', lda_b_m: '', lda_b_ft: '', clearway_b_m: '', clearway_b_ft: '' }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>
                           )}
                           <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
@@ -33796,29 +33796,6 @@ CHARLIE,1,301,`}
                                 </div>
                               </div>
 
-                              {/* Declared Distances ICAO */}
-                              <div style={{ marginBottom: '8px' }}>
-                                <div style={{ fontSize: '10px', color: '#fcd34d', marginBottom: '5px', fontWeight: 'bold' }}>📏 מרחקים מוצהרים — ICAO (מטר)</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', marginBottom: '4px' }}>
-                                  {(['tora_m','toda_m','asda_m'] as const).map(k => (
-                                    <div key={k} style={{ position: 'relative' }}>
-                                      <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px', textAlign: 'center' }}>{k.replace('_m','').toUpperCase()}</div>
-                                      <input value={(adminRunwayForm as any)[k]} onChange={e => setAdminRunwayForm(p => p && ({ ...p, [k]: e.target.value }))} placeholder="מ'" type="number" style={{ width: '100%', padding: '4px 24px 4px 6px', background: '#1e293b', border: '1px solid #92400e', borderRadius: '4px', color: '#fde68a', fontSize: '11px', boxSizing: 'border-box' }} />
-                                      <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>m</span>
-                                    </div>
-                                  ))}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                                  {(['lda_m','clearway_m'] as const).map(k => (
-                                    <div key={k} style={{ position: 'relative' }}>
-                                      <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px', textAlign: 'center' }}>{k === 'clearway_m' ? 'CWY (כוק)' : 'LDA'}</div>
-                                      <input value={(adminRunwayForm as any)[k]} onChange={e => setAdminRunwayForm(p => p && ({ ...p, [k]: e.target.value }))} placeholder="מ'" type="number" style={{ width: '100%', padding: '4px 24px 4px 6px', background: '#1e293b', border: '1px solid #92400e', borderRadius: '4px', color: '#fde68a', fontSize: '11px', boxSizing: 'border-box' }} />
-                                      <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>m</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
                               {/* Side A */}
                               <div style={{ background: '#0a1e35', borderRadius: '5px', padding: '6px', marginBottom: '6px', border: '1px solid #1e3a5f' }}>
                                 <div style={{ fontSize: '10px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '5px' }}>צד א</div>
@@ -33829,9 +33806,26 @@ CHARLIE,1,301,`}
                                   </div>
                                   <div style={{ position: 'relative' }}>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>כיוון אמיתי (°)</div>
-                                    <input value={adminRunwayForm.heading_a_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a_true: e.target.value }))} placeholder="090" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#93c5fd', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                                    <input value={adminRunwayForm.heading_a_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a_true: e.target.value }))} onBlur={e => { const v = e.target.value.trim(); if (v && !isNaN(Number(v))) setAdminRunwayForm(p => p && ({ ...p, heading_a_true: String(Number(v)).padStart(3, '0') })); }} placeholder="090" type="text" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#93c5fd', fontSize: '11px', direction: 'ltr', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                                     <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
                                   </div>
+                                </div>
+                                {/* ICAO Declared Distances — Side A */}
+                                <div style={{ marginBottom: '5px', background: '#071526', borderRadius: '4px', padding: '5px', border: '1px solid #92400e' }}>
+                                  <div style={{ fontSize: '9px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '4px' }}>📏 מרחקים מוצהרים ICAO</div>
+                                  {(['tora','toda','asda','lda','clearway'] as const).map(k => (
+                                    <div key={k} style={{ display: 'grid', gridTemplateColumns: '42px 1fr 1fr', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
+                                      <div style={{ fontSize: '9px', color: '#94a3b8', fontFamily: 'monospace' }}>{k === 'clearway' ? 'CWY' : k.toUpperCase()}</div>
+                                      <div style={{ position: 'relative' }}>
+                                        <input value={(adminRunwayForm as any)[`${k}_a_m`]} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, [`${k}_a_m`]: v, [`${k}_a_ft`]: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ width: '100%', padding: '3px 20px 3px 5px', background: '#1e293b', border: '1px solid #78350f', borderRadius: '3px', color: '#fde68a', fontSize: '10px', boxSizing: 'border-box' }} />
+                                        <span style={{ position: 'absolute', left: '3px', top: '50%', transform: 'translateY(-50%)', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>m</span>
+                                      </div>
+                                      <div style={{ position: 'relative' }}>
+                                        <input value={(adminRunwayForm as any)[`${k}_a_ft`]} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, [`${k}_a_ft`]: v, [`${k}_a_m`]: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ width: '100%', padding: '3px 20px 3px 5px', background: '#1e293b', border: '1px solid #78350f', borderRadius: '3px', color: '#fde68a', fontSize: '10px', boxSizing: 'border-box' }} />
+                                        <span style={{ position: 'absolute', left: '3px', top: '50%', transform: 'translateY(-50%)', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>ft</span>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
                                   <div>
@@ -33852,16 +33846,33 @@ CHARLIE,1,301,`}
                               {/* Side B */}
                               <div style={{ background: '#1a0e2e', borderRadius: '5px', padding: '6px', marginBottom: '8px', border: '1px solid #3b1e5f' }}>
                                 <div style={{ fontSize: '10px', color: '#c084fc', fontWeight: 'bold', marginBottom: '5px' }}>צד ב</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '5px' }}>
                                   <div>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>שם</div>
                                     <input value={adminRunwayForm.heading_b} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b: e.target.value }))} placeholder="27" style={{ width: '100%', padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#c084fc', fontSize: '12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
                                   </div>
                                   <div style={{ position: 'relative' }}>
                                     <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>כיוון אמיתי (°)</div>
-                                    <input value={adminRunwayForm.heading_b_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b_true: e.target.value }))} placeholder="270" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#d8b4fe', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                                    <input value={adminRunwayForm.heading_b_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b_true: e.target.value }))} onBlur={e => { const v = e.target.value.trim(); if (v && !isNaN(Number(v))) setAdminRunwayForm(p => p && ({ ...p, heading_b_true: String(Number(v)).padStart(3, '0') })); }} placeholder="270" type="text" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#d8b4fe', fontSize: '11px', direction: 'ltr', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                                     <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
                                   </div>
+                                </div>
+                                {/* ICAO Declared Distances — Side B */}
+                                <div style={{ marginBottom: '5px', background: '#130a20', borderRadius: '4px', padding: '5px', border: '1px solid #6d28d9' }}>
+                                  <div style={{ fontSize: '9px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '4px' }}>📏 מרחקים מוצהרים ICAO</div>
+                                  {(['tora','toda','asda','lda','clearway'] as const).map(k => (
+                                    <div key={k} style={{ display: 'grid', gridTemplateColumns: '42px 1fr 1fr', gap: '3px', alignItems: 'center', marginBottom: '3px' }}>
+                                      <div style={{ fontSize: '9px', color: '#94a3b8', fontFamily: 'monospace' }}>{k === 'clearway' ? 'CWY' : k.toUpperCase()}</div>
+                                      <div style={{ position: 'relative' }}>
+                                        <input value={(adminRunwayForm as any)[`${k}_b_m`]} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, [`${k}_b_m`]: v, [`${k}_b_ft`]: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ width: '100%', padding: '3px 20px 3px 5px', background: '#1e293b', border: '1px solid #4c1d95', borderRadius: '3px', color: '#e9d5ff', fontSize: '10px', boxSizing: 'border-box' }} />
+                                        <span style={{ position: 'absolute', left: '3px', top: '50%', transform: 'translateY(-50%)', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>m</span>
+                                      </div>
+                                      <div style={{ position: 'relative' }}>
+                                        <input value={(adminRunwayForm as any)[`${k}_b_ft`]} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, [`${k}_b_ft`]: v, [`${k}_b_m`]: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ width: '100%', padding: '3px 20px 3px 5px', background: '#1e293b', border: '1px solid #4c1d95', borderRadius: '3px', color: '#e9d5ff', fontSize: '10px', boxSizing: 'border-box' }} />
+                                        <span style={{ position: 'absolute', left: '3px', top: '50%', transform: 'translateY(-50%)', fontSize: '8px', color: '#475569', pointerEvents: 'none' }}>ft</span>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
                                 <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>מיקום: ההפך מצד א (מוגדר אוטומטית על המפה)</div>
                               </div>
@@ -33885,11 +33896,16 @@ CHARLIE,1,301,`}
                                     start_y_pct: form.start_y_pct ? Number(form.start_y_pct) : null,
                                     end_x_pct: form.end_x_pct ? Number(form.end_x_pct) : null,
                                     end_y_pct: form.end_y_pct ? Number(form.end_y_pct) : null,
-                                    tora_m: form.tora_m ? Number(form.tora_m) : null,
-                                    toda_m: form.toda_m ? Number(form.toda_m) : null,
-                                    asda_m: form.asda_m ? Number(form.asda_m) : null,
-                                    lda_m: form.lda_m ? Number(form.lda_m) : null,
-                                    clearway_m: form.clearway_m ? Number(form.clearway_m) : null,
+                                    tora_m: form.tora_a_m ? Number(form.tora_a_m) : null,
+                                    toda_m: form.toda_a_m ? Number(form.toda_a_m) : null,
+                                    asda_m: form.asda_a_m ? Number(form.asda_a_m) : null,
+                                    lda_m: form.lda_a_m ? Number(form.lda_a_m) : null,
+                                    clearway_m: form.clearway_a_m ? Number(form.clearway_a_m) : null,
+                                    tora_b_m: form.tora_b_m ? Number(form.tora_b_m) : null,
+                                    toda_b_m: form.toda_b_m ? Number(form.toda_b_m) : null,
+                                    asda_b_m: form.asda_b_m ? Number(form.asda_b_m) : null,
+                                    lda_b_m: form.lda_b_m ? Number(form.lda_b_m) : null,
+                                    clearway_b_m: form.clearway_b_m ? Number(form.clearway_b_m) : null,
                                   };
                                   if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -33911,27 +33927,52 @@ CHARLIE,1,301,`}
                                       {rw.length_ft ? <span style={{ color: '#cbd5e1' }}>{' '}{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
                                     </div>
                                   </div>
-                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: rw.heading_a_true?.toString() || '', heading_b_true: rw.heading_b_true?.toString() || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_m: rw.tora_m?.toString() || '', toda_m: rw.toda_m?.toString() || '', asda_m: rw.asda_m?.toString() || '', lda_m: rw.lda_m?.toString() || '', clearway_m: rw.clearway_m?.toString() || '' }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={() => { const ha = rw.heading_a_true != null ? String(rw.heading_a_true).padStart(3,'0') : ''; const hb = rw.heading_b_true != null ? String(rw.heading_b_true).padStart(3,'0') : ''; setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: ha, heading_b_true: hb, length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '', tora_a_m: rw.tora_m?.toString() || '', tora_a_ft: rw.tora_m ? String(Math.round(rw.tora_m * 3.28084)) : '', toda_a_m: rw.toda_m?.toString() || '', toda_a_ft: rw.toda_m ? String(Math.round(rw.toda_m * 3.28084)) : '', asda_a_m: rw.asda_m?.toString() || '', asda_a_ft: rw.asda_m ? String(Math.round(rw.asda_m * 3.28084)) : '', lda_a_m: rw.lda_m?.toString() || '', lda_a_ft: rw.lda_m ? String(Math.round(rw.lda_m * 3.28084)) : '', clearway_a_m: rw.clearway_m?.toString() || '', clearway_a_ft: rw.clearway_m ? String(Math.round(rw.clearway_m * 3.28084)) : '', tora_b_m: rw.tora_b_m?.toString() || '', tora_b_ft: rw.tora_b_m ? String(Math.round(rw.tora_b_m * 3.28084)) : '', toda_b_m: rw.toda_b_m?.toString() || '', toda_b_ft: rw.toda_b_m ? String(Math.round(rw.toda_b_m * 3.28084)) : '', asda_b_m: rw.asda_b_m?.toString() || '', asda_b_ft: rw.asda_b_m ? String(Math.round(rw.asda_b_m * 3.28084)) : '', lda_b_m: rw.lda_b_m?.toString() || '', lda_b_ft: rw.lda_b_m ? String(Math.round(rw.lda_b_m * 3.28084)) : '', clearway_b_m: rw.clearway_b_m?.toString() || '', clearway_b_ft: rw.clearway_b_m ? String(Math.round(rw.clearway_b_m * 3.28084)) : '' }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                 </div>
-                                {/* Declared Distances display */}
-                                {(rw.tora_m || rw.toda_m || rw.asda_m || rw.lda_m || rw.clearway_m) && (() => {
+                                {/* Declared Distances display — per side */}
+                                {(rw.tora_m || rw.toda_m || rw.asda_m || rw.lda_m || rw.clearway_m || rw.tora_b_m || rw.toda_b_m || rw.asda_b_m || rw.lda_b_m || rw.clearway_b_m) && (() => {
+                                  const distKeys = [
+                                    { k_a: 'tora_m', k_b: 'tora_b_m', label: 'TORA' },
+                                    { k_a: 'toda_m', k_b: 'toda_b_m', label: 'TODA' },
+                                    { k_a: 'asda_m', k_b: 'asda_b_m', label: 'ASDA' },
+                                    { k_a: 'lda_m', k_b: 'lda_b_m', label: 'LDA' },
+                                    { k_a: 'clearway_m', k_b: 'clearway_b_m', label: 'CWY' },
+                                  ];
+                                  const hasA = distKeys.some((x: any) => rw[x.k_a]);
+                                  const hasB = distKeys.some((x: any) => rw[x.k_b]);
                                   return (
                                     <div style={{ marginTop: '6px', borderTop: '1px solid #92400e', paddingTop: '5px', direction: 'rtl' }}>
-                                      <div style={{ fontSize: '9px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '4px' }}>📏 מרחקים מוצהרים (m)</div>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                        {[
-                                          { k: 'tora_m', label: 'TORA' },
-                                          { k: 'toda_m', label: 'TODA' },
-                                          { k: 'asda_m', label: 'ASDA' },
-                                          { k: 'lda_m', label: 'LDA' },
-                                          { k: 'clearway_m', label: 'CWY' },
-                                        ].filter((x: any) => rw[x.k]).map(({ k, label }: any) => (
-                                          <div key={k} style={{ textAlign: 'center', background: '#0f1f0a', borderRadius: '3px', padding: '2px 6px', border: '1px solid #365314', minWidth: '44px' }}>
-                                            <div style={{ fontSize: '8px', color: '#64748b' }}>{label}</div>
-                                            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#86efac', fontFamily: 'monospace' }}>{Number(rw[k]).toLocaleString()}</div>
+                                      <div style={{ fontSize: '9px', color: '#fcd34d', fontWeight: 'bold', marginBottom: '4px' }}>📏 מרחקים מוצהרים ICAO</div>
+                                      <div style={{ display: 'grid', gridTemplateColumns: hasA && hasB ? '1fr 1fr' : '1fr', gap: '6px' }}>
+                                        {hasA && (
+                                          <div>
+                                            <div style={{ fontSize: '8px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '3px' }}>צד א ({rw.heading_a || 'A'})</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                              {distKeys.filter((x: any) => rw[x.k_a]).map(({ k_a, label }: any) => (
+                                                <div key={k_a} style={{ textAlign: 'center', background: '#071526', borderRadius: '3px', padding: '2px 5px', border: '1px solid #1e4a6e', minWidth: '40px' }}>
+                                                  <div style={{ fontSize: '8px', color: '#64748b' }}>{label}</div>
+                                                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#86efac', fontFamily: 'monospace' }}>{Number(rw[k_a]).toLocaleString()}</div>
+                                                  <div style={{ fontSize: '8px', color: '#475569', fontFamily: 'monospace' }}>{Math.round(Number(rw[k_a]) * 3.28084).toLocaleString()} ft</div>
+                                                </div>
+                                              ))}
+                                            </div>
                                           </div>
-                                        ))}
+                                        )}
+                                        {hasB && (
+                                          <div>
+                                            <div style={{ fontSize: '8px', color: '#c084fc', fontWeight: 'bold', marginBottom: '3px' }}>צד ב ({rw.heading_b || 'B'})</div>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                              {distKeys.filter((x: any) => rw[x.k_b]).map(({ k_b, label }: any) => (
+                                                <div key={k_b} style={{ textAlign: 'center', background: '#130a20', borderRadius: '3px', padding: '2px 5px', border: '1px solid #4c1d95', minWidth: '40px' }}>
+                                                  <div style={{ fontSize: '8px', color: '#64748b' }}>{label}</div>
+                                                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#e9d5ff', fontFamily: 'monospace' }}>{Number(rw[k_b]).toLocaleString()}</div>
+                                                  <div style={{ fontSize: '8px', color: '#475569', fontFamily: 'monospace' }}>{Math.round(Number(rw[k_b]) * 3.28084).toLocaleString()} ft</div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   );
