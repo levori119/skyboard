@@ -10139,8 +10139,25 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     const isClosedRunway = airfieldRunwayNotams.some(
                       (n: any) => matchingRwIds.has(n.runway_id) && n.notam_type === 'closed'
                     );
-                    const borderColor = isClosedRunway ? '#dc2626' : hasConflict ? '#f59e0b' : '#475569';
-                    const bgColor = isClosedRunway ? '#1f0000' : hasConflict ? '#1a0000' : '#0f172a';
+                    // Per-end takeoff state — green if this end has active clearance, red if reciprocal does
+                    const RW_SID_WIN = 3 * 60 * 1000;
+                    const rwActiveHdgs = new Set((activeTakeoffs || []).map((t: any) => t.runway).filter(Boolean));
+                    const endAActive = !!(rwy.end_a_name && rwActiveHdgs.has(rwy.end_a_name));
+                    const endBActive = !!(rwy.end_b_name && rwActiveHdgs.has(rwy.end_b_name));
+                    const endATs = rwy.end_a_name ? recentTakeoffTimes[rwy.end_a_name] : undefined;
+                    const endBTs = rwy.end_b_name ? recentTakeoffTimes[rwy.end_b_name] : undefined;
+                    const endABlocked = !endAActive && !!endBTs && (rwNow - endBTs) < RW_SID_WIN;
+                    const endBBlocked = !endBActive && !!endATs && (rwNow - endATs) < RW_SID_WIN;
+                    const endASecsLeft = endABlocked ? Math.ceil((RW_SID_WIN - (rwNow - endBTs!)) / 1000) : 0;
+                    const endBSecsLeft = endBBlocked ? Math.ceil((RW_SID_WIN - (rwNow - endATs!)) / 1000) : 0;
+                    const anyEndActive = endAActive || endBActive;
+                    const borderColor = isClosedRunway ? '#dc2626' : anyEndActive ? '#22c55e' : (endABlocked || endBBlocked) ? '#dc2626' : hasConflict ? '#f59e0b' : '#475569';
+                    const bgColor = isClosedRunway ? '#1f0000' : anyEndActive ? '#052e16' : (endABlocked || endBBlocked) ? '#1a0000' : hasConflict ? '#1a0000' : '#0f172a';
+                    // Helper: bg/border for a specific end button
+                    const endBtnBg = (isActive: boolean, isBlocked: boolean) =>
+                      isClosedRunway ? '#3b0000' : isActive ? '#16a34a' : isBlocked ? '#7f1d1d' : hasConflict ? '#374151' : '#1d4ed8';
+                    const endBtnBorder = (isActive: boolean, isBlocked: boolean) =>
+                      isClosedRunway ? '#7f1d1d' : isActive ? '#22c55e' : isBlocked ? '#dc2626' : hasConflict ? '#6b7280' : '#3b82f6';
                     return (
                       <div key={rwy.id} style={{ border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '10px 12px', background: bgColor, position: 'relative', overflow: 'hidden' }}>
                         {isClosedRunway && (
@@ -10148,14 +10165,15 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                         )}
                         <div style={{ position: 'relative', zIndex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: isClosedRunway ? '#dc2626' : rwy.color || '#3b82f6', flexShrink: 0 }} />
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: isClosedRunway ? '#dc2626' : anyEndActive ? '#22c55e' : rwy.color || '#3b82f6', flexShrink: 0 }} />
                             <span style={{ color: isClosedRunway ? '#fca5a5' : '#e2e8f0', fontWeight: 'bold', fontSize: '13px' }}>{rwy.name}</span>
                             {isClosedRunway && (
                               <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 'bold', background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: '4px', padding: '1px 7px', marginRight: 'auto', letterSpacing: '0.05em' }}>
                                 🚫 מסלול סגור — NOTAM
                               </span>
                             )}
-                            {!isClosedRunway && hasConflict && <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 'bold', marginRight: 'auto' }}>⚠️ קונפליקט!</span>}
+                            {!isClosedRunway && anyEndActive && <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 'bold', marginRight: 'auto' }}>✈ פעיל</span>}
+                            {!isClosedRunway && !anyEndActive && hasConflict && <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 'bold', marginRight: 'auto' }}>⚠️ קונפליקט!</span>}
                           </div>
                           {isClosedRunway && (
                             <div style={{ fontSize: '11px', color: '#fca5a5', background: '#3b0000', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 10px', marginBottom: '8px', fontWeight: 'bold', textAlign: 'center' }}>
@@ -10180,23 +10198,23 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_a_name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
-                                {rwy.end_a_name}
+                                style={{ flex: 1, padding: '10px', background: endBtnBg(endAActive, endABlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAActive, endABlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                {endAActive ? `✈ ${rwy.end_a_name}` : endABlocked ? `🔴 ${rwy.end_a_name} (${Math.floor(endASecsLeft/60)}:${String(endASecsLeft%60).padStart(2,'0')})` : rwy.end_a_name}
                               </button>
                             ) : null}
                             {rwy.end_b_name ? (
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_b_name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
-                                {rwy.end_b_name}
+                                style={{ flex: 1, padding: '10px', background: endBtnBg(endBActive, endBBlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endBActive, endBBlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                {endBActive ? `✈ ${rwy.end_b_name}` : endBBlocked ? `🔴 ${rwy.end_b_name} (${Math.floor(endBSecsLeft/60)}:${String(endBSecsLeft%60).padStart(2,'0')})` : rwy.end_b_name}
                               </button>
                             ) : null}
                             {!rwy.end_a_name && !rwy.end_b_name && (
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                style={{ flex: 1, padding: '10px', background: endBtnBg(endAActive || endBActive, endABlocked || endBBlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAActive || endBActive, endABlocked || endBBlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
                                 {rwy.name}
                               </button>
                             )}
