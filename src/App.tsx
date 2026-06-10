@@ -9982,45 +9982,82 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {runwayRoutesForStep.map((rwy: any) => {
                     const conflicts = runwayConflicts[rwy.id] || [];
                     const hasConflict = conflicts.length > 0;
+                    // Check for closed NOTAM — match runway route to airfield_runways by name or headings
+                    const matchingRwIds = new Set(
+                      airfieldRunways
+                        .filter((rw: any) => {
+                          if (rw.name && rwy.name && rw.name === rwy.name) return true;
+                          if (rwy.end_a_name && (rw.heading_a === rwy.end_a_name || rw.heading_b === rwy.end_a_name)) return true;
+                          if (rwy.end_b_name && (rw.heading_a === rwy.end_b_name || rw.heading_b === rwy.end_b_name)) return true;
+                          return false;
+                        })
+                        .map((rw: any) => rw.id)
+                    );
+                    const isClosedRunway = airfieldRunwayNotams.some(
+                      (n: any) => matchingRwIds.has(n.runway_id) && n.notam_type === 'closed'
+                    );
+                    const borderColor = isClosedRunway ? '#dc2626' : hasConflict ? '#f59e0b' : '#475569';
+                    const bgColor = isClosedRunway ? '#1f0000' : hasConflict ? '#1a0000' : '#0f172a';
                     return (
-                      <div key={rwy.id} style={{ border: `1px solid ${hasConflict ? '#dc2626' : '#475569'}`, borderRadius: '8px', padding: '10px 12px', background: hasConflict ? '#1a0000' : '#0f172a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: rwy.color || '#3b82f6', flexShrink: 0 }} />
-                          <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '13px' }}>{rwy.name}</span>
-                          {hasConflict && <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 'bold', marginRight: 'auto' }}>⚠️ קונפליקט!</span>}
-                        </div>
-                        {hasConflict && (
-                          <div style={{ fontSize: '10px', color: '#f87171', marginBottom: '8px', paddingRight: '4px' }}>
-                            {conflicts.map((c: any, ci: number) => (
-                              <span key={ci} style={{ display: 'inline-block', marginLeft: '6px' }}>
-                                {c.type === 'vehicle'
-                                  ? `🚗 ${c.name || `רכב #${c.id}`} — נמצא על מסלול זה`
-                                  : c.type === 'takeoff_clearance'
-                                  ? `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — קיבל אישור המראה`
-                                  : `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — מוסע למסלול זה`}
-                              </span>
-                            ))}
-                          </div>
+                      <div key={rwy.id} style={{ border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '10px 12px', background: bgColor, position: 'relative', overflow: 'hidden' }}>
+                        {isClosedRunway && (
+                          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'repeating-linear-gradient(45deg, rgba(220,38,38,0.07) 0px, rgba(220,38,38,0.07) 8px, transparent 8px, transparent 16px)', pointerEvents: 'none', zIndex: 0 }} />
                         )}
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {rwy.end_a_name ? (
-                            <button onClick={() => { setSidRunwayName(rwy.end_a_name); setSidRunwayRouteId(rwy.id); }}
-                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-                              {rwy.end_a_name}
-                            </button>
-                          ) : null}
-                          {rwy.end_b_name ? (
-                            <button onClick={() => { setSidRunwayName(rwy.end_b_name); setSidRunwayRouteId(rwy.id); }}
-                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-                              {rwy.end_b_name}
-                            </button>
-                          ) : null}
-                          {!rwy.end_a_name && !rwy.end_b_name && (
-                            <button onClick={() => { setSidRunwayName(rwy.name); setSidRunwayRouteId(rwy.id); }}
-                              style={{ flex: 1, padding: '10px', background: hasConflict ? '#7f1d1d' : '#1d4ed8', color: 'white', border: `2px solid ${hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>
-                              {rwy.name}
-                            </button>
+                        <div style={{ position: 'relative', zIndex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: isClosedRunway ? '#dc2626' : rwy.color || '#3b82f6', flexShrink: 0 }} />
+                            <span style={{ color: isClosedRunway ? '#fca5a5' : '#e2e8f0', fontWeight: 'bold', fontSize: '13px' }}>{rwy.name}</span>
+                            {isClosedRunway && (
+                              <span style={{ fontSize: '11px', color: '#fca5a5', fontWeight: 'bold', background: '#7f1d1d', border: '1px solid #dc2626', borderRadius: '4px', padding: '1px 7px', marginRight: 'auto', letterSpacing: '0.05em' }}>
+                                🚫 מסלול סגור — NOTAM
+                              </span>
+                            )}
+                            {!isClosedRunway && hasConflict && <span style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 'bold', marginRight: 'auto' }}>⚠️ קונפליקט!</span>}
+                          </div>
+                          {isClosedRunway && (
+                            <div style={{ fontSize: '11px', color: '#fca5a5', background: '#3b0000', border: '1px solid #7f1d1d', borderRadius: '6px', padding: '6px 10px', marginBottom: '8px', fontWeight: 'bold', textAlign: 'center' }}>
+                              ⛔ לא ניתן להמריא ממסלול זה — קיים NOTAM סגירה פעיל
+                            </div>
                           )}
+                          {!isClosedRunway && hasConflict && (
+                            <div style={{ fontSize: '10px', color: '#f87171', marginBottom: '8px', paddingRight: '4px' }}>
+                              {conflicts.map((c: any, ci: number) => (
+                                <span key={ci} style={{ display: 'inline-block', marginLeft: '6px' }}>
+                                  {c.type === 'vehicle'
+                                    ? `🚗 ${c.name || `רכב #${c.id}`} — נמצא על מסלול זה`
+                                    : c.type === 'takeoff_clearance'
+                                    ? `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — קיבל אישור המראה`
+                                    : `✈️ ${c.call_sign || c.callsign || `פמ #${c.id}`} — מוסע למסלול זה`}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            {rwy.end_a_name ? (
+                              <button
+                                disabled={isClosedRunway}
+                                onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_a_name); setSidRunwayRouteId(rwy.id); } }}
+                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                {rwy.end_a_name}
+                              </button>
+                            ) : null}
+                            {rwy.end_b_name ? (
+                              <button
+                                disabled={isClosedRunway}
+                                onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_b_name); setSidRunwayRouteId(rwy.id); } }}
+                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                {rwy.end_b_name}
+                              </button>
+                            ) : null}
+                            {!rwy.end_a_name && !rwy.end_b_name && (
+                              <button
+                                disabled={isClosedRunway}
+                                onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.name); setSidRunwayRouteId(rwy.id); } }}
+                                style={{ flex: 1, padding: '10px', background: isClosedRunway ? '#3b0000' : hasConflict ? '#7f1d1d' : '#1d4ed8', color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${isClosedRunway ? '#7f1d1d' : hasConflict ? '#dc2626' : '#3b82f6'}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                {rwy.name}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
