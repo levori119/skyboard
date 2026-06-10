@@ -29635,7 +29635,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminAirfieldRunways, setAdminAirfieldRunways] = useState<any[]>([]);
   const [adminRunwayNotams, setAdminRunwayNotams] = useState<Record<number, any[]>>({});
   const [adminRunwayEditId, setAdminRunwayEditId] = useState<number | null>(null);
-  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; true_bearing: string; length_ft: string; length_m: string } | null>(null);
+  const [adminRunwayForm, setAdminRunwayForm] = useState<{ name: string; heading_a: string; heading_b: string; heading_a_true: string; heading_b_true: string; length_ft: string; length_m: string; start_x_pct: string; start_y_pct: string; end_x_pct: string; end_y_pct: string } | null>(null);
+  const [placingRunwayEndpoint, setPlacingRunwayEndpoint] = useState<'start' | 'end' | null>(null);
   const [adminRunwayNewNotam, setAdminRunwayNewNotam] = useState<{ runwayId: number; type: 'text' | 'shortening' | 'closed'; text: string; end: 'a' | 'b'; ft: string; m: string } | null>(null);
   const [adminRunwayGrf, setAdminRunwayGrf] = useState<Record<string, any>>({});
   const [adminRunwayGrfForm, setAdminRunwayGrfForm] = useState<{ runwayId: number; heading: string; rwycc_t: string; coverage_t: string; depth_t: string; contaminant_t: string; rwycc_m: string; coverage_m: string; depth_m: string; contaminant_m: string; rwycc_r: string; coverage_r: string; depth_r: string; contaminant_r: string; notes: string } | null>(null);
@@ -33604,7 +33605,7 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('runways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('runways')}>
                           <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>✈ מסלולים ({adminAirfieldRunways.length})</div>
                           {adminAFExpanded.has('runways') && adminRunwayForm === null && (
-                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', true_bearing: '', length_ft: '', length_m: '' }); setAdminRunwayEditId(null); }}
+                            <button onClick={e => { e.stopPropagation(); setAdminRunwayForm({ name: '', heading_a: '', heading_b: '', heading_a_true: '', heading_b_true: '', length_ft: '', length_m: '', start_x_pct: '', start_y_pct: '', end_x_pct: '', end_y_pct: '' }); setAdminRunwayEditId(null); }}
                               style={{ padding: '2px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>+ מסלול</button>
                           )}
                           <span style={{ color: adminAFExpanded.has('runways') ? '#86efac' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('runways') ? '▲' : '▼'}</span>
@@ -33612,35 +33613,100 @@ CHARLIE,1,301,`}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: adminAFExpanded.has('runways') ? '3000px' : '0', overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
                           {/* Add/Edit runway form */}
                           {adminRunwayForm !== null && (
-                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #166534' }}>
-                              <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', textAlign: 'right' }}>{adminRunwayEditId ? 'עריכת מסלול' : 'מסלול חדש'}</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
-                                <input value={adminRunwayForm.name} onChange={e => setAdminRunwayForm(p => p && ({ ...p, name: e.target.value }))} placeholder="שם מסלול (18, 01R...)" style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#86efac', fontSize: '11px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold' }} />
-                                <div style={{ position: 'relative' }}>
-                                  <input value={adminRunwayForm.true_bearing} onChange={e => setAdminRunwayForm(p => p && ({ ...p, true_bearing: e.target.value }))} placeholder="כיוון אמיתי" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#93c5fd', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' as const }} />
-                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
+                            <div style={{ background: '#0f172a', padding: '8px', borderRadius: '6px', marginBottom: '4px', border: '1px solid #166534', direction: 'rtl' }}>
+                              <div style={{ color: '#86efac', fontSize: '11px', fontWeight: 'bold', marginBottom: '8px' }}>{adminRunwayEditId ? '✏ עריכת מסלול' : '✈ מסלול חדש'}</div>
+
+                              {/* Overall runway name */}
+                              <div style={{ marginBottom: '8px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>שם מסלול (כולל שני הצדדים)</div>
+                                <input value={adminRunwayForm.name} onChange={e => setAdminRunwayForm(p => p && ({ ...p, name: e.target.value }))} placeholder="27/09" style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #475569', borderRadius: '5px', color: '#86efac', fontSize: '13px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
+                              </div>
+
+                              {/* Length row — shared */}
+                              <div style={{ marginBottom: '8px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '3px' }}>אורך מסלול</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                  <div style={{ position: 'relative' }}>
+                                    <input value={adminRunwayForm.length_ft} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_ft: v, length_m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ width: '100%', padding: '4px 26px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
+                                    <span style={{ position: 'absolute', left: '5px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>ft</span>
+                                  </div>
+                                  <div style={{ position: 'relative' }}>
+                                    <input value={adminRunwayForm.length_m} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_m: v, length_ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ width: '100%', padding: '4px 26px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
+                                    <span style={{ position: 'absolute', left: '5px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>m</span>
+                                  </div>
                                 </div>
                               </div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '6px' }}>
-                                <div style={{ position: 'relative' }}>
-                                  <input value={adminRunwayForm.length_ft} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_ft: v, length_m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="אורך ft" type="number" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
-                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>ft</span>
+
+                              {/* Side A */}
+                              <div style={{ background: '#0a1e35', borderRadius: '5px', padding: '6px', marginBottom: '6px', border: '1px solid #1e3a5f' }}>
+                                <div style={{ fontSize: '10px', color: '#60a5fa', fontWeight: 'bold', marginBottom: '5px' }}>צד א</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '5px' }}>
+                                  <div>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>שם</div>
+                                    <input value={adminRunwayForm.heading_a} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a: e.target.value }))} placeholder="09" style={{ width: '100%', padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#60a5fa', fontSize: '12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
+                                  </div>
+                                  <div style={{ position: 'relative' }}>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>כיוון אמיתי (°)</div>
+                                    <input value={adminRunwayForm.heading_a_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_a_true: e.target.value }))} placeholder="090" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#93c5fd', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                                    <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
+                                  </div>
                                 </div>
-                                <div style={{ position: 'relative' }}>
-                                  <input value={adminRunwayForm.length_m} onChange={e => { const v = e.target.value; setAdminRunwayForm(p => p && ({ ...p, length_m: v, length_ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="אורך m" type="number" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '11px', boxSizing: 'border-box' }} />
-                                  <span style={{ position: 'absolute', left: '4px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>m</span>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                  <div>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>מיקום תחילת מסלול (A)</div>
+                                    <button onClick={() => setPlacingRunwayEndpoint(placingRunwayEndpoint === 'start' ? null : 'start')} style={{ width: '100%', padding: '4px 6px', background: placingRunwayEndpoint === 'start' ? '#92400e' : (adminRunwayForm.start_x_pct ? '#14532d' : '#1e293b'), border: `1px solid ${placingRunwayEndpoint === 'start' ? '#f59e0b' : (adminRunwayForm.start_x_pct ? '#22c55e' : '#334155')}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: placingRunwayEndpoint === 'start' ? '#fde68a' : (adminRunwayForm.start_x_pct ? '#86efac' : '#94a3b8'), textAlign: 'center' }}>
+                                      {placingRunwayEndpoint === 'start' ? '📍 לחץ על המפה...' : adminRunwayForm.start_x_pct ? `✓ (${Number(adminRunwayForm.start_x_pct).toFixed(1)},${Number(adminRunwayForm.start_y_pct).toFixed(1)})` : '📍 סמן על מפה'}
+                                    </button>
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>מיקום סיום מסלול (A)</div>
+                                    <button onClick={() => setPlacingRunwayEndpoint(placingRunwayEndpoint === 'end' ? null : 'end')} style={{ width: '100%', padding: '4px 6px', background: placingRunwayEndpoint === 'end' ? '#92400e' : (adminRunwayForm.end_x_pct ? '#14532d' : '#1e293b'), border: `1px solid ${placingRunwayEndpoint === 'end' ? '#f59e0b' : (adminRunwayForm.end_x_pct ? '#22c55e' : '#334155')}`, borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: placingRunwayEndpoint === 'end' ? '#fde68a' : (adminRunwayForm.end_x_pct ? '#86efac' : '#94a3b8'), textAlign: 'center' }}>
+                                      {placingRunwayEndpoint === 'end' ? '📍 לחץ על המפה...' : adminRunwayForm.end_x_pct ? `✓ (${Number(adminRunwayForm.end_x_pct).toFixed(1)},${Number(adminRunwayForm.end_y_pct).toFixed(1)})` : '📍 סמן על מפה'}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
+
+                              {/* Side B */}
+                              <div style={{ background: '#1a0e2e', borderRadius: '5px', padding: '6px', marginBottom: '8px', border: '1px solid #3b1e5f' }}>
+                                <div style={{ fontSize: '10px', color: '#c084fc', fontWeight: 'bold', marginBottom: '5px' }}>צד ב</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                  <div>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>שם</div>
+                                    <input value={adminRunwayForm.heading_b} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b: e.target.value }))} placeholder="27" style={{ width: '100%', padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#c084fc', fontSize: '12px', direction: 'ltr', fontFamily: 'monospace', textAlign: 'center', fontWeight: 'bold', boxSizing: 'border-box' }} />
+                                  </div>
+                                  <div style={{ position: 'relative' }}>
+                                    <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '2px' }}>כיוון אמיתי (°)</div>
+                                    <input value={adminRunwayForm.heading_b_true} onChange={e => setAdminRunwayForm(p => p && ({ ...p, heading_b_true: e.target.value }))} placeholder="270" type="number" min="0" max="360" style={{ width: '100%', padding: '4px 22px 4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: '#d8b4fe', fontSize: '11px', direction: 'ltr', boxSizing: 'border-box' }} />
+                                    <span style={{ position: 'absolute', left: '4px', bottom: '5px', fontSize: '9px', color: '#475569', pointerEvents: 'none' }}>°</span>
+                                  </div>
+                                </div>
+                                <div style={{ fontSize: '9px', color: '#475569', marginTop: '4px' }}>מיקום: ההפך מצד א (מוגדר אוטומטית על המפה)</div>
+                              </div>
+
                               <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                                <button onClick={() => { setAdminRunwayForm(null); setAdminRunwayEditId(null); }} style={{ padding: '4px 10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                                <button onClick={() => { setAdminRunwayForm(null); setAdminRunwayEditId(null); setPlacingRunwayEndpoint(null); }} style={{ padding: '4px 10px', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
                                 <button onClick={async () => {
                                   const form = adminRunwayForm;
                                   if (!form) return;
                                   const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id;
-                                  const body = { airfield_id: afId, name: form.name, true_bearing: form.true_bearing ? Number(form.true_bearing) : null, length_ft: form.length_ft ? Number(form.length_ft) : null, length_m: form.length_m ? Number(form.length_m) : null };
+                                  const body = {
+                                    airfield_id: afId,
+                                    name: form.name,
+                                    heading_a: form.heading_a,
+                                    heading_b: form.heading_b,
+                                    heading_a_true: form.heading_a_true ? Number(form.heading_a_true) : null,
+                                    heading_b_true: form.heading_b_true ? Number(form.heading_b_true) : null,
+                                    length_ft: form.length_ft ? Number(form.length_ft) : null,
+                                    length_m: form.length_m ? Number(form.length_m) : null,
+                                    start_x_pct: form.start_x_pct ? Number(form.start_x_pct) : null,
+                                    start_y_pct: form.start_y_pct ? Number(form.start_y_pct) : null,
+                                    end_x_pct: form.end_x_pct ? Number(form.end_x_pct) : null,
+                                    end_y_pct: form.end_y_pct ? Number(form.end_y_pct) : null,
+                                  };
                                   if (adminRunwayEditId) await fetch(`${API_URL}/airfield-runways/${adminRunwayEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                                   else await fetch(`${API_URL}/airfield-runways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                  setAdminRunwayForm(null); setAdminRunwayEditId(null);
+                                  setAdminRunwayForm(null); setAdminRunwayEditId(null); setPlacingRunwayEndpoint(null);
                                   if (afId) loadAirfieldRunways(afId);
                                 }} style={{ padding: '4px 12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>שמור</button>
                               </div>
@@ -33662,7 +33728,7 @@ CHARLIE,1,301,`}
                                       {rw.length_ft ? <span style={{ color: '#cbd5e1' }}>{' '}{Number(rw.length_ft).toLocaleString()} ft{rw.length_m ? ` / ${Number(rw.length_m).toLocaleString()} m` : ''}</span> : null}
                                     </div>
                                   </div>
-                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', true_bearing: rw.true_bearing?.toString() || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '' }); setAdminRunwayEditId(rw.id); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
+                                  <button onClick={() => { setAdminRunwayForm({ name: rw.name || '', heading_a: rw.heading_a || '', heading_b: rw.heading_b || '', heading_a_true: rw.heading_a_true?.toString() || '', heading_b_true: rw.heading_b_true?.toString() || '', length_ft: rw.length_ft?.toString() || '', length_m: rw.length_m?.toString() || '', start_x_pct: rw.start_x_pct?.toString() || '', start_y_pct: rw.start_y_pct?.toString() || '', end_x_pct: rw.end_x_pct?.toString() || '', end_y_pct: rw.end_y_pct?.toString() || '' }); setAdminRunwayEditId(rw.id); setPlacingRunwayEndpoint(null); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #1e3a5f', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#93c5fd' }}>✏</button>
                                   <button onClick={async () => { if (!window.confirm('למחוק מסלול זה?')) return; await fetch(`${API_URL}/airfield-runways/${rw.id}`, { method: 'DELETE' }); const afId = selectedAdminAirfieldId || (editingAirfield as any)?.id; if (afId) loadAirfieldRunways(afId); }} style={{ padding: '2px 6px', background: 'transparent', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fca5a5' }}>✕</button>
                                   <button onClick={() => toggleAFSec(`rw_notam_${rw.id}`)} style={{ padding: '2px 6px', background: notamOpen ? '#1e3a5f' : 'transparent', border: `1px solid ${notams.length > 0 ? '#92400e' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: notams.length > 0 ? '#fbbf24' : '#64748b' }} title="NOTAMs">⚠ {notams.length > 0 ? notams.length : ''}</button>
                                   <button onClick={() => toggleAFSec(`rw_grf_${rw.id}`)} style={{ padding: '2px 6px', background: grfOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${rwGrfCount > 0 ? '#166534' : '#1e3a5f'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: rwGrfCount > 0 ? '#34d399' : '#64748b' }} title="GRF — מצב פני מסלול">🛬 GRF</button>
@@ -34876,8 +34942,8 @@ CHARLIE,1,301,`}
                   <div ref={adminMapScrollRef} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <div
                     ref={adminMapInnerRef}
-                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : '#3b82f6'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
-                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); } }}
+                    style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${drawingPolygonId ? '#7c3aed' : drawingSectorId ? '#059669' : drawingRouteId ? '#f59e0b' : placingPointMode ? '#fbbf24' : placingElementMode ? '#ec4899' : placingRunwayEndpoint ? '#22c55e' : '#3b82f6'}`, cursor: (placingPointMode || drawingRouteId || placingElementMode || drawingPolygonId || drawingSectorId || placingRunwayEndpoint) ? 'crosshair' : 'default', zoom: adminMapZoom, transformOrigin: '0 0' }}
+                    tabIndex={0} onKeyDown={e => { if (e.key === 'Escape') { setPlacingPointMode(false); setDrawingRouteId(null); setRouteDraftPoints([]); setPlacingElementMode(false); setPlacingElementId(null); setDrawingPolygonId(null); setPolygonDraftPoints([]); setDrawingSectorId(null); sectorDragStartRef.current = null; setSectorDraftRect(null); setPlacingRunwayEndpoint(null); } }}
                     onDoubleClick={async e => {
                       if (!drawingPolygonId) return;
                       e.preventDefault();
@@ -34992,6 +35058,13 @@ CHARLIE,1,301,`}
                         setPlacingElementMode(false); setPlacingElementId(null);
                       } else if (placingPointMode) {
                         addPointAt(x_pct, y_pct);
+                      } else if (placingRunwayEndpoint) {
+                        if (placingRunwayEndpoint === 'start') {
+                          setAdminRunwayForm(p => p ? { ...p, start_x_pct: x_pct.toFixed(2), start_y_pct: y_pct.toFixed(2) } : null);
+                        } else {
+                          setAdminRunwayForm(p => p ? { ...p, end_x_pct: x_pct.toFixed(2), end_y_pct: y_pct.toFixed(2) } : null);
+                        }
+                        setPlacingRunwayEndpoint(null);
                       }
                     }}
                   >
@@ -35116,6 +35189,11 @@ CHARLIE,1,301,`}
                         </div>
                       </div>
                     )}
+                    {placingRunwayEndpoint && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
+                        <div style={{ background: '#000000dd', color: '#22c55e', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #22c55e' }}>✈ לחץ על המפה לסימון {placingRunwayEndpoint === 'start' ? 'תחילת מסלול (A)' : 'סיום מסלול (A)'} — ESC לביטול</div>
+                      </div>
+                    )}
                     {placingPointMode && (
                       <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.06)', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10px', zIndex: 3 }}>
                         <div style={{ background: '#000000dd', color: '#fbbf24', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #fbbf24' }}>📍 לחץ על המפה — ESC לביטול</div>
@@ -35129,6 +35207,35 @@ CHARLIE,1,301,`}
                     {/* Polygon + sector SVG overlay */}
                     <svg viewBox="0 0 100 100" preserveAspectRatio="none"
                       style={{ position: 'absolute', top: adminMapImgBounds ? adminMapImgBounds.top : 0, left: adminMapImgBounds ? adminMapImgBounds.left : 0, width: adminMapImgBounds ? adminMapImgBounds.width : '100%', height: adminMapImgBounds ? adminMapImgBounds.height : '100%', pointerEvents: 'none', zIndex: 4 }}>
+                      {/* Runway lines overlay */}
+                      {adminAirfieldRunways.filter((rw: any) => rw.start_x_pct != null && rw.end_x_pct != null).map((rw: any) => {
+                        const isEditing = adminRunwayEditId === rw.id;
+                        const sx = Number(rw.start_x_pct), sy = Number(rw.start_y_pct);
+                        const ex = Number(rw.end_x_pct), ey = Number(rw.end_y_pct);
+                        const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+                        return (
+                          <g key={`rw-${rw.id}`}>
+                            <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={isEditing ? '#f59e0b' : '#22c55e'} strokeWidth="1.2" strokeLinecap="round" />
+                            <circle cx={sx} cy={sy} r="1.2" fill="#60a5fa" stroke="white" strokeWidth="0.3" />
+                            <circle cx={ex} cy={ey} r="1.2" fill="#c084fc" stroke="white" strokeWidth="0.3" />
+                            <text x={mx} y={my - 1.5} textAnchor="middle" fontSize="2" fill={isEditing ? '#fde68a' : '#86efac'} fontWeight="bold" style={{ userSelect: 'none' }}>{rw.name || ''}</text>
+                          </g>
+                        );
+                      })}
+                      {/* Draft runway endpoints while editing form */}
+                      {adminRunwayForm && (() => {
+                        const sx = adminRunwayForm.start_x_pct ? Number(adminRunwayForm.start_x_pct) : null;
+                        const sy = adminRunwayForm.start_y_pct ? Number(adminRunwayForm.start_y_pct) : null;
+                        const ex = adminRunwayForm.end_x_pct ? Number(adminRunwayForm.end_x_pct) : null;
+                        const ey = adminRunwayForm.end_y_pct ? Number(adminRunwayForm.end_y_pct) : null;
+                        return (
+                          <g>
+                            {sx != null && sy != null && <circle cx={sx} cy={sy} r="1.8" fill="#60a5fa" stroke="white" strokeWidth="0.4" opacity="0.9" />}
+                            {ex != null && ey != null && <circle cx={ex} cy={ey} r="1.8" fill="#c084fc" stroke="white" strokeWidth="0.4" opacity="0.9" />}
+                            {sx != null && sy != null && ex != null && ey != null && <line x1={sx} y1={sy} x2={ex} y2={ey} stroke="#fbbf24" strokeWidth="1.5" strokeDasharray="2,1.5" strokeLinecap="round" />}
+                          </g>
+                        );
+                      })()}
                       {/* Saved polygons */}
                       {adminMapLayers.polygons && adminAirfieldPolygons.map(pg => {
                         const pts: {x:number;y:number}[] = Array.isArray(pg.polygon) ? pg.polygon : [];
