@@ -395,16 +395,6 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       direction: 'rtl',
       position: 'relative'
     }}>
-      {/* Light/dark toggle — top left corner on login */}
-      <button
-        onClick={() => {
-          const next = !document.body.classList.contains('light-mode');
-          document.body.classList.toggle('light-mode', next);
-          localStorage.setItem('bt-lightMode', String(next));
-        }}
-        style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '18px', lineHeight: 1, color: 'white' }}
-        title="החלף מצב תצוגה"
-      >☀️ / 🌙</button>
       <div style={{ 
         background: 'white', 
         padding: '40px', 

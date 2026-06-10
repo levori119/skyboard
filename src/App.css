@@ -452,10 +452,6 @@ body.light-mode .bt-strip.block-deviation-flash {
   background-color: white !important;
 }
 
-/* Login screen background */
-body.light-mode .bt-login-bg {
-  background: linear-gradient(135deg, #dde8f5 0%, #e8f0fa 100%) !important;
-}
 
 /* Frozen columns in day mode — match light table style */
 body.light-mode .frozen-col {
