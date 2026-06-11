@@ -803,6 +803,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS notam_text TEXT`);
   await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS atis_text TEXT`);
+  await pool.query(`ALTER TABLE base_statuses ADD COLUMN IF NOT EXISTS airfield_id INTEGER REFERENCES airfields(id) ON DELETE SET NULL`);
   // pressure_inhg lives on aviation_bases (parent base for shared pressure)
   await pool.query(`ALTER TABLE aviation_bases ADD COLUMN IF NOT EXISTS pressure_inhg FLOAT`);
 
@@ -5964,18 +5965,40 @@ app.delete('/api/strip-window-cells/:id', async (req, res) => {
 // --- Base Statuses API ---
 app.get('/api/base-statuses', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM base_statuses ORDER BY name');
+    const result = await pool.query(`
+      SELECT bs.*,
+        (SELECT json_agg(json_build_object(
+            'id', rn.id,
+            'runway_name', ar.name,
+            'notam_type', rn.notam_type,
+            'text_content', rn.text_content,
+            'shorten_amount_ft', rn.shorten_amount_ft,
+            'shorten_amount_m', rn.shorten_amount_m,
+            'shorten_end', rn.shorten_end
+          ))
+          FROM runway_notams rn
+          JOIN airfield_runways ar ON rn.runway_id = ar.id
+          WHERE ar.airfield_id = bs.airfield_id
+        ) AS airfield_notams,
+        (SELECT row_to_json(aa)
+          FROM airfield_atis aa
+          WHERE aa.airfield_id = bs.airfield_id
+          ORDER BY aa.updated_at DESC LIMIT 1
+        ) AS airfield_atis_data
+      FROM base_statuses bs
+      ORDER BY bs.name
+    `);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: 'Failed to fetch base statuses' }); }
 });
 
 app.post('/api/base-statuses', async (req, res) => {
   try {
-    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status } = req.body;
+    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status, airfield_id } = req.body;
     const result = await pool.query(
-      `INSERT INTO base_statuses (name, code, relevant_to, air_defense_status, absorption_status, bird_status, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,NOW()) RETURNING *`,
-      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null]
+      `INSERT INTO base_statuses (name, code, relevant_to, air_defense_status, absorption_status, bird_status, airfield_id, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING *`,
+      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, airfield_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to create base status' }); }
@@ -5983,11 +6006,11 @@ app.post('/api/base-statuses', async (req, res) => {
 
 app.put('/api/base-statuses/:id', async (req, res) => {
   try {
-    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status } = req.body;
+    const { name, code, relevant_to, air_defense_status, absorption_status, bird_status, airfield_id } = req.body;
     const result = await pool.query(
-      `UPDATE base_statuses SET name=$1, code=$2, relevant_to=$3, air_defense_status=$4, absorption_status=$5, bird_status=$6, updated_at=NOW()
-       WHERE id=$7 RETURNING *`,
-      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, req.params.id]
+      `UPDATE base_statuses SET name=$1, code=$2, relevant_to=$3, air_defense_status=$4, absorption_status=$5, bird_status=$6, airfield_id=$7, updated_at=NOW()
+       WHERE id=$8 RETURNING *`,
+      [name, code || null, relevant_to || 'כולם', air_defense_status || null, absorption_status || null, bird_status || null, airfield_id || null, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: 'Failed to update base status' }); }

@@ -24987,27 +24987,55 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     const hasPrev = true; // contacts section always renders above
                     const _bsRow = (bs: any) => {
                       const adColor = ALL_MAZAA_STATUSES.find(s => s.label === bs.air_defense_status)?.color || T.muted;
-                      const hasNotam = !!(bs.notam_text && bs.notam_text.trim());
-                      const hasAtis = !!(bs.atis_text && bs.atis_text.trim());
+                      // Prefer live airfield data over manual text when airfield_id is linked
+                      const afNotams: any[] = Array.isArray(bs.airfield_notams) ? bs.airfield_notams : [];
+                      const afAtis: any = bs.airfield_atis_data || null;
+                      const hasAfNotam = afNotams.length > 0;
+                      const hasAfAtis = !!(afAtis?.letter);
+                      // Fall back to manual text when no airfield is linked
+                      const hasManualNotam = !bs.airfield_id && !!(bs.notam_text && bs.notam_text.trim());
+                      const hasManualAtis = !bs.airfield_id && !!(bs.atis_text && bs.atis_text.trim());
+                      const hasNotam = hasAfNotam || hasManualNotam;
+                      const hasAtis = hasAfAtis || hasManualAtis;
+                      // Build tooltip text
+                      const notamTitle = hasAfNotam
+                        ? afNotams.map((n: any) => `${n.runway_name}: ${n.notam_type === 'closed' ? '🚫 סגור' : n.notam_type === 'shortening' ? `✂ קיצור ${n.shorten_amount_ft ? n.shorten_amount_ft + 'ft' : ''} ${n.shorten_amount_m ? n.shorten_amount_m + 'm' : ''}`.trim() : (n.text_content || '')}`).join(' | ')
+                        : (bs.notam_text?.slice(0, 80) || 'NOTAM (ריק)');
+                      const atisTitle = hasAfAtis
+                        ? `ATIS ${afAtis.letter}${afAtis.obs_time ? ' @ ' + afAtis.obs_time : ''}`
+                        : (bs.atis_text?.slice(0, 60) || 'ATIS (ריק)');
                       return (
-                        <div key={bs.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, gap: '4px', direction: 'rtl', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
-                          {bs.relevant_to && bs.relevant_to !== 'כולם' && (
-                            <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bs.relevant_to}</span>
+                        <div key={bs.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px 6px', borderRadius: '4px', background: T.bgAlt, border: `1px solid ${T.border}`, direction: 'rtl' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                            <span style={{ fontWeight: 'bold', color: T.text, flexShrink: 0 }}>{bs.name}{bs.code ? <span style={{ fontSize: '9px', color: T.muted, fontWeight: 'normal', marginRight: '4px' }}>{bs.code}</span> : null}</span>
+                            {bs.relevant_to && bs.relevant_to !== 'כולם' && (
+                              <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bs.relevant_to}</span>
+                            )}
+                            <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
+                              {bs.air_defense_status || '—'}
+                            </span>
+                            <button
+                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); }}
+                              title={notamTitle}
+                              style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
+                            >⚠{hasNotam && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#f59e0b', border: '1px solid #0f172a' }} />}</button>
+                            <button
+                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); }}
+                              title={atisTitle}
+                              style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
+                            >📻{hasAtis && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8', border: '1px solid #0f172a' }} />}</button>
+                          </div>
+                          {/* Airfield live data rows */}
+                          {hasAfAtis && (
+                            <div style={{ fontSize: '9px', color: '#7dd3fc', background: lightMode ? '#e0f2fe' : '#0c1f30', borderRadius: '3px', padding: '1px 5px', direction: 'rtl' }}>
+                              📻 ATIS {afAtis.letter}{afAtis.obs_time ? ` @ ${afAtis.obs_time}` : ''}
+                            </div>
                           )}
-                          <span style={{ color: adColor, fontWeight: 'bold', fontSize: '11px', marginRight: 'auto', paddingRight: '6px' }}>
-                            {bs.air_defense_status || '—'}
-                          </span>
-                          <button
-                            onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); }}
-                            title={hasNotam ? `NOTAM — ${bs.notam_text?.slice(0, 60)}` : 'NOTAM (ריק)'}
-                            style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
-                          >⚠{hasNotam && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#f59e0b', border: '1px solid #0f172a' }} />}</button>
-                          <button
-                            onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); }}
-                            title={hasAtis ? `ATIS — ${bs.atis_text?.slice(0, 60)}` : 'ATIS (ריק)'}
-                            style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
-                          >📻{hasAtis && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8', border: '1px solid #0f172a' }} />}</button>
+                          {hasAfNotam && afNotams.map((n: any, i: number) => (
+                            <div key={i} style={{ fontSize: '9px', color: n.notam_type === 'closed' ? '#fca5a5' : '#fbbf24', background: lightMode ? '#fffbeb' : '#1c1107', borderRadius: '3px', padding: '1px 5px', direction: 'rtl' }}>
+                              ⚠ {n.runway_name}: {n.notam_type === 'closed' ? 'מסלול סגור' : n.notam_type === 'shortening' ? `קיצור ${n.shorten_amount_ft ? n.shorten_amount_ft + 'ft' : ''} ${n.shorten_amount_m ? '/ ' + n.shorten_amount_m + 'm' : ''}`.trim() : (n.text_content || '')}
+                            </div>
+                          ))}
                         </div>
                       );
                     };
@@ -30210,7 +30238,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const [adminBaseStatuses, setAdminBaseStatuses] = useState<any[]>([]);
   const [editingBaseStatus, setEditingBaseStatus] = useState<any | null>(null);
   const [showBaseStatusForm, setShowBaseStatusForm] = useState(false);
-  const [baseStatusForm, setBaseStatusForm] = useState({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' });
+  const [baseStatusForm, setBaseStatusForm] = useState({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '', airfield_id: '' as string | number });
   const loadAdminBaseStatuses = () => fetch(`${API_URL}/base-statuses`).then(r => r.ok ? r.json() : []).then(setAdminBaseStatuses).catch(() => {});
 
   // Contacts admin state — multi-preset
@@ -35779,7 +35807,7 @@ CHARLIE,1,301,`}
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(baseStatusForm) });
             if (!res.ok) { alert('שגיאה בשמירה'); return; }
             setEditingBaseStatus(null); setShowBaseStatusForm(false);
-            setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' });
+            setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '', airfield_id: '' });
             loadAdminBaseStatuses();
           };
           const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35874,6 +35902,15 @@ CHARLIE,1,301,`}
                       <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>סטטוס ציפורי</label>
                       <input value={baseStatusForm.bird_status} onChange={e => setBaseStatusForm(p => ({ ...p, bird_status: e.target.value }))} style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: 'white', fontSize: '13px', boxSizing: 'border-box' }} />
                     </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>✈️ שדה תעופה מקושר (לריכוז NOTAM + ATIS אוטומטי)</label>
+                      <select value={String(baseStatusForm.airfield_id || '')} onChange={e => setBaseStatusForm(p => ({ ...p, airfield_id: e.target.value }))}
+                        style={{ width: '100%', padding: '6px 10px', background: '#1e293b', border: `1px solid ${baseStatusForm.airfield_id ? '#38bdf8' : '#334155'}`, borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}>
+                        <option value="">— ללא שדה מקושר —</option>
+                        {adminAirfields.map((af: any) => <option key={af.id} value={af.id}>{af.name}</option>)}
+                      </select>
+                      {baseStatusForm.airfield_id && <p style={{ margin: '3px 0 0 0', fontSize: '10px', color: '#38bdf8' }}>✅ פאנל סטטוס בסיסים יציג NOTAM + ATIS בזמן אמת מהשדה</p>}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'flex-end' }}>
                     <button onClick={() => { setShowBaseStatusForm(false); setEditingBaseStatus(null); }} style={{ padding: '7px 18px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
@@ -35904,7 +35941,7 @@ CHARLIE,1,301,`}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                      <button onClick={() => { setEditingBaseStatus(bs); setBaseStatusForm({ name: bs.name, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #2563eb', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✎ עריכה</button>
+                      <button onClick={() => { setEditingBaseStatus(bs); setBaseStatusForm({ name: bs.name, code: bs.code || '', relevant_to: bs.relevant_to || 'כולם', air_defense_status: bs.air_defense_status || '', absorption_status: bs.absorption_status || '', bird_status: bs.bird_status || '', airfield_id: bs.airfield_id || '' }); setShowBaseStatusForm(true); }} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #2563eb', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✎ עריכה</button>
                       <button onClick={async () => { if (!await customConfirm(`למחוק את "${bs.name}"?`)) return; await fetch(`${API_URL}/base-statuses/${bs.id}`, { method: 'DELETE' }); loadAdminBaseStatuses(); }} style={{ padding: '5px 12px', background: '#450a0a', color: '#fca5a5', border: '1px solid #dc2626', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>🗑 מחק</button>
                     </div>
                   </div>
