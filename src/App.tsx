@@ -5705,6 +5705,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   onCreateElement?: (fields: { name: string; element_type_id?: number | null; x_pct: number; y_pct: number }) => Promise<any>;
   onDeleteElement?: (elementId: number) => Promise<void>;
   hideStrips?: boolean;
+  hideElementPanel?: boolean;
   externalCatHighlight?: Set<string>;
   externalHiddenElements?: Set<number>;
   topOffset?: number;
@@ -7138,7 +7139,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         </div>
 
         {/* Element panel (collapsible) — inside right panel, below strips list */}
-        {stripsPinned && airfieldElements && airfieldElements.length > 0 && (() => {
+        {stripsPinned && !hideElementPanel && airfieldElements && airfieldElements.length > 0 && (() => {
           const elCats = Array.from(new Set(airfieldElements.map((el: any) => el.category || 'כללי').filter(Boolean))).sort();
           const elByCat: Record<string, any[]> = {};
           airfieldElements.forEach((el: any) => { const c = el.category || 'כללי'; if (!elByCat[c]) elByCat[c] = []; elByCat[c].push(el); });
@@ -20303,6 +20304,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 onCreateElement={handleCreateElement}
                 onDeleteElement={handleDeleteElement}
                 hideStrips={isGroundMgmtMode}
+                hideElementPanel={!isGroundMgmtMode}
                 externalCatHighlight={isGroundMgmtMode ? sdCatHighlight : undefined}
                 externalHiddenElements={isGroundMgmtMode ? sdHiddenElements : undefined}
                 topOffset={0}
