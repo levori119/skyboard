@@ -23718,10 +23718,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {aidGroup && (aidGroup.items || []).map((item: any) => (
                     <div key={item.id} style={{ marginBottom: '4px', border: `1px solid ${T.border}`, borderRadius: '6px', overflow: 'hidden' }}>
                       <button onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); const k = `item-${item.id}`; s.has(k) ? s.delete(k) : s.add(k); return s; })}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#334155' : '#94a3b8', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '6px', background: lightMode ? '#e2e8f0' : '#0f172a', border: 'none', color: lightMode ? '#334155' : '#94a3b8', padding: '4px 6px', cursor: 'pointer', textAlign: 'right', fontSize: '11px', fontWeight: 'bold', borderRadius: '4px' }}>
                         <span style={{ fontSize: '9px', color: lightMode ? '#94a3b8' : '#475569', flexShrink: 0 }}>{item.type === 'image' ? '🖼' : '📄'}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{aidExpandedIds.has(`item-${item.id}`) ? '▼' : '▶'}</span>
                       </button>
                       {aidExpandedIds.has(`item-${item.id}`) && (
                         <div style={{ background: lightMode ? '#f8fafc' : '#1e293b', padding: '8px' }}>
@@ -23735,9 +23735,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {aidBlockTables.length > 0 && (
                     <div style={{ borderTop: aidGroup && (aidGroup.items || []).length > 0 ? `1px solid ${T.border}` : 'none', paddingTop: aidGroup && (aidGroup.items || []).length > 0 ? '6px' : 0, marginTop: aidGroup && (aidGroup.items || []).length > 0 ? '4px' : 0, marginBottom: '4px' }}>
                       <div onClick={() => setBlocksPanelOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: blocksPanelOpen ? '4px' : 0 }}>
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{blocksPanelOpen ? '▼' : '▶'}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בלוקים</span>
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>🗂️</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בלוקים</span>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{blocksPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {blocksPanelOpen && aidBlockTables.map((bt: any) => {
                         const btKey = `bt-${bt.id}`;
@@ -23799,9 +23799,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     return (
                       <div style={{ borderTop: hasPrev ? `1px solid ${T.border}` : 'none', paddingTop: hasPrev ? '6px' : 0, marginTop: hasPrev ? '4px' : 0 }}>
                         <div onClick={() => setMadaniyotOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: madaniyotOpen ? '4px' : 0 }}>
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{madaniyotOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>מדניות</span>
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>📌</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>מדניות</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{madaniyotOpen ? '▼' : '▶'}</span>
                         </div>
                         {madaniyotOpen && groups.map(gid => {
                           const gNotes = workGroupNotes.filter((n: any) => n.work_group_id === gid);
@@ -23914,9 +23914,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           onClick={() => setLinksPanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: linksPanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{linksPanelOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קישורים</span>
                           <span style={{ fontSize: '13px', flexShrink: 0 }}>🔗</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קישורים</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{linksPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {linksPanelOpen && cats.map(cat => (
                           <div key={cat} style={{ marginBottom: '10px', border: `2px solid ${lightMode ? '#7c3aed' : '#6d28d9'}`, borderRadius: '4px', overflow: 'hidden' }}>
@@ -23957,12 +23957,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__runway_widget_closed__') ? s.delete('__runway_widget_closed__') : s.add('__runway_widget_closed__'); return s; })}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                             <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${airfieldRunwayNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>⚠ ריכוז NOTAMs</button>
                             <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
                           </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
                         </div>
                         {rwWidgetOpen && (
                           <div style={{ padding: '6px 4px', direction: 'rtl', overflowX: 'auto', background: lightMode ? '#f0fdf4' : '#061a0e' }}>
@@ -24675,11 +24675,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     return (
                       <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
                         <div onClick={() => setWorkstationAtisOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: workstationAtisOpen ? '4px' : 0 }}>
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{workstationAtisOpen ? '▼' : '▶'}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', direction: 'rtl', flex: 1, justifyContent: 'flex-end', padding: '0 4px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8' }}>📻 ATIS</span>
                             {workstationAtis && !f && <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', background: '#1d4ed8', borderRadius: '3px', padding: '0 6px', fontFamily: 'monospace' }}>{workstationAtis.letter}</span>}
                           </div>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{workstationAtisOpen ? '▼' : '▶'}</span>
                           {workstationAtisOpen && !f && (
                             <button onClick={e => { e.stopPropagation(); const base = workstationAtis ? { ...dbToForm(workstationAtis), letter: nextLetter(workstationAtis.letter), obs_time: nowUTC() } : { ...emptyForm(), obs_time: nowUTC() }; setWorkstationAtisForm(base); }} style={{ fontSize: '9px', padding: '2px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', flexShrink: 0 }}>{workstationAtis ? 'עדכן' : '+ צור ATIS'}</button>
                           )}
@@ -24916,8 +24916,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           onClick={() => setContactsPanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: contactsPanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{contactsPanelOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קשרים</span>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
                             <button
                               onClick={e => { e.stopPropagation(); setContactsSummaryOpen(v => !v); if (!contactsSummaryOpen) { fetch(`${API_URL}/workstation-contacts/all`).then(r => r.ok ? r.json() : []).then(setContactsSummaryData).catch(() => {}); } }}
@@ -24926,6 +24924,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             >ריכוז</button>
                             <span style={{ fontSize: '13px' }}>📡</span>
                           </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>קשרים</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{contactsPanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {contactsPanelOpen && (
                           <div>
@@ -25014,8 +25014,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           onClick={() => setBasePanelOpen(v => !v)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: basePanelOpen ? '4px' : 0 }}
                         >
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{basePanelOpen ? '▼' : '▶'}</span>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>סטטוס בסיסים</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                             {basePanelOpen && (
                               <button
@@ -25025,6 +25023,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             )}
                             <span style={{ fontSize: '13px' }}>🏛</span>
                           </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>סטטוס בסיסים</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{basePanelOpen ? '▼' : '▶'}</span>
                         </div>
                         {basePanelOpen && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -25065,9 +25065,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         onClick={() => setBdhPanelOpen(v => !v)}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: bdhPanelOpen ? '4px' : 0 }}
                       >
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בד"ח</span>
                         <span style={{ fontSize: '13px', flexShrink: 0 }}>📋</span>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>בד"ח</span>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{bdhPanelOpen ? '▼' : '▶'}</span>
                       </div>
                       {bdhPanelOpen && (
                         <div>
@@ -25138,8 +25138,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {/* Elements sub-header */}
                       <div onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__ground_elements__') ? s.delete('__ground_elements__') : s.add('__ground_elements__'); return s; })}
                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: elSecOpen ? '4px' : 0 }}>
-                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{elSecOpen ? '▼' : '▶'}</span>
                         <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🔧 אלמנטים ({airfieldElements.length})</span>
+                        <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{elSecOpen ? '▼' : '▶'}</span>
                       </div>
                       {elSecOpen && (
                         <div style={{ maxHeight: '180px', overflowY: 'auto', direction: 'rtl', padding: '4px' }}>
