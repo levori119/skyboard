@@ -2525,16 +2525,19 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
 };
 
 // --- כרטיס קבלה בנקודת העברה (עם ספירה לאחור) ---
-const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField, onReply }: {
+const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStripField, onReply, onSendDirectReply }: {
   t: any;
   isConflict: boolean;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   onReply?: () => void;
+  onSendDirectReply?: (transfer: any, text: string) => void;
 }) => {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [countdownOver, setCountdownOver] = useState(false);
+  const [showReplyBox, setShowReplyBox] = useState(false);
+  const [replyText, setReplyText] = useState('');
   const sq = getTransferSq(t);
 
   useEffect(() => {
@@ -2597,12 +2600,41 @@ const IncomingTransferCard = ({ t, isConflict, onAccept, onReject, onUpdateStrip
           style={{ flex: 1, padding: '2px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>קבל</button>
         <button onClick={(e) => { e.stopPropagation(); onReject(t.id); }}
           style={{ flex: 1, padding: '2px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '2px', fontSize: '8px', cursor: 'pointer' }}>דחה</button>
-        {onReply && (
-          <button onClick={(e) => { e.stopPropagation(); onReply(); }}
-            title="שלח הודעה לשולח"
-            style={{ padding: '2px 5px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>💬</button>
+        {(onReply || onSendDirectReply) && (
+          <button onClick={(e) => { e.stopPropagation(); setShowReplyBox(v => !v); setReplyText(''); }}
+            title="כתוב הערה לשולח"
+            style={{ padding: '2px 6px', background: showReplyBox ? '#4c1d95' : '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', flexShrink: 0 }}>💬 הגב</button>
         )}
       </div>
+      {/* תיבת תגובה מהירה לשולח */}
+      {showReplyBox && (
+        <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+          <textarea
+            autoFocus
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder="כתוב הודעה לשולח..."
+            rows={2}
+            style={{ width: '100%', resize: 'none', fontSize: '10px', padding: '3px 5px', borderRadius: '3px', border: '1px solid #7c3aed', background: '#1e1b4b', color: 'white', direction: 'rtl', boxSizing: 'border-box' }}
+          />
+          <div style={{ display: 'flex', gap: '2px' }}>
+            <button
+              onClick={() => {
+                if (!replyText.trim()) return;
+                if (onSendDirectReply) onSendDirectReply(t, replyText.trim());
+                else if (onReply) onReply();
+                setShowReplyBox(false);
+                setReplyText('');
+              }}
+              style={{ flex: 1, padding: '2px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer', fontWeight: 'bold' }}
+            >שלח ✉</button>
+            <button
+              onClick={() => { setShowReplyBox(false); setReplyText(''); }}
+              style={{ padding: '2px 6px', background: '#374151', color: '#9ca3af', border: 'none', borderRadius: '2px', fontSize: '9px', cursor: 'pointer' }}
+            >ביטול</button>
+          </div>
+        </div>
+      )}
       {editingAlt && altAnchor && (
         <HandwritingOverlay
           onCancel={() => setEditingAlt(false)}
@@ -3392,6 +3424,9 @@ const DraggableMapMarker = ({
   lightMode = false,
   onSendMessage,
   onReplyToTransfer,
+  sharedPresets,
+  onBroadcastNote,
+  onDirectReplyToTransfer,
 }: { 
   marker: { sectorId: number; x: number; y: number; subLabel?: string; label: string };
   onMove: (x: number, y: number) => void;
@@ -3415,6 +3450,9 @@ const DraggableMapMarker = ({
   lightMode?: boolean;
   onSendMessage?: (sectorId: number, subLabel?: string) => void;
   onReplyToTransfer?: (transfer: any) => void;
+  sharedPresets?: { id: number; name: string }[];
+  onBroadcastNote?: (toPresetId: number, toPresetName: string, noteText: string) => void;
+  onDirectReplyToTransfer?: (transfer: any, text: string) => void;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPos, setDragPos] = useState({ x: marker.x, y: marker.y });
@@ -3427,6 +3465,7 @@ const DraggableMapMarker = ({
   const [editingAltVal, setEditingAltVal] = useState('');
   const [editingAltAnchor, setEditingAltAnchor] = useState<DOMRect | null>(null);
   const [isTransferMode, setIsTransferMode] = useState(false);
+  const [showBroadcastList, setShowBroadcastList] = useState(false);
   const startPosRef = useRef({ x: 0, y: 0 });
   const dragStartClientRef = useRef({ x: 0, y: 0 });
 
@@ -3490,9 +3529,10 @@ const DraggableMapMarker = ({
 
     const handleUp = (e: PointerEvent) => {
       if (!hasDragged) {
-        // Tap on header → toggle transfer mode
+        // Tap on header → toggle transfer mode + open notes
         setIsDragging(false);
         setIsTransferMode(v => !v);
+        setEditingNotes(true);
         window.removeEventListener('pointermove', handleMoveEvent);
         window.removeEventListener('pointerup', handleUp);
         window.removeEventListener('pointercancel', handleCancel);
@@ -3751,6 +3791,7 @@ const DraggableMapMarker = ({
               onReject={onRejectTransfer}
               onUpdateStripField={onUpdateStripField}
               onReply={onReplyToTransfer ? () => onReplyToTransfer(t) : undefined}
+              onSendDirectReply={onDirectReplyToTransfer}
             />
           ))}
         </div>
@@ -3790,15 +3831,48 @@ const DraggableMapMarker = ({
               </div>
             </div>
           ) : (
-            <div 
-              onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
-              style={{ fontSize: '9px', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', fontWeight: lightMode ? 'bold' : undefined }}
-              title="לחץ לעריכה"
-            >
-              {(() => { const np = parseNoteValue(notes || ''); return (<>
-                {np.text && <span>📝 {np.text}</span>}
-                {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '28px', display: 'block', marginTop: '2px', maxWidth: '100%' }} />}
-              </>); })()}
+            <div>
+              <div 
+                onClick={(e) => { e.stopPropagation(); setEditingNotes(true); }}
+                style={{ fontSize: '9px', color: lightMode ? '#334155' : '#94a3b8', cursor: 'pointer', fontWeight: lightMode ? 'bold' : undefined }}
+                title="לחץ לעריכה"
+              >
+                {(() => { const np = parseNoteValue(notes || ''); return (<>
+                  {np.text && <span>📝 {np.text}</span>}
+                  {np.hw && <img src={np.hw} alt="כתב יד" style={{ maxHeight: '28px', display: 'block', marginTop: '2px', maxWidth: '100%' }} />}
+                </>); })()}
+              </div>
+              {/* Broadcast note to connected workstations */}
+              {onBroadcastNote && sharedPresets && sharedPresets.length > 0 && (() => { const np = parseNoteValue(notes || ''); return np.text || np.hw; })() && (
+                <div style={{ marginTop: '4px' }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowBroadcastList(v => !v); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    style={{ background: '#6d28d9', border: 'none', color: 'white', fontSize: '8px', borderRadius: '3px', padding: '2px 6px', cursor: 'pointer', width: '100%', fontWeight: 'bold' }}
+                  >
+                    📢 {showBroadcastList ? 'בחר עמדה ▲' : 'שלח הערה לעמדה ▼'}
+                  </button>
+                  {showBroadcastList && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '2px' }}>
+                      {sharedPresets.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const np = parseNoteValue(notes || '');
+                            onBroadcastNote(p.id, p.name, np.text || '');
+                            setShowBroadcastList(false);
+                          }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          style={{ background: '#4c1d95', border: '1px solid #7c3aed', color: '#c4b5fd', fontSize: '8px', borderRadius: '3px', padding: '2px 5px', cursor: 'pointer', textAlign: 'right' }}
+                        >
+                          ▶ {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -18132,6 +18206,35 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setComposeText('');
   };
 
+  const handleSendDirectReplyToTransfer = async (transfer: any, text: string) => {
+    const fromPresetId = transfer.from_workstation_id ?? transfer.from_preset_id;
+    if (!fromPresetId || !text.trim()) return;
+    await fetch(`${API_URL}/workstation-messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_preset_id: session.presetId,
+        from_preset_name: session.workstationName || myPresetConfig?.name || '',
+        to_preset_ids: [Number(fromPresetId)],
+        message: text.trim(),
+      }),
+    }).catch(() => {});
+  };
+
+  const handleBroadcastNote = async (toPresetId: number, toPresetName: string, noteText: string) => {
+    if (!noteText.trim()) return;
+    await fetch(`${API_URL}/workstation-messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from_preset_id: session.presetId,
+        from_preset_name: session.workstationName || myPresetConfig?.name || '',
+        to_preset_ids: [toPresetId],
+        message: noteText.trim(),
+      }),
+    }).catch(() => {});
+  };
+
   const handleSendCompose = async () => {
     if (!composeModal || !composeText.trim() || composeSending) return;
     setComposeSending(true);
@@ -22478,6 +22581,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 lightMode={lightMode}
                 onSendMessage={handleSendMessageToMarker}
                 onReplyToTransfer={handleReplyToTransfer}
+                sharedPresets={(() => {
+                  const sectorId = marker.sectorId;
+                  return (workstationPresets as any[]).filter(p => {
+                    if (Number(p.id) === Number(session.presetId)) return false;
+                    const sids = new Set([
+                      ...(p.relevant_sectors || []).map(Number),
+                      ...((p.classic_transfer_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+                      ...((p.classic_receive_points || []) as any[]).map((pt: any) => Number(pt.sector_id)),
+                    ]);
+                    return sids.has(Number(sectorId));
+                  }).map((p: any) => ({ id: Number(p.id), name: String(p.name || '') }));
+                })()}
+                onBroadcastNote={handleBroadcastNote}
+                onDirectReplyToTransfer={handleSendDirectReplyToTransfer}
               />
             ))}
 
@@ -26137,32 +26254,58 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
               if (hasAirfield && bsInfoModal.mode === 'atis') {
                 if (!afAtis) return (<>{<div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>אין נתוני ATIS לשדה זה</div>}{closeBtn}</>);
-                const row = (label: string, value: any) => value != null && value !== '' ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: '13px' }}>
-                    <span style={{ color: '#94a3b8' }}>{label}</span>
-                    <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{value}</span>
-                  </div>
-                ) : null;
+                const _PH: Record<string,string> = { A:'ALPHA',B:'BRAVO',C:'CHARLIE',D:'DELTA',E:'ECHO',F:'FOXTROT',G:'GOLF',H:'HOTEL',I:'INDIA',J:'JULIET',K:'KILO',L:'LIMA',M:'MIKE',N:'NOVEMBER',O:'OSCAR',P:'PAPA',Q:'QUEBEC',R:'ROMEO',S:'SIERRA',T:'TANGO',U:'UNIFORM',V:'VICTOR',W:'WHISKEY',X:'XRAY',Y:'YANKEE',Z:'ZULU' };
+                const _CL: Record<string,string> = { OVC:'OVERCAST',BKN:'BROKEN',SCT:'SCATTERED',FEW:'FEW',SKC:'SKY CLEAR',CAVOK:'CAVOK' };
+                const _ph = _PH[afAtis.letter?.toUpperCase()] || afAtis.letter || 'ALPHA';
+                const _buildAtisText = (f: any): string => {
+                  const baseName = (bsInfoModal.bs.name || 'AERODROME').toUpperCase();
+                  const lines: string[] = [];
+                  lines.push(`${baseName} INFORMATION ${_ph}.`);
+                  if (f.obs_time) lines.push(`${f.obs_time} ZULU`);
+                  const wx: string[] = [];
+                  const layers: {type:string,value:string}[] = Array.isArray(f.cloud_layers) ? f.cloud_layers
+                    : (f.ceiling_type ? [{ type: f.ceiling_type, value: String(f.ceiling_value ?? '') }] : []);
+                  if (layers.length > 0) {
+                    const ft = layers[0].type;
+                    if (ft === 'SKC' || ft === 'CLR') { wx.push('SKY CLEAR'); }
+                    else if (ft === 'CAVOK') { wx.push('CAVOK'); }
+                    else {
+                      const cs = layers.filter(l => !['SKC','CLR','CAVOK'].includes(l.type)).map(l =>
+                        l.value ? `${_CL[l.type] || l.type} ${l.value}` : (_CL[l.type] || l.type)
+                      ).join('. ');
+                      if (cs) wx.push(cs);
+                    }
+                  }
+                  if (f.visibility) wx.push(`VISIBILITY ${f.visibility}`);
+                  const wxP: string[] = Array.isArray(f.weather_phenomena) ? f.weather_phenomena : (f.weather_phenomena ? [f.weather_phenomena] : []);
+                  wxP.forEach((p: string) => { if (p) wx.push(p.toUpperCase()); });
+                  if (wx.length > 0) lines.push(wx.join('. ') + '.');
+                  if (f.wind_direction != null && f.wind_direction !== '') lines.push(`WIND ${f.wind_direction} AT ${f.wind_speed || '0'}${f.wind_gust ? ` GUSTS ${f.wind_gust}` : ''}.`);
+                  if (f.temperature != null && f.temperature !== '') lines.push(`TEMPERATURE ${f.temperature}. DEWPOINT ${f.dewpoint ?? '—'}.`);
+                  if (f.altimeter_qnh) lines.push(`ALTIMETER ${f.altimeter_qnh}.`);
+                  const lrws: {rw:string,approach:string}[] = Array.isArray(f.landing_runways) ? f.landing_runways
+                    : (f.landing_runway ? [{ rw: String(f.landing_runway), approach: f.approach_type || '' }] : []);
+                  lrws.forEach(({ rw, approach }) => {
+                    if (approach) lines.push(`${approach.toUpperCase()} APPROACH IN USE.`);
+                    if (rw) lines.push(`LANDING RUNWAY ${rw.toUpperCase()}.`);
+                  });
+                  const drws: string[] = Array.isArray(f.departure_runways) ? f.departure_runways
+                    : (f.departure_runway ? [String(f.departure_runway)] : []);
+                  drws.forEach((rw: string) => { if (rw) lines.push(`DEPARTURE RUNWAY ${rw.toUpperCase()}.`); });
+                  if (f.notam_info) lines.push(f.notam_info.toUpperCase() + '.');
+                  lines.push(`ADVISE YOU HAVE INFORMATION ${_ph}.`);
+                  return lines.join('\n');
+                };
+                const fullAtisText = _buildAtisText(afAtis);
                 return (
                   <>
                     <div style={{ background: '#0c1f30', borderRadius: '8px', padding: '10px 14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#38bdf8' }}>{afAtis.letter}</span>
                       {afAtis.obs_time && <span style={{ fontSize: '13px', color: '#7dd3fc' }}>@ {afAtis.obs_time}</span>}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                      {row('מסלול נחיתה', afAtis.landing_runway)}
-                      {row('מסלול המראה', afAtis.departure_runway)}
-                      {row('גישה', afAtis.approach_type)}
-                      {afAtis.wind_direction != null && row('רוח', `${afAtis.wind_direction}°/${afAtis.wind_speed}kt${afAtis.wind_gust ? ` G${afAtis.wind_gust}` : ''}`)}
-                      {row('ראות', afAtis.visibility)}
-                      {afAtis.ceiling_value != null && row('תקרה', `${afAtis.ceiling_type || 'BKN'} ${afAtis.ceiling_value} ft`)}
-                      {row('מזג אוויר', afAtis.weather_phenomena)}
-                      {afAtis.temperature != null && row('טמפ׳/נקודת טל', `${afAtis.temperature}°C / ${afAtis.dewpoint ?? '—'}°C`)}
-                      {row('QNH', afAtis.altimeter_qnh)}
-                      {row('מידע נוסף (NOTAM)', afAtis.notam_info)}
-                    </div>
+                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '12px 14px', fontSize: '13px', color: '#e2e8f0', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.7, border: '1px solid #1e3a5f', letterSpacing: '0.3px' }}>{fullAtisText}</div>
                     {afAtis.raw_text && (
-                      <div style={{ marginTop: '12px', background: '#0f172a', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', color: '#94a3b8', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{afAtis.raw_text}</div>
+                      <div style={{ marginTop: '10px', background: '#0f172a', borderRadius: '6px', padding: '8px 12px', fontSize: '11px', color: '#64748b', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{afAtis.raw_text}</div>
                     )}
                     <button
                       onClick={() => {
