@@ -5795,6 +5795,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
   // Runway takeoff highlighting — maps heading → timestamp when first seen in activeTakeoffs
   const [recentTakeoffTimes, setRecentTakeoffTimes] = React.useState<Record<string, number>>({});
+  const [recentTakeoffCallsigns, setRecentTakeoffCallsigns] = React.useState<Record<string, string>>({});
   const [rwNow, setRwNow] = React.useState(() => Date.now());
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
@@ -5916,19 +5917,20 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
     setRecentTakeoffTimes(prev => {
       const next = { ...prev };
       let changed = false;
-      // Add timestamp for newly-seen headings
       for (const t of (activeTakeoffs || [])) {
-        if (t.runway && !next[t.runway]) {
-          next[t.runway] = now;
-          changed = true;
-        }
+        if (t.runway && !next[t.runway]) { next[t.runway] = now; changed = true; }
       }
-      // Remove headings that are no longer active AND past 3-minute window
       for (const heading of Object.keys(next)) {
-        if (!activeSet.has(heading) && (now - next[heading]) >= WINDOW_MS) {
-          delete next[heading];
-          changed = true;
-        }
+        if (!activeSet.has(heading) && (now - next[heading]) >= WINDOW_MS) { delete next[heading]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+    // Also store the callsign per runway heading (kept as long as timestamp lives)
+    setRecentTakeoffCallsigns(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const t of (activeTakeoffs || [])) {
+        if (t.runway && t.callsign && next[t.runway] !== t.callsign) { next[t.runway] = t.callsign; changed = true; }
       }
       return changed ? next : prev;
     });
@@ -10214,14 +10216,33 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     const endBBlocked = !endBActive && !!endATs && (rwNow - endATs) < RW_SID_WIN;
                     const endASecsLeft = endABlocked ? Math.ceil((RW_SID_WIN - (rwNow - endBTs!)) / 1000) : 0;
                     const endBSecsLeft = endBBlocked ? Math.ceil((RW_SID_WIN - (rwNow - endATs!)) / 1000) : 0;
-                    const anyEndActive = endAActive || endBActive;
-                    const borderColor = isClosedRunway ? '#dc2626' : anyEndActive ? '#22c55e' : (endABlocked || endBBlocked) ? '#dc2626' : hasConflict ? '#f59e0b' : '#475569';
-                    const bgColor = isClosedRunway ? '#1f0000' : anyEndActive ? '#052e16' : (endABlocked || endBBlocked) ? '#1a0000' : hasConflict ? '#1a0000' : '#0f172a';
+                    // Callsigns per end (from live activeTakeoffs first, then stored recent)
+                    const endACallsign = rwy.end_a_name ? ((activeTakeoffs || []).find((t: any) => t.runway === rwy.end_a_name)?.callsign || recentTakeoffCallsigns[rwy.end_a_name] || '') : '';
+                    const endBCallsign = rwy.end_b_name ? ((activeTakeoffs || []).find((t: any) => t.runway === rwy.end_b_name)?.callsign || recentTakeoffCallsigns[rwy.end_b_name] || '') : '';
+                    // Cross-reference conflicts (takeoff_clearance type) with activeTakeoffs to detect which end has clearance even if runway name doesn't match rwActiveHdgs
+                    const takeoffConflict = conflicts.find((c: any) => c.type === 'takeoff_clearance');
+                    const conflictCS = takeoffConflict ? (takeoffConflict.call_sign || takeoffConflict.callsign || '') : '';
+                    const conflictRwName = conflictCS ? ((activeTakeoffs || []).find((t: any) => t.callsign === conflictCS)?.runway || '') : '';
+                    const endAConflictActive = !endAActive && !!conflictRwName && !!rwy.end_a_name && conflictRwName === rwy.end_a_name;
+                    const endBConflictActive = !endBActive && !!conflictRwName && !!rwy.end_b_name && conflictRwName === rwy.end_b_name;
+                    // Effective states incorporating conflict cross-reference
+                    const endAEff = endAActive || endAConflictActive;
+                    const endBEff = endBActive || endBConflictActive;
+                    const endABlockedEff = !endAEff && (endABlocked || endBConflictActive);
+                    const endBBlockedEff = !endBEff && (endBBlocked || endAConflictActive);
+                    // Callsign causing the block (from opposite end)
+                    const endACausingCallsign = endBConflictActive ? conflictCS : endBCallsign;
+                    const endBCausingCallsign = endAConflictActive ? conflictCS : endACallsign;
+                    const anyEndActive = endAEff || endBEff;
+                    const anyBlocked = endABlockedEff || endBBlockedEff;
+                    const borderColor = isClosedRunway ? '#dc2626' : anyEndActive ? '#22c55e' : anyBlocked ? '#dc2626' : hasConflict ? '#f59e0b' : '#475569';
+                    const bgColor = isClosedRunway ? '#1f0000' : anyEndActive ? '#052e16' : anyBlocked ? '#1a0000' : hasConflict ? '#1a0000' : '#0f172a';
                     // Helper: bg/border for a specific end button
                     const endBtnBg = (isActive: boolean, isBlocked: boolean) =>
-                      isClosedRunway ? '#3b0000' : isActive ? '#16a34a' : isBlocked ? '#7f1d1d' : hasConflict ? '#374151' : '#1d4ed8';
+                      isClosedRunway ? '#3b0000' : isActive ? '#15803d' : isBlocked ? '#991b1b' : hasConflict ? '#374151' : '#1d4ed8';
                     const endBtnBorder = (isActive: boolean, isBlocked: boolean) =>
-                      isClosedRunway ? '#7f1d1d' : isActive ? '#22c55e' : isBlocked ? '#dc2626' : hasConflict ? '#6b7280' : '#3b82f6';
+                      isClosedRunway ? '#7f1d1d' : isActive ? '#4ade80' : isBlocked ? '#ef4444' : hasConflict ? '#6b7280' : '#3b82f6';
+                    const fmtTime = (secs: number) => `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`;
                     return (
                       <div key={rwy.id} style={{ border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '10px 12px', background: bgColor, position: 'relative', overflow: 'hidden' }}>
                         {isClosedRunway && (
@@ -10262,23 +10283,27 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_a_name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: endBtnBg(endAActive, endABlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAActive, endABlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
-                                {endAActive ? `✈ ${rwy.end_a_name}` : endABlocked ? `🔴 ${rwy.end_a_name} (${Math.floor(endASecsLeft/60)}:${String(endASecsLeft%60).padStart(2,'0')})` : rwy.end_a_name}
+                                style={{ flex: 1, padding: '8px 6px', background: endBtnBg(endAEff, endABlockedEff), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAEff, endABlockedEff)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minHeight: '52px', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1 }}>{endAEff ? `✈ ${rwy.end_a_name}` : endABlockedEff ? `🔴 ${rwy.end_a_name}` : rwy.end_a_name}</span>
+                                {endAEff && (endAConflictActive ? conflictCS : endACallsign) && <span style={{ fontSize: '10px', fontWeight: 'normal', opacity: 0.9, color: '#bbf7d0' }}>{endAConflictActive ? conflictCS : endACallsign}</span>}
+                                {endABlockedEff && <span style={{ fontSize: '10px', fontWeight: 'normal', color: '#fca5a5', lineHeight: 1 }}>{endACausingCallsign && `${endACausingCallsign} · `}{fmtTime(endASecsLeft)}</span>}
                               </button>
                             ) : null}
                             {rwy.end_b_name ? (
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.end_b_name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: endBtnBg(endBActive, endBBlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endBActive, endBBlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
-                                {endBActive ? `✈ ${rwy.end_b_name}` : endBBlocked ? `🔴 ${rwy.end_b_name} (${Math.floor(endBSecsLeft/60)}:${String(endBSecsLeft%60).padStart(2,'0')})` : rwy.end_b_name}
+                                style={{ flex: 1, padding: '8px 6px', background: endBtnBg(endBEff, endBBlockedEff), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endBEff, endBBlockedEff)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minHeight: '52px', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '16px', fontWeight: 'bold', lineHeight: 1 }}>{endBEff ? `✈ ${rwy.end_b_name}` : endBBlockedEff ? `🔴 ${rwy.end_b_name}` : rwy.end_b_name}</span>
+                                {endBEff && (endBConflictActive ? conflictCS : endBCallsign) && <span style={{ fontSize: '10px', fontWeight: 'normal', opacity: 0.9, color: '#bbf7d0' }}>{endBConflictActive ? conflictCS : endBCallsign}</span>}
+                                {endBBlockedEff && <span style={{ fontSize: '10px', fontWeight: 'normal', color: '#fca5a5', lineHeight: 1 }}>{endBCausingCallsign && `${endBCausingCallsign} · `}{fmtTime(endBSecsLeft)}</span>}
                               </button>
                             ) : null}
                             {!rwy.end_a_name && !rwy.end_b_name && (
                               <button
                                 disabled={isClosedRunway}
                                 onClick={() => { if (!isClosedRunway) { setSidRunwayName(rwy.name); setSidRunwayRouteId(rwy.id); } }}
-                                style={{ flex: 1, padding: '10px', background: endBtnBg(endAActive || endBActive, endABlocked || endBBlocked), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAActive || endBActive, endABlocked || endBBlocked)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
+                                style={{ flex: 1, padding: '10px', background: endBtnBg(endAEff || endBEff, endABlockedEff || endBBlockedEff), color: isClosedRunway ? '#7f1d1d' : 'white', border: `2px solid ${endBtnBorder(endAEff || endBEff, endABlockedEff || endBBlockedEff)}`, borderRadius: '6px', cursor: isClosedRunway ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: isClosedRunway ? 0.55 : 1, textDecoration: isClosedRunway ? 'line-through' : 'none' }}>
                                 {rwy.name}
                               </button>
                             )}
