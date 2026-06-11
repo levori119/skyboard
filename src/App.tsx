@@ -10098,21 +10098,31 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           affectedIndices.includes(x.idx) ? { ...x, status: 'takeoff', takeoff_runway: sidRunwayName || null } : x
         );
         const closeSidModal = () => { setSidModal(null); setSidPreStep(false); setSidPartialSelected([]); setSidSectorPick(null); };
+        const recordLocalTakeoff = () => {
+          if (sidRunwayName) {
+            const now = Date.now();
+            setRecentTakeoffTimes(prev => ({ ...prev, [sidRunwayName]: now }));
+            setRecentTakeoffCallsigns(prev => ({ ...prev, [sidRunwayName]: callSign }));
+          }
+        };
         const confirmSid = (sid: { label: string; sector_ids: number[] }) => {
           if (sid.sector_ids.length > 1) { setSidSectorPick(sid); return; }
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
           onUpdateAircraft(String(strip.id), applyTakeoff(positions));
           if (sid.sector_ids[0]) onTransfer(String(strip.id), sid.sector_ids[0]);
+          recordLocalTakeoff();
           closeSidModal();
         };
         const confirmSidWithSector = (sid: { label: string; sector_ids: number[] }, sectorId: number) => {
           if (onUpdateStripMeta) onUpdateStripMeta(String(strip.id), { sid: sid.label });
           onUpdateAircraft(String(strip.id), applyTakeoff(positions));
           onTransfer(String(strip.id), sectorId);
+          recordLocalTakeoff();
           closeSidModal();
         };
         const skipSid = () => {
           onUpdateAircraft(String(strip.id), applyTakeoff(positions));
+          recordLocalTakeoff();
           closeSidModal();
         };
 
@@ -17024,7 +17034,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
 
   // Poll active takeoffs every 5s for ground_mgmt workstations — shows orange notification banner
   React.useEffect(() => {
-    if (!isGroundMgmtMode) { setActiveTakeoffs([]); return; }
+    if (!isGroundMode) { setActiveTakeoffs([]); return; }
     const afId = activeAirfield?.id ?? myPresetConfig?.airfield_id;
     if (!afId) return;
     const poll = async () => {
