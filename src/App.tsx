@@ -6484,7 +6484,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const diff = takeoffMs - nowMs;
         if (diff < -(5 * 60 * 1000) || diff > windowMs!) return;
       }
-      const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id)] || [];
+      const acData: GroundAircraftRow[] = stripAircraftData[String(strip.id).replace(/^s/, '')] || [];
       const existingPositions = normalizeAircraftPositions(strip);
       acData.forEach((ac: GroundAircraftRow) => {
         if (ac.datk == null) return;
@@ -7303,7 +7303,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         const panelCallSign = panelStrip.callSign || panelStrip.callsign || '?';
         const panelCount = parseInt(panelStrip.numberOfFormation ?? panelStrip.number_of_formation ?? '1') || 1;
         const panelSq = panelStrip.sq || panelStrip.squadron || '';
-        const panelAcRows: GroundAircraftRow[] = stripAircraftData[panelSid] || [];
+        const panelAcRows: GroundAircraftRow[] = stripAircraftData[String(panelSid).replace(/^s/, '')] || [];
         const panelMeta = stripFormationMeta[panelSid];
         const panelNotes = panelMeta?.notes ?? (panelStrip.formation_notes || '');
         const panelParentCallsign = panelMeta?.parentCallsign ?? (panelStrip.parent_callsign || '');
@@ -8691,7 +8691,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 const pos = ptPos(pt.x_pct, pt.y_pct);
                 const slot = slotIndex(pid, `${strip.id}|all`);
                 const stackOffset = slot * SLOT_GAP;
-                const mergedRows = stripAircraftData[String(strip.id)] || [];
+                const mergedRows = stripAircraftData[String(strip.id).replace(/^s/, '')] || [];
                 const mergedDatkValues = acsAtPoint.map(a => mergedRows.find(r => r.idx === a.idx)?.datk).filter((d): d is number => d != null);
                 const mergedMatchesDatk = datkFilter === null || mergedDatkValues.some(d => d >= datkFilter);
                 const mergedMatchesStatus = statusFilter.length === 0 || statusFilter.includes(acsAtPoint[0].status);
