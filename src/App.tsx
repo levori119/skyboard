@@ -5721,7 +5721,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   const [collapsedElemCats, setCollapsedElemCats] = useState<Set<string>>(new Set());
   const [sectorZoomPanelOpen, setSectorZoomPanelOpen] = useState(false);
   const [mapLayers, setMapLayers] = useState({ elements: true, routes_aircraft: false, routes_vehicle: false, points: true, polygons: false, sectors: false, cameras: true });
-  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true });
+  const [mapDisplaySettings, setMapDisplaySettings] = useState({ showNames: false, showStatus: false, showRoutes: true, showChipBorder: true, showChipBg: true });
   const [showLayerPanel, setShowLayerPanel] = useState(false);
   const [dragging, setDragging] = useState<{ stripId: string; idx: number } | null>(null);
   const [mapDragOver, setMapDragOver] = useState<number | null>(null); // point_id or -1 for "no point"
@@ -7752,7 +7752,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>הגדרות תצוגה</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '4px' }}>
-                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }].map(({ key, label }) => (
+                {[{ key: 'showRoutes', label: 'הצג מסלול נסיעה' }, { key: 'showNames', label: 'הצג שמות' }, { key: 'showStatus', label: 'הצג סטטוס' }, { key: 'showChipBorder', label: 'הצג מסגרת שבב' }, { key: 'showChipBg', label: 'הצג רקע שבב' }].map(({ key, label }) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: headerColor }}>
                     <input type="checkbox" checked={(mapDisplaySettings as any)[key]} onChange={e => setMapDisplaySettings(p => ({ ...p, [key]: e.target.checked }))} />
                     {label}
@@ -8691,7 +8691,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
                       title={anyIsAutoMerged ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
-                      style={{ background: st.bg, border: anyIsAutoMerged ? `2.5px dashed #34d399` : `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : anyIsAutoMerged ? '0 0 8px 2px #34d39944, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      style={{ background: mapDisplaySettings.showChipBg ? st.bg : 'transparent', border: !mapDisplaySettings.showChipBg ? 'none' : !mapDisplaySettings.showChipBorder ? 'none' : anyIsAutoMerged ? `2.5px dashed #34d399` : `2.5px solid ${mergedHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: mapDisplaySettings.showChipBg ? '3px 7px' : '0 2px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mapDisplaySettings.showChipBg ? (mergedHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 8px rgba(0,0,0,0.6)' : anyIsAutoMerged ? '0 0 8px 2px #34d39944, 0 2px 8px rgba(0,0,0,0.6)' : '0 2px 8px rgba(0,0,0,0.6)') : 'none', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{getFormationDisplayName(strip)}</span>
                         <span style={{ color: st.color, fontSize: '11px', fontWeight: 'bold' }}>×{acsAtPoint.length}</span>
@@ -8758,7 +8758,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
                       title={(ac as any).isAuto ? 'מוצב אוטומטית לפי דת"ק + זמן המראה' : undefined}
-                      style={{ background: st.bg, border: (ac as any).isAuto ? `2px dashed #34d399` : `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: '3px 7px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : (ac as any).isAuto ? '0 0 8px 2px #34d39944, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
+                      style={{ background: mapDisplaySettings.showChipBg ? st.bg : 'transparent', border: !mapDisplaySettings.showChipBg ? 'none' : !mapDisplaySettings.showChipBorder ? 'none' : (ac as any).isAuto ? `2px dashed #34d399` : `2px solid ${acHighlight ? '#3b82f6' : st.dot}`, borderRadius: '5px', padding: mapDisplaySettings.showChipBg ? '3px 7px' : '0 2px', fontSize: '12px', color: st.color, fontWeight: 'bold', whiteSpace: 'nowrap', boxShadow: mapDisplaySettings.showChipBg ? (acHighlight ? '0 0 10px 3px #3b82f6aa, 0 2px 6px rgba(0,0,0,0.5)' : (ac as any).isAuto ? '0 0 8px 2px #34d39944, 0 2px 6px rgba(0,0,0,0.5)' : '0 2px 6px rgba(0,0,0,0.5)') : 'none', display: 'flex', flexDirection: 'column', gap: '1px', alignItems: 'center', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
                         <span style={{ color: '#e2e8f0', fontSize: '12px', fontWeight: 'bold' }}>{strip.callSign || strip.callsign || '?'}</span>
                         <span style={{ color: st.color, fontSize: '11px' }}>#{ac.idx}</span>
