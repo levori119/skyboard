@@ -24357,14 +24357,34 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     ))}
                                     <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: 'rtl', marginTop: '2px' }}>+ הוסף NOTAM</button>
                                   </div>
-                                  {workstationNotamNewForm && (
+                                  {workstationNotamNewForm && (() => {
+                                    const rwEnds = editRw.name ? editRw.name.split('/').map((h: string) => h.trim()).filter(Boolean) : [];
+                                    const selectedEnd = workstationNotamNewForm.end === 'b' ? (rwEnds[1] || rwEnds[0] || '') : (rwEnds[0] || '');
+                                    return (
                                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setWorkstationNotamNewForm(null)}>
                                       <div style={{ width: '420px', maxWidth: '95vw', background: lightMode ? '#fff' : '#0f172a', border: `2px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '12px', boxShadow: '0 16px 48px rgba(0,0,0,0.6)', direction: 'rtl', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: lightMode ? '#fef3c7' : '#1c1400', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}` }}>
-                                          <span style={{ fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAM חדש — מסלול {editRw.name || '—'}</span>
+                                          <span style={{ fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAM חדש — {selectedEnd ? `מסלול ${selectedEnd}` : (editRw.name || '—')}</span>
                                           <button onClick={() => setWorkstationNotamNewForm(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '18px', lineHeight: 1 }}>✕</button>
                                         </div>
                                         <div style={{ padding: '16px' }}>
+                                          {rwEnds.length > 1 && (
+                                            <div style={{ marginBottom: '14px' }}>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>קצה מסלול:</div>
+                                              <div style={{ display: 'flex', gap: '8px' }}>
+                                                {rwEnds.map((end: string, idx: number) => {
+                                                  const endKey = idx === 0 ? 'a' : 'b';
+                                                  const isSelected = workstationNotamNewForm.end === endKey;
+                                                  return (
+                                                    <button key={end} onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, end: endKey as 'a' | 'b' }))}
+                                                      style={{ flex: 1, padding: '10px 8px', background: isSelected ? '#b45309' : 'transparent', border: `2px solid ${isSelected ? '#f59e0b' : '#92400e'}`, borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', color: isSelected ? '#fff' : '#fbbf24', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                                                      ✈ {end}
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          )}
                                           <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                                             <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'text' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'text' ? 'bold' : 'normal' }}>📝 טקסט</button>
                                             <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'shortening' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'shortening' ? 'bold' : 'normal' }}>✂ קיצור מסלול</button>
@@ -24413,7 +24433,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         </div>
                                       </div>
                                     </div>
-                                  )}
+                                  );
+                                  })()}
                                 </>
                               );
                             })()}
