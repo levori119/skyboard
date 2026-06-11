@@ -15498,7 +15498,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return;
     }
     // Drag to transfer marker: check element under pointer
+    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
+    const _ov = fzOverlayRef.current;
+    if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+    if (_ov) _ov.style.pointerEvents = 'all';
     const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
     if (markerEl) {
       const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
@@ -15512,10 +15516,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         return;
       }
     }
-    // Drag to left-panel transfer sector
-    const panelSectorEl = elUnder?.closest('[data-transfer-sector]') as HTMLElement | null;
+    // Drag to left-panel transfer sector (data-transfer-sector OR data-sector-id on neighbor-drop-zone)
+    const panelSectorEl = (elUnder?.closest('[data-transfer-sector]') ?? elUnder?.closest('.neighbor-drop-zone[data-sector-id]')) as HTMLElement | null;
     if (panelSectorEl) {
-      const sectorId = parseInt(panelSectorEl.getAttribute('data-transfer-sector') || '0', 10);
+      const sectorId = parseInt((panelSectorEl.getAttribute('data-transfer-sector') || panelSectorEl.getAttribute('data-sector-id') || '0'), 10);
       if (sectorId) {
         const existingAsgn2 = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
         if (existingAsgn2 && existingAsgn2.status !== 'עוזב אזור') {
@@ -15622,8 +15626,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const dragLabel = fzDragLabel;
     if (!isFlightZonesMode || !dragId || !currentMapId) return;
     e.preventDefault();
-    // Check if dropped on a pin-only neighbor marker
+    // Temporarily disable overlay pointer-events so elementFromPoint sees through to real targets
+    const _ovDrop = fzOverlayRef.current;
+    if (_ovDrop) _ovDrop.style.pointerEvents = 'none';
     const elUnderDrop = document.elementFromPoint(e.clientX, e.clientY);
+    if (_ovDrop) _ovDrop.style.pointerEvents = 'none'; // keep none — drag is ending
+    // Check if dropped on a map transfer marker
+    const markerElDrop = elUnderDrop?.closest('[data-marker-sector]') as HTMLElement | null;
+    if (markerElDrop) {
+      const sectorId = parseInt(markerElDrop.getAttribute('data-marker-sector') || '0', 10);
+      if (sectorId) {
+        fzDragIsPin.current = false; fzDragIdRef.current = null; setFzDragStripId(null); setFzDragLabel(null);
+        const existingDrop = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === dragId);
+        if (existingDrop && existingDrop.status !== 'עוזב אזור') {
+          doFzSave(dragId, existingDrop.zone_id, existingDrop.altitude_range_id, 'עוזב אזור', existingDrop.note, existingDrop.coordination_note, existingDrop.is_coordinated, existingDrop.pos_x ?? undefined, existingDrop.pos_y ?? undefined, existingDrop.requested_zone_ids);
+        }
+        handleTransferWithPartialCheck(String(dragId), sectorId);
+        return;
+      }
+    }
+    // Check if dropped on a pin-only neighbor marker
     const pinElDrop = elUnderDrop?.closest('[data-pin-sector]') as HTMLElement | null;
     if (pinElDrop) {
       const sectorId = parseInt(pinElDrop.getAttribute('data-pin-sector') || '0', 10);
