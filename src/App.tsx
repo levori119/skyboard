@@ -14993,6 +14993,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [basePanelOpen, setBasePanelOpen] = useState(false);
   const [bsInfoModal, setBsInfoModal] = useState<{ bs: any; mode: 'notam' | 'atis' } | null>(null);
   const [bsInfoEditText, setBsInfoEditText] = useState('');
+  const [parentBaseStatus, setParentBaseStatus] = useState<any | null>(null);
+  const [parentBaseUpdateOpen, setParentBaseUpdateOpen] = useState(true);
+  const [parentBaseAtisEdit, setParentBaseAtisEdit] = useState<string | null>(null);
+  const [parentBaseNotamEdit, setParentBaseNotamEdit] = useState<string | null>(null);
   const [madaniyotOpen, setMadaniyotOpen] = useState(false);
   const [bsGroupByStatus, setBsGroupByStatus] = useState(false);
   const prevBaseAdRef = useRef<Record<number, string>>({});
@@ -15839,6 +15843,41 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }, 800);
     return () => clearTimeout(t);
   }, [pressureInHg, parentBaseId, canUpdatePressure]);
+
+  // Poll parent base status (atis_text/notam_text) every 15s when this workstation is an updater
+  useEffect(() => {
+    if (!parentBaseId || (!canUpdateAtis && !canUpdateNotam)) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch(`${API_URL}/base-statuses`);
+        if (!r.ok || cancelled) return;
+        const all: any[] = await r.json();
+        const found = all.find((b: any) => Number(b.id) === parentBaseId);
+        if (!cancelled && found) setParentBaseStatus(found);
+      } catch {}
+    };
+    load();
+    const iv = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [parentBaseId, canUpdateAtis, canUpdateNotam]);
+
+  // Also poll baseStatuses for viewers every 15s to pick up remote ATIS/NOTAM updates
+  useEffect(() => {
+    const presetCfg = livePresetConfig ?? workstationPresets.find(p => Number(p.id) === Number(session?.presetId));
+    if (!presetCfg?.show_base_statuses || !session.presetId) return;
+    const relevantIds: number[] = Array.isArray(presetCfg.base_status_ids) ? presetCfg.base_status_ids.map(Number) : [];
+    const poll = async () => {
+      try {
+        const r = await fetch(`${API_URL}/base-statuses`);
+        if (!r.ok) return;
+        const all: any[] = await r.json();
+        setBaseStatuses(relevantIds.length > 0 ? all.filter((b: any) => relevantIds.includes(Number(b.id))) : all);
+      } catch {}
+    };
+    const iv = setInterval(poll, 15000);
+    return () => clearInterval(iv);
+  }, [session?.presetId, livePresetConfig]);
 
   // Poll work-group מז"א מרחבי every 5s (non-tower workstations)
   useEffect(() => {
@@ -23703,7 +23742,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           );
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
-          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode) return null;
+          const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam));
+          if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
             {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
             <div style={{ width: aidsPinned ? aidsPanelW : 30, background: lightMode ? '#f8fafc' : '#1e293b', borderLeft: aidsPinned ? 'none' : `2px solid ${T.border}`, display: 'flex', flexDirection: 'column', flexShrink: 0, transition: aidsResizeRef.current ? 'none' : 'width 0.2s', overflow: 'visible', position: 'relative' }}>
@@ -24984,6 +25024,81 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     );
                   })()}
 
+                  {/* ATIS / NOTAM Update Panel — only for authorized updater workstation */}
+                  {hasAtisNotamUpdatePanel && aidsPinned && (() => {
+                    const pbs = parentBaseStatus;
+                    const baseName = pbs?.name || `בסיס ${parentBaseId}`;
+                    const currentAtis = pbs?.atis_text || '';
+                    const currentNotam = pbs?.notam_text || '';
+                    const atisVal = parentBaseAtisEdit !== null ? parentBaseAtisEdit : currentAtis;
+                    const notamVal = parentBaseNotamEdit !== null ? parentBaseNotamEdit : currentNotam;
+                    const saveAtis = async () => {
+                      const r = await fetch(`${API_URL}/base-statuses/${parentBaseId}/atis`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atis_text: atisVal || null }) }).then(r => r.ok ? r.json() : null).catch(() => null);
+                      if (r) { setParentBaseStatus(r); setBaseStatuses(prev => prev.map(b => b.id === r.id ? r : b)); setLiveBaseStatuses(prev => prev.map(b => b.id === r.id ? r : b)); }
+                      setParentBaseAtisEdit(null);
+                    };
+                    const saveNotam = async () => {
+                      const r = await fetch(`${API_URL}/base-statuses/${parentBaseId}/notam`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notam_text: notamVal || null }) }).then(r => r.ok ? r.json() : null).catch(() => null);
+                      if (r) { setParentBaseStatus(r); setBaseStatuses(prev => prev.map(b => b.id === r.id ? r : b)); setLiveBaseStatuses(prev => prev.map(b => b.id === r.id ? r : b)); }
+                      setParentBaseNotamEdit(null);
+                    };
+                    return (
+                      <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '6px', marginTop: '4px' }}>
+                        <div onClick={() => setParentBaseUpdateOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: '4px 6px', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: parentBaseUpdateOpen ? '6px' : 0 }}>
+                          <span style={{ fontSize: '13px' }}>📡</span>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>עדכון ATIS / NOTAM — {baseName}</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{parentBaseUpdateOpen ? '▼' : '▶'}</span>
+                        </div>
+                        {parentBaseUpdateOpen && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '0 2px' }}>
+                            {canUpdateAtis && (
+                              <div style={{ background: lightMode ? '#f0f9ff' : '#0c1f30', border: `1px solid ${parentBaseAtisEdit !== null ? '#38bdf8' : (currentAtis ? '#0369a1' : T.border)}`, borderRadius: '6px', padding: '6px 8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#38bdf8' }}>📻 ATIS</span>
+                                  {currentAtis && parentBaseAtisEdit === null && <span style={{ fontSize: '9px', color: '#64748b', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentAtis.slice(0, 40)}{currentAtis.length > 40 ? '…' : ''}</span>}
+                                </div>
+                                {parentBaseAtisEdit !== null ? (
+                                  <>
+                                    <textarea value={atisVal} onChange={e => setParentBaseAtisEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט ATIS..." autoFocus />
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
+                                      <button onClick={() => setParentBaseAtisEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                                      <button onClick={saveAtis} style={{ padding: '3px 10px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💾 שמור</button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <button onClick={() => setParentBaseAtisEdit(currentAtis)} style={{ width: '100%', padding: '4px 8px', background: currentAtis ? '#0c2a40' : '#1e293b', border: `1px solid ${currentAtis ? '#0369a1' : T.border}`, borderRadius: '4px', color: currentAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', direction: 'rtl' }}>
+                                    ✏ {currentAtis ? 'ערוך ATIS' : '+ הוסף ATIS'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {canUpdateNotam && (
+                              <div style={{ background: lightMode ? '#fffbeb' : '#1c1107', border: `1px solid ${parentBaseNotamEdit !== null ? '#f59e0b' : (currentNotam ? '#92400e' : T.border)}`, borderRadius: '6px', padding: '6px 8px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#f59e0b' }}>⚠ NOTAM</span>
+                                  {currentNotam && parentBaseNotamEdit === null && <span style={{ fontSize: '9px', color: '#64748b', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentNotam.slice(0, 40)}{currentNotam.length > 40 ? '…' : ''}</span>}
+                                </div>
+                                {parentBaseNotamEdit !== null ? (
+                                  <>
+                                    <textarea value={notamVal} onChange={e => setParentBaseNotamEdit(e.target.value)} rows={4} style={{ width: '100%', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#e2e8f0', fontSize: '11px', padding: '6px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }} placeholder="טקסט NOTAM..." autoFocus />
+                                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px', justifyContent: 'flex-end' }}>
+                                      <button onClick={() => setParentBaseNotamEdit(null)} style={{ padding: '3px 10px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>ביטול</button>
+                                      <button onClick={saveNotam} style={{ padding: '3px 10px', background: '#451a03', color: 'white', border: '1px solid #f59e0b', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>💾 שמור</button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <button onClick={() => setParentBaseNotamEdit(currentNotam)} style={{ width: '100%', padding: '4px 8px', background: currentNotam ? '#1c1107' : '#1e293b', border: `1px solid ${currentNotam ? '#92400e' : T.border}`, borderRadius: '4px', color: currentNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', textAlign: 'right', direction: 'rtl' }}>
+                                    ✏ {currentNotam ? 'ערוך NOTAM' : '+ הוסף NOTAM'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Base Status Panel */}
                   {baseStatuses.length > 0 && (() => {
                     const hasPrev = true; // contacts section always renders above
@@ -24994,9 +25109,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       const afAtis: any = bs.airfield_atis_data || null;
                       const hasAfNotam = afNotams.length > 0;
                       const hasAfAtis = !!(afAtis?.letter);
-                      // Fall back to manual text when no airfield is linked
-                      const hasManualNotam = !bs.airfield_id && !!(bs.notam_text && bs.notam_text.trim());
-                      const hasManualAtis = !bs.airfield_id && !!(bs.atis_text && bs.atis_text.trim());
+                      // Show manual text when present (regardless of airfield linkage)
+                      const hasManualNotam = !!(bs.notam_text && bs.notam_text.trim());
+                      const hasManualAtis = !!(bs.atis_text && bs.atis_text.trim());
                       const hasNotam = hasAfNotam || hasManualNotam;
                       const hasAtis = hasAfAtis || hasManualAtis;
                       // Build tooltip text
@@ -25906,8 +26021,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 );
               }
 
-              /* ── No airfield linked: manual text (editable for authorized users) ── */
-              const canEdit = bsInfoModal.mode === 'atis' ? canUpdateAtis : canUpdateNotam;
+              /* ── Manual text (editable only for the workstation whose parent base this is) ── */
+              const isParentBase = parentBaseId !== null && Number(bsInfoModal.bs.id) === parentBaseId;
+              const canEdit = bsInfoModal.mode === 'atis' ? (canUpdateAtis && isParentBase) : (canUpdateNotam && isParentBase);
               return (
                 <>
                   {!canEdit && (
