@@ -118,10 +118,8 @@
   50% { opacity: 0.35; }
 }
 .runway-closed-rect {
-  animation: runway-closed-stroke-flash 0.75s ease-in-out infinite;
 }
 .runway-closed-x {
-  animation: runway-closed-x-flash 0.75s ease-in-out infinite;
 }
 :root {
   --bg-dark: #0f172a;
