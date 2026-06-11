@@ -13085,6 +13085,7 @@ const VerticalView = ({ strips, timeField, lightMode, relevantBlocks = [], block
 // Normalize an altitude string: strip FL prefix, collapse spaces around dash
 // e.g. "FL340" → "340", "FL340 - FL360" → "340-360", "340  -  360" → "340-360"
 const getFormationDisplayName = (strip: any): string => {
+  if (!strip) return '';
   const base = strip.callSign || strip.callsign || '';
   let raw = strip.aircraft_indices;
   if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
@@ -17273,7 +17274,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   handleTransferRef.current = handleTransfer;
 
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
-    const strip = strips.find((s: any) => String(s.id) === String(stripId));
+    const normId = String(stripId).replace(/^s/, '');
+    const strip = strips.find((s: any) => String(s.id).replace(/^s/, '') === normId);
     setPartialSelectedIndices([]);
     setTransferEtaMinutes(0);
     setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
