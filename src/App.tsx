@@ -30890,6 +30890,25 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                   <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>מגדל: מציג SID בפ"מ | יב"א: מציג STAR בפ"מ</p>
                 </div>
 
+                {/* Parent base selection */}
+                <div style={{ marginBottom: '15px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#7dd3fc', fontSize: '14px', fontWeight: 'bold' }}>🏛 בסיס אב:</label>
+                  <select
+                    value={presetForm.parent_base_id || ''}
+                    onChange={e => setPresetForm(p => ({ ...p, parent_base_id: e.target.value }))}
+                    style={{ width: '100%', padding: '8px 10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: 'white', fontSize: '13px', direction: 'rtl' }}
+                  >
+                    <option value="">— ללא בסיס —</option>
+                    {adminAviationBases.map((b: any) => (
+                      <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>
+                    ))}
+                  </select>
+                  {adminAviationBases.length === 0 && (
+                    <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#f59e0b' }}>הגדר בסיסי תעופה בלשונית "✈️ בסיסים"</p>
+                  )}
+                  <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#64748b' }}>הבסיס שאליו שייכת העמדה — משמש לשיתוף לחץ אטמוספרי ופרמטרים נוספים</p>
+                </div>
+
                 {presetForm.preset_type === 'civilian' && (() => {
                   const civCols: CivCol[] = presetForm.civilian_columns || [];
                   const setCivCols = (cols: CivCol[]) => setPresetForm(p => ({ ...p, civilian_columns: cols }));
