@@ -1123,6 +1123,15 @@ async function initDb() {
     )
   `);
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS airfield_general_notams (
+      id SERIAL PRIMARY KEY,
+      airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+      text_content TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS airfield_atis (
       id SERIAL PRIMARY KEY,
       airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
@@ -6258,6 +6267,46 @@ app.delete('/api/runway-notams/:id', async (req, res) => {
     await pool.query('DELETE FROM runway_notams WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete runway notam' }); }
+});
+
+app.get('/api/airfield-general-notams', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.status(400).json({ error: 'airfield_id required' });
+    const { rows } = await pool.query('SELECT * FROM airfield_general_notams WHERE airfield_id=$1 ORDER BY created_at DESC', [airfield_id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch general notams' }); }
+});
+
+app.post('/api/airfield-general-notams', async (req, res) => {
+  try {
+    const { airfield_id, text_content } = req.body;
+    if (!airfield_id || !text_content?.trim()) return res.status(400).json({ error: 'airfield_id and text_content required' });
+    const { rows } = await pool.query(
+      'INSERT INTO airfield_general_notams (airfield_id, text_content) VALUES ($1,$2) RETURNING *',
+      [airfield_id, text_content.trim()]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create general notam' }); }
+});
+
+app.put('/api/airfield-general-notams/:id', async (req, res) => {
+  try {
+    const { text_content } = req.body;
+    if (!text_content?.trim()) return res.status(400).json({ error: 'text_content required' });
+    const { rows } = await pool.query(
+      'UPDATE airfield_general_notams SET text_content=$1 WHERE id=$2 RETURNING *',
+      [text_content.trim(), req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update general notam' }); }
+});
+
+app.delete('/api/airfield-general-notams/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_general_notams WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete general notam' }); }
 });
 
 app.get('/api/airfield-atis', async (req, res) => {
