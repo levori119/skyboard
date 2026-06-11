@@ -24336,70 +24336,85 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 ]).then(([notams, runways]) => { setAirfieldRunwayNotams(notams); setAirfieldRunways(runways); }).catch(() => {});
                               };
                               return (
-                                <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#fef9c3' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', direction: 'rtl' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || '—'}</span>
-                                    <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
-                                  </div>
-                                  {editNotams.length === 0 && !workstationNotamNewForm && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
-                                  {editNotams.map((n: any) => (
-                                    <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
-                                      <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
-                                        {n.notam_type === 'closed'
-                                          ? '🚫 מסלול סגור'
-                                          : n.notam_type === 'shortening'
-                                          ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${editRw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(editRw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
-                                          : (n.text_content || '')}
-                                      </div>
-                                      <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); refreshNotams(); }} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>
+                                <>
+                                  <div style={{ margin: '6px 4px 0', padding: '7px 8px', background: lightMode ? '#fef9c3' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', direction: 'rtl' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                      <span style={{ fontSize: '10px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAMs — {editRw.name || '—'}</span>
+                                      <button onClick={() => { setWorkstationNotamEditRwId(null); setWorkstationNotamNewForm(null); }} style={{ fontSize: '12px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', lineHeight: 1 }}>✕</button>
                                     </div>
-                                  ))}
-                                  {workstationNotamNewForm ? (
-                                    <div style={{ background: lightMode ? '#fff' : '#0c1400', borderRadius: '5px', padding: '7px 8px', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, marginTop: '4px' }}>
-                                      <div style={{ display: 'flex', gap: '4px', marginBottom: '5px', flexWrap: 'wrap' }}>
-                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>טקסט</button>
-                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: '1px solid #92400e', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#fbbf24' }}>קיצור מסלול</button>
-                                        <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '3px', background: workstationNotamNewForm.type === 'closed' ? '#7f1d1d' : 'transparent', border: `1px solid ${workstationNotamNewForm.type === 'closed' ? '#ef4444' : '#92400e'}`, borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: workstationNotamNewForm.type === 'closed' ? '#fca5a5' : '#fbbf24', fontWeight: workstationNotamNewForm.type === 'closed' ? 'bold' : 'normal' }}>🚫 סגור מסלול</button>
-                                      </div>
-                                      {workstationNotamNewForm.type === 'closed' ? (
-                                        <div style={{ textAlign: 'center', padding: '8px 4px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '5px', border: '1px solid #ef4444' }}>
-                                          <div style={{ fontSize: '22px', marginBottom: '3px' }}>🚫</div>
-                                          <div style={{ fontSize: '10px', color: '#fca5a5', fontWeight: 'bold' }}>המסלול יסומן כסגור</div>
-                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>X אדום יוצג על המסלול במפה</div>
+                                    {editNotams.length === 0 && <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '4px', textAlign: 'right' }}>אין NOTAMs פעילים</div>}
+                                    {editNotams.map((n: any) => (
+                                      <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fff8e1' : '#0c1400', borderRadius: '4px', padding: '4px 6px', marginBottom: '3px', border: `1px solid ${lightMode ? '#fbbf24' : '#92400e55'}` }}>
+                                        <div style={{ flex: 1, fontSize: '10px', color: n.notam_type === 'closed' ? '#fca5a5' : n.notam_type === 'shortening' ? '#fbbf24' : (lightMode ? '#1e293b' : '#cbd5e1') }}>
+                                          {n.notam_type === 'closed'
+                                            ? '🚫 מסלול סגור'
+                                            : n.notam_type === 'shortening'
+                                            ? `✂ קיצור: ${n.shorten_amount_ft ? `${Number(n.shorten_amount_ft).toLocaleString()}ft` : ''}${n.shorten_amount_m ? ` / ${Number(n.shorten_amount_m).toLocaleString()}m` : ''}${editRw.length_m && n.shorten_amount_m ? ` → אורך בפועל: ${(Number(editRw.length_m) - Number(n.shorten_amount_m)).toLocaleString()}m` : ''}`
+                                            : (n.text_content || '')}
                                         </div>
-                                      ) : workstationNotamNewForm.type === 'text' ? (
-                                        <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={2} style={{ width: '100%', padding: '4px 6px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '10px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
-                                      ) : (
-                                        <div>
-                                          <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '3px' }}>כמות הקיצור (מסף הנחיתה):</div>
-                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                                            <input value={workstationNotamNewForm.ft} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
-                                            <input value={workstationNotamNewForm.m} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '4px', background: lightMode ? '#fef3c7' : '#1c1400', border: '1px solid #92400e', borderRadius: '4px', color: lightMode ? '#1e293b' : 'white', fontSize: '10px', width: '100%', boxSizing: 'border-box' }} />
-                                          </div>
-                                          {editRw.length_m && workstationNotamNewForm.m ? (
-                                            <div style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 'bold', marginTop: '4px', textAlign: 'right' }}>
-                                              ✈ אורך בפועל: {(Number(editRw.length_m) - Number(workstationNotamNewForm.m)).toLocaleString()}m{editRw.length_ft && workstationNotamNewForm.ft ? ` / ${(Number(editRw.length_ft) - Number(workstationNotamNewForm.ft)).toLocaleString()}ft` : ''}
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      )}
-                                      <div style={{ display: 'flex', gap: '4px', marginTop: '5px', justifyContent: 'flex-end' }}>
-                                        <button onClick={() => setWorkstationNotamNewForm(null)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
-                                        <button onClick={async () => {
-                                          const f = workstationNotamNewForm; if (!f) return;
-                                          const body: any = { runway_id: editRw.id, notam_type: f.type };
-                                          if (f.type === 'text') body.text_content = f.text;
-                                          else if (f.type === 'shortening') { body.shorten_end = f.end; body.shorten_amount_ft = f.ft ? Number(f.ft) : null; body.shorten_amount_m = f.m ? Number(f.m) : null; }
-                                          await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                                          setWorkstationNotamNewForm(null);
-                                          refreshNotams();
-                                        }} style={{ padding: '3px 10px', background: '#b45309', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>הוסף</button>
+                                        <button onClick={async () => { await fetch(`${API_URL}/runway-notams/${n.id}`, { method: 'DELETE' }); refreshNotams(); }} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', flexShrink: 0 }}>✕</button>
                                       </div>
-                                    </div>
-                                  ) : (
+                                    ))}
                                     <button onClick={() => setWorkstationNotamNewForm({ type: 'text', text: '', end: 'a', ft: '', m: '' })} style={{ width: '100%', padding: '4px', background: 'transparent', border: '1px dashed #92400e', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#f59e0b', direction: 'rtl', marginTop: '2px' }}>+ הוסף NOTAM</button>
+                                  </div>
+                                  {workstationNotamNewForm && (
+                                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setWorkstationNotamNewForm(null)}>
+                                      <div style={{ width: '420px', maxWidth: '95vw', background: lightMode ? '#fff' : '#0f172a', border: `2px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '12px', boxShadow: '0 16px 48px rgba(0,0,0,0.6)', direction: 'rtl', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: lightMode ? '#fef3c7' : '#1c1400', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}` }}>
+                                          <span style={{ fontSize: '14px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>⚠ NOTAM חדש — מסלול {editRw.name || '—'}</span>
+                                          <button onClick={() => setWorkstationNotamNewForm(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '18px', lineHeight: 1 }}>✕</button>
+                                        </div>
+                                        <div style={{ padding: '16px' }}>
+                                          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'text' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'text' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'text' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'text' ? 'bold' : 'normal' }}>📝 טקסט</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'shortening' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'shortening' ? '#92400e' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'shortening' ? '#f59e0b' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#fbbf24', fontWeight: workstationNotamNewForm.type === 'shortening' ? 'bold' : 'normal' }}>✂ קיצור מסלול</button>
+                                            <button onClick={() => setWorkstationNotamNewForm(p => p && ({ ...p, type: 'closed' }))} style={{ flex: 1, padding: '7px 4px', background: workstationNotamNewForm.type === 'closed' ? '#7f1d1d' : 'transparent', border: `2px solid ${workstationNotamNewForm.type === 'closed' ? '#ef4444' : '#92400e'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: workstationNotamNewForm.type === 'closed' ? '#fca5a5' : '#fbbf24', fontWeight: workstationNotamNewForm.type === 'closed' ? 'bold' : 'normal' }}>🚫 סגור מסלול</button>
+                                          </div>
+                                          {workstationNotamNewForm.type === 'closed' ? (
+                                            <div style={{ textAlign: 'center', padding: '24px 16px', background: lightMode ? '#fff1f2' : '#1a0000', borderRadius: '8px', border: '2px solid #ef4444' }}>
+                                              <div style={{ fontSize: '48px', marginBottom: '8px' }}>🚫</div>
+                                              <div style={{ fontSize: '14px', color: '#fca5a5', fontWeight: 'bold' }}>המסלול יסומן כסגור</div>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>X אדום יוצג על המסלול במפה</div>
+                                            </div>
+                                          ) : workstationNotamNewForm.type === 'text' ? (
+                                            <textarea value={workstationNotamNewForm.text} onChange={e => setWorkstationNotamNewForm(p => p && ({ ...p, text: e.target.value }))} placeholder="תוכן ה-NOTAM..." rows={4} autoFocus style={{ width: '100%', padding: '10px 12px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : '#cbd5e1', fontSize: '13px', resize: 'vertical', direction: 'rtl', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                                          ) : (
+                                            <div>
+                                              <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>כמות הקיצור (מסף הנחיתה):</div>
+                                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                                <div>
+                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>רגל (ft)</div>
+                                                  <input value={workstationNotamNewForm.ft} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, ft: v, m: v ? String(Math.round(Number(v) * 0.3048)) : '' })); }} placeholder="ft" type="number" autoFocus style={{ padding: '8px 10px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
+                                                </div>
+                                                <div>
+                                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '3px' }}>מטר (m)</div>
+                                                  <input value={workstationNotamNewForm.m} onChange={e => { const v = e.target.value; setWorkstationNotamNewForm(p => p && ({ ...p, m: v, ft: v ? String(Math.round(Number(v) * 3.28084)) : '' })); }} placeholder="m" type="number" style={{ padding: '8px 10px', background: lightMode ? '#fef3c7' : '#1c1400', border: '2px solid #92400e', borderRadius: '8px', color: lightMode ? '#1e293b' : 'white', fontSize: '13px', width: '100%', boxSizing: 'border-box' }} />
+                                                </div>
+                                              </div>
+                                              {editRw.length_m && workstationNotamNewForm.m ? (
+                                                <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', padding: '8px 10px', background: lightMode ? '#fef9c3' : '#1c1400', borderRadius: '6px', border: '1px solid #92400e' }}>
+                                                  ✈ אורך בפועל: {(Number(editRw.length_m) - Number(workstationNotamNewForm.m)).toLocaleString()}m{editRw.length_ft && workstationNotamNewForm.ft ? ` / ${(Number(editRw.length_ft) - Number(workstationNotamNewForm.ft)).toLocaleString()}ft` : ''}
+                                                </div>
+                                              ) : null}
+                                            </div>
+                                          )}
+                                          <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                                            <button onClick={() => setWorkstationNotamNewForm(null)} style={{ padding: '8px 18px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: T.muted }}>ביטול</button>
+                                            <button onClick={async () => {
+                                              const f = workstationNotamNewForm; if (!f) return;
+                                              const body: any = { runway_id: editRw.id, notam_type: f.type };
+                                              if (f.type === 'text') body.text_content = f.text;
+                                              else if (f.type === 'shortening') { body.shorten_end = f.end; body.shorten_amount_ft = f.ft ? Number(f.ft) : null; body.shorten_amount_m = f.m ? Number(f.m) : null; }
+                                              await fetch(`${API_URL}/runway-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                                              setWorkstationNotamNewForm(null);
+                                              refreshNotams();
+                                            }} style={{ padding: '8px 22px', background: '#b45309', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}>✔ הוסף NOTAM</button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   )}
-                                </div>
+                                </>
                               );
                             })()}
                             {/* Workstation GRF management panel */}
