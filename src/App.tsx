@@ -14472,6 +14472,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [generalNotamFloating, setGeneralNotamFloating] = useState(false);
   const [generalNotamEditId, setGeneralNotamEditId] = useState<number | null>(null);
   const [generalNotamText, setGeneralNotamText] = useState('');
+  const [generalNotamAddText, setGeneralNotamAddText] = useState('');
   const [airfieldTaxiways, setAirfieldTaxiways] = useState<any[]>([]);
   const [twExpandedId, setTwExpandedId] = useState<number | null>(null);
   const [twEditId, setTwEditId] = useState<number | null>(null);
@@ -24147,8 +24148,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: rwWidgetOpen ? '4px' : 0 }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${airfieldRunwayNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>⚠ ריכוז NOTAMs</button>
-                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
+                            <button onClick={e => { e.stopPropagation(); setRwNotamSummaryOpen(v => !v); setRwGrfSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwNotamSummaryOpen ? '#92400e' : 'transparent', border: `1px solid ${(airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: (airfieldRunwayNotams.length > 0 || airfieldGeneralNotams.length > 0) ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>⚠ ריכוז NOTAMs</button>
+                            <button onClick={e => { e.stopPropagation(); setRwGrfSummaryOpen(v => !v); setRwNotamSummaryOpen(false); setGeneralNotamFloating(false); }} style={{ fontSize: '9px', padding: '2px 6px', background: rwGrfSummaryOpen ? '#0e4f3a' : 'transparent', border: `1px solid ${airfieldRunwayGrf.length > 0 ? '#166534' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldRunwayGrf.length > 0 ? '#34d399' : '#64748b', whiteSpace: 'nowrap' }}>🛬 ריכוז GRF</button>
+                            <button onClick={e => { e.stopPropagation(); setGeneralNotamFloating(v => !v); setRwNotamSummaryOpen(false); setRwGrfSummaryOpen(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ fontSize: '9px', padding: '2px 6px', background: generalNotamFloating ? '#78350f' : 'transparent', border: `1px solid ${airfieldGeneralNotams.length > 0 ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: airfieldGeneralNotams.length > 0 ? '#fbbf24' : '#64748b', whiteSpace: 'nowrap' }}>📋 NOTAM כללי{airfieldGeneralNotams.length > 0 ? ` (${airfieldGeneralNotams.length})` : ''}</button>
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>✈ מסלולים ({airfieldRunways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{rwWidgetOpen ? '▼' : '▶'}</span>
@@ -24417,9 +24419,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                     <button onClick={() => setRwNotamSummaryOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '14px', lineHeight: 1 }}>✕</button>
                                   </div>
                                   <div style={{ padding: '8px 10px' }}>
-                                    {rwsWithNotams.length === 0 ? (
+                                    {rwsWithNotams.length === 0 && airfieldGeneralNotams.length === 0 ? (
                                       <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '12px 0' }}>אין NOTAMs פעילים</div>
-                                    ) : rwsWithNotams.map((rw: any) => {
+                                    ) : rwsWithNotams.length === 0 ? null : rwsWithNotams.map((rw: any) => {
                                       const notams = airfieldRunwayNotams.filter((n: any) => n.runway_id === rw.id);
                                       const shorts = notams.filter((n: any) => n.notam_type === 'shortening');
                                       const texts = notams.filter((n: any) => n.notam_type === 'text');
@@ -24454,6 +24456,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         </div>
                                       );
                                     })}
+                                    {airfieldGeneralNotams.length > 0 && (
+                                      <div style={{ marginTop: rwsWithNotams.length > 0 ? '10px' : 0 }}>
+                                        <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fbbf24', marginBottom: '5px', borderTop: rwsWithNotams.length > 0 ? '1px solid #f59e0b44' : 'none', paddingTop: rwsWithNotams.length > 0 ? '8px' : 0 }}>📋 NOTAM כללי ({airfieldGeneralNotams.length})</div>
+                                        {airfieldGeneralNotams.map((n: any) => (
+                                          <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '5px', padding: '5px 8px', background: lightMode ? '#fff8e1' : '#120d00', borderRadius: '5px', border: '1px solid #f59e0b33' }}>
+                                            <span style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }}>•</span>
+                                            <div style={{ color: lightMode ? '#92400e' : '#fcd34d', flex: 1, fontSize: '11px', wordBreak: 'break-word', lineHeight: 1.5 }}>{n.text_content}</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -24507,6 +24520,76 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         </div>
                                       );
                                     })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* General NOTAM floating panel (row-based) */}
+                            {generalNotamFloating && (() => {
+                              const afId = myPresetConfig?.airfield_id;
+                              const refreshGN = () => {
+                                if (!afId) return;
+                                fetch(`${API_URL}/airfield-general-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldGeneralNotams).catch(() => {});
+                              };
+                              const saveEdit = async (id: number, text: string) => {
+                                if (!text.trim()) return;
+                                await fetch(`${API_URL}/airfield-general-notams/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text_content: text }) });
+                                refreshGN(); setGeneralNotamEditId(null); setGeneralNotamText('');
+                              };
+                              const deleteRow = async (id: number) => {
+                                await fetch(`${API_URL}/airfield-general-notams/${id}`, { method: 'DELETE' });
+                                refreshGN();
+                              };
+                              const addRow = async () => {
+                                if (!generalNotamAddText.trim() || !afId) return;
+                                await fetch(`${API_URL}/airfield-general-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: afId, text_content: generalNotamAddText.trim() }) });
+                                refreshGN(); setGeneralNotamAddText('');
+                              };
+                              return (
+                                <div style={{ position: 'fixed', top: '80px', right: '270px', width: '360px', maxHeight: '78vh', overflowY: 'auto', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', boxShadow: '0 10px 36px #00000099', zIndex: 9997, direction: 'rtl' }}>
+                                  {/* Header */}
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: lightMode ? '#fde68a' : '#2d1a00', borderRadius: '10px 10px 0 0', borderBottom: `1px solid ${lightMode ? '#f59e0b' : '#78350f'}`, position: 'sticky', top: 0, zIndex: 1 }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>📋 NOTAM כללי</span>
+                                    <button onClick={() => { setGeneralNotamFloating(false); setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamAddText(''); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px', lineHeight: 1 }}>✕</button>
+                                  </div>
+                                  {/* Existing rows */}
+                                  <div style={{ padding: '8px 10px' }}>
+                                    {airfieldGeneralNotams.length === 0 && <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '10px 0' }}>אין NOTAMs כלליים</div>}
+                                    {airfieldGeneralNotams.map((n: any) => (
+                                      <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '5px', marginBottom: '5px', padding: '5px 7px', background: lightMode ? '#fff8e1' : '#120d00', borderRadius: '6px', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f55'}` }}>
+                                        {generalNotamEditId === n.id ? (
+                                          <>
+                                            <input
+                                              autoFocus
+                                              value={generalNotamText}
+                                              onChange={e => setGeneralNotamText(e.target.value)}
+                                              onKeyDown={e => { if (e.key === 'Enter') saveEdit(n.id, generalNotamText); if (e.key === 'Escape') { setGeneralNotamEditId(null); setGeneralNotamText(''); } }}
+                                              style={{ flex: 1, padding: '3px 6px', background: lightMode ? '#fffbeb' : '#1c1000', border: `1px solid #f59e0b`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: 'rtl', fontFamily: 'inherit' }}
+                                            />
+                                            <button onClick={() => saveEdit(n.id, generalNotamText)} disabled={!generalNotamText.trim()} style={{ padding: '3px 8px', background: '#92400e', color: '#fef3c7', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>שמור</button>
+                                            <button onClick={() => { setGeneralNotamEditId(null); setGeneralNotamText(''); }} style={{ padding: '3px 6px', background: 'transparent', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', color: '#64748b', flexShrink: 0 }}>ביטול</button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }}>•</span>
+                                            <span style={{ flex: 1, fontSize: '11px', color: lightMode ? '#92400e' : '#fcd34d', lineHeight: 1.5, wordBreak: 'break-word' }}>{n.text_content}</span>
+                                            <button onClick={() => { setGeneralNotamEditId(n.id); setGeneralNotamText(n.text_content); }} style={{ padding: '2px 5px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8', flexShrink: 0 }}>✏</button>
+                                            <button onClick={() => deleteRow(n.id)} style={{ padding: '2px 5px', background: 'transparent', border: '1px solid #ef444455', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', color: '#f87171', flexShrink: 0 }}>✕</button>
+                                          </>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {/* Add new row */}
+                                    <div style={{ display: 'flex', gap: '5px', marginTop: '8px', borderTop: `1px solid ${lightMode ? '#fde68a' : '#78350f55'}`, paddingTop: '8px' }}>
+                                      <input
+                                        value={generalNotamAddText}
+                                        onChange={e => setGeneralNotamAddText(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') addRow(); }}
+                                        placeholder="הוסף NOTAM כללי..."
+                                        style={{ flex: 1, padding: '4px 8px', background: lightMode ? '#fffbeb' : '#0c0900', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '11px', direction: 'rtl', fontFamily: 'inherit' }}
+                                      />
+                                      <button onClick={addRow} disabled={!generalNotamAddText.trim()} style={{ padding: '4px 12px', background: generalNotamAddText.trim() ? '#92400e' : '#374151', color: generalNotamAddText.trim() ? '#fef3c7' : '#6b7280', border: 'none', borderRadius: '5px', cursor: generalNotamAddText.trim() ? 'pointer' : 'default', fontSize: '11px', fontWeight: 'bold', flexShrink: 0 }}>+ הוסף</button>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -24766,94 +24849,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                               );
                             })()}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* General NOTAM Section */}
-                  {(isTowerMode || isGroundMode) && (() => {
-                    const gnWidgetOpen = !aidExpandedIds.has('__general_notam_closed__');
-                    const afId = myPresetConfig?.airfield_id;
-                    const refreshGeneralNotams = () => {
-                      if (!afId) return;
-                      fetch(`${API_URL}/airfield-general-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldGeneralNotams).catch(() => {});
-                    };
-                    const openAdd = () => { setGeneralNotamEditId(null); setGeneralNotamText(''); setGeneralNotamFloating(true); };
-                    const openEdit = (n: any) => { setGeneralNotamEditId(n.id); setGeneralNotamText(n.text_content); setGeneralNotamFloating(true); };
-                    const saveNotam = async () => {
-                      if (!generalNotamText.trim() || !afId) return;
-                      if (generalNotamEditId) {
-                        const res = await fetch(`${API_URL}/airfield-general-notams/${generalNotamEditId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text_content: generalNotamText }) });
-                        if (res.ok) { refreshGeneralNotams(); setGeneralNotamFloating(false); setGeneralNotamText(''); setGeneralNotamEditId(null); }
-                      } else {
-                        const res = await fetch(`${API_URL}/airfield-general-notams`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: afId, text_content: generalNotamText }) });
-                        if (res.ok) { refreshGeneralNotams(); setGeneralNotamFloating(false); setGeneralNotamText(''); }
-                      }
-                    };
-                    const deleteNotam = async (id: number) => {
-                      await fetch(`${API_URL}/airfield-general-notams/${id}`, { method: 'DELETE' });
-                      refreshGeneralNotams();
-                    };
-                    return (
-                      <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
-                        {/* Header row */}
-                        <div
-                          onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__general_notam_closed__') ? s.delete('__general_notam_closed__') : s.add('__general_notam_closed__'); return s; })}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#fef3c7' : '#1c1200', marginBottom: gnWidgetOpen ? '4px' : 0 }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
-                            {airfieldGeneralNotams.length > 0 && <span style={{ fontSize: '9px', color: '#f59e0b', fontWeight: 'bold', border: '1px solid #f59e0b66', borderRadius: '3px', padding: '1px 4px' }}>⚠ {airfieldGeneralNotams.length}</span>}
-                            <button
-                              onClick={e => { e.stopPropagation(); openAdd(); }}
-                              style={{ fontSize: '10px', padding: '1px 5px', background: generalNotamFloating && !generalNotamEditId ? '#78350f' : 'transparent', border: `1px solid ${generalNotamFloating && !generalNotamEditId ? '#f59e0b' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: generalNotamFloating && !generalNotamEditId ? '#fbbf24' : '#64748b', lineHeight: 1.2 }}
-                            >+ הוסף</button>
-                          </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24', flex: 1, textAlign: 'right', padding: '0 4px' }}>📋 NOTAM כללי ({airfieldGeneralNotams.length})</span>
-                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{gnWidgetOpen ? '▼' : '▶'}</span>
-                        </div>
-
-                        {/* List */}
-                        {gnWidgetOpen && (
-                          <div style={{ padding: '2px 4px 6px', direction: 'rtl' }}>
-                            {airfieldGeneralNotams.length === 0 && (
-                              <div style={{ fontSize: '10px', color: '#475569', textAlign: 'right', padding: '4px 6px' }}>אין NOTAMs כלליים</div>
-                            )}
-                            {airfieldGeneralNotams.map((n: any) => (
-                              <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', background: lightMode ? '#fffbeb' : '#0c0900', borderRadius: '5px', padding: '5px 7px', marginBottom: '4px', border: `1px solid ${lightMode ? '#fde68a' : '#78350f55'}` }}>
-                                <span style={{ fontSize: '12px', flexShrink: 0, marginTop: '1px' }}>⚠</span>
-                                <div style={{ flex: 1, fontSize: '11px', color: lightMode ? '#1e293b' : '#fde68a', lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{n.text_content}</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
-                                  <button onClick={() => openEdit(n)} style={{ padding: '1px 5px', background: 'transparent', border: '1px solid #334155', borderRadius: '3px', cursor: 'pointer', fontSize: '9px', color: '#94a3b8' }}>✏</button>
-                                  <button onClick={() => deleteNotam(n.id)} style={{ padding: '1px 5px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '9px' }}>✕</button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Floating form */}
-                        {generalNotamFloating && (
-                          <div style={{ position: 'fixed', top: '80px', right: '270px', width: '340px', background: lightMode ? '#fef3c7' : '#1c1400', border: `1px solid ${lightMode ? '#f59e0b' : '#92400e'}`, borderRadius: '10px', padding: '10px 12px', boxShadow: '0 10px 36px #00000099', zIndex: 9997, direction: 'rtl' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, paddingBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#92400e' : '#fbbf24' }}>📋 {generalNotamEditId ? 'עריכת NOTAM כללי' : 'NOTAM כללי חדש'}</span>
-                              <button onClick={() => { setGeneralNotamFloating(false); setGeneralNotamText(''); setGeneralNotamEditId(null); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px', lineHeight: 1 }}>✕</button>
-                            </div>
-                            <textarea
-                              autoFocus
-                              value={generalNotamText}
-                              onChange={e => setGeneralNotamText(e.target.value)}
-                              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveNotam(); if (e.key === 'Escape') { setGeneralNotamFloating(false); setGeneralNotamText(''); setGeneralNotamEditId(null); } }}
-                              placeholder="הזן טקסט NOTAM..."
-                              rows={4}
-                              style={{ width: '100%', padding: '6px 8px', background: lightMode ? '#fff8e1' : '#0c0900', border: `1px solid ${lightMode ? '#fbbf24' : '#78350f'}`, borderRadius: '6px', color: lightMode ? '#1e293b' : '#fde68a', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box', direction: 'rtl', fontFamily: 'inherit', lineHeight: 1.5, marginBottom: '8px' }}
-                            />
-                            <div style={{ fontSize: '9px', color: '#64748b', marginBottom: '6px', textAlign: 'right' }}>Ctrl+Enter לשמירה</div>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                              <button onClick={() => { setGeneralNotamFloating(false); setGeneralNotamText(''); setGeneralNotamEditId(null); }} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid #334155', borderRadius: '5px', cursor: 'pointer', fontSize: '10px', color: '#94a3b8' }}>ביטול</button>
-                              <button onClick={saveNotam} disabled={!generalNotamText.trim()} style={{ padding: '4px 14px', background: generalNotamText.trim() ? '#92400e' : '#374151', color: generalNotamText.trim() ? '#fef3c7' : '#6b7280', border: 'none', borderRadius: '5px', cursor: generalNotamText.trim() ? 'pointer' : 'default', fontSize: '10px', fontWeight: 'bold' }}>שמור NOTAM</button>
-                            </div>
                           </div>
                         )}
                       </div>
@@ -25485,12 +25480,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               {bs.air_defense_status || '—'}
                             </span>
                             <button
-                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); setBsInfoPanelPos({ x: Math.min(e.clientX - 240, window.innerWidth - 500), y: Math.max(e.clientY - 20, 10) }); }}
+                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'notam' }); setBsInfoEditText(bs.notam_text || ''); setBsInfoPanelPos({ x: Math.min(e.clientX - 240, window.innerWidth - 500), y: Math.min(Math.max(e.clientY - 20, 10), window.innerHeight - 420) }); }}
                               title={notamTitle}
                               style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasNotam ? '#f59e0b' : T.border}`, background: hasNotam ? (lightMode ? '#fffbeb' : '#1c1107') : 'transparent', color: hasNotam ? '#f59e0b' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
                             >⚠{hasNotam && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#f59e0b', border: '1px solid #0f172a' }} />}</button>
                             <button
-                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); setBsInfoPanelPos({ x: Math.min(e.clientX - 240, window.innerWidth - 500), y: Math.max(e.clientY - 20, 10) }); }}
+                              onClick={e => { e.stopPropagation(); setBsInfoModal({ bs, mode: 'atis' }); setBsInfoEditText(bs.atis_text || ''); setBsInfoPanelPos({ x: Math.min(e.clientX - 240, window.innerWidth - 500), y: Math.min(Math.max(e.clientY - 20, 10), window.innerHeight - 420) }); }}
                               title={atisTitle}
                               style={{ flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%', border: `1px solid ${hasAtis ? '#38bdf8' : T.border}`, background: hasAtis ? (lightMode ? '#e0f2fe' : '#0c1f30') : 'transparent', color: hasAtis ? '#38bdf8' : T.muted, cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, position: 'relative' }}
                             >📻{hasAtis && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '7px', height: '7px', borderRadius: '50%', background: '#38bdf8', border: '1px solid #0f172a' }} />}</button>
