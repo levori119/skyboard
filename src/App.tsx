@@ -26754,7 +26754,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 if (fzFlashMsgTimerRef.current) clearTimeout(fzFlashMsgTimerRef.current);
                 setFzFlashZoneIds(ids);
                 setFzShowZones(true);
-                const _flashZoneName = mapZones.find(z => ids.has(z.id))?.name || a.zone_name || `אזור ${a.zone_id}`;
+                const _flashZoneNames = mapZones.filter(z => ids.has(z.id)).map(z => z.name);
+                const _flashZoneName = _flashZoneNames.length > 0 ? _flashZoneNames.join(', ') : (a.zone_name || `אזור ${a.zone_id}`);
                 setFzFlashMsg(`⚡ מדגיש: ${_flashZoneName}`);
                 fzFlashTimerRef.current = setTimeout(() => {
                   setFzFlashZoneIds(new Set());
