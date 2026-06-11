@@ -15603,7 +15603,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const _ov = fzOverlayRef.current;
     if (_ov) _ov.style.pointerEvents = 'none';
     const elUnder = document.elementFromPoint(e.clientX, e.clientY);
-    if (_ov) _ov.style.pointerEvents = 'all';
+    // keep 'none' — pointer/drag is ending, overlay must not block future interaction
     const markerEl = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
     if (markerEl) {
       const sectorId = parseInt(markerEl.getAttribute('data-marker-sector') || '0', 10);
