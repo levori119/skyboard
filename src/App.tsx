@@ -24913,33 +24913,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
                             {hasClosed && <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #ef444466', borderRadius: '3px', padding: '1px 4px' }}>⚠ סגור</span>}
-                            <button
-                              onClick={e => { e.stopPropagation(); setTwAddForm(prev => prev === null ? '' : null); }}
-                              style={{ fontSize: '10px', padding: '1px 5px', background: twAddForm !== null ? '#0c4a6e' : 'transparent', border: `1px solid ${twAddForm !== null ? '#38bdf8' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: twAddForm !== null ? '#38bdf8' : '#64748b', lineHeight: 1.2 }}
-                              title="הוסף taxiway"
-                            >+ הוסף</button>
                           </div>
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🛤 TAXIWAYS ({airfieldTaxiways.length})</span>
                           <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{twWidgetOpen ? '▼' : '▶'}</span>
                         </div>
                         {twWidgetOpen && (
                           <div style={{ padding: '4px', direction: 'rtl' }}>
-                            {twAddForm !== null && (
-                              <div style={{ display: 'flex', gap: '4px', marginBottom: '6px', alignItems: 'center' }}>
-                                <input
-                                  autoFocus
-                                  value={twAddForm}
-                                  onChange={e => setTwAddForm(e.target.value)}
-                                  onKeyDown={e => { if (e.key === 'Enter') addTaxiway(twAddForm); if (e.key === 'Escape') setTwAddForm(null); }}
-                                  placeholder="שם taxiway (A, B1, Alpha...)"
-                                  style={{ flex: 1, padding: '4px 7px', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '5px', color: '#e2e8f0', fontSize: '12px', direction: 'rtl' }}
-                                />
-                                <button onClick={() => addTaxiway(twAddForm)} style={{ padding: '4px 8px', background: '#0c4a6e', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✔</button>
-                                <button onClick={() => setTwAddForm(null)} style={{ padding: '4px 8px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
-                              </div>
-                            )}
-                            {airfieldTaxiways.length === 0 && twAddForm === null && (
-                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>אין TAXIWAYS מוגדרים — לחץ "+ הוסף" להוספה</div>
+                            {airfieldTaxiways.length === 0 && (
+                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>אין TAXIWAYS מוגדרים — הגדר בניהול השדה</div>
                             )}
                             {visibleTaxiways.length === 0 && airfieldTaxiways.length > 0 && (
                               <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '6px 0' }}>כל ה-TAXIWAYS סגורים — מוצגים פתוחים בלבד</div>
@@ -24975,17 +24956,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                         placeholder="NOTAM / הערה לנתיב נסיעה..."
                                         style={{ width: '100%', background: lightMode ? '#f0f9ff' : '#0a1628', border: `1px solid ${lightMode ? '#7dd3fc' : '#0369a1'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', padding: '6px 8px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
                                       />
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', marginTop: '5px', alignItems: 'center' }}>
-                                        <button onClick={() => deleteTaxiway(tw.id)}
-                                          style={{ padding: '2px 8px', background: 'transparent', color: '#ef4444', border: '1px solid #ef444466', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>🗑 מחק</button>
-                                        <div style={{ display: 'flex', gap: '5px' }}>
-                                          <button onClick={() => { setTwExpandedId(null); setTwEditId(null); }}
-                                            style={{ padding: '3px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: T.muted }}>סגור</button>
-                                          {twEditId === tw.id && (
-                                            <button onClick={() => { updateTaxiway(tw.id, { notam_text: twEditText || null }); setTwEditId(null); }}
-                                              style={{ padding: '3px 12px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
-                                          )}
-                                        </div>
+                                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '5px', marginTop: '5px' }}>
+                                        <button onClick={() => { setTwExpandedId(null); setTwEditId(null); }}
+                                          style={{ padding: '3px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: T.muted }}>סגור</button>
+                                        {twEditId === tw.id && (
+                                          <button onClick={() => { updateTaxiway(tw.id, { notam_text: twEditText || null }); setTwEditId(null); }}
+                                            style={{ padding: '3px 12px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                                        )}
                                       </div>
                                     </div>
                                   )}
@@ -30729,6 +30706,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   // Airfield Routes admin state
   const [adminAirfieldRoutes, setAdminAirfieldRoutes] = useState<any[]>([]);
   const [airfieldRouteForm, setAirfieldRouteForm] = useState({ name: '', airfield_id: '', color: '#3b82f6', notes: '', category: 'general', is_runway: false, end_a_name: '', end_b_name: '' });
+  // Airfield Taxiways admin state
+  const [adminAirfieldTaxiways, setAdminAirfieldTaxiways] = useState<any[]>([]);
+  const [twAdminNewName, setTwAdminNewName] = useState('');
+  const [twAdminShowAdd, setTwAdminShowAdd] = useState(false);
   const [editingAirfieldRoute, setEditingAirfieldRoute] = useState<any | null>(null);
   const [showAirfieldRouteForm, setShowAirfieldRouteForm] = useState(false);
   const [drawingRouteId, setDrawingRouteId] = useState<number | null>(null);
@@ -34465,6 +34446,10 @@ CHARLIE,1,301,`}
             if (r.ok) setAdminAirfieldElements(await r.json());
             else setAdminAirfieldElements([]);
           };
+          const loadAdminAirfieldTaxiways = async (airfieldId: number) => {
+            const r = await fetch(`${API_URL}/airfield-taxiways?airfield_id=${airfieldId}`);
+            setAdminAirfieldTaxiways(r.ok ? await r.json() : []);
+          };
           const loadAirfieldRunways = async (airfieldId: number) => {
             const [rr, nr, gr] = await Promise.all([
               fetch(`${API_URL}/airfield-runways?airfield_id=${airfieldId}`),
@@ -34502,6 +34487,7 @@ CHARLIE,1,301,`}
             await loadAirfieldSectors(airfieldId);
             await loadAirfieldStatusTypes(airfieldId);
             await loadAirfieldRunways(airfieldId);
+            loadAdminAirfieldTaxiways(airfieldId);
             fetch(`${API_URL}/route-links?airfield_id=${airfieldId}`)
               .then(r => r.ok ? r.json() : []).then(setAdminRouteLinks).catch(() => {});
             setShowAddRouteLinkForm(false);
@@ -36031,6 +36017,59 @@ CHARLIE,1,301,`}
                           );
                         })()}
                         </>)}
+                      </div>
+                    )}
+
+                    {/* Taxiways definition */}
+                    {selectedAdminAirfieldId && (
+                      <div style={{ borderTop: '1px solid #334155', paddingTop: '10px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: adminAFExpanded.has('taxiways') ? '6px' : 0, cursor: 'pointer' }} onClick={() => toggleAFSec('taxiways')}>
+                          <div style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 'bold', flex: 1 }}>🛤 TAXIWAYS ({adminAirfieldTaxiways.length})</div>
+                          {adminAFExpanded.has('taxiways') && !twAdminShowAdd && (
+                            <button onClick={e => { e.stopPropagation(); setTwAdminNewName(''); setTwAdminShowAdd(true); }}
+                              style={{ padding: '2px 8px', background: '#78350f', color: '#fcd34d', border: '1px solid #fbbf2466', borderRadius: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold', marginLeft: '4px' }}>+ הוסף</button>
+                          )}
+                          <span style={{ color: adminAFExpanded.has('taxiways') ? '#fbbf24' : '#475569', fontSize: '11px', marginRight: '4px' }}>{adminAFExpanded.has('taxiways') ? '▲' : '▼'}</span>
+                        </div>
+                        {adminAFExpanded.has('taxiways') && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {twAdminShowAdd && (
+                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                                <input autoFocus type="text" value={twAdminNewName}
+                                  onChange={e => setTwAdminNewName(e.target.value)}
+                                  onKeyDown={async e => {
+                                    if (e.key === 'Enter' && twAdminNewName.trim()) {
+                                      const r = await fetch(`${API_URL}/airfield-taxiways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: twAdminNewName.trim() }) });
+                                      if (r.ok) { const tw = await r.json(); setAdminAirfieldTaxiways(prev => [...prev, tw]); setTwAdminNewName(''); setTwAdminShowAdd(false); }
+                                    } else if (e.key === 'Escape') { setTwAdminShowAdd(false); setTwAdminNewName(''); }
+                                  }}
+                                  placeholder="שם נתיב (A, B1, Alpha...)"
+                                  style={{ flex: 1, padding: '4px 7px', background: '#1e293b', border: '1px solid #fbbf24', borderRadius: '5px', color: '#fcd34d', fontSize: '12px', direction: 'rtl' }}
+                                />
+                                <button onClick={async () => {
+                                  if (!twAdminNewName.trim()) return;
+                                  const r = await fetch(`${API_URL}/airfield-taxiways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: selectedAdminAirfieldId, name: twAdminNewName.trim() }) });
+                                  if (r.ok) { const tw = await r.json(); setAdminAirfieldTaxiways(prev => [...prev, tw]); setTwAdminNewName(''); setTwAdminShowAdd(false); }
+                                }} style={{ padding: '4px 8px', background: '#92400e', color: '#fcd34d', border: '1px solid #fbbf24', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✔</button>
+                                <button onClick={() => { setTwAdminShowAdd(false); setTwAdminNewName(''); }}
+                                  style={{ padding: '4px 8px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                              </div>
+                            )}
+                            {adminAirfieldTaxiways.length === 0 && (
+                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0', direction: 'rtl' }}>אין TAXIWAYS מוגדרים — לחץ "+ הוסף" להוספה</div>
+                            )}
+                            {adminAirfieldTaxiways.map((tw: any) => (
+                              <div key={tw.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 6px', background: '#0f172a', borderRadius: '5px', border: '1px solid #1e293b' }}>
+                                <span style={{ flex: 1, fontSize: '12px', color: '#fcd34d', fontFamily: 'monospace', fontWeight: 'bold', direction: 'rtl' }}>{tw.name}</span>
+                                <button onClick={async () => {
+                                  if (!window.confirm(`למחוק את הנתיב "${tw.name}"?`)) return;
+                                  await fetch(`${API_URL}/airfield-taxiways/${tw.id}`, { method: 'DELETE' });
+                                  setAdminAirfieldTaxiways(prev => prev.filter((t: any) => t.id !== tw.id));
+                                }} style={{ padding: '2px 6px', background: 'transparent', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', flexShrink: 0 }}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
