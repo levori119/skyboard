@@ -26280,7 +26280,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Base Status NOTAM / ATIS Info Modal */}
       {bsInfoModal && createPortal(
         <div
-          style={{ position: 'fixed', left: bsInfoPanelPos.x, top: bsInfoPanelPos.y, zIndex: 99990, background: '#1e293b', borderRadius: '12px', width: '460px', maxWidth: '92vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}
+          style={{ position: 'fixed', left: Math.min(bsInfoPanelPos.x, window.innerWidth - 480), top: Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 160)), zIndex: 99990, background: '#1e293b', borderRadius: '12px', width: '460px', maxWidth: '92vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: `calc(100vh - ${Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 160)) + 16}px)` }}
           onClick={e => e.stopPropagation()}>
           {/* Draggable header */}
           <div
@@ -26403,19 +26403,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <button
                       onClick={() => {
                         if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); return; }
-                        const parts: string[] = [];
-                        parts.push(`ATIS ${afAtis.letter}`);
-                        if (afAtis.obs_time) parts.push(`time ${afAtis.obs_time}`);
-                        if (afAtis.landing_runway) parts.push(`landing runway ${afAtis.landing_runway}`);
-                        if (afAtis.departure_runway) parts.push(`departure runway ${afAtis.departure_runway}`);
-                        if (afAtis.wind_direction != null) parts.push(`wind ${afAtis.wind_direction} degrees ${afAtis.wind_speed} knots${afAtis.wind_gust ? ` gusting ${afAtis.wind_gust}` : ''}`);
-                        if (afAtis.visibility) parts.push(`visibility ${afAtis.visibility}`);
-                        if (afAtis.ceiling_value != null) parts.push(`ceiling ${afAtis.ceiling_type || 'broken'} ${afAtis.ceiling_value} feet`);
-                        if (afAtis.weather_phenomena) parts.push(afAtis.weather_phenomena);
-                        if (afAtis.temperature != null) parts.push(`temperature ${afAtis.temperature} dewpoint ${afAtis.dewpoint ?? 'unknown'}`);
-                        if (afAtis.altimeter_qnh) parts.push(`QNH ${afAtis.altimeter_qnh}`);
-                        if (afAtis.notam_info) parts.push(`NOTAM ${afAtis.notam_info}`);
-                        const u = new SpeechSynthesisUtterance(parts.join(', '));
+                        const u = new SpeechSynthesisUtterance(fullAtisText);
                         u.lang = 'en-US'; u.rate = 0.88;
                         u.onstart = () => setAtisSpeaking(true);
                         u.onend = () => setAtisSpeaking(false);
