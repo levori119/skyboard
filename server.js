@@ -1090,6 +1090,15 @@ async function initDb() {
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS asda_b_m INT`);
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS lda_b_m INT`);
   await pool.query(`ALTER TABLE airfield_runways ADD COLUMN IF NOT EXISTS clearway_b_m INT`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS airfield_taxiways (
+    id SERIAL PRIMARY KEY,
+    airfield_id INTEGER REFERENCES airfields(id) ON DELETE CASCADE,
+    name VARCHAR(50) NOT NULL DEFAULT '',
+    notam_text TEXT,
+    is_closed BOOLEAN NOT NULL DEFAULT false,
+    is_closed_vehicles BOOLEAN NOT NULL DEFAULT false,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  )`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS threshold_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE runway_lighting ADD COLUMN IF NOT EXISTS end_lights INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`CREATE TABLE IF NOT EXISTS workstation_messages (
@@ -6169,6 +6178,43 @@ app.delete('/api/airfield-runways/:id', async (req, res) => {
     await pool.query('DELETE FROM airfield_runways WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete airfield runway' }); }
+});
+
+// ── Airfield Taxiways ──
+app.get('/api/airfield-taxiways', async (req, res) => {
+  try {
+    const { airfield_id } = req.query;
+    if (!airfield_id) return res.json([]);
+    const { rows } = await pool.query('SELECT * FROM airfield_taxiways WHERE airfield_id=$1 ORDER BY sort_order, name, id', [airfield_id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to get airfield taxiways' }); }
+});
+app.post('/api/airfield-taxiways', async (req, res) => {
+  try {
+    const { airfield_id, name, notam_text, is_closed, is_closed_vehicles, sort_order } = req.body;
+    const { rows } = await pool.query(
+      'INSERT INTO airfield_taxiways (airfield_id, name, notam_text, is_closed, is_closed_vehicles, sort_order) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [airfield_id, name || '', notam_text || null, is_closed || false, is_closed_vehicles || false, sort_order ?? 0]
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create taxiway' }); }
+});
+app.put('/api/airfield-taxiways/:id', async (req, res) => {
+  try {
+    const { name, notam_text, is_closed, is_closed_vehicles, sort_order } = req.body;
+    const { rows } = await pool.query(
+      'UPDATE airfield_taxiways SET name=$1, notam_text=$2, is_closed=$3, is_closed_vehicles=$4, sort_order=$5 WHERE id=$6 RETURNING *',
+      [name ?? '', notam_text ?? null, is_closed ?? false, is_closed_vehicles ?? false, sort_order ?? 0, req.params.id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update taxiway' }); }
+});
+app.delete('/api/airfield-taxiways/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM airfield_taxiways WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete taxiway' }); }
 });
 
 // ── Runway NOTAMs ──

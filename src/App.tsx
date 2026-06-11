@@ -5656,7 +5656,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [] }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -5713,6 +5713,9 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldRunways?: any[];
   airfieldRunwayNotams?: any[];
   activeTakeoffs?: {stripId: number|string; callsign: string; runway: string; routeName: string}[];
+  airfieldTaxiways?: any[];
+  showTaxiwayOpenOnly?: boolean;
+  onToggleTaxiwayOpenOnly?: () => void;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -7749,6 +7752,12 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                   {label}
                 </label>
               ))}
+              {airfieldTaxiways.length > 0 && onToggleTaxiwayOpenOnly && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '11px', color: showTaxiwayOpenOnly ? '#38bdf8' : headerColor, marginTop: '2px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}`, paddingTop: '4px' }}>
+                  <input type="checkbox" checked={showTaxiwayOpenOnly} onChange={onToggleTaxiwayOpenOnly} />
+                  🛤 TAXIWAYS פתוחים בלבד
+                </label>
+              )}
             </div>
             <div style={{ padding: '3px 10px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e3a5f'}`, background: lightMode ? '#f1f5f9' : '#0a1628' }}>
               <div style={{ fontSize: '9px', fontWeight: 'bold', color: lightMode ? '#64748b' : '#64748b', padding: '3px 0 3px', letterSpacing: '0.05em', textTransform: 'uppercase' }}>הגדרות תצוגה</div>
@@ -14384,6 +14393,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [airfields, setAirfields] = useState<any[]>([]);
   const [airfieldRunways, setAirfieldRunways] = useState<any[]>([]);
   const [airfieldRunwayNotams, setAirfieldRunwayNotams] = useState<any[]>([]);
+  const [airfieldTaxiways, setAirfieldTaxiways] = useState<any[]>([]);
+  const [twExpandedId, setTwExpandedId] = useState<number | null>(null);
+  const [twEditId, setTwEditId] = useState<number | null>(null);
+  const [twEditText, setTwEditText] = useState('');
+  const [showTaxiwayOpenOnly, setShowTaxiwayOpenOnly] = useState(false);
+  const [twAddForm, setTwAddForm] = useState<string | null>(null);
   const [airfieldRunwayGrf, setAirfieldRunwayGrf] = useState<any[]>([]);
   const [rwNotamSummaryOpen, setRwNotamSummaryOpen] = useState(false);
   const [rwGrfSummaryOpen, setRwGrfSummaryOpen] = useState(false);
@@ -16891,6 +16906,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         fetch(`${API_URL}/airfield-runways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunways).catch(() => {});
         fetch(`${API_URL}/runway-notams?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayNotams).catch(() => {});
         fetch(`${API_URL}/runway-grf?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldRunwayGrf).catch(() => {});
+        fetch(`${API_URL}/airfield-taxiways?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(setAirfieldTaxiways).catch(() => {});
         fetch(`${API_URL}/airfield-atis?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then(d => setWorkstationAtis(Array.isArray(d) ? (d[0] || null) : null)).catch(() => {});
         fetch(`${API_URL}/runway-lighting?airfield_id=${afId}`).then(r => r.ok ? r.json() : []).then((data: any[]) => { const m: Record<number, any> = {}; data.forEach(d => { m[d.runway_id] = d; }); setRunwayLighting(m); }).catch(() => {});
       }
@@ -20314,6 +20330,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 airfieldRunways={airfieldRunways}
                 airfieldRunwayNotams={airfieldRunwayNotams}
                 activeTakeoffs={activeTakeoffs}
+                airfieldTaxiways={airfieldTaxiways}
+                showTaxiwayOpenOnly={showTaxiwayOpenOnly}
+                onToggleTaxiwayOpenOnly={() => setShowTaxiwayOpenOnly(v => !v)}
                 stripsPinned={sidebarPinned}
                 onTogglePin={() => setSidebarPinned(v => !v)}
                 headerButtons={<>
@@ -24623,6 +24642,124 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                               );
                             })()}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* TAXIWAYS Section */}
+                  {(isTowerMode || isGroundMode) && (() => {
+                    const twWidgetOpen = !aidExpandedIds.has('__taxiway_widget_closed__');
+                    const visibleTaxiways = showTaxiwayOpenOnly
+                      ? airfieldTaxiways.filter((tw: any) => !tw.is_closed && !tw.is_closed_vehicles)
+                      : airfieldTaxiways;
+                    const hasClosed = airfieldTaxiways.some((tw: any) => tw.is_closed || tw.is_closed_vehicles);
+                    const updateTaxiway = async (id: number, patch: Record<string, any>) => {
+                      const tw = airfieldTaxiways.find((t: any) => t.id === id);
+                      if (!tw) return;
+                      const body = { name: tw.name, notam_text: tw.notam_text ?? null, is_closed: tw.is_closed, is_closed_vehicles: tw.is_closed_vehicles, sort_order: tw.sort_order ?? 0, ...patch };
+                      const updated = await fetch(`${API_URL}/airfield-taxiways/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.ok ? r.json() : null).catch(() => null);
+                      if (updated) setAirfieldTaxiways(prev => prev.map((t: any) => t.id === id ? updated : t));
+                    };
+                    const addTaxiway = async (name: string) => {
+                      const afId = myPresetConfig?.airfield_id;
+                      if (!afId || !name.trim()) return;
+                      const created = await fetch(`${API_URL}/airfield-taxiways`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airfield_id: afId, name: name.trim() }) }).then(r => r.ok ? r.json() : null).catch(() => null);
+                      if (created) { setAirfieldTaxiways(prev => [...prev, created]); setTwAddForm(null); }
+                    };
+                    const deleteTaxiway = async (id: number) => {
+                      await fetch(`${API_URL}/airfield-taxiways/${id}`, { method: 'DELETE' }).catch(() => {});
+                      setAirfieldTaxiways(prev => prev.filter((t: any) => t.id !== id));
+                      if (twExpandedId === id) setTwExpandedId(null);
+                    };
+                    return (
+                      <div style={{ borderTop: `2px solid ${T.border}`, flexShrink: 0 }}>
+                        <div
+                          onClick={() => setAidExpandedIds(prev => { const s = new Set(prev); s.has('__taxiway_widget_closed__') ? s.delete('__taxiway_widget_closed__') : s.add('__taxiway_widget_closed__'); return s; })}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px', cursor: 'pointer', borderRadius: '4px', background: lightMode ? '#e2e8f0' : '#0f172a', marginBottom: twWidgetOpen ? '4px' : 0 }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}>
+                            {hasClosed && <span style={{ fontSize: '9px', color: '#ef4444', fontWeight: 'bold', border: '1px solid #ef444466', borderRadius: '3px', padding: '1px 4px' }}>⚠ סגור</span>}
+                            <button
+                              onClick={e => { e.stopPropagation(); setTwAddForm(prev => prev === null ? '' : null); }}
+                              style={{ fontSize: '10px', padding: '1px 5px', background: twAddForm !== null ? '#0c4a6e' : 'transparent', border: `1px solid ${twAddForm !== null ? '#38bdf8' : '#334155'}`, borderRadius: '3px', cursor: 'pointer', color: twAddForm !== null ? '#38bdf8' : '#64748b', lineHeight: 1.2 }}
+                              title="הוסף taxiway"
+                            >+ הוסף</button>
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#334155' : '#94a3b8', flex: 1, textAlign: 'right', padding: '0 4px' }}>🛤 TAXIWAYS ({airfieldTaxiways.length})</span>
+                          <span style={{ fontSize: '9px', color: T.muted, flexShrink: 0 }}>{twWidgetOpen ? '▼' : '▶'}</span>
+                        </div>
+                        {twWidgetOpen && (
+                          <div style={{ padding: '4px', direction: 'rtl' }}>
+                            {twAddForm !== null && (
+                              <div style={{ display: 'flex', gap: '4px', marginBottom: '6px', alignItems: 'center' }}>
+                                <input
+                                  autoFocus
+                                  value={twAddForm}
+                                  onChange={e => setTwAddForm(e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') addTaxiway(twAddForm); if (e.key === 'Escape') setTwAddForm(null); }}
+                                  placeholder="שם taxiway (A, B1, Alpha...)"
+                                  style={{ flex: 1, padding: '4px 7px', background: '#0f172a', border: '1px solid #0369a1', borderRadius: '5px', color: '#e2e8f0', fontSize: '12px', direction: 'rtl' }}
+                                />
+                                <button onClick={() => addTaxiway(twAddForm)} style={{ padding: '4px 8px', background: '#0c4a6e', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>✔</button>
+                                <button onClick={() => setTwAddForm(null)} style={{ padding: '4px 8px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                              </div>
+                            )}
+                            {airfieldTaxiways.length === 0 && twAddForm === null && (
+                              <div style={{ fontSize: '11px', color: '#475569', textAlign: 'center', padding: '8px 0' }}>אין TAXIWAYS מוגדרים — לחץ "+ הוסף" להוספה</div>
+                            )}
+                            {visibleTaxiways.length === 0 && airfieldTaxiways.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', padding: '6px 0' }}>כל ה-TAXIWAYS סגורים — מוצגים פתוחים בלבד</div>
+                            )}
+                            {visibleTaxiways.map((tw: any) => {
+                              const isExpanded = twExpandedId === tw.id;
+                              const isClosed = !!tw.is_closed;
+                              const isClosedVeh = !!tw.is_closed_vehicles;
+                              return (
+                                <div key={tw.id} style={{ marginBottom: '4px', borderRadius: '5px', border: `1px solid ${isClosed ? '#ef444455' : isClosedVeh ? '#f9731655' : (lightMode ? '#cbd5e1' : '#1e293b')}`, background: isClosed ? (lightMode ? '#fef2f2' : '#1a0505') : isClosedVeh ? (lightMode ? '#fff7ed' : '#180d02') : (lightMode ? '#f8fafc' : '#0c1521') }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 6px', cursor: 'pointer' }} onClick={() => setTwExpandedId(prev => prev === tw.id ? null : tw.id)}>
+                                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: isClosed ? '#ef4444' : isClosedVeh ? '#f97316' : (lightMode ? '#1e293b' : '#e2e8f0'), minWidth: '32px', fontFamily: 'monospace', letterSpacing: '0.05em' }}>{tw.name}</span>
+                                    <div style={{ display: 'flex', gap: '3px', flex: 1, flexWrap: 'wrap' }}>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); updateTaxiway(tw.id, { is_closed: !isClosed }); }}
+                                        style={{ fontSize: '9px', padding: '1px 5px', background: isClosed ? '#ef4444' : 'transparent', border: `1px solid ${isClosed ? '#ef4444' : '#374151'}`, borderRadius: '3px', cursor: 'pointer', color: isClosed ? 'white' : '#64748b', fontWeight: isClosed ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+                                      >{isClosed ? '🚫 ✈' : '✅ ✈'}</button>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); updateTaxiway(tw.id, { is_closed_vehicles: !isClosedVeh }); }}
+                                        style={{ fontSize: '9px', padding: '1px 5px', background: isClosedVeh ? '#ea580c' : 'transparent', border: `1px solid ${isClosedVeh ? '#f97316' : '#374151'}`, borderRadius: '3px', cursor: 'pointer', color: isClosedVeh ? 'white' : '#64748b', fontWeight: isClosedVeh ? 'bold' : 'normal', whiteSpace: 'nowrap' }}
+                                      >{isClosedVeh ? '🚫 🚗' : '✅ 🚗'}</button>
+                                    </div>
+                                    {tw.notam_text && <span style={{ fontSize: '10px', color: '#f59e0b', flexShrink: 0 }} title="יש NOTAM">⚠</span>}
+                                    <span style={{ fontSize: '9px', color: '#475569', flexShrink: 0 }}>{isExpanded ? '▲' : '▼'}</span>
+                                  </div>
+                                  {isExpanded && (
+                                    <div style={{ padding: '5px 6px 7px', borderTop: `1px solid ${lightMode ? '#e2e8f0' : '#1e293b'}` }}>
+                                      <textarea
+                                        value={twEditId === tw.id ? twEditText : (tw.notam_text || '')}
+                                        onFocus={() => { setTwEditId(tw.id); setTwEditText(tw.notam_text || ''); }}
+                                        onChange={e => setTwEditText(e.target.value)}
+                                        rows={3}
+                                        placeholder="NOTAM / הערה לנתיב נסיעה..."
+                                        style={{ width: '100%', background: lightMode ? '#f0f9ff' : '#0a1628', border: `1px solid ${lightMode ? '#7dd3fc' : '#0369a1'}`, borderRadius: '5px', color: lightMode ? '#1e293b' : '#e2e8f0', fontSize: '12px', padding: '6px 8px', resize: 'vertical', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5 }}
+                                      />
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', marginTop: '5px', alignItems: 'center' }}>
+                                        <button onClick={() => deleteTaxiway(tw.id)}
+                                          style={{ padding: '2px 8px', background: 'transparent', color: '#ef4444', border: '1px solid #ef444466', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>🗑 מחק</button>
+                                        <div style={{ display: 'flex', gap: '5px' }}>
+                                          <button onClick={() => { setTwExpandedId(null); setTwEditId(null); }}
+                                            style={{ padding: '3px 10px', background: 'transparent', border: `1px solid ${T.border}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', color: T.muted }}>סגור</button>
+                                          {twEditId === tw.id && (
+                                            <button onClick={() => { updateTaxiway(tw.id, { notam_text: twEditText || null }); setTwEditId(null); }}
+                                              style={{ padding: '3px 12px', background: '#0c4a6e', color: 'white', border: '1px solid #38bdf8', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}>שמור</button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
