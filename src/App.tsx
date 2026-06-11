@@ -25822,7 +25822,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {bsInfoModal && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 99990, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setBsInfoModal(null)}>
-          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', width: '90%', maxWidth: '420px', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
+          <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', width: '90%', maxWidth: '460px', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.7)', maxHeight: '80vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
               <span style={{ fontSize: '20px' }}>{bsInfoModal.mode === 'notam' ? '⚠️' : '📻'}</span>
@@ -25837,6 +25837,74 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               <button onClick={() => setBsInfoModal(null)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0' }}>✕</button>
             </div>
             {(() => {
+              const hasAirfield = !!(bsInfoModal.bs.airfield_id);
+              const afNotams: any[] = Array.isArray(bsInfoModal.bs.airfield_notams) ? bsInfoModal.bs.airfield_notams : [];
+              const afAtis: any = bsInfoModal.bs.airfield_atis_data || null;
+
+              /* ── Airfield-linked: show live structured data (read-only) ── */
+              const closeBtn = <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
+                <button onClick={() => setBsInfoModal(null)} style={{ padding: '7px 20px', background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}>סגור</button>
+              </div>;
+
+              if (hasAirfield && bsInfoModal.mode === 'notam') {
+                return (<>
+                  {afNotams.length === 0 ? (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>אין NOTAM פעילים לשדה זה ✅</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {afNotams.map((n: any, i: number) => (
+                        <div key={i} style={{ padding: '10px 12px', borderRadius: '8px', background: n.notam_type === 'closed' ? '#2d0a0a' : '#1c1107', border: `1px solid ${n.notam_type === 'closed' ? '#dc2626' : '#92400e'}` }}>
+                          <div style={{ fontWeight: 'bold', color: n.notam_type === 'closed' ? '#fca5a5' : '#fbbf24', fontSize: '13px', marginBottom: '4px' }}>
+                            {n.notam_type === 'closed' ? '🚫 מסלול סגור' : n.notam_type === 'shortening' ? '✂️ קיצור מסלול' : '📋 הודעה'} — {n.runway_name}
+                          </div>
+                          {n.notam_type === 'shortening' && (
+                            <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
+                              {n.shorten_end && <span>קצה: {n.shorten_end} | </span>}
+                              {n.shorten_amount_ft && <span>קיצור: {n.shorten_amount_ft} ft</span>}
+                              {n.shorten_amount_m && <span> / {n.shorten_amount_m} m</span>}
+                            </div>
+                          )}
+                          {n.text_content && <div style={{ fontSize: '12px', color: '#e2e8f0', marginTop: '2px' }}>{n.text_content}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {closeBtn}
+                </>);
+              }
+
+              if (hasAirfield && bsInfoModal.mode === 'atis') {
+                if (!afAtis) return (<>{<div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>אין נתוני ATIS לשדה זה</div>}{closeBtn}</>);
+                const row = (label: string, value: any) => value != null && value !== '' ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #1e293b', fontSize: '13px' }}>
+                    <span style={{ color: '#94a3b8' }}>{label}</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>{value}</span>
+                  </div>
+                ) : null;
+                return (
+                  <>
+                    <div style={{ background: '#0c1f30', borderRadius: '8px', padding: '10px 14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#38bdf8' }}>{afAtis.letter}</span>
+                      {afAtis.obs_time && <span style={{ fontSize: '13px', color: '#7dd3fc' }}>@ {afAtis.obs_time}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                      {row('מסלול נחיתה', afAtis.landing_runway)}
+                      {row('מסלול המראה', afAtis.departure_runway)}
+                      {row('גישה', afAtis.approach_type)}
+                      {afAtis.wind_direction != null && row('רוח', `${afAtis.wind_direction}°/${afAtis.wind_speed}kt${afAtis.wind_gust ? ` G${afAtis.wind_gust}` : ''}`)}
+                      {row('ראות', afAtis.visibility)}
+                      {afAtis.ceiling_value != null && row('תקרה', `${afAtis.ceiling_type || 'BKN'} ${afAtis.ceiling_value} ft`)}
+                      {row('מזג אוויר', afAtis.weather_phenomena)}
+                      {afAtis.temperature != null && row('טמפ׳/נקודת טל', `${afAtis.temperature}°C / ${afAtis.dewpoint ?? '—'}°C`)}
+                      {row('QNH', afAtis.altimeter_qnh)}
+                      {row('מידע נוסף (NOTAM)', afAtis.notam_info)}
+                    </div>
+                    {closeBtn}
+                  </>
+                );
+              }
+
+              /* ── No airfield linked: manual text (editable for authorized users) ── */
               const canEdit = bsInfoModal.mode === 'atis' ? canUpdateAtis : canUpdateNotam;
               return (
                 <>
