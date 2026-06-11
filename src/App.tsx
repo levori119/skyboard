@@ -25017,7 +25017,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 <datalist id="atis-rw">{airfieldRunways.filter((rw: any) => rw.name).map((rw: any) => <option key={rw.id} value={rw.name} />)}</datalist>
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>✈ מסלולי נחיתה</div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>✈ מסלולי נחיתה</div>
                                     <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, landing_runways: [...(p.landing_runways||[]), {rw:'',approach:'ILS'}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
                                   </div>
                                   {(f.landing_runways || []).map((lr: any, idx: number) => (
@@ -25035,7 +25035,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {/* Departure Runways */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>🛫 מסלולי המראה</div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>🛫 מסלולי המראה</div>
                                     <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, departure_runways: [...(p.departure_runways||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
                                   </div>
                                   {(f.departure_runways || []).map((rw: string, idx: number) => (
@@ -25048,7 +25048,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 {/* Cloud Layers */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>☁ עננויות</div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>☁ עננויות</div>
                                     <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, cloud_layers: [...(p.cloud_layers||[]), {type:'SCT',value:''}] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#0369a1', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
                                   </div>
                                   {(f.cloud_layers || []).map((cl: any, idx: number) => (
@@ -25066,13 +25066,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                                 </div>
                                 {/* Visibility */}
                                 <div style={{ marginBottom: '5px' }}>
-                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1', marginBottom: '3px' }}>👁 ראות</div>
+                                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff', marginBottom: '3px' }}>👁 ראות</div>
                                   <input value={f.visibility} onChange={e => upd('visibility', e.target.value)} placeholder="10KM" style={{ ...inputSt, width: '120px', direction: 'ltr' }} />
                                 </div>
                                 {/* Weather Phenomena */}
                                 <div style={{ marginBottom: '6px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#cbd5e1' }}>⛈ תופעות מז"א</div>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: lightMode ? '#1e293b' : '#ffffff' }}>⛈ תופעות מז"א</div>
                                     <button onClick={() => setWorkstationAtisForm((p: any) => p && ({ ...p, weather_phenomena: [...(p.weather_phenomena||[]), ''] }))} style={{ fontSize: '9px', padding: '1px 8px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold' }}>+ הוסף</button>
                                   </div>
                                   {(f.weather_phenomena || []).map((ph: string, idx: number) => (
