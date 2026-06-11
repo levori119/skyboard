@@ -5656,7 +5656,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [] }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [] }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -8687,7 +8687,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, all: true })); setDragging({ stripId: String(strip.id), idx: -1 }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 30 + slot, cursor: 'grab', opacity: mergedFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px)) scale(${1/effectiveMapScale})`, transformOrigin: 'center bottom', zIndex: 30 + slot, cursor: 'grab', opacity: mergedFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: -1, x: e.clientX, y: e.clientY }); }}
@@ -8754,7 +8754,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                     draggable
                     onDragStart={e => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: strip.id, idx: ac.idx })); setDragging({ stripId: String(strip.id), idx: ac.idx }); setGroundQuickMenu(null); }}
                     onDragEnd={() => { setDragging(null); setMapDragOver(null); }}
-                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px))`, zIndex: 20 + slot + acMapIdx, cursor: 'grab', opacity: acFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
+                    style={{ position: 'absolute', left: pos.left, top: pos.top, transform: `translate(-50%, calc(-100% - 28px - ${stackOffset}px)) scale(${1/effectiveMapScale})`, transformOrigin: 'center bottom', zIndex: 20 + slot + acMapIdx, cursor: 'grab', opacity: acFilterOpacity, pointerEvents: 'all', userSelect: 'none', transition: 'opacity 0.2s' }}>
                     <div
                       className={st.flash ? 'ground-takeoff-flash' : ''}
                       onClick={e => { e.stopPropagation(); setGroundQuickMenu(isMenuOpen ? null : { stripId: String(strip.id), idx: ac.idx, x: e.clientX, y: e.clientY }); }}
