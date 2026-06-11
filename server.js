@@ -6535,7 +6535,7 @@ app.get('/api/active-takeoffs', async (req, res) => {
          FROM strips s, jsonb_array_elements(s.aircraft_positions) ac
          WHERE s.aircraft_positions IS NOT NULL
            AND jsonb_array_length(s.aircraft_positions) > 0
-           AND ac->>'status' = 'takeoff'
+           AND ac->>'status' IN ('takeoff', 'takeoff_clearance')
            AND ac->>'takeoff_runway' = ANY($1::text[])`,
         [runwayNames]
       );
