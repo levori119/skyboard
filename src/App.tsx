@@ -7636,27 +7636,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 
         <div ref={mapRef}
           style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default' }}
-          onWheel={e => {
-            if (hideStrips) return;
-            if (focusedSectorId) return;
-            e.preventDefault();
-            const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-            setGroundMapZoom(z => {
-              const next = Math.min(Math.max(+(z * factor).toFixed(3), 0.2), 8);
-              // zoom toward mouse position
-              const el = mapRef.current;
-              if (el) {
-                const rect = el.getBoundingClientRect();
-                const mx = e.clientX - rect.left - rect.width / 2;
-                const my = e.clientY - rect.top - rect.height / 2;
-                setGroundMapPan(p => ({
-                  x: p.x - mx * (next / z - 1) / next,
-                  y: p.y - my * (next / z - 1) / next,
-                }));
-              }
-              return next;
-            });
-          }}
+          onWheel={e => { e.preventDefault(); }}
         >
           {/* ── Live runway conflict banner — positioned above map only ── */}
           {liveRunwayConflicts && liveRunwayConflicts.length > 0 && (
