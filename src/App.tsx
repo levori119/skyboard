@@ -26275,11 +26275,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       {/* Base Status NOTAM / ATIS Info Modal */}
       {bsInfoModal && createPortal(
         <div
-          style={{ position: 'fixed', left: Math.min(bsInfoPanelPos.x, window.innerWidth - 480), top: Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 160)), zIndex: 99990, background: '#1e293b', borderRadius: '12px', width: '460px', maxWidth: '92vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: `calc(100vh - ${Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 160)) + 16}px)` }}
+          style={{ position: 'fixed', left: Math.min(bsInfoPanelPos.x, window.innerWidth - 320), top: Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)), zIndex: 99990, background: '#1e293b', borderRadius: '10px', width: '300px', maxWidth: '88vw', border: `2px solid ${bsInfoModal.mode === 'notam' ? '#f59e0b' : '#38bdf8'}`, direction: 'rtl', boxShadow: '0 8px 40px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', maxHeight: `calc(100vh - ${Math.max(8, Math.min(bsInfoPanelPos.y, window.innerHeight - 380)) + 16}px)` }}
           onClick={e => e.stopPropagation()}>
           {/* Draggable header */}
           <div
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px 10px', cursor: 'grab', borderBottom: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, flexShrink: 0, userSelect: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 10px 6px', cursor: 'grab', borderBottom: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, flexShrink: 0, userSelect: 'none' }}
             onPointerDown={e => {
               e.currentTarget.setPointerCapture(e.pointerId);
               bsInfoDragRef.current = { startX: e.clientX, startY: e.clientY, origX: bsInfoPanelPos.x, origY: bsInfoPanelPos.y };
@@ -26292,18 +26292,18 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             }}
             onPointerUp={() => { bsInfoDragRef.current = null; }}
           >
-            <span style={{ fontSize: '20px' }}>{bsInfoModal.mode === 'notam' ? '⚠️' : '📻'}</span>
+            <span style={{ fontSize: '15px' }}>{bsInfoModal.mode === 'notam' ? '⚠️' : '📻'}</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 'bold', color: bsInfoModal.mode === 'notam' ? '#fbbf24' : '#38bdf8', fontSize: '14px' }}>
+              <div style={{ fontWeight: 'bold', color: bsInfoModal.mode === 'notam' ? '#fbbf24' : '#38bdf8', fontSize: '11px' }}>
                 {bsInfoModal.mode === 'notam' ? 'NOTAM' : 'ATIS'} — {bsInfoModal.bs.name}{bsInfoModal.bs.code ? ` (${bsInfoModal.bs.code})` : ''}
               </div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+              <div style={{ fontSize: '9px', color: '#64748b', marginTop: '1px' }}>
                 {bsInfoModal.mode === 'notam' ? 'הודעות לטייסים — ריכוז NOTAM' : 'מידע מטאו ושדה — ATIS'}
               </div>
             </div>
-            <button onPointerDown={e => e.stopPropagation()} onClick={() => { setBsInfoModal(null); if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); } }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0', flexShrink: 0 }}>✕</button>
+            <button onPointerDown={e => e.stopPropagation()} onClick={() => { setBsInfoModal(null); if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); } }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1, padding: '0', flexShrink: 0 }}>✕</button>
           </div>
-          <div style={{ overflowY: 'auto', padding: '16px', flex: 1 }}>
+          <div style={{ overflowY: 'auto', padding: '10px 12px', flex: 1 }}>
           {(() => {
               const hasAirfield = !!(bsInfoModal.bs.airfield_id);
               const afNotams: any[] = Array.isArray(bsInfoModal.bs.airfield_notams) ? bsInfoModal.bs.airfield_notams : [];
@@ -26316,22 +26316,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               if (hasAirfield && bsInfoModal.mode === 'notam') {
                 return (<>
                   {afNotams.length === 0 ? (
-                    <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>אין NOTAM פעילים לשדה זה ✅</div>
+                    <div style={{ padding: '8px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>אין NOTAM פעילים לשדה זה ✅</div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       {afNotams.map((n: any, i: number) => (
-                        <div key={i} style={{ padding: '10px 12px', borderRadius: '8px', background: n.notam_type === 'closed' ? '#2d0a0a' : '#1c1107', border: `1px solid ${n.notam_type === 'closed' ? '#dc2626' : '#92400e'}` }}>
-                          <div style={{ fontWeight: 'bold', color: n.notam_type === 'closed' ? '#fca5a5' : '#fbbf24', fontSize: '13px', marginBottom: '4px' }}>
+                        <div key={i} style={{ padding: '6px 8px', borderRadius: '6px', background: n.notam_type === 'closed' ? '#2d0a0a' : '#1c1107', border: `1px solid ${n.notam_type === 'closed' ? '#dc2626' : '#92400e'}` }}>
+                          <div style={{ fontWeight: 'bold', color: n.notam_type === 'closed' ? '#fca5a5' : '#fbbf24', fontSize: '11px', marginBottom: '3px' }}>
                             {n.notam_type === 'closed' ? '🚫 מסלול סגור' : n.notam_type === 'shortening' ? '✂️ קיצור מסלול' : '📋 הודעה'} — {n.runway_name}
                           </div>
                           {n.notam_type === 'shortening' && (
-                            <div style={{ fontSize: '12px', color: '#e2e8f0' }}>
+                            <div style={{ fontSize: '10px', color: '#e2e8f0' }}>
                               {n.shorten_end && <span>קצה: {n.shorten_end} | </span>}
                               {n.shorten_amount_ft && <span>קיצור: {n.shorten_amount_ft} ft</span>}
                               {n.shorten_amount_m && <span> / {n.shorten_amount_m} m</span>}
                             </div>
                           )}
-                          {n.text_content && <div style={{ fontSize: '12px', color: '#e2e8f0', marginTop: '2px' }}>{n.text_content}</div>}
+                          {n.text_content && <div style={{ fontSize: '10px', color: '#e2e8f0', marginTop: '2px' }}>{n.text_content}</div>}
                         </div>
                       ))}
                     </div>
@@ -26391,9 +26391,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <span style={{ fontSize: '28px', fontWeight: 'bold', color: '#38bdf8' }}>{afAtis.letter}</span>
                       {afAtis.obs_time && <span style={{ fontSize: '13px', color: '#7dd3fc' }}>@ {afAtis.obs_time}</span>}
                     </div>
-                    <div style={{ background: '#0f172a', borderRadius: '8px', padding: '12px 14px', fontSize: '13px', color: '#e2e8f0', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.7, border: '1px solid #1e3a5f', letterSpacing: '0.3px' }}>{fullAtisText}</div>
+                    <div style={{ background: '#0f172a', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: '#e2e8f0', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6, border: '1px solid #1e3a5f', letterSpacing: '0.3px' }}>{fullAtisText}</div>
                     {afAtis.raw_text && (
-                      <div style={{ marginTop: '10px', background: '#0f172a', borderRadius: '6px', padding: '8px 12px', fontSize: '11px', color: '#64748b', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{afAtis.raw_text}</div>
+                      <div style={{ marginTop: '6px', background: '#0f172a', borderRadius: '4px', padding: '5px 8px', fontSize: '10px', color: '#64748b', direction: 'ltr', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{afAtis.raw_text}</div>
                     )}
                     <button
                       onClick={() => {
@@ -26405,7 +26405,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         u.onerror = () => setAtisSpeaking(false);
                         window.speechSynthesis.speak(u);
                       }}
-                      style={{ marginTop: '12px', width: '100%', padding: '7px', background: atisSpeaking ? '#1d4ed833' : '#0c1f30', border: `1px solid ${atisSpeaking ? '#3b82f6' : '#0369a1'}`, borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: atisSpeaking ? '#93c5fd' : '#38bdf8', fontWeight: 'bold', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                      style={{ marginTop: '8px', width: '100%', padding: '5px', background: atisSpeaking ? '#1d4ed833' : '#0c1f30', border: `1px solid ${atisSpeaking ? '#3b82f6' : '#0369a1'}`, borderRadius: '5px', cursor: 'pointer', fontSize: '10px', color: atisSpeaking ? '#93c5fd' : '#38bdf8', fontWeight: 'bold', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                     >{atisSpeaking ? '⏹ עצור קריאה' : '🔊 קרא ATIS בקול'}</button>
                     {closeBtn}
                   </>
@@ -26428,8 +26428,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={canEdit ? (e => setBsInfoEditText(e.target.value)) : undefined}
                     readOnly={!canEdit}
                     placeholder={bsInfoModal.mode === 'notam' ? 'הכנס טקסט NOTAM...' : 'הכנס טקסט ATIS...'}
-                    rows={7}
-                    style={{ width: '100%', background: canEdit ? '#0f172a' : '#0a0f1a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '8px', color: canEdit ? '#e2e8f0' : '#94a3b8', fontSize: '13px', padding: '10px 12px', resize: canEdit ? 'vertical' : 'none', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, cursor: canEdit ? 'text' : 'default' }}
+                    rows={6}
+                    style={{ width: '100%', background: canEdit ? '#0f172a' : '#0a0f1a', border: `1px solid ${bsInfoModal.mode === 'notam' ? '#92400e' : '#0369a1'}`, borderRadius: '6px', color: canEdit ? '#e2e8f0' : '#94a3b8', fontSize: '11px', padding: '7px 9px', resize: canEdit ? 'vertical' : 'none', direction: 'rtl', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6, cursor: canEdit ? 'text' : 'default' }}
                   />
                   {bsInfoModal.mode === 'atis' && (
                     <button
