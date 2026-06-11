@@ -23884,7 +23884,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           );
           const workstationBdhDocs = dashboardBdh.filter((doc: any) => workstationBdhIds.map(Number).includes(Number(doc.id)));
           const currentPresetIsGroupAdmin = workGroupNotes.some((n: any) => n.admin_preset_id === session.presetId);
-          const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam));
+          const hasAtisNotamUpdatePanel = !!(parentBaseId && (canUpdateAtis || canUpdateNotam) && !myPresetConfig?.airfield_id);
           if (!aidGroup && aidBlockTables.length === 0 && workstationBdhDocs.length === 0 && workGroupNotes.length === 0 && presetLinks.length === 0 && baseStatuses.length === 0 && !isGroundMgmtMode && !hasAtisNotamUpdatePanel) return null;
           return (<>
             {aidsPinned && <div onMouseDown={startAidsResize} title="גרור לשינוי רוחב" style={{ width: '5px', flexShrink: 0, cursor: 'col-resize', background: lightMode ? '#cbd5e1' : '#1e3a5f', zIndex: 10, transition: 'background 0.15s', alignSelf: 'stretch' }} onMouseEnter={e => (e.currentTarget.style.background = '#3b82f6')} onMouseLeave={e => (e.currentTarget.style.background = lightMode ? '#cbd5e1' : '#1e3a5f')} />}
