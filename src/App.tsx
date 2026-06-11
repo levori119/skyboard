@@ -26306,7 +26306,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 {bsInfoModal.mode === 'notam' ? 'הודעות לטייסים — ריכוז NOTAM' : 'מידע מטאו ושדה — ATIS'}
               </div>
             </div>
-            <button onClick={() => { setBsInfoModal(null); if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); } }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0', flexShrink: 0 }}>✕</button>
+            <button onPointerDown={e => e.stopPropagation()} onClick={() => { setBsInfoModal(null); if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setAtisSpeaking(false); } }} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '18px', lineHeight: 1, padding: '0', flexShrink: 0 }}>✕</button>
           </div>
           <div style={{ overflowY: 'auto', padding: '16px', flex: 1 }}>
           {(() => {
