@@ -15368,7 +15368,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     setRefreshing(true);
     try {
       const r = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
-      if (r.ok) { const data = await r.json(); setLivePresetConfig(prev => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); }
+      if (r.ok) { const data = await r.json(); setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); }
     } catch {}
     setRefreshing(false);
   }, [session.presetId]);
@@ -16774,7 +16774,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     if (session.presetId) {
       fetch(`${API_URL}/workstation-presets/${session.presetId}/config`)
         .then(r => r.ok ? r.json() : null)
-        .then(p => { if (p) setLivePresetConfig(prev => JSON.stringify(prev) === JSON.stringify(p) ? prev : p); })
+        .then(p => { if (p) setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(p) ? prev : p); })
         .catch(() => {});
     }
   };
@@ -17096,7 +17096,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     const pollConfig = () => {
       fetch(`${API_URL}/workstation-presets/${pid}/config`)
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setLivePresetConfig(prev => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); })
+        .then(data => { if (data) setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(data) ? prev : data); })
         .catch(() => {});
     };
     const iv = setInterval(pollConfig, 10000);
@@ -17115,7 +17115,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const presetRes = await fetch(`${API_URL}/workstation-presets/${session.presetId}/config`);
           if (presetRes.ok) {
             const myPreset = await presetRes.json();
-            setLivePresetConfig(prev => JSON.stringify(prev) === JSON.stringify(myPreset) ? prev : myPreset);
+            setLivePresetConfig((prev: any) => JSON.stringify(prev) === JSON.stringify(myPreset) ? prev : myPreset);
             if (myPreset.table_mode_id) {
               setSelectedTableModeId(Number(myPreset.table_mode_id));
               setTableMode(true);
@@ -30619,7 +30619,6 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
     map2_id: '' as string | number,
     dual_map_layout: 'side-by-side' as string,
     dual_map_split: 50 as number,
-    conflict_alt_rules: [] as { maarav: string; delta: number }[],
   });
   const [presetFormInitial, setPresetFormInitial] = useState<string | null>(null);
   const presetIsDirty = presetFormInitial !== null && JSON.stringify(presetForm) !== presetFormInitial;
@@ -36515,7 +36514,7 @@ CHARLIE,1,301,`}
                     📥 ייבוא CSV/Excel
                     <input type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleExcelImport} />
                   </label>
-                  <button onClick={() => { setEditingBaseStatus(null); setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '' }); setShowBaseStatusForm(true); }} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>+ חדש</button>
+                  <button onClick={() => { setEditingBaseStatus(null); setBaseStatusForm({ name: '', code: '', relevant_to: 'כולם', air_defense_status: '', absorption_status: '', bird_status: '', airfield_id: '' }); setShowBaseStatusForm(true); }} style={{ padding: '8px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>+ חדש</button>
                 </div>
               </div>
 
