@@ -1548,7 +1548,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
             />
             {/* SVG always covers the exact image-rendered area for accurate coordinate mapping */}
-            {imgEditorBounds ? (
+            {imgEditorBounds ? (() => { const sz = 1 / editorZoom; return (
               <svg
                 ref={svgRef}
                 viewBox="0 0 100 100"
@@ -1588,54 +1588,54 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
                   return (
                   <g key={z.id} style={{ cursor: anchorMode || draftPoints.length > 0 ? 'crosshair' : 'grab' }}>
-                    <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? "1" : "0.5"}
+                    <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? 1*sz : 0.5*sz}
                       onMouseDown={(e) => handleZoneMouseDown(e, z)} />
                     {poly.length > 0 && (
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize="3" fontWeight="bold"
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize={3*sz} fontWeight="bold"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}</text>
                     )}
                   </g>
                   );
                 })}
                 {activePoly.length >= 2 && (
-                  <polyline points={polygonToSvgPoints(activePoly)} fill="none" stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" strokeDasharray="2,1" />
+                  <polyline points={polygonToSvgPoints(activePoly)} fill="none" stroke={editingZone ? editingZone.color : draftColor} strokeWidth={0.5*sz} strokeDasharray={`${2*sz},${1*sz}`} />
                 )}
                 {activePoly.length >= 3 && (
-                  <polygon points={polygonToSvgPoints(activePoly)} fill={(editingZone ? editingZone.color : draftColor) + '33'} stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" />
+                  <polygon points={polygonToSvgPoints(activePoly)} fill={(editingZone ? editingZone.color : draftColor) + '33'} stroke={editingZone ? editingZone.color : draftColor} strokeWidth={0.5*sz} />
                 )}
                 {activePoly.map((p, i) => (
-                  <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 0.7 : 0.45} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
+                  <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 0.7*sz : 0.45*sz} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
                 ))}
                 {currentAnchor && (<>
-                  <line x1={currentAnchor.x1 - 2.5} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.5} y2={currentAnchor.y1} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.5} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.5} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x1 - 2.2} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.2} y2={currentAnchor.y1} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.2} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
-                  <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="0.5" fill="#f59e0b" style={{ pointerEvents: 'none' }} />
-                  <text x={currentAnchor.x1 + 2.5} y={currentAnchor.y1} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A1</text>
-                  <line x1={currentAnchor.x2 - 2.5} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.5} y2={currentAnchor.y2} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.5} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.5} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x2 - 2.2} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.2} y2={currentAnchor.y2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
-                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.2} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
-                  <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="0.5" fill="#f59e0b" style={{ pointerEvents: 'none' }} />
-                  <text x={currentAnchor.x2 + 2.5} y={currentAnchor.y2} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A2</text>
+                  <line x1={currentAnchor.x1 - 2.5*sz} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.5*sz} y2={currentAnchor.y1} stroke="white" strokeWidth={0.6*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.5*sz} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.5*sz} stroke="white" strokeWidth={0.6*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1 - 2.2*sz} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.2*sz} y2={currentAnchor.y1} stroke="#f59e0b" strokeWidth={0.35*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.2*sz} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.2*sz} stroke="#f59e0b" strokeWidth={0.35*sz} style={{ pointerEvents: 'none' }} />
+                  <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r={0.5*sz} fill="#f59e0b" style={{ pointerEvents: 'none' }} />
+                  <text x={currentAnchor.x1 + 2.5*sz} y={currentAnchor.y1} fill="#f59e0b" fontSize={3*sz} fontWeight="bold" style={{ pointerEvents: 'none' }}>A1</text>
+                  <line x1={currentAnchor.x2 - 2.5*sz} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.5*sz} y2={currentAnchor.y2} stroke="white" strokeWidth={0.6*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.5*sz} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.5*sz} stroke="white" strokeWidth={0.6*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2 - 2.2*sz} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.2*sz} y2={currentAnchor.y2} stroke="#f59e0b" strokeWidth={0.35*sz} style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.2*sz} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.2*sz} stroke="#f59e0b" strokeWidth={0.35*sz} style={{ pointerEvents: 'none' }} />
+                  <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r={0.5*sz} fill="#f59e0b" style={{ pointerEvents: 'none' }} />
+                  <text x={currentAnchor.x2 + 2.5*sz} y={currentAnchor.y2} fill="#f59e0b" fontSize={3*sz} fontWeight="bold" style={{ pointerEvents: 'none' }}>A2</text>
                 </>)}
                 {anchorMode && pendingAnchor1 && (
                   <g style={{ pointerEvents: 'none' }}>
-                    <line x1={pendingAnchor1.x - 3} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 3} y2={pendingAnchor1.y} stroke="white" strokeWidth="0.7" />
-                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 3} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 3} stroke="white" strokeWidth="0.7" />
-                    <line x1={pendingAnchor1.x - 2.5} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 2.5} y2={pendingAnchor1.y} stroke="#ef4444" strokeWidth="0.4" />
-                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 2.5} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 2.5} stroke="#ef4444" strokeWidth="0.4" />
-                    <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="0.6" fill="#ef4444" />
+                    <line x1={pendingAnchor1.x - 3*sz} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 3*sz} y2={pendingAnchor1.y} stroke="white" strokeWidth={0.7*sz} />
+                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 3*sz} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 3*sz} stroke="white" strokeWidth={0.7*sz} />
+                    <line x1={pendingAnchor1.x - 2.5*sz} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 2.5*sz} y2={pendingAnchor1.y} stroke="#ef4444" strokeWidth={0.4*sz} />
+                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 2.5*sz} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 2.5*sz} stroke="#ef4444" strokeWidth={0.4*sz} />
+                    <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r={0.6*sz} fill="#ef4444" />
                   </g>
                 )}
                 {anchorMode && pendingAnchor2 && (
                   <g style={{ pointerEvents: 'none' }}>
-                    <line x1={pendingAnchor2.x - 3} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 3} y2={pendingAnchor2.y} stroke="white" strokeWidth="0.7" />
-                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 3} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 3} stroke="white" strokeWidth="0.7" />
-                    <line x1={pendingAnchor2.x - 2.5} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 2.5} y2={pendingAnchor2.y} stroke="#3b82f6" strokeWidth="0.4" />
-                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 2.5} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 2.5} stroke="#3b82f6" strokeWidth="0.4" />
-                    <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="0.6" fill="#3b82f6" />
+                    <line x1={pendingAnchor2.x - 3*sz} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 3*sz} y2={pendingAnchor2.y} stroke="white" strokeWidth={0.7*sz} />
+                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 3*sz} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 3*sz} stroke="white" strokeWidth={0.7*sz} />
+                    <line x1={pendingAnchor2.x - 2.5*sz} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 2.5*sz} y2={pendingAnchor2.y} stroke="#3b82f6" strokeWidth={0.4*sz} />
+                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 2.5*sz} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 2.5*sz} stroke="#3b82f6" strokeWidth={0.4*sz} />
+                    <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r={0.6*sz} fill="#3b82f6" />
                   </g>
                 )}
                 {autoResults.map(r => (
@@ -1643,8 +1643,8 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                     <polygon points={polygonToSvgPoints(r.polygon)}
                       fill={r.saved ? r.color + '22' : r.id === autoSelectedId ? r.color + '55' : r.color + '33'}
                       stroke={r.saved ? r.color + '88' : r.color}
-                      strokeWidth={r.id === autoSelectedId ? '1.2' : '0.7'}
-                      strokeDasharray={r.saved ? 'none' : '3,2'} />
+                      strokeWidth={r.id === autoSelectedId ? 1.2*sz : 0.7*sz}
+                      strokeDasharray={r.saved ? 'none' : `${3*sz},${2*sz}`} />
                   </g>
                 ))}
                 {(() => {
@@ -1657,17 +1657,17 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                     <g style={{ pointerEvents: 'none' }}>
                       <rect x={rx} y={ry} width={rw} height={rh}
                         fill="rgba(6,182,212,0.12)" stroke="#06b6d4"
-                        strokeWidth={isDraft ? '0.6' : '0.9'}
-                        strokeDasharray={isDraft ? '3,2' : 'none'} />
+                        strokeWidth={isDraft ? 0.6*sz : 0.9*sz}
+                        strokeDasharray={isDraft ? `${3*sz},${2*sz}` : 'none'} />
                       {!isDraft && (
                         <text x={rx + rw / 2} y={ry + rh / 2} textAnchor="middle" dominantBaseline="middle"
-                          fill="#a5f3fc" fontSize="4" fontWeight="bold" style={{ pointerEvents: 'none' }}>✂️</text>
+                          fill="#a5f3fc" fontSize={4*sz} fontWeight="bold" style={{ pointerEvents: 'none' }}>✂️</text>
                       )}
                     </g>
                   );
                 })()}
               </svg>
-            ) : (
+            ); })() : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
             )}
             </div>{/* end transform wrapper */}
