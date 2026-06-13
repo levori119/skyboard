@@ -1483,16 +1483,36 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.8 : 1.2} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
                 ))}
                 {currentAnchor && (<>
-                  <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="2" fill="#f59e0b" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1 - 2.5} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.5} y2={currentAnchor.y1} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.5} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.5} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1 - 2.2} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.2} y2={currentAnchor.y1} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x1} y1={currentAnchor.y1 - 2.2} x2={currentAnchor.x1} y2={currentAnchor.y1 + 2.2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
+                  <circle cx={currentAnchor.x1} cy={currentAnchor.y1} r="0.5" fill="#f59e0b" style={{ pointerEvents: 'none' }} />
                   <text x={currentAnchor.x1 + 2.5} y={currentAnchor.y1} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A1</text>
-                  <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="2" fill="#f59e0b" stroke="white" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2 - 2.5} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.5} y2={currentAnchor.y2} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.5} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.5} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2 - 2.2} y1={currentAnchor.y2} x2={currentAnchor.x2 + 2.2} y2={currentAnchor.y2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
+                  <line x1={currentAnchor.x2} y1={currentAnchor.y2 - 2.2} x2={currentAnchor.x2} y2={currentAnchor.y2 + 2.2} stroke="#f59e0b" strokeWidth="0.35" style={{ pointerEvents: 'none' }} />
+                  <circle cx={currentAnchor.x2} cy={currentAnchor.y2} r="0.5" fill="#f59e0b" style={{ pointerEvents: 'none' }} />
                   <text x={currentAnchor.x2 + 2.5} y={currentAnchor.y2} fill="#f59e0b" fontSize="3" fontWeight="bold" style={{ pointerEvents: 'none' }}>A2</text>
                 </>)}
                 {anchorMode && pendingAnchor1 && (
-                  <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="2.5" fill="#ef4444" stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <g style={{ pointerEvents: 'none' }}>
+                    <line x1={pendingAnchor1.x - 3} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 3} y2={pendingAnchor1.y} stroke="white" strokeWidth="0.7" />
+                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 3} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 3} stroke="white" strokeWidth="0.7" />
+                    <line x1={pendingAnchor1.x - 2.5} y1={pendingAnchor1.y} x2={pendingAnchor1.x + 2.5} y2={pendingAnchor1.y} stroke="#ef4444" strokeWidth="0.4" />
+                    <line x1={pendingAnchor1.x} y1={pendingAnchor1.y - 2.5} x2={pendingAnchor1.x} y2={pendingAnchor1.y + 2.5} stroke="#ef4444" strokeWidth="0.4" />
+                    <circle cx={pendingAnchor1.x} cy={pendingAnchor1.y} r="0.6" fill="#ef4444" />
+                  </g>
                 )}
                 {anchorMode && pendingAnchor2 && (
-                  <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="2.5" fill="#3b82f6" stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
+                  <g style={{ pointerEvents: 'none' }}>
+                    <line x1={pendingAnchor2.x - 3} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 3} y2={pendingAnchor2.y} stroke="white" strokeWidth="0.7" />
+                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 3} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 3} stroke="white" strokeWidth="0.7" />
+                    <line x1={pendingAnchor2.x - 2.5} y1={pendingAnchor2.y} x2={pendingAnchor2.x + 2.5} y2={pendingAnchor2.y} stroke="#3b82f6" strokeWidth="0.4" />
+                    <line x1={pendingAnchor2.x} y1={pendingAnchor2.y - 2.5} x2={pendingAnchor2.x} y2={pendingAnchor2.y + 2.5} stroke="#3b82f6" strokeWidth="0.4" />
+                    <circle cx={pendingAnchor2.x} cy={pendingAnchor2.y} r="0.6" fill="#3b82f6" />
+                  </g>
                 )}
                 {autoResults.map(r => (
                   <g key={r.id} style={{ pointerEvents: 'none' }}>
