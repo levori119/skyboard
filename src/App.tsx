@@ -7797,8 +7797,34 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
         )}
 
         <div ref={mapRef}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'default' }}
-          onWheel={e => { e.preventDefault(); }}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: airfieldMapSrc ? 'transparent' : (lightMode ? '#e2e8f0' : '#0f172a'), cursor: 'grab', touchAction: 'none', userSelect: 'none' }}
+          onWheel={e => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+            setGroundMapZoom(z => Math.max(0.2, Math.min(8, +(z * factor).toFixed(3))));
+          }}
+          onPointerDown={e => {
+            if (!mapInnerRef.current?.contains(e.target as Node)) return;
+            if (addVehicleMode || placingExistingElement) return;
+            const tgt = e.target as HTMLElement;
+            if (tgt.closest('[draggable="true"]') || tgt.closest('button') || tgt.closest('input') || tgt.closest('select')) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            groundMapDragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: groundMapPan.x, startPanY: groundMapPan.y };
+            (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing';
+          }}
+          onPointerMove={e => {
+            if (!groundMapDragRef.current) return;
+            setGroundMapPan({ x: groundMapDragRef.current.startPanX + (e.clientX - groundMapDragRef.current.startX), y: groundMapDragRef.current.startPanY + (e.clientY - groundMapDragRef.current.startY) });
+          }}
+          onPointerUp={e => {
+            if (!groundMapDragRef.current) return;
+            groundMapDragRef.current = null;
+            (e.currentTarget as HTMLDivElement).style.cursor = 'grab';
+          }}
+          onPointerCancel={() => {
+            groundMapDragRef.current = null;
+            if (mapRef.current) mapRef.current.style.cursor = 'grab';
+          }}
         >
           {/* ── Live runway conflict banner — positioned above map only ── */}
           {liveRunwayConflicts && liveRunwayConflicts.length > 0 && (
