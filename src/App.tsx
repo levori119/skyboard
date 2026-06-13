@@ -3089,6 +3089,7 @@ const DraggableNeighborPanel = ({
   presetId,
   onUpdateNote,
   transferPointConfig,
+  onUpdateTransferPointConfig,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -3113,6 +3114,7 @@ const DraggableNeighborPanel = ({
   presetId?: number | string | null;
   onUpdateNote?: (transferId: string, note: string) => void;
   transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[] } | null;
+  onUpdateTransferPointConfig?: (sectorId: number, cfg: { alt_min: number | null; alt_max: number | null; parity: string }) => Promise<void>;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -3122,6 +3124,11 @@ const DraggableNeighborPanel = ({
   const [neighborContactsCache, setNeighborContactsCache] = useState<any[] | null>(null);
   const [outCollapsed, setOutCollapsed] = useState(false);
   const [inCollapsed, setInCollapsed] = useState(false);
+  const [showAltEdit, setShowAltEdit] = useState(false);
+  const [altEditMin, setAltEditMin] = useState('');
+  const [altEditMax, setAltEditMax] = useState('');
+  const [altEditParity, setAltEditParity] = useState('any');
+  const [altSaving, setAltSaving] = useState(false);
 
   const getNeighborContacts = () => {
     if (!neighborContactsCache) return [];
@@ -3345,6 +3352,36 @@ const DraggableNeighborPanel = ({
             )}
           </div>
 
+          {/* Alt edit button — only when onUpdateTransferPointConfig is provided */}
+          {onUpdateTransferPointConfig && (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                if (!showAltEdit) {
+                  setAltEditMin(transferPointConfig?.alt_min != null ? String(transferPointConfig.alt_min) : '');
+                  setAltEditMax(transferPointConfig?.alt_max != null ? String(transferPointConfig.alt_max) : '');
+                  setAltEditParity(transferPointConfig?.parity || 'any');
+                }
+                setShowAltEdit(v => !v);
+              }}
+              onPointerDown={e => e.stopPropagation()}
+              title="הגדר תנאי גובה/זוגיות לנקודה זו"
+              style={{
+                padding: '3px 7px',
+                fontSize: '11px',
+                background: showAltEdit ? '#422006' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#292524' : '#0f172a',
+                color: showAltEdit ? '#fb923c' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#fbbf24' : '#475569',
+                border: `1px solid ${showAltEdit ? '#92400e' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#78350f' : '#1e293b'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                flexShrink: 0,
+                lineHeight: 1.5,
+                transition: 'all 0.15s',
+              }}>
+              📐
+            </button>
+          )}
+
           {/* קשר button */}
           <button
             onClick={toggleNeighborContacts}
@@ -3374,6 +3411,57 @@ const DraggableNeighborPanel = ({
             >{isExpanded ? '▲' : '▼'}</span>
           )}
         </div>
+
+        {/* Inline alt/parity editor */}
+        {showAltEdit && onUpdateTransferPointConfig && (
+          <div style={{ padding: '8px 10px', background: lightMode ? '#fef9c3' : '#1c1008', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#92400e'}`, direction: 'rtl' }}
+            onPointerDown={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '10px', color: lightMode ? '#92400e' : '#fbbf24', fontWeight: 'bold', flexShrink: 0 }}>גובה:</span>
+              <input type="number" placeholder="מינ׳" value={altEditMin}
+                onChange={e => setAltEditMin(e.target.value)}
+                style={{ width: '52px', padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
+              <span style={{ fontSize: '10px', color: '#64748b' }}>–</span>
+              <input type="number" placeholder="מקס׳" value={altEditMax}
+                onChange={e => setAltEditMax(e.target.value)}
+                style={{ width: '52px', padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
+              <select value={altEditParity} onChange={e => setAltEditParity(e.target.value)}
+                style={{ padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px' }}>
+                <option value="any">כולם</option>
+                <option value="even">זוגי</option>
+                <option value="odd">אי-זוגי</option>
+              </select>
+              <button disabled={altSaving} onClick={async e => {
+                e.stopPropagation();
+                setAltSaving(true);
+                await onUpdateTransferPointConfig(Number(neighbor.id), {
+                  alt_min: altEditMin !== '' ? Number(altEditMin) : null,
+                  alt_max: altEditMax !== '' ? Number(altEditMax) : null,
+                  parity: altEditParity,
+                });
+                setAltSaving(false);
+                setShowAltEdit(false);
+              }} style={{ padding: '3px 10px', background: altSaving ? '#374151' : '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: altSaving ? 'default' : 'pointer', flexShrink: 0 }}>
+                {altSaving ? '...' : '✓ שמור'}
+              </button>
+              <button onClick={e => { e.stopPropagation(); setShowAltEdit(false); }}
+                style={{ padding: '3px 8px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
+                ביטול
+              </button>
+              {(transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) && (
+                <button onClick={async e => {
+                  e.stopPropagation();
+                  setAltSaving(true);
+                  await onUpdateTransferPointConfig(Number(neighbor.id), { alt_min: null, alt_max: null, parity: 'any' });
+                  setAltSaving(false);
+                  setShowAltEdit(false);
+                }} style={{ padding: '3px 8px', background: 'transparent', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
+                  ✕ נקה
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Sub-sectors (collapsible) */}
         {isExpanded && hasSubSectors && neighborSubSectors.map(ss => (
@@ -20911,6 +20999,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     presetId={session.presetId}
                     onUpdateNote={handleUpdateTransferNote}
                     transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
+                    onUpdateTransferPointConfig={session.presetId ? async (sectorId, cfg) => {
+                      const res = await fetch(`${API_URL}/workstation-presets/${session.presetId}/transfer-point`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sector_id: sectorId, ...cfg }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setLivePresetConfig((prev: any) => prev ? { ...prev, classic_transfer_points: data.classic_transfer_points } : prev);
+                      }
+                    } : undefined}
                   />
                 ))}
               </div>
