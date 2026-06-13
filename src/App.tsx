@@ -11435,7 +11435,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
     );
   };
 
-  const PointList = ({ pts, reorderApi, accent, emoji, label, partnerDirIds, partnerDirLabel, onUpdate, showAltConditions }: any) => {
+  const PointList = ({ pts, reorderApi, accent, emoji, label, partnerDirIds, partnerDirLabel, onUpdate, showAltConditions, conditionsLabel }: any) => {
     const usedSecIds = new Set(pts.map((p: any) => Number(p.sector_id)));
     const available = sectors.filter((s: any) => !usedSecIds.has(Number(s.id)));
     return (
@@ -11489,7 +11489,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
                 {/* Alt conditions — receive points only */}
                 {showAltConditions && (
                   <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', paddingInlineStart: '20px' }}>
-                    <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold' }}>📐 תנאי קבלה:</span>
+                    <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold' }}>{conditionsLabel || '📐 תנאי קבלה:'}</span>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       <span style={{ color: '#64748b', fontSize: '10px' }}>גובה מינ':</span>
                       <input type="number" placeholder="—" value={pt.alt_min ?? ''}
@@ -11670,7 +11670,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
       {/* Section: receive/transfer sector points with alt conditions */}
       <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
         <label style={{ display: 'block', marginBottom: '4px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות קבלה/העברה (עמדות שאינן סטריפים):</label>
-        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בנקודות קבלה ניתן להגדיר <span style={{ color: '#f59e0b' }}>📐 תנאי גובה וזוגיות</span> — עמדות אחרות יקבלו אזהרה אם הפ"מ לא עומד בתנאים.</p>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בנקודות קבלה/העברה ניתן להגדיר <span style={{ color: '#f59e0b' }}>📐 תנאי גובה וזוגיות</span> — הגובה המינ'/מקס' וזוגיות (זוגי/אי-זוגי/הכל) שרלוונטיים לנקודה זו. ניתן גם לשייך <span style={{ color: '#fcd34d' }}>עמדות יעד</span> לכל נקודת העברה.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <PointList pts={recvPts} reorderApi={recvReorder}
             accent="#86efac" emoji="📥" label="נקודות קבלה"
@@ -11680,7 +11680,8 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
           <PointList pts={xferPts} reorderApi={xferReorder}
             accent="#fcd34d" emoji="📤" label="נקודות העברה"
             partnerDirIds={outgoingIds} partnerDirLabel="עמדות יעד"
-            showAltConditions={false}
+            showAltConditions={true}
+            conditionsLabel="📐 תנאי העברה:"
             onUpdate={setXfer} />
         </div>
       </div>
