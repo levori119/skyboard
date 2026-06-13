@@ -32933,7 +32933,53 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
                     )}
                   </div>
                 </div>}
-                
+
+                {/* Per-sector alt conditions — all non-Classic preset types */}
+                {presetForm.preset_type !== 'classic' && presetForm.relevant_sectors.length > 0 && (
+                  <div style={{ marginTop: '14px', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', color: '#fbbf24', fontSize: '13px', fontWeight: 'bold' }}>📐 תנאי גובה/זוגיות לנקודות העברה:</label>
+                    <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>ניתן להגדיר גובה מינ'/מקס' וזוגיות לכל נקודת העברה — יוצגו בפאנל הנקודות בזמן תפעול.</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {presetForm.relevant_sectors.map((sid: number) => {
+                        const sec = sectors.find((s: any) => s.id === sid);
+                        if (!sec) return null;
+                        const xferPts: any[] = presetForm.classic_transfer_points || [];
+                        const pt = xferPts.find((p: any) => Number(p.sector_id) === sid) || { sector_id: sid, alt_min: null, alt_max: null, parity: 'any' };
+                        const updatePt = (patch: any) => {
+                          const next = xferPts.filter((p: any) => Number(p.sector_id) !== sid);
+                          const merged = { ...pt, ...patch };
+                          const isEmpty = merged.alt_min == null && merged.alt_max == null && (!merged.parity || merged.parity === 'any');
+                          setPresetForm(prev => ({ ...prev, classic_transfer_points: isEmpty ? next : [...next, merged] }));
+                        };
+                        return (
+                          <div key={sid} style={{ display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl', padding: '5px 8px', background: '#0a1628', borderRadius: '6px', border: '1px solid #1e3a5f', flexWrap: 'wrap' }}>
+                            <span style={{ color: '#93c5fd', fontSize: '12px', fontWeight: 'bold', minWidth: '80px' }}>{sec.label_he || sec.name}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>גובה מינ':</span>
+                            <input type="number" placeholder="—" value={pt.alt_min ?? ''}
+                              onChange={e => updatePt({ alt_min: e.target.value !== '' ? Number(e.target.value) : null })}
+                              style={{ width: '58px', padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>מקס':</span>
+                            <input type="number" placeholder="—" value={pt.alt_max ?? ''}
+                              onChange={e => updatePt({ alt_max: e.target.value !== '' ? Number(e.target.value) : null })}
+                              style={{ width: '58px', padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>זוגיות:</span>
+                            <select value={pt.parity || 'any'} onChange={e => updatePt({ parity: e.target.value })}
+                              style={{ padding: '3px 5px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '4px', color: '#fbbf24', fontSize: '11px' }}>
+                              <option value="any">כולם</option>
+                              <option value="even">זוגי</option>
+                              <option value="odd">אי-זוגי</option>
+                            </select>
+                            {(pt.alt_min != null || pt.alt_max != null || (pt.parity && pt.parity !== 'any')) && (
+                              <button type="button" onClick={() => updatePt({ alt_min: null, alt_max: null, parity: 'any' })}
+                                style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0 2px' }}>✕</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Filter Query Builder */}
                 <QueryBuilder
                   value={presetForm.filter_query}
