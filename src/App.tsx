@@ -1604,7 +1604,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   <polygon points={polygonToSvgPoints(activePoly)} fill={(editingZone ? editingZone.color : draftColor) + '33'} stroke={editingZone ? editingZone.color : draftColor} strokeWidth="0.5" />
                 )}
                 {activePoly.map((p, i) => (
-                  <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 1.8 : 1.2} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
+                  <circle key={i} cx={p.x} cy={p.y} r={i === 0 ? 0.7 : 0.45} fill={editingZone ? editingZone.color : draftColor} style={{ pointerEvents: 'none' }} />
                 ))}
                 {currentAnchor && (<>
                   <line x1={currentAnchor.x1 - 2.5} y1={currentAnchor.y1} x2={currentAnchor.x1 + 2.5} y2={currentAnchor.y1} stroke="white" strokeWidth="0.6" style={{ pointerEvents: 'none' }} />
