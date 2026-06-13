@@ -944,6 +944,14 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const editorPanDragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
   const [panMode, setPanMode] = useState(false);
 
+  const [sectorMode, setSectorMode] = useState(false);
+  const [sectorRect, setSectorRect] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
+  const [sectorDraft, setSectorDraft] = useState<{x1:number;y1:number;x2:number;y2:number}|null>(null);
+  const sectorDragRef = useRef<{startX:number;startY:number}|null>(null);
+  const [sectorName, setSectorName] = useState('');
+  const [sectorCreating, setSectorCreating] = useState(false);
+  const [sectorCreated, setSectorCreated] = useState<string|null>(null);
+
   const computeEditorImgBounds = () => {
     const img = imgEditorRef.current;
     if (!img || !img.naturalWidth) { setImgEditorBounds(null); return; }
@@ -1306,6 +1314,12 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   };
 
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (sectorMode && sectorDragRef.current) {
+      const pt = getSvgRelativePoint(e);
+      if (!pt) return;
+      setSectorDraft({ x1: sectorDragRef.current.startX, y1: sectorDragRef.current.startY, x2: pt.x, y2: pt.y });
+      return;
+    }
     if (!dragRef.current) return;
     const pt = getSvgRelativePoint(e);
     if (!pt) return;
@@ -1316,6 +1330,13 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   };
 
   const handleSvgMouseUp = async (e: React.MouseEvent<SVGSVGElement>) => {
+    if (sectorMode && sectorDragRef.current) {
+      const pt = getSvgRelativePoint(e);
+      if (pt) setSectorRect({ x1: sectorDragRef.current.startX, y1: sectorDragRef.current.startY, x2: pt.x, y2: pt.y });
+      sectorDragRef.current = null;
+      setSectorDraft(null);
+      return;
+    }
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
@@ -1343,6 +1364,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   };
 
   const handleSvgClickFixed = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (sectorMode) return;
     if (dragRef.current?.moved) return;
     if (anchorMode) {
       const pt = getSvgRelativePoint(e);
@@ -1361,6 +1383,67 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
       if (dist < 2) { return; }
     }
     setDraftPoints(prev => [...prev, pt]);
+  };
+
+  const cropImageToSector = (imageSrc: string, sx1: number, sy1: number, sx2: number, sy2: number): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const srcX = (Math.min(sx1, sx2) / 100) * img.naturalWidth;
+        const srcY = (Math.min(sy1, sy2) / 100) * img.naturalHeight;
+        const srcW = (Math.abs(sx2 - sx1) / 100) * img.naturalWidth;
+        const srcH = (Math.abs(sy2 - sy1) / 100) * img.naturalHeight;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(srcW));
+        canvas.height = Math.max(1, Math.round(srcH));
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = reject;
+      img.src = imageSrc;
+    });
+
+  const createSectorMap = async () => {
+    if (!sectorRect || !sectorName.trim()) return;
+    setSectorCreating(true);
+    setSectorCreated(null);
+    try {
+      const { x1, y1, x2, y2 } = sectorRect;
+      const normX1 = Math.min(x1, x2), normY1 = Math.min(y1, y2);
+      const normX2 = Math.max(x1, x2), normY2 = Math.max(y1, y2);
+      const sw = normX2 - normX1, sh = normY2 - normY1;
+      if (sw < 1 || sh < 1) { alert('הסקטור קטן מדי'); setSectorCreating(false); return; }
+      const croppedImage = await cropImageToSector(mapSrc, normX1, normY1, normX2, normY2);
+      const parentName = localMapData?.name ?? 'מפה';
+      const mapName = `${sectorName.trim()} (חלק ממפת ${parentName})`;
+      const mapRes = await fetch(`${API_URL}/maps`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: mapName, image_data: croppedImage })
+      });
+      if (!mapRes.ok) { const err = await mapRes.json(); alert(err.error || 'שגיאה ביצירת מפה'); setSectorCreating(false); return; }
+      const newMap = await mapRes.json();
+      for (const zone of zones) {
+        const anyInside = zone.polygon.some(p => p.x >= normX1 && p.x <= normX2 && p.y >= normY1 && p.y <= normY2);
+        if (!anyInside) continue;
+        const newPoly = zone.polygon.map(p => ({
+          x: Math.min(100, Math.max(0, ((p.x - normX1) / sw) * 100)),
+          y: Math.min(100, Math.max(0, ((p.y - normY1) / sh) * 100))
+        }));
+        await fetch(`${API_URL}/map-zones`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ map_id: newMap.id, name: zone.name, color: zone.color, polygon: newPoly })
+        });
+      }
+      setSectorCreating(false);
+      setSectorCreated(mapName);
+      setSectorName('');
+      setSectorRect(null);
+    } catch (err) {
+      console.error(err);
+      setSectorCreating(false);
+      alert('שגיאה ביצירת הסקטור');
+    }
   };
 
   return (
@@ -1384,8 +1467,18 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                 {autoRunning ? `⏳ מזהה... OCR רץ` : autoResults.length > 0 ? `🤖 נמצאו ${autoResults.length} אזורים` : '🤖 מצב זיהוי אוטומטי'}
               </span>
             )}
+            {sectorMode && (
+              <span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold', background: '#0e7490', padding: '3px 10px', borderRadius: '10px', animation: 'elemBlink 1s infinite' }}>
+                ✂️ {sectorRect ? 'סקטור מסומן — הגדר שם וצור מפה' : 'גרור על המפה לסימון סקטור'}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => { setSectorMode(v => !v); if (sectorMode) { setSectorRect(null); setSectorDraft(null); setSectorCreated(null); } }}
+              title={sectorMode ? 'ביטול מצב סקטור' : 'צור מפת סקטור ממפה זו'}
+              style={{ background: sectorMode ? '#0e7490' : '#334155', border: 'none', color: sectorMode ? '#a5f3fc' : '#94a3b8', cursor: 'pointer', fontSize: '13px', borderRadius: '6px', padding: '4px 10px', fontWeight: sectorMode ? 'bold' : 'normal' }}
+            >✂️ סקטור</button>
             <button
               onClick={() => setPanMode(v => !v)}
               title={panMode ? 'מצב זזה פעיל — לחץ לביטול' : 'מצב זזה (גרור להזזת המפה)'}
@@ -1445,15 +1538,25 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   top: imgEditorBounds.top,
                   width: imgEditorBounds.width,
                   height: imgEditorBounds.height,
-                  cursor: panMode ? 'inherit' : (anchorMode || autoMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair'))),
+                  cursor: panMode ? 'inherit' : (sectorMode ? 'crosshair' : (anchorMode || autoMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair')))),
                   userSelect: 'none',
                   pointerEvents: panMode ? 'none' : 'auto',
                 }}
                 onClick={handleSvgClickFixed}
                 onDoubleClick={handleSvgDblClick}
+                onMouseDown={e => {
+                  if (!sectorMode) return;
+                  e.preventDefault();
+                  const pt = getSvgRelativePoint(e);
+                  if (!pt) return;
+                  sectorDragRef.current = { startX: pt.x, startY: pt.y };
+                }}
                 onMouseMove={handleSvgMouseMove}
                 onMouseUp={handleSvgMouseUp}
-                onMouseLeave={() => { if (dragRef.current) { dragRef.current = null; setDragOffset(null); } }}
+                onMouseLeave={() => {
+                  if (dragRef.current) { dragRef.current = null; setDragOffset(null); }
+                  if (sectorDragRef.current) { sectorDragRef.current = null; setSectorDraft(null); }
+                }}
               >
                 {zones.map(z => {
                   const isDragging = dragOffset?.zoneId === z.id;
@@ -1523,6 +1626,25 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                       strokeDasharray={r.saved ? 'none' : '3,2'} />
                   </g>
                 ))}
+                {(() => {
+                  const rect = sectorDraft || sectorRect;
+                  if (!rect) return null;
+                  const rx = Math.min(rect.x1, rect.x2), ry = Math.min(rect.y1, rect.y2);
+                  const rw = Math.abs(rect.x2 - rect.x1), rh = Math.abs(rect.y2 - rect.y1);
+                  const isDraft = !!sectorDraft;
+                  return (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <rect x={rx} y={ry} width={rw} height={rh}
+                        fill="rgba(6,182,212,0.12)" stroke="#06b6d4"
+                        strokeWidth={isDraft ? '0.6' : '0.9'}
+                        strokeDasharray={isDraft ? '3,2' : 'none'} />
+                      {!isDraft && (
+                        <text x={rx + rw / 2} y={ry + rh / 2} textAnchor="middle" dominantBaseline="middle"
+                          fill="#a5f3fc" fontSize="4" fontWeight="bold" style={{ pointerEvents: 'none' }}>✂️</text>
+                      )}
+                    </g>
+                  );
+                })()}
               </svg>
             ) : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
@@ -1532,6 +1654,61 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
 
           {/* Controls panel — right side */}
           <div style={{ width: '320px', overflowY: 'auto', background: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: '0' }}>
+
+            {/* Sector Creation */}
+            {sectorMode && (
+              <div style={{ padding: '14px', borderBottom: '1px solid #0e7490', background: 'rgba(6,182,212,0.06)' }}>
+                <div style={{ color: '#67e8f9', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px' }}>✂️ יצירת מפת סקטור</div>
+                {sectorCreated ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ color: '#4ade80', fontSize: '12px', fontWeight: 'bold', padding: '8px 10px', background: 'rgba(74,222,128,0.1)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)' }}>
+                      ✅ מפה נוצרה בהצלחה!<br/><span style={{ color: '#86efac', fontSize: '11px' }}>{sectorCreated}</span>
+                    </div>
+                    <button onClick={() => { setSectorCreated(null); setSectorRect(null); setSectorMode(false); }}
+                      style={{ background: '#0e7490', color: '#a5f3fc', border: 'none', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
+                      סיים
+                    </button>
+                    <button onClick={() => { setSectorCreated(null); setSectorRect(null); }}
+                      style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
+                      צור סקטור נוסף
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '11px' }}>
+                      {sectorRect ? '✅ סקטור מסומן על המפה' : '⬜ גרור מלבן על המפה לסימון הסקטור'}
+                    </div>
+                    {sectorRect && (
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ color: '#67e8f9', fontSize: '11px', whiteSpace: 'nowrap' }}>גודל:</div>
+                        <div style={{ color: '#a5f3fc', fontSize: '11px' }}>
+                          {Math.round(Math.abs(sectorRect.x2 - sectorRect.x1))}% × {Math.round(Math.abs(sectorRect.y2 - sectorRect.y1))}%
+                        </div>
+                        <button onClick={() => setSectorRect(null)}
+                          style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '14px', marginRight: 'auto' }}>✕</button>
+                      </div>
+                    )}
+                    <input
+                      value={sectorName}
+                      onChange={e => setSectorName(e.target.value)}
+                      placeholder="שם המפה החדשה..."
+                      style={{ padding: '6px 10px', borderRadius: '5px', border: '1px solid #0e7490', background: '#1e293b', color: 'white', fontSize: '12px', width: '100%', boxSizing: 'border-box' }}
+                    />
+                    {sectorName.trim() && (
+                      <div style={{ color: '#64748b', fontSize: '10px', fontStyle: 'italic', padding: '0 2px' }}>
+                        ייווצר בשם: "{sectorName.trim()} (חלק ממפת {localMapData?.name ?? 'מפה'})"
+                      </div>
+                    )}
+                    <button
+                      onClick={createSectorMap}
+                      disabled={!sectorRect || !sectorName.trim() || sectorCreating}
+                      style={{ background: sectorRect && sectorName.trim() ? '#0e7490' : '#1e293b', color: sectorRect && sectorName.trim() ? '#a5f3fc' : '#475569', border: 'none', borderRadius: '6px', padding: '8px 14px', cursor: sectorRect && sectorName.trim() ? 'pointer' : 'not-allowed', fontSize: '12px', width: '100%', fontWeight: 'bold' }}>
+                      {sectorCreating ? '⏳ יוצר מפה...' : '✂️ צור מפת סקטור'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Anchor / Calibration */}
             <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
