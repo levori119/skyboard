@@ -11016,7 +11016,7 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
     );
   };
 
-  const PointList = ({ pts, reorderApi, accent, emoji, label, partnerDirIds, partnerDirLabel, onUpdate }: any) => {
+  const PointList = ({ pts, reorderApi, accent, emoji, label, partnerDirIds, partnerDirLabel, onUpdate, showAltConditions }: any) => {
     const usedSecIds = new Set(pts.map((p: any) => Number(p.sector_id)));
     const available = sectors.filter((s: any) => !usedSecIds.has(Number(s.id)));
     return (
@@ -11067,6 +11067,39 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
                     </select>
                   )}
                 </div>
+                {/* Alt conditions — receive points only */}
+                {showAltConditions && (
+                  <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', paddingInlineStart: '20px' }}>
+                    <span style={{ color: '#f59e0b', fontSize: '10px', fontWeight: 'bold' }}>📐 תנאי קבלה:</span>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>גובה מינ':</span>
+                      <input type="number" placeholder="—" value={pt.alt_min ?? ''}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => updateThis({ alt_min: e.target.value !== '' ? Number(e.target.value) : null })}
+                        style={{ width: '55px', padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }} />
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>מקס':</span>
+                      <input type="number" placeholder="—" value={pt.alt_max ?? ''}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => updateThis({ alt_max: e.target.value !== '' ? Number(e.target.value) : null })}
+                        style={{ width: '55px', padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px', textAlign: 'center' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: '10px' }}>זוגיות:</span>
+                      <select value={pt.parity || 'any'}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => updateThis({ parity: e.target.value })}
+                        style={{ padding: '2px 4px', background: '#0f172a', border: '1px solid #92400e', borderRadius: '3px', color: '#fbbf24', fontSize: '10px' }}>
+                        <option value="any">כולם</option>
+                        <option value="even">זוגי</option>
+                        <option value="odd">אי-זוגי</option>
+                      </select>
+                    </div>
+                    {(pt.alt_min != null || pt.alt_max != null || (pt.parity && pt.parity !== 'any')) && (
+                      <button type="button" onClick={() => updateThis({ alt_min: null, alt_max: null, parity: 'any' })}
+                        title="נקה תנאים" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px', padding: '0 2px' }}>✕ נקה</button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -11212,6 +11245,24 @@ const ClassicPartnersAndPointsEditor = ({ presetForm, setPresetForm, presets, se
             onRemove={(pid: number) => setOutgoing(outgoingIds.filter(x => x !== pid))}
             onAdd={(pid: number) => setOutgoing([...outgoingIds, pid])}
             accent="#fcd34d" emoji="📤" label="למי מעביר (פלט)" />
+        </div>
+      </div>
+
+      {/* Section: receive/transfer sector points with alt conditions */}
+      <div style={{ padding: '10px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e3a5f' }}>
+        <label style={{ display: 'block', marginBottom: '4px', color: '#93c5fd', fontSize: '13px', fontWeight: 'bold' }}>📍 נקודות קבלה/העברה (עמדות שאינן סטריפים):</label>
+        <p style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#64748b', direction: 'rtl' }}>בנקודות קבלה ניתן להגדיר <span style={{ color: '#f59e0b' }}>📐 תנאי גובה וזוגיות</span> — עמדות אחרות יקבלו אזהרה אם הפ"מ לא עומד בתנאים.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <PointList pts={recvPts} reorderApi={recvReorder}
+            accent="#86efac" emoji="📥" label="נקודות קבלה"
+            partnerDirIds={incomingIds} partnerDirLabel="עמדות מקור"
+            showAltConditions={true}
+            onUpdate={setRecv} />
+          <PointList pts={xferPts} reorderApi={xferReorder}
+            accent="#fcd34d" emoji="📤" label="נקודות העברה"
+            partnerDirIds={outgoingIds} partnerDirLabel="עמדות יעד"
+            showAltConditions={false}
+            onUpdate={setXfer} />
         </div>
       </div>
 
@@ -13594,7 +13645,7 @@ const BlockSpaceCellTable = ({ strip, blockSpaces, lightMode }: { strip: any; bl
 };
 
 // --- Partial Transfer Modal ---
-const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange }: {
+const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, onTransferAll, onSubmit, etaMinutes, onEtaChange, receiveConditions, altViolation, altWorkstations }: {
   strip: any;
   selectedIndices: number[];
   onToggleIndex: (idx: number) => void;
@@ -13603,6 +13654,9 @@ const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, on
   onSubmit: () => void;
   etaMinutes: number;
   onEtaChange: (val: number) => void;
+  receiveConditions?: any;
+  altViolation?: string;
+  altWorkstations?: any[];
 }) => {
   const totalCount = parseInt(strip?.numberOfFormation ?? strip?.number_of_formation ?? '1') || 1;
   const isFormation = totalCount > 1;
@@ -13614,9 +13668,37 @@ const TransferFormModal = ({ strip, selectedIndices, onToggleIndex, onCancel, on
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '28px 24px', minWidth: '320px', maxWidth: '440px', direction: 'rtl', color: 'white', boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
         <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#f1f5f9' }}>העברה לנקודת העברה</div>
-        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '18px' }}>
+        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: receiveConditions ? '12px' : '18px' }}>
           {getFormationDisplayName(strip)}
         </div>
+
+        {/* תנאי קבלה של היעד */}
+        {receiveConditions && (() => {
+          const conditions: string[] = [];
+          if (receiveConditions.alt_min != null && receiveConditions.alt_min !== '') conditions.push(`גובה מינ': ${receiveConditions.alt_min}`);
+          if (receiveConditions.alt_max != null && receiveConditions.alt_max !== '') conditions.push(`גובה מקס': ${receiveConditions.alt_max}`);
+          if (receiveConditions.parity === 'even') conditions.push('זוגי בלבד');
+          else if (receiveConditions.parity === 'odd') conditions.push('אי-זוגי בלבד');
+          if (conditions.length === 0) return null;
+          return (
+            <div style={{ marginBottom: '16px', padding: '10px 12px', background: altViolation ? 'rgba(239,68,68,0.10)' : 'rgba(16,185,129,0.08)', border: `1px solid ${altViolation ? '#ef4444' : '#10b981'}`, borderRadius: '8px', direction: 'rtl' }}>
+              <div style={{ fontSize: '11px', color: altViolation ? '#fca5a5' : '#6ee7b7', fontWeight: 'bold', marginBottom: '4px' }}>
+                📐 תנאי קבלה — {receiveConditions.workstationName || 'יעד'}
+              </div>
+              <div style={{ fontSize: '12px', color: altViolation ? '#f87171' : '#34d399' }}>{conditions.join(' • ')}</div>
+              {altViolation && (
+                <div style={{ marginTop: '6px', fontSize: '12px', color: '#fbbf24', fontWeight: 'bold' }}>
+                  ⚠️ {altViolation}
+                </div>
+              )}
+              {altViolation && altWorkstations && altWorkstations.length > 0 && (
+                <div style={{ marginTop: '4px', fontSize: '11px', color: '#94a3b8' }}>
+                  💡 עמדות חלופיות לאותו סקטור: <span style={{ color: '#c4b5fd' }}>{altWorkstations.map((w: any) => w.name).join(' / ')}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* שדה זמן — תמיד מוצג */}
         <div style={{ marginBottom: '20px' }}>
@@ -14636,7 +14718,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [pendingMapTransfer, setPendingMapTransfer] = useState<{sectorId: number; x: number; y: number; subLabel?: string} | null>(null);
   const [allPendingTransfers, setAllPendingTransfers] = useState<any[]>([]);
-  const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number } | null>(null);
+  const [partialTransferModal, setPartialTransferModal] = useState<{ stripId: string; strip: any; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; toWorkstationId?: number; receiveConditions?: any; altViolation?: string; altWorkstations?: any[] } | null>(null);
   const [partialSelectedIndices, setPartialSelectedIndices] = useState<number[]>([]);
   const [transferEtaMinutes, setTransferEtaMinutes] = useState(0);
   const [workstationPickModal, setWorkstationPickModal] = useState<{ stripId: string; toSectorId: number; targetX?: number; targetY?: number; subLabel?: string; candidates: any[] } | null>(null);
@@ -17391,9 +17473,56 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleTransferWithPartialCheck = (stripId: string, toSectorId: number, targetX?: number, targetY?: number, subLabel?: string, toWorkstationId?: number) => {
     const normId = String(stripId).replace(/^s/, '');
     const strip = strips.find((s: any) => String(s.id).replace(/^s/, '') === normId);
+
+    // Resolve target workstation
+    const targetWs: any = toWorkstationId
+      ? (workstationPresets as any[]).find((p: any) => Number(p.id) === Number(toWorkstationId))
+      : (workstationPresets as any[]).find((p: any) => {
+          if (Number(p.id) === Number(session.presetId)) return false;
+          const recvPts: any[] = Array.isArray(p.classic_receive_points) ? p.classic_receive_points : [];
+          return recvPts.some((rp: any) => Number(rp.sector_id) === Number(toSectorId));
+        });
+
+    let receiveConditions: any = null;
+    let altViolation: string | undefined = undefined;
+    let altWorkstations: any[] = [];
+
+    if (targetWs) {
+      const recvPts: any[] = Array.isArray(targetWs.classic_receive_points) ? targetWs.classic_receive_points : [];
+      const rcvPt = recvPts.find((rp: any) => Number(rp.sector_id) === Number(toSectorId));
+      const hasConditions = rcvPt && (rcvPt.alt_min != null || rcvPt.alt_max != null || (rcvPt.parity && rcvPt.parity !== 'any'));
+      if (hasConditions) {
+        receiveConditions = { ...rcvPt, workstationName: targetWs.name };
+        const stripAltRaw = strip?.alt ? String(strip.alt).match(/\d+/) : null;
+        const stripAlt = stripAltRaw ? parseInt(stripAltRaw[0]) : null;
+        if (stripAlt != null) {
+          if (rcvPt.alt_min != null && rcvPt.alt_min !== '' && stripAlt < Number(rcvPt.alt_min)) {
+            altViolation = `גובה הפ"מ (${stripAlt}) נמוך מ-${rcvPt.alt_min} הנדרש`;
+          } else if (rcvPt.alt_max != null && rcvPt.alt_max !== '' && stripAlt > Number(rcvPt.alt_max)) {
+            altViolation = `גובה הפ"מ (${stripAlt}) גבוה מ-${rcvPt.alt_max} הנדרש`;
+          } else if (rcvPt.parity === 'even' && Math.floor(stripAlt / 10) % 2 !== 0) {
+            altViolation = `גובה הפ"מ (${stripAlt}) אינו זוגי`;
+          } else if (rcvPt.parity === 'odd' && Math.floor(stripAlt / 10) % 2 === 0) {
+            altViolation = `גובה הפ"מ (${stripAlt}) אינו אי-זוגי`;
+          }
+        }
+        // Find alternative workstations for the same sector with no violations
+        if (altViolation) {
+          altWorkstations = (workstationPresets as any[]).filter((p: any) => {
+            if (Number(p.id) === Number(session.presetId)) return false;
+            if (Number(p.id) === Number(targetWs.id)) return false;
+            const relSectors: number[] = Array.isArray(p.relevant_sectors) ? p.relevant_sectors.map(Number) : [];
+            const pRecvPts: any[] = Array.isArray(p.classic_receive_points) ? p.classic_receive_points : [];
+            const pRecvSectors: number[] = pRecvPts.map((rp: any) => Number(rp.sector_id)).filter(Boolean);
+            return relSectors.includes(Number(toSectorId)) || pRecvSectors.includes(Number(toSectorId));
+          });
+        }
+      }
+    }
+
     setPartialSelectedIndices([]);
     setTransferEtaMinutes(0);
-    setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId });
+    setPartialTransferModal({ stripId, strip, toSectorId, targetX, targetY, subLabel, toWorkstationId, receiveConditions, altViolation, altWorkstations });
   };
 
   // Workstation picker: if the target sector is served by multiple presets, ask the user which one.
@@ -25993,6 +26122,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             onSubmit={handlePartialTransferSubmit}
             etaMinutes={transferEtaMinutes}
             onEtaChange={setTransferEtaMinutes}
+            receiveConditions={partialTransferModal.receiveConditions}
+            altViolation={partialTransferModal.altViolation}
+            altWorkstations={partialTransferModal.altWorkstations}
           />
         )}
 
