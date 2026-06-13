@@ -3063,6 +3063,7 @@ const DraggableNeighborPanel = ({
   tableMode = false,
   presetId,
   onUpdateNote,
+  transferPointConfig,
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -3086,6 +3087,7 @@ const DraggableNeighborPanel = ({
   tableMode?: boolean;
   presetId?: number | string | null;
   onUpdateNote?: (transferId: string, note: string) => void;
+  transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[] } | null;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -3298,6 +3300,20 @@ const DraggableNeighborPanel = ({
             </div>
             {neighbor.notes && (
               <div style={{ fontSize: '9px', color: lightMode ? '#92400e' : '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
+            )}
+            {transferPointConfig && (transferPointConfig.alt_min != null || transferPointConfig.alt_max != null || (transferPointConfig.parity && transferPointConfig.parity !== 'any')) && (
+              <div style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '3px', marginTop: '3px' }}>
+                {(transferPointConfig.alt_min != null || transferPointConfig.alt_max != null) && (
+                  <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold' }}>
+                    📐 {transferPointConfig.alt_min != null ? transferPointConfig.alt_min : '—'}–{transferPointConfig.alt_max != null ? transferPointConfig.alt_max : '—'}
+                  </span>
+                )}
+                {transferPointConfig.parity && transferPointConfig.parity !== 'any' && (
+                  <span style={{ fontSize: '9px', background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold' }}>
+                    {transferPointConfig.parity === 'even' ? 'זוגי' : 'אי-זוגי'}
+                  </span>
+                )}
+              </div>
             )}
             {hasConflict && (
               <span style={{ fontSize: '10px', background: lightMode ? '#fee2e2' : '#450a0a', color: lightMode ? '#b91c1c' : '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>⚠ קונפליקט גובה</span>
@@ -20869,6 +20885,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     tableMode={tableMode}
                     presetId={session.presetId}
                     onUpdateNote={handleUpdateTransferNote}
+                    transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
                   />
                 ))}
               </div>
