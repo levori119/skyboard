@@ -939,6 +939,11 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   }[]>([]);
   const [autoSelectedId, setAutoSelectedId] = useState<string|null>(null);
 
+  const [editorZoom, setEditorZoom] = useState(1);
+  const [editorPan, setEditorPan] = useState({ x: 0, y: 0 });
+  const editorPanDragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const [panMode, setPanMode] = useState(false);
+
   const computeEditorImgBounds = () => {
     const img = imgEditorRef.current;
     if (!img || !img.naturalWidth) { setImgEditorBounds(null); return; }
@@ -1035,23 +1040,35 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
     return () => window.removeEventListener('keydown', onKey);
   }, [anchorMode]);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      setEditorZoom(z => Math.max(0.25, Math.min(8, +(z * factor).toFixed(3))));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
   const getRelativePoint = (e: React.MouseEvent<SVGSVGElement>) => {
-    const container = containerRef.current;
-    if (!container) return { x: 0, y: 0 };
-    const rect = container.getBoundingClientRect();
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
     return { x: ((e.clientX - rect.left) / rect.width) * 100, y: ((e.clientY - rect.top) / rect.height) * 100 };
   };
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (anchorMode) {
-      const pt = getImageRelativePoint(e);
+      const pt = getSvgRelativePoint(e);
       if (!pt) return;
       if (anchorStep === 1) { setPendingAnchor1(pt); setAnchorStep(2); }
       else { setPendingAnchor2(pt); }
       return;
     }
     if (editingZone) return;
-    const pt = isCalibrated ? getImageRelativePoint(e) : getRelativePoint(e);
+    const pt = getSvgRelativePoint(e);
     if (!pt) return;
     if (draftPoints.length >= 2) {
       const first = draftPoints[0];
@@ -1368,14 +1385,48 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               </span>
             )}
           </div>
-          <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, borderRadius: '6px', width: '32px', height: '32px' }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => setPanMode(v => !v)}
+              title={panMode ? 'מצב זזה פעיל — לחץ לביטול' : 'מצב זזה (גרור להזזת המפה)'}
+              style={{ background: panMode ? '#7c3aed' : '#334155', border: 'none', color: panMode ? '#e9d5ff' : '#94a3b8', cursor: 'pointer', fontSize: '14px', borderRadius: '6px', padding: '4px 10px', fontWeight: panMode ? 'bold' : 'normal' }}
+            >✋ הזז</button>
+            <button onClick={() => setEditorZoom(z => Math.min(8, +(z * 1.25).toFixed(3)))} title="הגדל" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>+</button>
+            <span style={{ color: '#64748b', fontSize: '12px', minWidth: '38px', textAlign: 'center' }}>{Math.round(editorZoom * 100)}%</span>
+            <button onClick={() => setEditorZoom(z => Math.max(0.25, +(z / 1.25).toFixed(3)))} title="הקטן" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '16px', borderRadius: '6px', width: '28px', height: '28px' }}>−</button>
+            <button onClick={() => { setEditorZoom(1); setEditorPan({ x: 0, y: 0 }); }} title="איפוס זום ומיקום" style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '11px', borderRadius: '6px', padding: '4px 8px' }}>איפוס</button>
+            <button onClick={onClose} style={{ background: '#334155', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1, borderRadius: '6px', width: '32px', height: '32px' }}>×</button>
+          </div>
         </div>
 
         {/* Body: map + side panel */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
           {/* Map area — takes most of the space, SVG positioned directly over image */}
-          <div ref={containerRef} style={{ flex: 1, position: 'relative', background: '#1e293b', overflow: 'hidden' }}>
+          <div
+            ref={containerRef}
+            style={{ flex: 1, position: 'relative', background: '#1e293b', overflow: 'hidden', cursor: panMode ? 'grab' : 'default', touchAction: 'none', userSelect: 'none' }}
+            onPointerDown={e => {
+              if (!panMode) return;
+              const tgt = e.target as HTMLElement;
+              if (tgt.closest('button') || tgt.closest('input') || tgt.closest('select')) return;
+              e.currentTarget.setPointerCapture(e.pointerId);
+              editorPanDragRef.current = { startX: e.clientX, startY: e.clientY, panX: editorPan.x, panY: editorPan.y };
+              (e.currentTarget as HTMLDivElement).style.cursor = 'grabbing';
+            }}
+            onPointerMove={e => {
+              if (!editorPanDragRef.current) return;
+              setEditorPan({ x: editorPanDragRef.current.panX + (e.clientX - editorPanDragRef.current.startX), y: editorPanDragRef.current.panY + (e.clientY - editorPanDragRef.current.startY) });
+            }}
+            onPointerUp={e => {
+              if (!editorPanDragRef.current) return;
+              editorPanDragRef.current = null;
+              (e.currentTarget as HTMLDivElement).style.cursor = panMode ? 'grab' : 'default';
+            }}
+            onPointerCancel={() => { editorPanDragRef.current = null; }}
+          >
+            {/* Transform wrapper — zoom + pan applied here */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', transform: `translate(${editorPan.x}px, ${editorPan.y}px) scale(${editorZoom})`, transformOrigin: 'center center' }}>
             <img
               ref={imgEditorRef}
               src={mapSrc}
@@ -1394,8 +1445,9 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   top: imgEditorBounds.top,
                   width: imgEditorBounds.width,
                   height: imgEditorBounds.height,
-                  cursor: anchorMode || autoMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair')),
+                  cursor: panMode ? 'inherit' : (anchorMode || autoMode ? 'crosshair' : (dragRef.current ? 'grabbing' : (editingZone ? 'default' : 'crosshair'))),
                   userSelect: 'none',
+                  pointerEvents: panMode ? 'none' : 'auto',
                 }}
                 onClick={handleSvgClickFixed}
                 onDoubleClick={handleSvgDblClick}
@@ -1455,6 +1507,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
             ) : (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
             )}
+            </div>{/* end transform wrapper */}
           </div>
 
           {/* Controls panel — right side */}
