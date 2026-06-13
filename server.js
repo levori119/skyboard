@@ -943,6 +943,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lat DOUBLE PRECISION`);
   await pool.query(`ALTER TABLE strips ADD COLUMN IF NOT EXISTS map_lon DOUBLE PRECISION`);
   await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS polygon_geo TEXT DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS parent_zone_id INTEGER REFERENCES map_zones(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE map_zones ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_map_id INTEGER REFERENCES maps(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE maps ADD COLUMN IF NOT EXISTS parent_rect JSONB`);
 
   // Many-to-many: which workstation presets a strip is explicitly assigned to (table mode)
   await pool.query(`
@@ -2575,7 +2579,7 @@ app.post('/api/transfers/:id/cancel', async (req, res) => {
 // Maps API
 app.get('/api/maps', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon FROM maps ORDER BY name');
+    const result = await pool.query('SELECT id, name, created_at, anchor1_x_img, anchor1_y_img, anchor1_lat, anchor1_lon, anchor2_x_img, anchor2_y_img, anchor2_lat, anchor2_lon, parent_map_id, parent_rect FROM maps ORDER BY name');
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching maps:', err);
@@ -2598,12 +2602,12 @@ app.get('/api/maps/:id', async (req, res) => {
 
 app.post('/api/maps', async (req, res) => {
   try {
-    const { name, image_data } = req.body;
+    const { name, image_data, parent_map_id, parent_rect } = req.body;
     const dup = await pool.query('SELECT id FROM maps WHERE LOWER(name) = LOWER($1)', [name]);
     if (dup.rows.length) return res.status(409).json({ error: 'שם מפה כבר קיים' });
     const result = await pool.query(
-      'INSERT INTO maps (name, image_data) VALUES ($1, $2) RETURNING id, name, created_at',
-      [name, image_data]
+      'INSERT INTO maps (name, image_data, parent_map_id, parent_rect) VALUES ($1, $2, $3, $4) RETURNING id, name, created_at, parent_map_id, parent_rect',
+      [name, image_data, parent_map_id || null, parent_rect ? JSON.stringify(parent_rect) : null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -2656,10 +2660,10 @@ app.get('/api/map-zones', async (req, res) => {
 
 app.post('/api/map-zones', async (req, res) => {
   try {
-    const { map_id, name, color, polygon, polygon_geo } = req.body;
+    const { map_id, name, color, polygon, polygon_geo, parent_zone_id } = req.body;
     const result = await pool.query(
-      'INSERT INTO map_zones (map_id, name, color, polygon, polygon_geo) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [map_id, name, color || '#3b82f6', JSON.stringify(polygon || []), JSON.stringify(polygon_geo || [])]
+      'INSERT INTO map_zones (map_id, name, color, polygon, polygon_geo, parent_zone_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [map_id, name, color || '#3b82f6', JSON.stringify(polygon || []), JSON.stringify(polygon_geo || []), parent_zone_id || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -2676,10 +2680,81 @@ app.put('/api/map-zones/:id', async (req, res) => {
       [name, color, JSON.stringify(polygon || []), JSON.stringify(polygon_geo || []), req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+    // Auto-sync to child zones
+    try {
+      const parentZone = result.rows[0];
+      const parentPoly = typeof parentZone.polygon === 'string' ? JSON.parse(parentZone.polygon) : (parentZone.polygon || []);
+      const childMaps = await pool.query('SELECT id, parent_rect FROM maps WHERE parent_map_id = $1', [parentZone.map_id]);
+      for (const cm of childMaps.rows) {
+        const rect = typeof cm.parent_rect === 'string' ? JSON.parse(cm.parent_rect) : (cm.parent_rect || {});
+        const { x1: rx1, y1: ry1, x2: rx2, y2: ry2 } = rect;
+        if (rx1 == null || ry1 == null || rx2 == null || ry2 == null) continue;
+        const sw = rx2 - rx1, sh = ry2 - ry1;
+        if (sw <= 0 || sh <= 0) continue;
+        const childZones = await pool.query('SELECT id FROM map_zones WHERE map_id = $1 AND parent_zone_id = $2', [cm.id, parentZone.id]);
+        if (childZones.rows.length === 0) continue;
+        const newPoly = parentPoly.map(p => ({
+          x: Math.min(100, Math.max(0, ((p.x - rx1) / sw) * 100)),
+          y: Math.min(100, Math.max(0, ((p.y - ry1) / sh) * 100))
+        }));
+        const anyInside = parentPoly.some(p => p.x >= rx1 && p.x <= rx2 && p.y >= ry1 && p.y <= ry2);
+        for (const cz of childZones.rows) {
+          await pool.query(
+            'UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
+            [name, color, JSON.stringify(anyInside ? newPoly : []), cz.id]
+          );
+        }
+      }
+    } catch (syncErr) { console.error('Zone child sync error:', syncErr); }
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating map zone:', err);
     res.status(500).json({ error: 'Failed to update map zone' });
+  }
+});
+
+app.patch('/api/map-zones/:id/enabled', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const result = await pool.query('UPDATE map_zones SET enabled = $1 WHERE id = $2 RETURNING *', [enabled !== false, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Zone not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error toggling zone enabled:', err);
+    res.status(500).json({ error: 'Failed to update zone' });
+  }
+});
+
+app.post('/api/maps/:id/sync-zones-from-parent', async (req, res) => {
+  try {
+    const childMapRes = await pool.query('SELECT parent_map_id, parent_rect FROM maps WHERE id = $1', [req.params.id]);
+    if (childMapRes.rows.length === 0) return res.status(404).json({ error: 'Map not found' });
+    const { parent_map_id, parent_rect } = childMapRes.rows[0];
+    if (!parent_map_id) return res.status(400).json({ error: 'No parent map' });
+    const rect = typeof parent_rect === 'string' ? JSON.parse(parent_rect) : (parent_rect || {});
+    const { x1: rx1, y1: ry1, x2: rx2, y2: ry2 } = rect;
+    if (rx1 == null) return res.status(400).json({ error: 'No parent_rect stored' });
+    const sw = rx2 - rx1, sh = ry2 - ry1;
+    const parentZones = await pool.query('SELECT * FROM map_zones WHERE map_id = $1', [parent_map_id]);
+    const childZones = await pool.query('SELECT * FROM map_zones WHERE map_id = $1', [req.params.id]);
+    let synced = 0;
+    for (const pz of parentZones.rows) {
+      const parentPoly = typeof pz.polygon === 'string' ? JSON.parse(pz.polygon) : (pz.polygon || []);
+      const cz = childZones.rows.find(c => c.parent_zone_id === pz.id);
+      if (!cz) continue;
+      const newPoly = parentPoly.map(p => ({
+        x: Math.min(100, Math.max(0, ((p.x - rx1) / sw) * 100)),
+        y: Math.min(100, Math.max(0, ((p.y - ry1) / sh) * 100))
+      }));
+      const anyInside = parentPoly.some(p => p.x >= rx1 && p.x <= rx2 && p.y >= ry1 && p.y <= ry2);
+      await pool.query('UPDATE map_zones SET name = $1, color = $2, polygon = $3 WHERE id = $4',
+        [pz.name, pz.color, JSON.stringify(anyInside ? newPoly : []), cz.id]);
+      synced++;
+    }
+    res.json({ synced });
+  } catch (err) {
+    console.error('Error syncing zones from parent:', err);
+    res.status(500).json({ error: 'Failed to sync' });
   }
 });
 

@@ -1440,7 +1440,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
       const mapName = `${sectorName.trim()} (חלק ממפת ${parentName})`;
       const mapRes = await fetch(`${API_URL}/maps`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: mapName, image_data: croppedImage })
+        body: JSON.stringify({ name: mapName, image_data: croppedImage, parent_map_id: mapId, parent_rect: { x1: normX1, y1: normY1, x2: normX2, y2: normY2 } })
       });
       if (!mapRes.ok) { const err = await mapRes.json(); alert(err.error || 'שגיאה ביצירת מפה'); setSectorCreating(false); return; }
       const newMap = await mapRes.json();
@@ -1453,7 +1453,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
         }));
         await fetch(`${API_URL}/map-zones`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ map_id: newMap.id, name: zone.name, color: zone.color, polygon: newPoly })
+          body: JSON.stringify({ map_id: newMap.id, name: zone.name, color: zone.color, polygon: newPoly, parent_zone_id: zone.id })
         });
       }
       setSectorCreating(false);
@@ -1581,18 +1581,19 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               >
                 {zones.map(z => {
                   const isDragging = dragOffset?.zoneId === z.id;
+                  const isDisabled = z.enabled === false;
                   const poly = isDragging
                     ? z.polygon.map(p => ({ x: Math.max(0, Math.min(100, p.x + dragOffset!.dx)), y: Math.max(0, Math.min(100, p.y + dragOffset!.dy)) }))
                     : z.polygon;
                   const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
                   const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
                   return (
-                  <g key={z.id} style={{ cursor: anchorMode || draftPoints.length > 0 ? 'crosshair' : 'grab' }}>
-                    <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? 1*sz : 0.5*sz}
+                  <g key={z.id} style={{ cursor: anchorMode || draftPoints.length > 0 ? 'crosshair' : 'grab', opacity: isDisabled ? 0.3 : 1 }}>
+                    <polygon points={polygonToSvgPoints(poly)} fill={z.color + (isDragging ? '55' : '33')} stroke={z.color} strokeWidth={isDragging ? 1*sz : 0.5*sz} strokeDasharray={isDisabled ? `${2*sz},${1.5*sz}` : undefined}
                       onMouseDown={(e) => handleZoneMouseDown(e, z)} />
                     {poly.length > 0 && (
                       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={z.color} fontSize={3*sz} fontWeight="bold"
-                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}</text>
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}>{z.name}{isDisabled ? ' ⊘' : ''}</text>
                     )}
                   </g>
                   );
@@ -2013,10 +2014,21 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '8px' }}>אזורים שמורים ({zones.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {zones.map(z => (
-                  <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '6px 8px', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}` }}>
+                  <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: editingZone?.id === z.id ? '#1e40af22' : '#1e293b', borderRadius: '6px', padding: '6px 8px', border: `1px solid ${editingZone?.id === z.id ? z.color : z.color + '44'}`, opacity: z.enabled === false ? 0.45 : 1 }}>
                     <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: z.color, flexShrink: 0 }} />
-                    <span style={{ color: '#e2e8f0', fontSize: '12px', flex: 1, cursor: 'default' }}>{z.name}</span>
+                    <span style={{ color: z.enabled === false ? '#64748b' : '#e2e8f0', fontSize: '12px', flex: 1, cursor: 'default', textDecoration: z.enabled === false ? 'line-through' : 'none' }}>{z.name}</span>
                     <span style={{ color: '#475569', fontSize: '10px', flexShrink: 0 }}>{z.polygon.length} נק'</span>
+                    <input
+                      type="checkbox"
+                      checked={z.enabled !== false}
+                      title={z.enabled === false ? 'הפעל אזור' : 'השבת אזור (הסתר מבלי למחוק)'}
+                      onChange={async (e) => {
+                        const newEnabled = e.target.checked;
+                        setZones(prev => prev.map(x => x.id === z.id ? { ...x, enabled: newEnabled } : x));
+                        await fetch(`${API_URL}/map-zones/${z.id}/enabled`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: newEnabled }) });
+                      }}
+                      style={{ width: '14px', height: '14px', flexShrink: 0, cursor: 'pointer', accentColor: z.color }}
+                    />
                     <button
                       title="עריכה"
                       onClick={() => { setEditingZone(z); setDraftPoints([]); setAltRanges([]); loadAltRanges(z.id); }}
@@ -2032,6 +2044,19 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   </div>
                 ))}
                 {zones.length === 0 && <div style={{ color: '#334155', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>אין אזורים עדיין</div>}
+                {localMapData?.parent_map_id && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`${API_URL}/maps/${mapId}/sync-zones-from-parent`, { method: 'POST' });
+                        const data = await res.json();
+                        if (res.ok) { await loadZones(); alert(`סונכרנו ${data.synced} אזורים ממפת המקור`); }
+                        else alert(data.error || 'שגיאה בסנכרון');
+                      } catch { alert('שגיאה בסנכרון'); }
+                    }}
+                    style={{ marginTop: '8px', width: '100%', padding: '6px', background: '#0c2a1a', color: '#4ade80', border: '1px solid #166534', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold' }}
+                  >🔄 סנכרן אזורים ממפת מקור</button>
+                )}
               </div>
             </div>
 
@@ -6085,7 +6110,7 @@ const normalizeAircraftPositions = (strip: any): AircraftPos[] => {
 };
 
 interface GroundAircraftRow { id?: number; idx: number; datk: number | null; kipa: string | null; }
-interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; polygon_geo?: {lat: number; lon: number}[]; }
+interface MapZone { id: number; map_id: number; name: string; color: string; polygon: {x: number; y: number}[]; polygon_geo?: {lat: number; lon: number}[]; parent_zone_id?: number | null; enabled?: boolean; }
 interface MapGeoAnchor { x1: number; y1: number; lat1: number; lon1: number; x2: number; y2: number; lat2: number; lon2: number; }
 const getAnchorFromMapData = (m: any): MapGeoAnchor | null => {
   if (!m?.anchor1_lat || !m?.anchor2_lat || m.anchor1_x_img == null || m.anchor2_x_img == null) return null;
@@ -22906,7 +22931,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               stripZoneAssignments.forEach((a: StripZoneAssignment) => { ((a.extra_zones||[]) as any[]).forEach((ez:any) => { if (!occupiedZoneIds.has(ez.zone_id)) requestedOnlyZoneIds.add(ez.zone_id); }); });
               const allOccupiedIds = new Set([...occupiedZoneIds, ...requestedOnlyZoneIds]);
               const _flashOnly = isFlightZonesMode && !fzShowZones && fzFlashZoneIds.size > 0;
-              const visibleZones = _flashOnly ? mapZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? mapZones : fzZoneFilter === 'occupied' ? mapZones.filter(z => allOccupiedIds.has(z.id)) : mapZones.filter(z => !allOccupiedIds.has(z.id));
+              const enabledZones = mapZones.filter(z => z.enabled !== false);
+              const visibleZones = _flashOnly ? enabledZones.filter(z => fzFlashZoneIds.has(z.id)) : fzZoneFilter === 'all' ? enabledZones : fzZoneFilter === 'occupied' ? enabledZones.filter(z => allOccupiedIds.has(z.id)) : enabledZones.filter(z => !allOccupiedIds.has(z.id));
               const legacyZones = visibleZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0);
               const geoZones = visibleZones.filter(z => z.polygon_geo && z.polygon_geo.length >= 3 && mapAnchor);
               return (<>
@@ -23003,7 +23029,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {/* Blind Map: thin wireframe outlines for ALL zones, always visible */}
             {blindMapMode && mapZones.length > 0 && mapImgBounds && (
               <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 2 }}>
-                {mapZones.filter(z => !z.polygon_geo || z.polygon_geo.length === 0).map(zone => {
+                {mapZones.filter(z => z.enabled !== false && (!z.polygon_geo || z.polygon_geo.length === 0)).map(zone => {
                   const pts = zone.polygon.map(p => `${p.x},${p.y}`).join(' ');
                   const cx = zone.polygon.reduce((s, p) => s + p.x, 0) / zone.polygon.length;
                   const cy = zone.polygon.reduce((s, p) => s + p.y, 0) / zone.polygon.length;
