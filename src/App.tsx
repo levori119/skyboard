@@ -916,11 +916,11 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const [anchorMode, setAnchorMode] = useState(false);
   const [anchorStep, setAnchorStep] = useState<1|2>(1);
   const [pendingAnchor1, setPendingAnchor1] = useState<{x:number;y:number}|null>(null);
-  const [pendingLat1, setPendingLat1] = useState('');
-  const [pendingLon1, setPendingLon1] = useState('');
+  const [pendingDmsLat1, setPendingDmsLat1] = useState({ deg: '', min: '', sec: '', dir: 'N' });
+  const [pendingDmsLon1, setPendingDmsLon1] = useState({ deg: '', min: '', sec: '', dir: 'E' });
   const [pendingAnchor2, setPendingAnchor2] = useState<{x:number;y:number}|null>(null);
-  const [pendingLat2, setPendingLat2] = useState('');
-  const [pendingLon2, setPendingLon2] = useState('');
+  const [pendingDmsLat2, setPendingDmsLat2] = useState({ deg: '', min: '', sec: '', dir: 'N' });
+  const [pendingDmsLon2, setPendingDmsLon2] = useState({ deg: '', min: '', sec: '', dir: 'E' });
   const [savingAnchors, setSavingAnchors] = useState(false);
   const currentAnchor = getAnchorFromMapData(localMapData);
   const isCalibrated = currentAnchor !== null;
@@ -979,10 +979,30 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
     return { x: ((cx - ox) / dispW) * 100, y: ((cy - oy) / dispH) * 100 };
   };
 
+  const dmsToDecimal = (deg: string, min: string, sec: string, dir: string): number => {
+    const d = Math.abs(parseFloat(deg) || 0);
+    const m = parseFloat(min) || 0;
+    const s = parseFloat(sec) || 0;
+    const decimal = d + m / 60 + s / 3600;
+    return (dir === 'S' || dir === 'W') ? -decimal : decimal;
+  };
+
+  const decimalToDms = (decimal: number, isLat: boolean) => {
+    const abs = Math.abs(decimal);
+    const deg = Math.floor(abs);
+    const minFull = (abs - deg) * 60;
+    const min = Math.floor(minFull);
+    const sec = (minFull - min) * 60;
+    const dir = isLat ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'W');
+    return { deg: String(deg), min: String(min), sec: sec.toFixed(1), dir };
+  };
+
   const saveAnchors = async () => {
     if (!pendingAnchor1 || !pendingAnchor2) return;
-    const lat1 = parseFloat(pendingLat1), lon1 = parseFloat(pendingLon1);
-    const lat2 = parseFloat(pendingLat2), lon2 = parseFloat(pendingLon2);
+    const lat1 = dmsToDecimal(pendingDmsLat1.deg, pendingDmsLat1.min, pendingDmsLat1.sec, pendingDmsLat1.dir);
+    const lon1 = dmsToDecimal(pendingDmsLon1.deg, pendingDmsLon1.min, pendingDmsLon1.sec, pendingDmsLon1.dir);
+    const lat2 = dmsToDecimal(pendingDmsLat2.deg, pendingDmsLat2.min, pendingDmsLat2.sec, pendingDmsLat2.dir);
+    const lon2 = dmsToDecimal(pendingDmsLon2.deg, pendingDmsLon2.min, pendingDmsLon2.sec, pendingDmsLon2.dir);
     if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) { alert('יש להזין נ"צ תקינים'); return; }
     setSavingAnchors(true);
     try {
@@ -996,7 +1016,8 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
         setLocalMapData((prev: any) => ({ ...prev, ...updated }));
         setAnchorMode(false);
         setPendingAnchor1(null); setPendingAnchor2(null);
-        setPendingLat1(''); setPendingLon1(''); setPendingLat2(''); setPendingLon2('');
+        setPendingDmsLat1({ deg: '', min: '', sec: '', dir: 'N' }); setPendingDmsLon1({ deg: '', min: '', sec: '', dir: 'E' });
+        setPendingDmsLat2({ deg: '', min: '', sec: '', dir: 'N' }); setPendingDmsLon2({ deg: '', min: '', sec: '', dir: 'E' });
       }
     } catch {}
     setSavingAnchors(false);
@@ -1714,19 +1735,59 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
             <div style={{ padding: '14px', borderBottom: '1px solid #1e293b' }}>
               <div style={{ color: '#7dd3fc', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px' }}>📐 כיול גיאוגרפי</div>
               {!anchorMode ? (
-                <button onClick={() => { setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null); setPendingLat1(localMapData?.anchor1_lat ? String(localMapData.anchor1_lat) : ''); setPendingLon1(localMapData?.anchor1_lon ? String(localMapData.anchor1_lon) : ''); setPendingLat2(localMapData?.anchor2_lat ? String(localMapData.anchor2_lat) : ''); setPendingLon2(localMapData?.anchor2_lon ? String(localMapData.anchor2_lon) : ''); }}
+                <button onClick={() => {
+                  setAnchorMode(true); setAnchorStep(1); setPendingAnchor1(null); setPendingAnchor2(null);
+                  setPendingDmsLat1(localMapData?.anchor1_lat != null ? decimalToDms(localMapData.anchor1_lat, true)  : { deg:'', min:'', sec:'', dir:'N' });
+                  setPendingDmsLon1(localMapData?.anchor1_lon != null ? decimalToDms(localMapData.anchor1_lon, false) : { deg:'', min:'', sec:'', dir:'E' });
+                  setPendingDmsLat2(localMapData?.anchor2_lat != null ? decimalToDms(localMapData.anchor2_lat, true)  : { deg:'', min:'', sec:'', dir:'N' });
+                  setPendingDmsLon2(localMapData?.anchor2_lon != null ? decimalToDms(localMapData.anchor2_lon, false) : { deg:'', min:'', sec:'', dir:'E' });
+                }}
                   style={{ background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '12px', width: '100%' }}>
                   {isCalibrated ? '🔧 עדכן עיגון' : '📐 הגדר עיגון גיאו'}
                 </button>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ color: '#94a3b8', fontSize: '11px' }}>עוגן {anchorStep === 1 ? '1 (A1) — לחץ על המפה' : '2 (A2) — לחץ על המפה'}:</div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input value={anchorStep === 1 ? pendingLat1 : pendingLat2} onChange={e => anchorStep === 1 ? setPendingLat1(e.target.value) : setPendingLat2(e.target.value)}
-                      placeholder="קו רוחב" style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px' }} />
-                    <input value={anchorStep === 1 ? pendingLon1 : pendingLon2} onChange={e => anchorStep === 1 ? setPendingLon1(e.target.value) : setPendingLon2(e.target.value)}
-                      placeholder="קו אורך" style={{ flex: 1, padding: '5px 8px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px' }} />
-                  </div>
+                  {(() => {
+                    const lat = anchorStep === 1 ? pendingDmsLat1 : pendingDmsLat2;
+                    const lon = anchorStep === 1 ? pendingDmsLon1 : pendingDmsLon2;
+                    const setLat = anchorStep === 1 ? setPendingDmsLat1 : setPendingDmsLat2;
+                    const setLon = anchorStep === 1 ? setPendingDmsLon1 : setPendingDmsLon2;
+                    const inStyle = { padding: '4px 5px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px', textAlign: 'center' as const };
+                    const selStyle = { padding: '4px 4px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: '#67e8f9', fontSize: '12px', fontWeight: 'bold' as const, cursor: 'pointer' };
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {/* Latitude row */}
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <span style={{ color: '#7dd3fc', fontSize: '11px', minWidth: '28px' }}>רוחב</span>
+                          <input type="number" min="0" max="90" value={lat.deg} onChange={e => setLat(p => ({ ...p, deg: e.target.value }))} placeholder="°" style={{ ...inStyle, width: '44px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>°</span>
+                          <input type="number" min="0" max="59" value={lat.min} onChange={e => setLat(p => ({ ...p, min: e.target.value }))} placeholder="'" style={{ ...inStyle, width: '38px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>'</span>
+                          <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onChange={e => setLat(p => ({ ...p, sec: e.target.value }))} placeholder="''" style={{ ...inStyle, width: '46px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>''</span>
+                          <select value={lat.dir} onChange={e => setLat(p => ({ ...p, dir: e.target.value }))} style={selStyle}>
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                          </select>
+                        </div>
+                        {/* Longitude row */}
+                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <span style={{ color: '#7dd3fc', fontSize: '11px', minWidth: '28px' }}>אורך</span>
+                          <input type="number" min="0" max="180" value={lon.deg} onChange={e => setLon(p => ({ ...p, deg: e.target.value }))} placeholder="°" style={{ ...inStyle, width: '44px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>°</span>
+                          <input type="number" min="0" max="59" value={lon.min} onChange={e => setLon(p => ({ ...p, min: e.target.value }))} placeholder="'" style={{ ...inStyle, width: '38px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>'</span>
+                          <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onChange={e => setLon(p => ({ ...p, sec: e.target.value }))} placeholder="''" style={{ ...inStyle, width: '46px' }} />
+                          <span style={{ color: '#475569', fontSize: '11px' }}>''</span>
+                          <select value={lon.dir} onChange={e => setLon(p => ({ ...p, dir: e.target.value }))} style={selStyle}>
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {anchorStep === 1 && pendingAnchor1 && (
                       <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>הבא ▶</button>
