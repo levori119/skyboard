@@ -6,6 +6,8 @@ import Tesseract from 'tesseract.js';
 import * as XLSX from 'xlsx';
 import { VirtualKeyboardProvider, VKTrigger } from './VirtualKeyboard';
 import { ClockWidget } from './ClockWidget';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
 
 const API_URL = '/api';
 
@@ -1739,6 +1741,13 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
   const [zoneEditorMapSrc, setZoneEditorMapSrc] = useState<string | null>(null);
   const [zoneEditorMapData, setZoneEditorMapData] = useState<any>(null);
 
+  // PDF state
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pdfPageCount, setPdfPageCount] = useState(0);
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+  const [pdfRendering, setPdfRendering] = useState(false);
+  const [isPdf, setIsPdf] = useState(false);
+
   const loadMaps = async () => {
     try {
       const res = await fetch(`${API_URL}/maps`);
@@ -1752,13 +1761,56 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
     loadMaps();
   }, []);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const renderPdfPage = async (doc: any, pageNum: number): Promise<string> => {
+    const page = await doc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 2.0 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d')!;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL('image/jpeg', 0.92);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      setIsPdf(true);
+      setPdfDoc(null);
+      setPdfPageCount(0);
+      setPdfCurrentPage(1);
+      setNewMapData(null);
+      setPdfRendering(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const doc = await getDocument({ data: arrayBuffer }).promise;
+        setPdfDoc(doc);
+        setPdfPageCount(doc.numPages);
+        const imgData = await renderPdfPage(doc, 1);
+        setNewMapData(imgData);
+      } catch (err) {
+        console.error('PDF render error:', err);
+        alert('שגיאה בטעינת ה-PDF');
+      }
+      setPdfRendering(false);
+    } else {
+      setIsPdf(false);
+      setPdfDoc(null);
+      setPdfPageCount(0);
       const reader = new FileReader();
       reader.onload = (ev) => setNewMapData(ev.target?.result as string);
       reader.readAsDataURL(file);
     }
+  };
+
+  const handlePdfPageChange = async (pageNum: number) => {
+    if (!pdfDoc || pdfRendering) return;
+    setPdfRendering(true);
+    setPdfCurrentPage(pageNum);
+    const imgData = await renderPdfPage(pdfDoc, pageNum);
+    setNewMapData(imgData);
+    setPdfRendering(false);
   };
 
   const handleUpload = async () => {
@@ -1773,6 +1825,10 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
       if (res.ok) {
         setNewMapName('');
         setNewMapData(null);
+        setIsPdf(false);
+        setPdfDoc(null);
+        setPdfPageCount(0);
+        setPdfCurrentPage(1);
         loadMaps();
         onMapsUpdated();
       }
@@ -1805,7 +1861,7 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
       {isEmbedded && <h2 style={{ margin: '0 0 20px 0', fontSize: '18px', color: 'white' }}>ניהול מפות</h2>}
 
       <div style={{ background: isEmbedded ? '#334155' : '#f1f5f9', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>העלאת מפה חדשה</h3>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isEmbedded ? '#94a3b8' : '#475569' }}>העלאת מפה חדשה (תמונה או PDF)</h3>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
@@ -1815,25 +1871,48 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
             style={{ flex: 1, minWidth: '150px', padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '14px', background: 'white' }}
           />
           <label style={{ background: '#475569', color: 'white', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
-            {newMapData ? 'קובץ נבחר ✓' : 'בחר קובץ JPG'}
-            <input type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+            {pdfRendering ? '⏳ טוען PDF...' : newMapData ? (isPdf ? `📄 PDF — עמוד ${pdfCurrentPage}/${pdfPageCount} ✓` : '🖼 תמונה נבחרה ✓') : '📂 בחר תמונה / PDF'}
+            <input type="file" accept="image/*,.pdf,application/pdf" onChange={handleFileSelect} style={{ display: 'none' }} />
           </label>
           <button
             onClick={handleUpload}
-            disabled={!newMapName.trim() || !newMapData || uploading}
+            disabled={!newMapName.trim() || !newMapData || uploading || pdfRendering}
             style={{
-              background: newMapName.trim() && newMapData ? '#059669' : '#94a3b8',
+              background: newMapName.trim() && newMapData && !pdfRendering ? '#059669' : '#94a3b8',
               color: 'white',
               padding: '8px 20px',
               border: 'none',
               borderRadius: '6px',
-              cursor: newMapName.trim() && newMapData ? 'pointer' : 'not-allowed',
+              cursor: newMapName.trim() && newMapData && !pdfRendering ? 'pointer' : 'not-allowed',
               fontSize: '14px'
             }}
           >
             {uploading ? 'מעלה...' : 'העלה'}
           </button>
         </div>
+        {/* PDF page navigator */}
+        {isPdf && pdfPageCount > 1 && (
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', direction: 'rtl' }}>
+            <span style={{ fontSize: '12px', color: isEmbedded ? '#94a3b8' : '#475569', fontWeight: 'bold' }}>📄 בחר עמוד:</span>
+            <button onClick={() => handlePdfPageChange(Math.max(1, pdfCurrentPage - 1))}
+              disabled={pdfCurrentPage <= 1 || pdfRendering}
+              style={{ padding: '3px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>◀</button>
+            <span style={{ fontSize: '13px', color: isEmbedded ? '#e2e8f0' : '#1e293b', minWidth: '70px', textAlign: 'center' }}>
+              {pdfRendering ? '⏳' : `${pdfCurrentPage} / ${pdfPageCount}`}
+            </span>
+            <button onClick={() => handlePdfPageChange(Math.min(pdfPageCount, pdfCurrentPage + 1))}
+              disabled={pdfCurrentPage >= pdfPageCount || pdfRendering}
+              style={{ padding: '3px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>▶</button>
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginRight: '8px' }}>
+              {Array.from({ length: Math.min(pdfPageCount, 10) }, (_, i) => i + 1).map(n => (
+                <button key={n} onClick={() => handlePdfPageChange(n)}
+                  disabled={pdfRendering}
+                  style={{ width: '28px', height: '28px', padding: 0, background: pdfCurrentPage === n ? '#3b82f6' : '#1e293b', color: 'white', border: `1px solid ${pdfCurrentPage === n ? '#3b82f6' : '#334155'}`, borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: pdfCurrentPage === n ? 'bold' : 'normal' }}>{n}</button>
+              ))}
+              {pdfPageCount > 10 && <span style={{ fontSize: '11px', color: '#64748b', alignSelf: 'center' }}>…{pdfPageCount}</span>}
+            </div>
+          </div>
+        )}
         {newMapData && (
           <div style={{ marginTop: '12px' }}>
             <img src={newMapData} style={{ maxWidth: '200px', maxHeight: '100px', objectFit: 'contain', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
