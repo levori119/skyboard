@@ -1763,13 +1763,16 @@ const MapsManager = ({ onClose, onMapsUpdated, isEmbedded = false }: { onClose: 
 
   const renderPdfPage = async (doc: any, pageNum: number): Promise<string> => {
     const page = await doc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 2.0 });
+    // Scale to max ~2000px wide to keep file size manageable
+    const rawViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(1.8, 2000 / Math.max(rawViewport.width, rawViewport.height));
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     const ctx = canvas.getContext('2d')!;
     await page.render({ canvasContext: ctx, viewport }).promise;
-    return canvas.toDataURL('image/jpeg', 0.92);
+    return canvas.toDataURL('image/jpeg', 0.85);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
