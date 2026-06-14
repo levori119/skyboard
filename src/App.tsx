@@ -31200,6 +31200,41 @@ const ClosuresManager = () => {
     if (failed > 0) alert(`יובאו ${success} סגירות בהצלחה, ${failed} נכשלו`);
   };
 
+  // ── Map picker for drawing polygon geo points ──────────────────────────
+  interface MapPickerState {
+    step: 'list' | 'draw';
+    maps: any[];
+    selected: any | null;
+    points: { lat: number; lon: number }[];
+  }
+  const [mapPicker, setMapPicker] = React.useState<MapPickerState | null>(null);
+  const mapPickerImgRef = React.useRef<HTMLImageElement>(null);
+
+  const openMapPicker = async () => {
+    const maps = await fetch(`${API}/maps`).then(r => r.json()).catch(() => []);
+    const anchored = (Array.isArray(maps) ? maps : []).filter((m: any) => getAnchorFromMapData(m) !== null);
+    setMapPicker({ step: 'list', maps: anchored, selected: null, points: [] });
+  };
+  const selectMapForDraw = async (m: any) => {
+    const full = await fetch(`${API}/maps/${m.id}`).then(r => r.json()).catch(() => m);
+    setMapPicker(prev => prev ? { ...prev, step: 'draw', selected: full, points: [] } : prev);
+  };
+  const handleMapDrawClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!mapPicker?.selected) return;
+    const anchor = getAnchorFromMapData(mapPicker.selected);
+    if (!anchor) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    const geo = imagePctToGeo(xPct, yPct, anchor);
+    setMapPicker(prev => prev ? { ...prev, points: [...prev.points, geo] } : prev);
+  };
+  const applyMapPickerPoints = () => {
+    if (!mapPicker || mapPicker.points.length === 0) { setMapPicker(null); return; }
+    setForm(f => ({ ...f, polygon_geo: [...f.polygon_geo, ...mapPicker.points] }));
+    setMapPicker(null);
+  };
+
   const load = React.useCallback(() => {
     setLoading(true);
     fetch(`${API}/closures`).then(r => r.json()).then(setClosures).catch(() => {}).finally(() => setLoading(false));
@@ -31304,7 +31339,10 @@ const ClosuresManager = () => {
 
           {/* Polygon Geo Points */}
           <div style={{ marginBottom: '12px' }}>
-            {lbl('נ"צ הפוליגון (lat/lon)')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              {lbl('נ"צ הפוליגון (lat/lon)')}
+              <button onClick={openMapPicker} style={{ padding: '3px 10px', background: '#1a3a4a', color: '#38bdf8', border: '1px solid #0ea5e9', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', marginBottom: '3px' }}>🗺️ דקור על מפה</button>
+            </div>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
               {inp({ placeholder: 'קו רוחב (lat)', value: polyInput.lat, onChange: e => setPolyInput(p => ({ ...p, lat: e.target.value })), style: { flex: 1 } })}
               {inp({ placeholder: 'קו אורך (lon)', value: polyInput.lon, onChange: e => setPolyInput(p => ({ ...p, lon: e.target.value })), style: { flex: 1 } })}
@@ -31388,6 +31426,111 @@ const ClosuresManager = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Map Picker Modal — draw polygon points on an anchored map */}
+      {mapPicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 9200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', width: '92vw', maxWidth: '1100px', height: '88vh', display: 'flex', flexDirection: 'column', direction: 'rtl', overflow: 'hidden' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 16px', borderBottom: '1px solid #334155', flexShrink: 0 }}>
+              {mapPicker.step === 'draw' && (
+                <button onClick={() => setMapPicker(p => p ? { ...p, step: 'list', selected: null, points: [] } : p)} style={{ background: '#374151', border: 'none', color: '#94a3b8', padding: '3px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>← חזור</button>
+              )}
+              <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '14px', flex: 1 }}>
+                {mapPicker.step === 'list' ? '🗺️ בחר מפה מעוגנת לדקירת נקודות' : `🎯 ${mapPicker.selected?.name} — לחץ להוספת נקודה`}
+              </span>
+              <button onClick={() => setMapPicker(null)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>✕</button>
+            </div>
+
+            {/* Step 1 — Map list */}
+            {mapPicker.step === 'list' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+                {mapPicker.maps.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#475569', padding: '50px 20px', fontSize: '13px' }}>
+                    אין מפות מעוגנות.<br/>
+                    <span style={{ fontSize: '11px' }}>הגדר עיגון גאוגרפי למפה בלשונית "מפות" בניהול.</span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
+                    {mapPicker.maps.map((m: any) => (
+                      <div key={m.id} onClick={() => selectMapForDraw(m)}
+                        style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '18px 12px', cursor: 'pointer', textAlign: 'center', color: '#e2e8f0', fontSize: '13px', fontWeight: 'bold', transition: 'border-color 0.15s, background 0.15s' }}
+                        onMouseOver={e => { (e.currentTarget as HTMLElement).style.borderColor = '#38bdf8'; (e.currentTarget as HTMLElement).style.background = '#0c2131'; }}
+                        onMouseOut={e => { (e.currentTarget as HTMLElement).style.borderColor = '#334155'; (e.currentTarget as HTMLElement).style.background = '#0f172a'; }}>
+                        🗺️<br/><span style={{ fontSize: '12px' }}>{m.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 2 — Draw on map */}
+            {mapPicker.step === 'draw' && mapPicker.selected && (() => {
+              const anchor = getAnchorFromMapData(mapPicker.selected);
+              return (
+                <>
+                  <div style={{ padding: '6px 16px', background: '#0f172a', fontSize: '11px', color: '#64748b', flexShrink: 0, borderBottom: '1px solid #1e293b' }}>
+                    לחץ על המפה להוספת נקודת פוליגון · לחיצה ימנית = מחיקת נקודה אחרונה · {mapPicker.points.length} נקודות
+                  </div>
+                  <div style={{ flex: 1, overflow: 'auto', cursor: 'crosshair', background: '#020617' }}>
+                    <div style={{ position: 'relative', display: 'inline-block', minWidth: '100%' }}>
+                      <img
+                        ref={mapPickerImgRef}
+                        src={mapPicker.selected.image_data}
+                        style={{ display: 'block', width: '100%', height: 'auto', userSelect: 'none', pointerEvents: 'all' }}
+                        onClick={handleMapDrawClick}
+                        onContextMenu={e => { e.preventDefault(); setMapPicker(p => p ? { ...p, points: p.points.slice(0, -1) } : p); }}
+                        draggable={false}
+                        alt="map"
+                      />
+                      {/* SVG overlay — polygon preview */}
+                      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
+                        {anchor && mapPicker.points.map((pt, i) => {
+                          const pct = geoToImagePct(pt.lat, pt.lon, anchor);
+                          const prev = i > 0 ? geoToImagePct(mapPicker.points[i - 1].lat, mapPicker.points[i - 1].lon, anchor) : null;
+                          return (
+                            <g key={i}>
+                              {prev && <line x1={`${prev.x}%`} y1={`${prev.y}%`} x2={`${pct.x}%`} y2={`${pct.y}%`} stroke="#f59e0b" strokeWidth="1.8" strokeDasharray="5,3" />}
+                              <circle cx={`${pct.x}%`} cy={`${pct.y}%`} r="6" fill="#f59e0b" stroke="#0f172a" strokeWidth="1.5" />
+                              <text x={`${pct.x}%`} y={`${pct.y}%`} dy="-9" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#fde68a" stroke="#0f172a" strokeWidth="3" paintOrder="stroke">{i + 1}</text>
+                            </g>
+                          );
+                        })}
+                        {/* Close polygon */}
+                        {anchor && mapPicker.points.length >= 3 && (() => {
+                          const fp = geoToImagePct(mapPicker.points[0].lat, mapPicker.points[0].lon, anchor);
+                          const lp = geoToImagePct(mapPicker.points[mapPicker.points.length - 1].lat, mapPicker.points[mapPicker.points.length - 1].lon, anchor);
+                          return <line x1={`${lp.x}%`} y1={`${lp.y}%`} x2={`${fp.x}%`} y2={`${fp.y}%`} stroke="#f59e0b" strokeWidth="1" strokeDasharray="4,4" opacity="0.45" />;
+                        })()}
+                      </svg>
+                    </div>
+                  </div>
+                  {/* Footer */}
+                  <div style={{ padding: '10px 16px', borderTop: '1px solid #334155', background: '#0f172a', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+                    <button onClick={applyMapPickerPoints} disabled={mapPicker.points.length === 0}
+                      style={{ padding: '6px 20px', background: mapPicker.points.length === 0 ? '#374151' : '#0ea5e9', color: mapPicker.points.length === 0 ? '#64748b' : '#fff', border: 'none', borderRadius: '6px', cursor: mapPicker.points.length === 0 ? 'default' : 'pointer', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      ✅ הוסף {mapPicker.points.length} נקודות לפוליגון
+                    </button>
+                    <button onClick={() => setMapPicker(p => p ? { ...p, points: [] } : p)} style={{ padding: '6px 14px', background: '#374151', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>🗑 נקה</button>
+                    <span style={{ color: '#475569', fontSize: '11px', whiteSpace: 'nowrap' }}>לחיצה ימנית = מחיקת אחרונה</span>
+                    {mapPicker.points.length > 0 && (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginRight: 'auto' }}>
+                        {mapPicker.points.map((pt, i) => (
+                          <span key={i} style={{ background: '#1e293b', border: '1px solid #f59e0b', borderRadius: '4px', padding: '1px 6px', fontSize: '10px', color: '#fcd34d', whiteSpace: 'nowrap' }}>
+                            {i + 1}: {pt.lat.toFixed(4)},{pt.lon.toFixed(4)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Import Preview Modal */}
       {importRows && (
