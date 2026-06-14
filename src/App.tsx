@@ -1767,33 +1767,31 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                           {hasPin && <span style={{ fontSize: '10px', color: '#34d399' }}>📍</span>}
                           {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>← לחץ על המפה</span>}
                         </div>
-                        {/* Latitude row */}
-                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                          <span style={{ color: '#7dd3fc', fontSize: '10px', minWidth: '10px' }}>N</span>
+                        {/* Latitude row — direction:ltr so deg is leftmost, min center, sec rightmost */}
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center', direction: 'ltr' }}>
+                          <select value={lat.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                          </select>
                           <input type="number" min="0" max="90" value={lat.deg} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, deg: e.target.value })); }} placeholder="°" style={{ ...inStyle, width: '40px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
                           <input type="number" min="0" max="59" value={lat.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
                           <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
-                          <select value={lat.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
-                            <option value="N">N</option>
-                            <option value="S">S</option>
-                          </select>
                         </div>
-                        {/* Longitude row */}
-                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
-                          <span style={{ color: '#7dd3fc', fontSize: '10px', minWidth: '10px' }}>E</span>
+                        {/* Longitude row — direction:ltr so deg is leftmost, min center, sec rightmost */}
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center', direction: 'ltr' }}>
+                          <select value={lon.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                          </select>
                           <input type="number" min="0" max="180" value={lon.deg} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, deg: e.target.value })); }} placeholder="°" style={{ ...inStyle, width: '40px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
                           <input type="number" min="0" max="59" value={lon.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
                           <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
                           <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
-                          <select value={lon.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
-                            <option value="E">E</option>
-                            <option value="W">W</option>
-                          </select>
                         </div>
                       </div>
                     );
