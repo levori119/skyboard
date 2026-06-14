@@ -17677,6 +17677,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     loadDefaultMap();
   }, [session.mapId]);
 
+  // Refresh anchor data (without re-fetching the full image) whenever the map changes,
+  // and again whenever the page becomes visible — handles the case where anchors were
+  // set in the admin editor while the workstation was already showing the map.
+  useEffect(() => {
+    if (!currentMapId) return;
+    const refresh = () => {
+      fetch(`${API_URL}/maps`)
+        .then(r => r.ok ? r.json() : [])
+        .then((maps: any[]) => {
+          const m = maps.find((x: any) => Number(x.id) === Number(currentMapId));
+          if (m) { const a = getAnchorFromMapData(m); if (a) setMapGeoAnchor(a); }
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [currentMapId]);
+
   useEffect(() => {
     if (!isDualMapMode || !myPresetConfig?.map2_id) { setMap2Img(null); return; }
     fetch(`${API_URL}/maps/${myPresetConfig.map2_id}`)
@@ -21144,10 +21164,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           } : undefined}
           onMouseLeave={mapGeoAnchor ? () => setMapHoverCoord(null) : undefined}
         >
-          {/* Geo-coordinate tooltip on hover (only when map has anchors set) */}
+          {/* Geo-coordinate display — fixed bottom-left corner while hovering */}
           {mapHoverCoord && mapGeoAnchor && !tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && (
-            <div style={{ position: 'absolute', left: mapHoverCoord.x + 14, top: mapHoverCoord.y - 14, zIndex: 9998, pointerEvents: 'none', background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em' }}>
+            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 9998, pointerEvents: 'none', background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
                 {fmtDms(mapHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(mapHoverCoord.lon, false)}
               </span>
             </div>
