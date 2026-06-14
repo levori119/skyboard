@@ -21146,7 +21146,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
-          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor) ? (e: React.MouseEvent<HTMLDivElement>) => {
+          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? (e: React.MouseEvent<HTMLDivElement>) => {
+            if (!mapGeoAnchor) { setMapHoverCoord(null); return; }
             const rect = e.currentTarget.getBoundingClientRect();
             const cx = e.clientX - rect.left;
             const cy = e.clientY - rect.top;
@@ -21158,18 +21159,28 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             if (!ib || ib.width === 0 || ib.height === 0) { setMapHoverCoord(null); return; }
             const xImg = ((x_inner - ib.left) / ib.width) * 100;
             const yImg = ((y_inner - ib.top) / ib.height) * 100;
-            if (xImg < -5 || xImg > 105 || yImg < -5 || yImg > 105) { setMapHoverCoord(null); return; }
+            if (xImg < -10 || xImg > 110 || yImg < -10 || yImg > 110) { setMapHoverCoord(null); return; }
             const geo = imagePctToGeo(xImg, yImg, mapGeoAnchor);
+            if (!isFinite(geo.lat) || !isFinite(geo.lon)) { setMapHoverCoord(null); return; }
             setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
           } : undefined}
-          onMouseLeave={mapGeoAnchor ? () => setMapHoverCoord(null) : undefined}
+          onMouseLeave={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode) ? () => setMapHoverCoord(null) : undefined}
         >
-          {/* Geo-coordinate display — fixed bottom-left corner while hovering */}
-          {mapHoverCoord && mapGeoAnchor && !tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && (
-            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 9998, pointerEvents: 'none', background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
-                {fmtDms(mapHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(mapHoverCoord.lon, false)}
-              </span>
+          {/* Geo-anchor status badge + coordinate display in bottom-left corner */}
+          {!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor && (
+            <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 9998, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {!mapHoverCoord && (
+                <div style={{ background: 'rgba(2,6,23,0.70)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>⚓</span>
+                </div>
+              )}
+              {mapHoverCoord && (
+                <div style={{ background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
+                    ⚓&nbsp;{fmtDms(mapHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(mapHoverCoord.lon, false)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
           {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
