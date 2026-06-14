@@ -1455,6 +1455,18 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
       });
       if (!mapRes.ok) { const err = await mapRes.json(); alert(err.error || 'שגיאה ביצירת מפה'); setSectorCreating(false); return; }
       const newMap = await mapRes.json();
+      // Propagate geo anchors from parent to child — transform anchor % coords into the child's space.
+      // Even if the transformed coords fall outside 0–100, the linear mapping stays valid.
+      if (currentAnchor) {
+        const ca1x = ((currentAnchor.x1 - normX1) / sw) * 100;
+        const ca1y = ((currentAnchor.y1 - normY1) / sh) * 100;
+        const ca2x = ((currentAnchor.x2 - normX1) / sw) * 100;
+        const ca2y = ((currentAnchor.y2 - normY1) / sh) * 100;
+        await fetch(`${API_URL}/maps/${newMap.id}/anchors`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ anchor1_x_img: ca1x, anchor1_y_img: ca1y, anchor1_lat: currentAnchor.lat1, anchor1_lon: currentAnchor.lon1, anchor2_x_img: ca2x, anchor2_y_img: ca2y, anchor2_lat: currentAnchor.lat2, anchor2_lon: currentAnchor.lon2 })
+        }).catch(() => {});
+      }
       for (const zone of zones) {
         const anyInside = zone.polygon.some(p => p.x >= normX1 && p.x <= normX2 && p.y >= normY1 && p.y <= normY2);
         if (!anyInside) continue;
