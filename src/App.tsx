@@ -31100,6 +31100,105 @@ const ClosuresManager = () => {
   const [showForm, setShowForm] = React.useState(false);
   const [dateInput, setDateInput] = React.useState('');
   const [polyInput, setPolyInput] = React.useState<{ lat: string; lon: string }>({ lat: '', lon: '' });
+  const [importRows, setImportRows] = React.useState<any[] | null>(null);
+  const [importing, setImporting] = React.useState(false);
+  const importFileRef = React.useRef<HTMLInputElement>(null);
+
+  const HEBREW_COLORS: Record<string, string> = {
+    'סגול': '#a855f7', 'אדום': '#ef4444', 'צהוב': '#eab308', 'כחול': '#3b82f6',
+    'ירוק': '#22c55e', 'כתום': '#f97316', 'ורוד': '#ec4899', 'אפור': '#64748b',
+    'לבן': '#f1f5f9', 'שחור': '#1e293b', 'תכלת': '#38bdf8', 'חום': '#a16207',
+  };
+  const HEBREW_STATUS: Record<string, string> = {
+    'מתואמת': 'coordinated', 'מאושרת': 'approved',
+    'ממתינה לאישור': 'pending', 'בוטלה': 'cancelled',
+  };
+  const excelDateToStr = (serial: number) => {
+    const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+    return d.toISOString().slice(0, 10);
+  };
+  const excelTimeToStr = (frac: number) => {
+    const totalMins = Math.round(frac * 24 * 60);
+    const h = Math.floor(totalMins / 60), m = totalMins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+  const parseNavCoord = (str: string): { lat: number; lon: number }[] => {
+    // Format: "3110N/03430E - 3120N/03430E ..."  (DDMM / DDDMM)
+    return str.split(' - ').map(pt => {
+      const m = pt.trim().match(/^(\d{2})(\d{2})([NS])\/(\d{3})(\d{2})([EW])$/);
+      if (!m) return null;
+      const lat = parseInt(m[1]) + parseInt(m[2]) / 60;
+      const lon = parseInt(m[4]) + parseInt(m[5]) / 60;
+      return { lat: m[3] === 'S' ? -lat : lat, lon: m[6] === 'W' ? -lon : lon };
+    }).filter(Boolean) as { lat: number; lon: number }[];
+  };
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const buffer = ev.target?.result as ArrayBuffer;
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const SHEET_NAME = 'רשימת סגירות מרחב';
+        const ws = wb.Sheets[SHEET_NAME] || wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
+        // Detect header row — search for row starting with "שם סגירה"
+        let dataStart = 4;
+        for (let ri = 0; ri < Math.min(data.length, 10); ri++) {
+          if (String(data[ri][0] || '').trim() === 'שם סגירה') { dataStart = ri + 1; break; }
+        }
+        const rows = data.slice(dataStart).filter(r => String(r[0] || '').trim());
+        if (rows.length === 0) { alert('לא נמצאו שורות נתונים בקובץ'); return; }
+        const parsed = rows.map(r => {
+          const colorHeb = String(r[2] || '').trim();
+          const statusHeb = String(r[8] || '').trim();
+          const dateVal = r[5];
+          const timeStartVal = r[6];
+          const timeEndVal = r[7];
+          return {
+            name: String(r[0] || '').trim(),
+            category: String(r[1] || '').trim(),
+            color: HEBREW_COLORS[colorHeb] || '#64748b',
+            colorName: colorHeb,
+            alt_min: r[3] !== '' && !isNaN(Number(r[3])) ? Number(r[3]) : null,
+            alt_max: r[4] !== '' && !isNaN(Number(r[4])) ? Number(r[4]) : null,
+            dates: dateVal !== '' && !isNaN(Number(dateVal)) ? [excelDateToStr(Number(dateVal))] : [],
+            time_start: timeStartVal !== '' && !isNaN(Number(timeStartVal)) ? excelTimeToStr(Number(timeStartVal)) : String(timeStartVal || ''),
+            time_end: timeEndVal !== '' && !isNaN(Number(timeEndVal)) ? excelTimeToStr(Number(timeEndVal)) : String(timeEndVal || ''),
+            closure_status: HEBREW_STATUS[statusHeb] || statusHeb || 'coordinated',
+            statusDisplay: statusHeb,
+            active: String(r[9] || '').trim() === 'כן',
+            polygon_geo: r[10] ? parseNavCoord(String(r[10])) : [],
+          };
+        });
+        setImportRows(parsed);
+      } catch (err) {
+        alert('שגיאה בקריאת הקובץ: ' + (err as Error).message);
+      }
+      e.target.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  const confirmImport = async () => {
+    if (!importRows) return;
+    setImporting(true);
+    let success = 0, failed = 0;
+    for (const row of importRows) {
+      const { colorName, statusDisplay, ...body } = row;
+      try {
+        const res = await fetch(`${API}/closures`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) success++; else failed++;
+      } catch { failed++; }
+    }
+    setImporting(false);
+    setImportRows(null);
+    load();
+    if (failed > 0) alert(`יובאו ${success} סגירות בהצלחה, ${failed} נכשלו`);
+  };
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -31152,6 +31251,8 @@ const ClosuresManager = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
         <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#e2e8f0' }}>🚫 סגירות</span>
         <button onClick={openNew} style={{ padding: '5px 14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>+ סגירה חדשה</button>
+        <button onClick={() => importFileRef.current?.click()} style={{ padding: '5px 14px', background: '#065f46', color: '#6ee7b7', border: '1px solid #059669', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>📥 טען מקובץ Excel</button>
+        <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportFile} />
         {loading && <span style={{ color: '#64748b', fontSize: '11px' }}>טוען...</span>}
       </div>
 
@@ -31169,6 +31270,8 @@ const ClosuresManager = () => {
               <select value={form.closure_status} onChange={e => setForm(f => ({ ...f, closure_status: e.target.value }))} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', padding: '5px 8px', fontSize: '12px', width: '100%' }}>
                 <option value="coordinated">מתואמת</option>
                 <option value="approved">מאושרת</option>
+                <option value="pending">ממתינה לאישור</option>
+                <option value="cancelled">בוטלה</option>
               </select>
             </div>
             <div>{lbl('זמן התחלה')}{inp({ type: 'time', value: form.time_start, onChange: e => setForm(f => ({ ...f, time_start: e.target.value })) })}</div>
@@ -31262,9 +31365,17 @@ const ClosuresManager = () => {
                 <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{(c.dates || []).length > 0 ? (c.dates || []).join(', ') : '—'}</td>
                 <td style={{ padding: '7px 10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.time_start && c.time_end ? `${c.time_start} – ${c.time_end}` : c.time_start || c.time_end || '—'}</td>
                 <td style={{ padding: '7px 10px' }}>
-                  <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: c.closure_status === 'approved' ? '#166534' : '#1e3a5f', color: c.closure_status === 'approved' ? '#86efac' : '#93c5fd' }}>
-                    {c.closure_status === 'approved' ? 'מאושרת' : 'מתואמת'}
-                  </span>
+                  {(() => {
+                    const st = c.closure_status;
+                    const cfg: Record<string, { bg: string; color: string; label: string }> = {
+                      approved:    { bg: '#166534', color: '#86efac', label: 'מאושרת' },
+                      coordinated: { bg: '#1e3a5f', color: '#93c5fd', label: 'מתואמת' },
+                      pending:     { bg: '#451a03', color: '#fdba74', label: 'ממתינה לאישור' },
+                      cancelled:   { bg: '#27272a', color: '#a1a1aa', label: 'בוטלה' },
+                    };
+                    const c2 = cfg[st] || { bg: '#1e293b', color: '#94a3b8', label: st };
+                    return <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: c2.bg, color: c2.color }}>{c2.label}</span>;
+                  })()}
                 </td>
                 <td style={{ padding: '7px 10px', textAlign: 'center' }}>{c.active ? '✅' : '⭕'}</td>
                 <td style={{ padding: '7px 10px', color: '#64748b' }}>{(c.polygon_geo || []).length}</td>
@@ -31277,6 +31388,69 @@ const ClosuresManager = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Import Preview Modal */}
+      {importRows && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '10px', padding: '20px', width: '90vw', maxWidth: '1000px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', direction: 'rtl', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#e2e8f0' }}>📥 תצוגה מקדימה — {importRows.length} סגירות נמצאו</span>
+              <button onClick={() => setImportRows(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ fontSize: '11px', color: '#64748b' }}>בדוק את הנתונים לפני הייבוא. ייבוא יוסיף את כל השורות כסגירות חדשות.</div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#0f172a' }}>
+                  <tr style={{ color: '#64748b' }}>
+                    {['שם', 'קטגוריה', 'צבע', 'גובה', 'תאריך', 'שעות', 'סטטוס', 'בשימוש', 'נ"צ'].map((h, i) => (
+                      <th key={i} style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 'normal', borderBottom: '1px solid #334155', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {importRows.map((row, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #0f172a', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                      <td style={{ padding: '5px 8px', color: '#e2e8f0', fontWeight: 'bold', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</td>
+                      <td style={{ padding: '5px 8px', color: '#94a3b8' }}>{row.category}</td>
+                      <td style={{ padding: '5px 8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ width: '14px', height: '14px', borderRadius: '3px', background: row.color, display: 'inline-block', flexShrink: 0 }} />
+                          <span style={{ color: '#64748b', fontSize: '10px' }}>{row.colorName}</span>
+                        </div>
+                      </td>
+                      <td style={{ padding: '5px 8px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                        {row.alt_min != null || row.alt_max != null ? `${row.alt_min ?? '?'}–${row.alt_max ?? '?'} רגל` : '—'}
+                      </td>
+                      <td style={{ padding: '5px 8px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{row.dates.join(', ') || '—'}</td>
+                      <td style={{ padding: '5px 8px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                        {row.time_start && row.time_end ? `${row.time_start}–${row.time_end}` : row.time_start || row.time_end || '—'}
+                      </td>
+                      <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const cfg: Record<string, { bg: string; color: string }> = {
+                            approved: { bg: '#166534', color: '#86efac' }, coordinated: { bg: '#1e3a5f', color: '#93c5fd' },
+                            pending: { bg: '#451a03', color: '#fdba74' }, cancelled: { bg: '#27272a', color: '#a1a1aa' },
+                          };
+                          const sc = cfg[row.closure_status] || { bg: '#1e293b', color: '#94a3b8' };
+                          return <span style={{ padding: '1px 6px', borderRadius: '8px', background: sc.bg, color: sc.color }}>{row.statusDisplay || row.closure_status}</span>;
+                        })()}
+                      </td>
+                      <td style={{ padding: '5px 8px', textAlign: 'center' }}>{row.active ? '✅' : '⭕'}</td>
+                      <td style={{ padding: '5px 8px', color: '#64748b' }}>{row.polygon_geo.length} נק׳</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-start', borderTop: '1px solid #334155', paddingTop: '12px' }}>
+              <button onClick={confirmImport} disabled={importing} style={{ padding: '7px 22px', background: importing ? '#374151' : '#16a34a', color: importing ? '#94a3b8' : '#fff', border: 'none', borderRadius: '6px', cursor: importing ? 'default' : 'pointer', fontSize: '13px', fontWeight: 'bold' }}>
+                {importing ? 'מייבא...' : `✅ אשר ייבוא (${importRows.length})`}
+              </button>
+              <button onClick={() => setImportRows(null)} disabled={importing} style={{ padding: '7px 18px', background: '#374151', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
