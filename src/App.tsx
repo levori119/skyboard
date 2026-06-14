@@ -1747,53 +1747,62 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                   {isCalibrated ? '🔧 עדכן עיגון' : '📐 הגדר עיגון גיאו'}
                 </button>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ color: '#94a3b8', fontSize: '11px' }}>עוגן {anchorStep === 1 ? '1 (A1) — לחץ על המפה' : '2 (A2) — לחץ על המפה'}:</div>
-                  {(() => {
-                    const lat = anchorStep === 1 ? pendingDmsLat1 : pendingDmsLat2;
-                    const lon = anchorStep === 1 ? pendingDmsLon1 : pendingDmsLon2;
-                    const setLat = anchorStep === 1 ? setPendingDmsLat1 : setPendingDmsLat2;
-                    const setLon = anchorStep === 1 ? setPendingDmsLon1 : setPendingDmsLon2;
-                    const inStyle = { padding: '4px 5px', borderRadius: '4px', border: '1px solid #475569', background: '#1e293b', color: 'white', fontSize: '12px', textAlign: 'center' as const };
-                    const selStyle = { padding: '4px 4px', borderRadius: '4px', border: '1px solid #475569', background: '#0f172a', color: '#67e8f9', fontSize: '12px', fontWeight: 'bold' as const, cursor: 'pointer' };
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {([1, 2] as const).map(step => {
+                    const isActive = anchorStep === step;
+                    const lat = step === 1 ? pendingDmsLat1 : pendingDmsLat2;
+                    const lon = step === 1 ? pendingDmsLon1 : pendingDmsLon2;
+                    const setLat = step === 1 ? setPendingDmsLat1 : setPendingDmsLat2;
+                    const setLon = step === 1 ? setPendingDmsLon1 : setPendingDmsLon2;
+                    const hasPin = step === 1 ? !!pendingAnchor1 : !!pendingAnchor2;
+                    const inStyle = { padding: '3px 4px', borderRadius: '4px', border: `1px solid ${isActive ? '#3b82f6' : '#475569'}`, background: isActive ? '#172554' : '#1e293b', color: 'white', fontSize: '11px', textAlign: 'center' as const };
+                    const selStyle = { padding: '3px 4px', borderRadius: '4px', border: `1px solid ${isActive ? '#3b82f6' : '#475569'}`, background: isActive ? '#172554' : '#0f172a', color: '#67e8f9', fontSize: '11px', fontWeight: 'bold' as const, cursor: 'pointer' };
                     return (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <div key={step} onClick={() => setAnchorStep(step)}
+                        style={{ border: `1px solid ${isActive ? '#3b82f6' : '#334155'}`, borderRadius: '6px', padding: '6px 8px', background: isActive ? '#0f1f3d' : '#0f172a', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '2px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: isActive ? '#60a5fa' : '#64748b' }}>
+                            {isActive ? '▶ ' : ''}עוגן {step} (A{step})
+                          </span>
+                          {hasPin && <span style={{ fontSize: '10px', color: '#34d399' }}>📍</span>}
+                          {isActive && <span style={{ fontSize: '10px', color: '#fbbf24', marginRight: 'auto' }}>← לחץ על המפה</span>}
+                        </div>
                         {/* Latitude row */}
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ color: '#7dd3fc', fontSize: '11px', minWidth: '28px' }}>רוחב</span>
-                          <input type="number" min="0" max="90" value={lat.deg} onChange={e => setLat(p => ({ ...p, deg: e.target.value }))} placeholder="°" style={{ ...inStyle, width: '44px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>°</span>
-                          <input type="number" min="0" max="59" value={lat.min} onChange={e => setLat(p => ({ ...p, min: e.target.value }))} placeholder="'" style={{ ...inStyle, width: '38px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>'</span>
-                          <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onChange={e => setLat(p => ({ ...p, sec: e.target.value }))} placeholder="''" style={{ ...inStyle, width: '46px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>''</span>
-                          <select value={lat.dir} onChange={e => setLat(p => ({ ...p, dir: e.target.value }))} style={selStyle}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          <span style={{ color: '#7dd3fc', fontSize: '10px', minWidth: '10px' }}>N</span>
+                          <input type="number" min="0" max="90" value={lat.deg} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, deg: e.target.value })); }} placeholder="°" style={{ ...inStyle, width: '40px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
+                          <input type="number" min="0" max="59" value={lat.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
+                          <input type="number" min="0" max="59.99" step="0.1" value={lat.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
+                          <select value={lat.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLat(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
                             <option value="N">N</option>
                             <option value="S">S</option>
                           </select>
                         </div>
                         {/* Longitude row */}
-                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                          <span style={{ color: '#7dd3fc', fontSize: '11px', minWidth: '28px' }}>אורך</span>
-                          <input type="number" min="0" max="180" value={lon.deg} onChange={e => setLon(p => ({ ...p, deg: e.target.value }))} placeholder="°" style={{ ...inStyle, width: '44px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>°</span>
-                          <input type="number" min="0" max="59" value={lon.min} onChange={e => setLon(p => ({ ...p, min: e.target.value }))} placeholder="'" style={{ ...inStyle, width: '38px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>'</span>
-                          <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onChange={e => setLon(p => ({ ...p, sec: e.target.value }))} placeholder="''" style={{ ...inStyle, width: '46px' }} />
-                          <span style={{ color: '#475569', fontSize: '11px' }}>''</span>
-                          <select value={lon.dir} onChange={e => setLon(p => ({ ...p, dir: e.target.value }))} style={selStyle}>
+                        <div style={{ display: 'flex', gap: '3px', alignItems: 'center' }}>
+                          <span style={{ color: '#7dd3fc', fontSize: '10px', minWidth: '10px' }}>E</span>
+                          <input type="number" min="0" max="180" value={lon.deg} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, deg: e.target.value })); }} placeholder="°" style={{ ...inStyle, width: '40px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>°</span>
+                          <input type="number" min="0" max="59" value={lon.min} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, min: e.target.value })); }} placeholder="'" style={{ ...inStyle, width: '34px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>'</span>
+                          <input type="number" min="0" max="59.99" step="0.1" value={lon.sec} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, sec: e.target.value })); }} placeholder="''" style={{ ...inStyle, width: '42px' }} />
+                          <span style={{ color: '#475569', fontSize: '10px' }}>''</span>
+                          <select value={lon.dir} onClick={e => e.stopPropagation()} onChange={e => { setAnchorStep(step); setLon(p => ({ ...p, dir: e.target.value })); }} style={selStyle}>
                             <option value="E">E</option>
                             <option value="W">W</option>
                           </select>
                         </div>
                       </div>
                     );
-                  })()}
+                  })}
                   <div style={{ display: 'flex', gap: '6px' }}>
                     {anchorStep === 1 && pendingAnchor1 && (
-                      <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>הבא ▶</button>
+                      <button onClick={() => setAnchorStep(2)} style={{ flex: 1, background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>עבור לעוגן 2 ▶</button>
                     )}
-                    {anchorStep === 2 && pendingAnchor1 && pendingAnchor2 && (
+                    {pendingAnchor1 && pendingAnchor2 && (
                       <button onClick={saveAnchors} disabled={savingAnchors} style={{ flex: 1, background: '#059669', color: 'white', border: 'none', borderRadius: '4px', padding: '5px', cursor: 'pointer', fontSize: '12px' }}>
                         {savingAnchors ? '...' : '💾 שמור עיגון'}
                       </button>
