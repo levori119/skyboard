@@ -4647,14 +4647,17 @@ app.post('/api/strips/partial-create', async (req, res) => {
     const srcOnMap = !!src.on_map;
     const newX = srcOnMap ? (parseFloat(src.x || 0) + 65) : 0;
     const newY = srcOnMap ? (parseFloat(src.y || 0) + 45) : 0;
+    // Copy geo coordinates from source so the new strip renders at the correct map location
+    const newMapLat = srcOnMap && src.map_lat != null ? src.map_lat : null;
+    const newMapLon = srcOnMap && src.map_lon != null ? src.map_lon : null;
 
     // Create the partial strip (clone of source)
     const partialResult = await client.query(
       `INSERT INTO strips (callsign, sq, alt, task, squadron, sector_id, takeoff_time, number_of_formation,
         erka, koteret, mivtza, tzevet_shilta, ta_shilta, notes, status, workstation_preset_id, in_table,
         parent_strip_id, aircraft_indices, original_formation_count, aircraft_positions,
-        on_map, x, y)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22)
+        on_map, x, y, map_lat, map_lon)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'active',$15,$23,$16,$17,$18,$19,$20,$21,$22,$24,$25)
        RETURNING id`,
       [
         src.callsign, src.sq, src.alt, src.task, src.squadron,
@@ -4665,7 +4668,8 @@ app.post('/api/strips/partial-create', async (req, res) => {
         rootParentId, JSON.stringify(validIndices), origCount,
         JSON.stringify(partialPositions),
         srcOnMap, newX, newY,
-        req.body.in_table !== false
+        req.body.in_table !== false,
+        newMapLat, newMapLon
       ]
     );
     const partialStripId = partialResult.rows[0].id;

@@ -23457,8 +23457,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 const mapCount = parseInt(s.numberOfFormation ?? s.number_of_formation ?? '1') || 1;
                 const mapSiblings = getSectorSiblings(s).filter((sib: any) => sib.onMap);
                 if (mapCount <= 1 && mapSiblings.length === 0) return null;
-                const px = (s.x || 0) * mapZoom + mapPan.x;
-                const py = (s.y || 0) * mapZoom + mapPan.y;
+                // We are INSIDE the transform div — do NOT multiply by mapZoom/mapPan
+                // (transform already applied by parent div). Also support geo-pinned strips.
+                const _fmaIb = mapImgBounds;
+                const _fmaGeo = (s.map_lat != null && s.map_lon != null && mapGeoAnchor && _fmaIb && _fmaIb.width > 0)
+                  ? (() => { const pct = geoToImagePct(Number(s.map_lat), Number(s.map_lon), mapGeoAnchor); return { x: _fmaIb.left + pct.x / 100 * _fmaIb.width, y: _fmaIb.top + pct.y / 100 * _fmaIb.height }; })()
+                  : { x: s.x || 0, y: s.y || 0 };
+                const px = _fmaGeo.x;
+                const py = _fmaGeo.y;
                 return (
                   <div key={`fma-btn-${s.id}`} style={{ position: 'absolute', left: px + 4, top: py - 26, zIndex: 500, pointerEvents: 'all', display: 'flex', gap: '3px' }}>
                     {mapCount > 1 && (
