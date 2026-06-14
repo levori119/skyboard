@@ -15388,6 +15388,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [mapBrightness, setMapBrightness] = useState(0.35);
   const [blindMapMode, setBlindMapMode] = useState(false);
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
+  const [showClosuresPanel, setShowClosuresPanel] = useState(false);
+  const [allClosures, setAllClosures] = useState<any[]>([]);
+  const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
+  const fetchClosuresForMap = React.useCallback(() => {
+    fetch(`${API_URL}/closures`).then(r => r.json()).then((d: any) => setAllClosures(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
   type MapShape = { id: string; type: 'circle'|'rect'; x: number; y: number; w: number; h: number; color: string; filled: boolean; strokeWidth: number; };
   const [mapShapes, setMapShapes] = useState<MapShape[]>([]);
   const [shapeFilled, setShapeFilled] = useState(false);
@@ -23131,7 +23137,50 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               onClick={() => setDrawingMode(v => !v)}
               title={drawingMode ? 'כבה ציור' : 'הפעל ציור על המפה'}
               style={{ width: 20, height: 20, background: drawingMode ? '#7c3aed' : '#475569', color: 'white', border: drawingMode ? '1px solid #a78bfa' : 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', lineHeight: 1, padding: 0 }}>✏</button>
+            {/* Closures overlay toggle — only when map is geo-anchored */}
+            {!!mapGeoAnchor && (
+              <button
+                onClick={() => { if (!showClosuresPanel) fetchClosuresForMap(); setShowClosuresPanel(v => !v); }}
+                title="תצוגת סגירות על המפה"
+                style={{ width: 20, height: 20, background: showClosuresPanel ? '#7c3aed' : (enabledClosureIds.size > 0 ? '#92400e' : '#475569'), color: 'white', border: showClosuresPanel ? '1px solid #a78bfa' : (enabledClosureIds.size > 0 ? '1px solid #f59e0b' : 'none'), borderRadius: '3px', cursor: 'pointer', fontSize: '11px', lineHeight: 1, padding: 0 }}>🚫</button>
+            )}
           </div>
+
+          {/* Closures floating panel */}
+          {showClosuresPanel && mapGeoAnchor && (
+            <div style={{ position: 'absolute', top: 8, left: 44, zIndex: 215, background: 'rgba(15,23,42,0.97)', border: '1px solid #7c3aed', borderRadius: '8px', padding: '10px 12px', minWidth: '210px', maxWidth: '270px', maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.7)', direction: 'rtl' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexShrink: 0 }}>
+                <span style={{ fontWeight: 'bold', color: '#e2e8f0', fontSize: '12px' }}>🚫 סגירות על מפה</span>
+                <button onClick={() => setShowClosuresPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '15px', lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {allClosures.length === 0 ? (
+                  <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>אין סגירות עם פוליגון גאוגרפי</div>
+                ) : (
+                  allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).length === 0 ? (
+                    <div style={{ color: '#475569', fontSize: '11px', textAlign: 'center', padding: '14px 0' }}>אין סגירות עם פוליגון גאוגרפי</div>
+                  ) : (
+                    allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => {
+                      const enabled = enabledClosureIds.has(c.id);
+                      return (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 2px', borderBottom: '1px solid #1e293b', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={enabled} onChange={() => setEnabledClosureIds(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })} style={{ accentColor: c.color || '#ef4444', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }} />
+                          <span style={{ width: 10, height: 10, borderRadius: '2px', background: c.color || '#ef4444', flexShrink: 0, display: 'inline-block', border: '1px solid rgba(255,255,255,0.15)' }} />
+                          <span style={{ fontSize: '11px', color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                          {(c.alt_min != null || c.alt_max != null) && <span style={{ fontSize: '9px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.alt_min ?? '?'}–{c.alt_max ?? '?'}</span>}
+                        </label>
+                      );
+                    })
+                  )
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '5px', marginTop: '8px', flexShrink: 0 }}>
+                <button onClick={() => setEnabledClosureIds(new Set(allClosures.filter((c: any) => Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3).map((c: any) => c.id)))} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>✔ הכל</button>
+                <button onClick={() => setEnabledClosureIds(new Set())} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>✕ נקה</button>
+                <button onClick={fetchClosuresForMap} style={{ flex: 1, fontSize: '10px', padding: '3px 0', background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: '4px', cursor: 'pointer' }}>↺</button>
+              </div>
+            </div>
+          )}
 
           {/* Drawing toolbar — visible when drawingMode is on */}
           {drawingMode && (
@@ -23674,6 +23723,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 43, overflow: 'visible' }}
                 >
                   {lines}
+                </svg>
+              );
+            })()}
+
+            {/* Closures Polygon Overlay — geo-anchored, shows enabled closure polygons on map */}
+            {enabledClosureIds.size > 0 && mapGeoAnchor && mapImgBounds && (() => {
+              const anchor = mapGeoAnchor;
+              const activeClos = allClosures.filter((c: any) => enabledClosureIds.has(c.id) && Array.isArray(c.polygon_geo) && c.polygon_geo.length >= 3);
+              if (activeClos.length === 0) return null;
+              return (
+                <svg style={{ position: 'absolute', top: mapImgBounds.top, left: mapImgBounds.left, width: mapImgBounds.width, height: mapImgBounds.height, pointerEvents: 'none', zIndex: 12, overflow: 'visible' }}
+                  viewBox={`0 0 ${mapImgBounds.width} ${mapImgBounds.height}`} preserveAspectRatio="none">
+                  {activeClos.map((c: any) => {
+                    const pts = c.polygon_geo.map((pt: any) => {
+                      const pct = geoToImagePct(pt.lat, pt.lon, anchor);
+                      return `${(pct.x / 100) * mapImgBounds.width},${(pct.y / 100) * mapImgBounds.height}`;
+                    }).join(' ');
+                    const cx = c.polygon_geo.reduce((s: number, p: any) => s + p.lat, 0) / c.polygon_geo.length;
+                    const cy = c.polygon_geo.reduce((s: number, p: any) => s + p.lon, 0) / c.polygon_geo.length;
+                    const cPct = geoToImagePct(cx, cy, anchor);
+                    const labelX = (cPct.x / 100) * mapImgBounds.width;
+                    const labelY = (cPct.y / 100) * mapImgBounds.height;
+                    const col = c.color || '#ef4444';
+                    return (
+                      <g key={c.id}>
+                        <polygon points={pts} fill={col + '33'} stroke={col} strokeWidth="1.5" strokeDasharray="4,2" />
+                        <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
+                          fontSize={Math.max(8, 12 / mapZoom)} fontWeight="bold" fill={col}
+                          stroke="#0f172a" strokeWidth={3 / mapZoom} paintOrder="stroke"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                          🚫 {c.name}
+                        </text>
+                        {(c.alt_min != null || c.alt_max != null) && (
+                          <text x={labelX} y={labelY + Math.max(10, 14 / mapZoom)} textAnchor="middle" dominantBaseline="middle"
+                            fontSize={Math.max(7, 10 / mapZoom)} fill={col} stroke="#0f172a" strokeWidth={2 / mapZoom} paintOrder="stroke"
+                            style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                            FL{c.alt_min ?? '?'}–{c.alt_max ?? '?'}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
                 </svg>
               );
             })()}
