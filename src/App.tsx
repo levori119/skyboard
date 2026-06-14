@@ -16165,16 +16165,38 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  // Always-current ref — used in the stable swCanvasRefCallback to draw on (re)mount
+  const swStrokesRef = React.useRef<{ pts: {x:number,y:number}[]; color: string; size: number }[]>([]);
+  swStrokesRef.current = swStrokes;
+
+  // Strip-anchored strokes: drawn within a strip's bounds; move with the strip
+  const [swStripStrokes, setSwStripStrokes] = React.useState<{ id: string; strip_id: string; relPts: {x:number,y:number}[]; color: string; size: number }[]>(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) return [];
+      const saved = localStorage.getItem(`sw_strip_strokes_${pid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   const swCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
-  // Stable ref callback — useCallback(fn,[]) ensures React never calls it again on re-renders,
-  // only on actual mount/unmount, so el.width assignment won't wipe the canvas mid-draw.
+  // Stable ref callback — draws immediately on (re)mount using swStrokesRef so canvas is never blank
   const swCanvasRefCallback = React.useCallback((el: HTMLCanvasElement | null) => {
     swCanvasRef.current = el;
     if (el) {
       const parent = el.parentElement;
       if (parent) { el.width = parent.clientWidth; el.height = parent.clientHeight; }
+      const ctx = el.getContext('2d'); if (!ctx) return;
+      ctx.clearRect(0, 0, el.width, el.height);
+      for (const stroke of swStrokesRef.current) {
+        if (stroke.pts.length < 2) continue;
+        ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.size; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(stroke.pts[0].x, stroke.pts[0].y);
+        for (let i = 1; i < stroke.pts.length; i++) ctx.lineTo(stroke.pts[i].x, stroke.pts[i].y);
+        ctx.stroke();
+      }
     }
-  }, []);
+  }, []); // stable — reads swStrokesRef.current which is always current
   const swIsDrawing = React.useRef(false);
   const swCurStroke = React.useRef<{x:number,y:number}[]>([]);
   const [swDragStripId, setSwDragStripId] = React.useState<string | null>(null);
@@ -16194,7 +16216,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
   }, []);
-  // Persist strokes to localStorage whenever they change
+  // Persist board strokes to localStorage whenever they change
   React.useEffect(() => {
     try {
       const pid = session.presetId;
@@ -16204,14 +16226,26 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     } catch {}
   }, [swStrokes, session.presetId]);
 
-  // Reload strokes from localStorage when preset changes
+  // Persist strip-anchored strokes to localStorage whenever they change
   React.useEffect(() => {
     try {
       const pid = session.presetId;
-      if (!pid) { setSwStrokes([]); return; }
+      if (!pid) return;
+      if (swStripStrokes.length === 0) { localStorage.removeItem(`sw_strip_strokes_${pid}`); }
+      else { localStorage.setItem(`sw_strip_strokes_${pid}`, JSON.stringify(swStripStrokes)); }
+    } catch {}
+  }, [swStripStrokes, session.presetId]);
+
+  // Reload board + strip strokes from localStorage when preset changes
+  React.useEffect(() => {
+    try {
+      const pid = session.presetId;
+      if (!pid) { setSwStrokes([]); setSwStripStrokes([]); return; }
       const saved = localStorage.getItem(`sw_strokes_${pid}`);
       setSwStrokes(saved ? JSON.parse(saved) : []);
-    } catch { setSwStrokes([]); }
+      const savedStrip = localStorage.getItem(`sw_strip_strokes_${pid}`);
+      setSwStripStrokes(savedStrip ? JSON.parse(savedStrip) : []);
+    } catch { setSwStrokes([]); setSwStripStrokes([]); }
   }, [session.presetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Redraw stored strokes whenever swStrokes changes (avoids canvas wipe on re-render)
@@ -21459,25 +21493,37 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     <span>{leaf.label || (leaf.waypoint ? `⬥ ${leaf.waypoint}` : '— תא —')}</span>
                     <span style={{ marginRight: 'auto', fontSize: '10px', color: '#94a3b8' }}>{leafStrips.length > 0 ? `${leafStrips.length} פמ"מ` : ''}</span>
                   </div>
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative', zIndex: 2 }}>
                     {leafStrips.length === 0 && (
                       <div style={{ textAlign: 'center', color: '#475569', fontSize: '12px', padding: '20px 0' }}>אין פמ"מ</div>
                     )}
-                    {leafStrips.map((strip: any) => (
-                      swClassicTable
-                        ? <div key={strip.id} style={{ flexShrink: 0 }}
+                    {leafStrips.map((strip: any) => {
+                      const thisStripStrokes = swStripStrokes.filter(s => s.strip_id === String(strip.id));
+                      const stripSvgOverlay = thisStripStrokes.length > 0 ? (
+                        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 3 }}>
+                          {thisStripStrokes.map(s => {
+                            if (s.relPts.length < 2) return null;
+                            const d = `M${s.relPts[0].x},${s.relPts[0].y}` + s.relPts.slice(1).map((p: any) => `L${p.x},${p.y}`).join('');
+                            return <path key={s.id} d={d} stroke={s.color} strokeWidth={s.size} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                          })}
+                        </svg>
+                      ) : null;
+                      return swClassicTable
+                        ? <div key={strip.id} data-sw-strip-id={strip.id} style={{ flexShrink: 0, position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2 }}
                             draggable={!swPenMode}
                             onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
                           >
+                            {stripSvgOverlay}
                             <ClassicStripCard strip={strip} rows={swRows} lightMode={lightMode} aviationBases={aviationBases} allSectors={allSectors} layoutJson={swLayoutJsonCard} conditionsJson={swConditionsJson} stripHeight={swStripHeight} isDragging={swDragStripId === String(strip.id)} />
                           </div>
                         : (
-                          <div key={strip.id}
+                          <div key={strip.id} data-sw-strip-id={strip.id}
                             draggable={!swPenMode}
                             onDragStart={!swPenMode ? (e => { e.dataTransfer.setData('swStripId', String(strip.id)); setSwDragStripId(String(strip.id)); }) : undefined}
                             onDragEnd={!swPenMode ? (() => setSwDragStripId(null)) : undefined}
-                            style={{ background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            style={{ position: 'relative', zIndex: swDragStripId === String(strip.id) ? 10 : 2, background: lightMode ? '#f8fafc' : '#1e293b', border: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, borderRadius: '6px', padding: '5px 8px', fontSize: '12px', color: lightMode ? '#0f172a' : '#e2e8f0', cursor: swPenMode ? 'default' : 'grab', opacity: swDragStripId === String(strip.id) ? 0.4 : 1 }}>
+                            {stripSvgOverlay}
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span style={{ fontWeight: 'bold', color: lightMode ? '#1d4ed8' : '#60a5fa' }}>{strip.callSign || '—'}</span>
                               <span style={{ color: lightMode ? '#6b7280' : '#94a3b8' }}>{strip.squadron || ''}</span>
@@ -21490,8 +21536,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                               </div>
                             )}
                           </div>
-                        )
-                    ))}
+                        );
+                    })}
                   </div>
                 </div>
               );
@@ -21524,7 +21570,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       title="צבע עט" style={{ width: '28px', height: '24px', padding: '1px', border: 'none', borderRadius: '3px', cursor: 'pointer' }} />
                     <input type="range" min={1} max={12} value={swPenSize} onChange={e => setSwPenSize(Number(e.target.value))}
                       title={`עובי: ${swPenSize}px`} style={{ width: '60px' }} />
-                    <button onClick={() => { setSwStrokes([]); try { if (session.presetId) localStorage.removeItem(`sw_strokes_${session.presetId}`); } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
+                    <button onClick={() => { setSwStrokes([]); setSwStripStrokes([]); try { if (session.presetId) { localStorage.removeItem(`sw_strokes_${session.presetId}`); localStorage.removeItem(`sw_strip_strokes_${session.presetId}`); } } catch {} const c = swCanvasRef.current; if (c) { const ctx2 = c.getContext('2d'); if (ctx2) ctx2.clearRect(0, 0, c.width, c.height); } }}
                       style={{ padding: '3px 8px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>🗑 נקה</button>
                   </>}
                   {!swPenMode && <span style={{ fontSize: '11px', color: '#475569' }}>גרור סטריפים בין תאים</span>}
@@ -21535,11 +21581,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   {/* Drawing canvas overlay */}
                   <canvas
                     ref={swCanvasRefCallback}
-                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: 10 }}
+                    style={{ position: 'absolute', inset: 0, pointerEvents: swPenMode ? 'all' : 'none', cursor: swPenMode ? 'crosshair' : 'default', zIndex: swPenMode ? 20 : 0 }}
                     onMouseDown={e => {
                       if (!swPenMode) return;
                       const canvas = e.currentTarget as HTMLCanvasElement;
-                      // Auto-size canvas if not yet sized (happens when pen mode first activates)
                       if (canvas.offsetWidth > 0 && (canvas.width !== canvas.offsetWidth || canvas.height !== canvas.offsetHeight)) {
                         canvas.width = canvas.offsetWidth;
                         canvas.height = canvas.offsetHeight;
@@ -21557,19 +21602,67 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       swCurStroke.current.push(pt);
                       swDrawStroke(canvas, swCurStroke.current, swPenColor, swPenSize);
                     }}
-                    onMouseUp={() => {
+                    onMouseUp={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       swIsDrawing.current = false;
                       if (swCurStroke.current.length >= 2) {
-                        setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                        const canvas = e.currentTarget as HTMLCanvasElement;
+                        const canvasRect = canvas.getBoundingClientRect();
+                        // Detect strip-anchored stroke: centroid inside a strip's bounds
+                        const avgX = swCurStroke.current.reduce((s, p) => s + p.x, 0) / swCurStroke.current.length;
+                        const avgY = swCurStroke.current.reduce((s, p) => s + p.y, 0) / swCurStroke.current.length;
+                        const stripEls = canvas.parentElement?.querySelectorAll('[data-sw-strip-id]');
+                        let anchoredId: string | null = null;
+                        let relPts: {x:number,y:number}[] | null = null;
+                        if (stripEls) {
+                          for (const el of Array.from(stripEls)) {
+                            const sid = (el as HTMLElement).dataset.swStripId!;
+                            const r = el.getBoundingClientRect();
+                            const rl = r.left - canvasRect.left, rt = r.top - canvasRect.top, rr = r.right - canvasRect.left, rb = r.bottom - canvasRect.top;
+                            if (avgX >= rl && avgX <= rr && avgY >= rt && avgY <= rb) {
+                              anchoredId = sid;
+                              relPts = swCurStroke.current.map(p => ({ x: p.x - rl, y: p.y - rt }));
+                              break;
+                            }
+                          }
+                        }
+                        if (anchoredId && relPts) {
+                          setSwStripStrokes(prev => [...prev, { id: String(Date.now()), strip_id: anchoredId!, relPts: relPts!, color: swPenColor, size: swPenSize }]);
+                          // Remove live stroke from canvas (it'll reappear as SVG overlay on the strip)
+                          swRedrawAll(canvas);
+                        } else {
+                          setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                        }
                       }
                       swCurStroke.current = [];
                     }}
-                    onMouseLeave={() => {
+                    onMouseLeave={e => {
                       if (!swPenMode || !swIsDrawing.current) return;
                       swIsDrawing.current = false;
                       if (swCurStroke.current.length >= 2) {
-                        setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                        const canvas = e.currentTarget as HTMLCanvasElement;
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const avgX = swCurStroke.current.reduce((s, p) => s + p.x, 0) / swCurStroke.current.length;
+                        const avgY = swCurStroke.current.reduce((s, p) => s + p.y, 0) / swCurStroke.current.length;
+                        const stripEls = canvas.parentElement?.querySelectorAll('[data-sw-strip-id]');
+                        let anchoredId: string | null = null;
+                        let relPts: {x:number,y:number}[] | null = null;
+                        if (stripEls) {
+                          for (const el of Array.from(stripEls)) {
+                            const sid = (el as HTMLElement).dataset.swStripId!;
+                            const r = el.getBoundingClientRect();
+                            const rl = r.left - canvasRect.left, rt = r.top - canvasRect.top, rr = r.right - canvasRect.left, rb = r.bottom - canvasRect.top;
+                            if (avgX >= rl && avgX <= rr && avgY >= rt && avgY <= rb) {
+                              anchoredId = sid; relPts = swCurStroke.current.map(p => ({ x: p.x - rl, y: p.y - rt })); break;
+                            }
+                          }
+                        }
+                        if (anchoredId && relPts) {
+                          setSwStripStrokes(prev => [...prev, { id: String(Date.now()), strip_id: anchoredId!, relPts: relPts!, color: swPenColor, size: swPenSize }]);
+                          swRedrawAll(canvas);
+                        } else {
+                          setSwStrokes(prev => [...prev, { pts: swCurStroke.current, color: swPenColor, size: swPenSize }]);
+                        }
                       }
                       swCurStroke.current = [];
                     }}
