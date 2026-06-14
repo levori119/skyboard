@@ -17910,6 +17910,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const mapZoomRef = useRef(1);
   const mapPanRef = useRef({ x: 0, y: 0 });
   const mapImgBoundsRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const mapGeoAnchorRef = useRef<MapGeoAnchor | null>(null);
   const tableGroupByKeyRef = useRef<string | null>(null);
   const tableSortBySectorRef = useRef(false);
   const tableSortKeyRef = useRef<string | null>(null);
@@ -17920,11 +17921,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const handleMove = async (id: string, x: number, y: number, toMap: boolean, pinX?: number | null, pinY?: number | null, zoneName?: string, zoneAlts?: string) => {
     const presetId = session.presetId ? Number(session.presetId) : null;
     const hasPinData = pinX != null && pinY != null;
+    const hasZone = zoneName != null || zoneAlts != null;
+    // Compute geo lat/lon from pin position (or card position when no pin)
+    let geoUpdate: { map_lat: number; map_lon: number } | { map_lat: null; map_lon: null } = { map_lat: null, map_lon: null };
+    if (toMap) {
+      const ib = mapImgBoundsRef.current;
+      const anchor = mapGeoAnchorRef.current;
+      if (ib && anchor && ib.width > 0 && ib.height > 0) {
+        const srcX = hasPinData ? (pinX as number) : x;
+        const srcY = hasPinData ? (pinY as number) : y;
+        const xPct = ((srcX - ib.left) / ib.width) * 100;
+        const yPct = ((srcY - ib.top) / ib.height) * 100;
+        if (isFinite(xPct) && isFinite(yPct)) {
+          const geo = imagePctToGeo(xPct, yPct, anchor);
+          geoUpdate = { map_lat: geo.lat, map_lon: geo.lon };
+        }
+      }
+    }
     setStrips(prev => prev.map(item => item.id === id ? {
       ...item, x, y, onMap: toMap,
       workstation_preset_id: toMap ? presetId : item.workstation_preset_id,
       ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
-      ...(!toMap ? { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '' } : {})
+      ...(!hasPinData && hasZone ? { map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
+      ...(toMap ? geoUpdate : { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '', map_lat: null, map_lon: null }),
     } : item));
     if (toMap) {
       setTableOnBoard(prev => { const n = new Set(prev); n.delete(String(id)); return n; });
@@ -17937,7 +17956,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           x, y, onMap: toMap,
           ...(toMap ? { workstation_preset_id: presetId } : {}),
           ...(hasPinData ? { map_pin_x: pinX, map_pin_y: pinY, map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
-          ...(!toMap ? { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '' } : {})
+          ...(!hasPinData && hasZone ? { map_zone_name: zoneName ?? '', map_zone_alts: zoneAlts ?? '' } : {}),
+          ...(toMap ? geoUpdate : { map_pin_x: null, map_pin_y: null, map_zone_name: '', map_zone_alts: '', map_lat: null, map_lon: null }),
         })
       });
       loadData();
@@ -17953,6 +17973,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   mapZoomRef.current = mapZoom;
   mapPanRef.current = mapPan;
   mapImgBoundsRef.current = mapImgBounds;
+  mapGeoAnchorRef.current = mapGeoAnchor;
   drawingModeRef.current = drawingMode;
   tableGroupByKeyRef.current = tableGroupByKey || null;
   tableSortBySectorRef.current = tableSortBySector;
@@ -18533,7 +18554,19 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const cardY = Math.max(40, Math.min(r.height - 60, clampedY - 20));
               handleMoveRef.current(String(id), cardX, cardY, true, clampedX, clampedY, zoneName, zoneAlts);
             } else {
-              handleMoveRef.current(String(id), clampedX, clampedY, true);
+              // Normal map mode: detect zone (if zones exist) and pass zone name
+              const ib = mapImgBoundsRef.current;
+              const xPct = ib ? ((clampedX - ib.left) / ib.width) * 100 : (clampedX / r.width) * 100;
+              const yPct = ib ? ((clampedY - ib.top) / ib.height) * 100 : (clampedY / r.height) * 100;
+              let dropZoneName: string | undefined;
+              let dropZoneAlts: string | undefined;
+              if (mapZones.length > 0) {
+                const zone = fzGetZoneAtPointRef.current(xPct, yPct);
+                dropZoneName = zone?.name || '';
+                const altRanges = zone ? (zoneAltRangesRef.current[zone.id] || []) : [];
+                dropZoneAlts = altRanges.map((ar: any) => ar.name || [ar.alt_min != null ? `FL${Math.round(ar.alt_min/100)}` : '', ar.alt_max != null ? `FL${Math.round(ar.alt_max/100)}` : ''].filter(Boolean).join('-')).filter(Boolean).join(', ');
+              }
+              handleMoveRef.current(String(id), clampedX, clampedY, true, null, null, dropZoneName, dropZoneAlts);
             }
           }
         }
@@ -23312,7 +23345,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             {strips.filter(s => s.onMap && (
               ((!s.workstation_preset_id || Number(s.workstation_preset_id) === Number(session.presetId)) && (showPendingTransfer || s.status !== 'pending_transfer')) ||
               (showPendingTransfer && s.status === 'pending_transfer' && outgoingTransfers.some((t: any) => String('s' + t.strip_id) === String(s.id)))
-            )).map(s => (
+            )).map(rawS => {
+              // If strip has geo pin and map is anchored, compute pixel position from lat/lon
+              const _ib = mapImgBounds;
+              const s = (rawS.map_lat != null && rawS.map_lon != null && mapGeoAnchor && _ib && _ib.width > 0)
+                ? (() => {
+                    const pct = geoToImagePct(Number(rawS.map_lat), Number(rawS.map_lon), mapGeoAnchor);
+                    return { ...rawS, x: _ib.left + pct.x / 100 * _ib.width, y: _ib.top + pct.y / 100 * _ib.height };
+                  })()
+                : rawS;
+              return (
               <Strip key={s.id} s={s} 
                 onUpdate={handleAltUpdate}
                 onMove={handleMove}
@@ -23337,7 +23379,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                 viewerPresetId={session.presetId ? Number(session.presetId) : null}
                 lightMode={lightMode}
               />
-            ))}
+            ); })}
 
             {/* Map Zone Pins & Lines overlay */}
             {isMapZonesMode && showMapPinStrips && (() => {
@@ -31031,6 +31073,208 @@ function swFindLeaf(node: SWNode, id: string): SWLeaf | null {
   return null;
 }
 
+const ClosuresManager = () => {
+  const API = typeof API_URL !== 'undefined' ? API_URL : '/api';
+  interface Closure {
+    id: number; name: string; category: string; color: string;
+    alt_min: number | null; alt_max: number | null;
+    dates: string[]; time_start: string; time_end: string;
+    closure_status: string; active: boolean;
+    polygon_geo: { lat: number; lon: number }[];
+  }
+  const emptyForm = (): Omit<Closure, 'id'> => ({
+    name: '', category: '', color: '#ef4444', alt_min: null, alt_max: null,
+    dates: [], time_start: '', time_end: '',
+    closure_status: 'coordinated', active: true, polygon_geo: []
+  });
+  const [closures, setClosures] = React.useState<Closure[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [editId, setEditId] = React.useState<number | null>(null);
+  const [form, setForm] = React.useState<Omit<Closure, 'id'>>(emptyForm());
+  const [showForm, setShowForm] = React.useState(false);
+  const [dateInput, setDateInput] = React.useState('');
+  const [polyInput, setPolyInput] = React.useState<{ lat: string; lon: string }>({ lat: '', lon: '' });
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`${API}/closures`).then(r => r.json()).then(setClosures).catch(() => {}).finally(() => setLoading(false));
+  }, [API]);
+  React.useEffect(() => { load(); }, [load]);
+
+  const openNew = () => { setEditId(null); setForm(emptyForm()); setDateInput(''); setPolyInput({ lat: '', lon: '' }); setShowForm(true); };
+  const openEdit = (c: Closure) => { setEditId(c.id); setForm({ name: c.name, category: c.category, color: c.color, alt_min: c.alt_min, alt_max: c.alt_max, dates: [...(c.dates || [])], time_start: c.time_start, time_end: c.time_end, closure_status: c.closure_status, active: c.active, polygon_geo: [...(c.polygon_geo || [])] }); setDateInput(''); setPolyInput({ lat: '', lon: '' }); setShowForm(true); };
+  const cancel = () => { setShowForm(false); setEditId(null); };
+
+  const save = async () => {
+    if (!form.name.trim()) { alert('נא להזין שם'); return; }
+    const url = editId ? `${API}/closures/${editId}` : `${API}/closures`;
+    const method = editId ? 'PUT' : 'POST';
+    try {
+      await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      setShowForm(false); setEditId(null); load();
+    } catch { alert('שגיאה בשמירה'); }
+  };
+
+  const del = async (id: number) => {
+    if (!confirm('למחוק סגירה זו?')) return;
+    await fetch(`${API}/closures/${id}`, { method: 'DELETE' });
+    load();
+  };
+
+  const addDate = () => {
+    if (!dateInput.trim()) return;
+    setForm(f => ({ ...f, dates: [...f.dates, dateInput.trim()] }));
+    setDateInput('');
+  };
+  const removeDate = (i: number) => setForm(f => ({ ...f, dates: f.dates.filter((_, idx) => idx !== i) }));
+
+  const addPoint = () => {
+    const lat = parseFloat(polyInput.lat), lon = parseFloat(polyInput.lon);
+    if (!isFinite(lat) || !isFinite(lon)) { alert('נ"צ לא תקין'); return; }
+    setForm(f => ({ ...f, polygon_geo: [...f.polygon_geo, { lat, lon }] }));
+    setPolyInput({ lat: '', lon: '' });
+  };
+  const removePoint = (i: number) => setForm(f => ({ ...f, polygon_geo: f.polygon_geo.filter((_, idx) => idx !== i) }));
+
+  const lbl = (txt: string) => <label style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>{txt}</label>;
+  const inp = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...props} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', padding: '5px 8px', fontSize: '12px', width: '100%', ...props.style }} />
+  );
+
+  return (
+    <div style={{ padding: '16px', maxWidth: '960px', direction: 'rtl' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '15px', color: '#e2e8f0' }}>🚫 סגירות</span>
+        <button onClick={openNew} style={{ padding: '5px 14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>+ סגירה חדשה</button>
+        {loading && <span style={{ color: '#64748b', fontSize: '11px' }}>טוען...</span>}
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+          <div style={{ fontWeight: 'bold', color: '#93c5fd', fontSize: '13px', marginBottom: '12px' }}>{editId ? 'עריכת סגירה' : 'סגירה חדשה'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px' }}>
+            <div>{lbl('שם *')}{inp({ value: form.name, onChange: e => setForm(f => ({ ...f, name: e.target.value })), placeholder: 'שם הסגירה' })}</div>
+            <div>{lbl('קטגוריה')}{inp({ value: form.category, onChange: e => setForm(f => ({ ...f, category: e.target.value })), placeholder: 'למשל: TRA, DANGER...' })}</div>
+            <div>{lbl('צבע')}<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '30px', border: 'none', background: 'transparent', cursor: 'pointer' }} /><span style={{ color: '#94a3b8', fontSize: '12px' }}>{form.color}</span></div></div>
+            <div>{lbl('גובה מינימאלי (FL)')}{inp({ type: 'number', value: form.alt_min ?? '', onChange: e => setForm(f => ({ ...f, alt_min: e.target.value === '' ? null : Number(e.target.value) })), placeholder: '0' })}</div>
+            <div>{lbl('גובה מקסימאלי (FL)')}{inp({ type: 'number', value: form.alt_max ?? '', onChange: e => setForm(f => ({ ...f, alt_max: e.target.value === '' ? null : Number(e.target.value) })), placeholder: '999' })}</div>
+            <div>{lbl('סטטוס סגירה')}
+              <select value={form.closure_status} onChange={e => setForm(f => ({ ...f, closure_status: e.target.value }))} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '4px', color: '#e2e8f0', padding: '5px 8px', fontSize: '12px', width: '100%' }}>
+                <option value="coordinated">מתואמת</option>
+                <option value="approved">מאושרת</option>
+              </select>
+            </div>
+            <div>{lbl('זמן התחלה')}{inp({ type: 'time', value: form.time_start, onChange: e => setForm(f => ({ ...f, time_start: e.target.value })) })}</div>
+            <div>{lbl('זמן סיום')}{inp({ type: 'time', value: form.time_end, onChange: e => setForm(f => ({ ...f, time_end: e.target.value })) })}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#e2e8f0' }}>
+                <input type="checkbox" checked={form.active} onChange={e => setForm(f => ({ ...f, active: e.target.checked }))} />
+                בשימוש
+              </label>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div style={{ marginBottom: '12px' }}>
+            {lbl('מערך תאריכים')}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+              {inp({ type: 'date', value: dateInput, onChange: e => setDateInput(e.target.value), style: { flex: 1 } })}
+              <button onClick={addDate} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>+ הוסף</button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              {form.dates.map((d, i) => (
+                <span key={i} style={{ background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {d}
+                  <button onClick={() => removeDate(i)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '12px', padding: 0, lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+              {form.dates.length === 0 && <span style={{ color: '#475569', fontSize: '11px' }}>אין תאריכים</span>}
+            </div>
+          </div>
+
+          {/* Polygon Geo Points */}
+          <div style={{ marginBottom: '12px' }}>
+            {lbl('נ"צ הפוליגון (lat/lon)')}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+              {inp({ placeholder: 'קו רוחב (lat)', value: polyInput.lat, onChange: e => setPolyInput(p => ({ ...p, lat: e.target.value })), style: { flex: 1 } })}
+              {inp({ placeholder: 'קו אורך (lon)', value: polyInput.lon, onChange: e => setPolyInput(p => ({ ...p, lon: e.target.value })), style: { flex: 1 } })}
+              <button onClick={addPoint} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>+ הוסף</button>
+            </div>
+            {form.polygon_geo.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ color: '#64748b' }}>
+                    <th style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 'normal' }}>#</th>
+                    <th style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 'normal' }}>קו רוחב</th>
+                    <th style={{ textAlign: 'right', padding: '3px 6px', fontWeight: 'normal' }}>קו אורך</th>
+                    <th style={{ width: '30px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.polygon_geo.map((p, i) => (
+                    <tr key={i} style={{ borderTop: '1px solid #1e293b' }}>
+                      <td style={{ padding: '3px 6px', color: '#475569' }}>{i + 1}</td>
+                      <td style={{ padding: '3px 6px', color: '#e2e8f0' }}>{p.lat.toFixed(6)}</td>
+                      <td style={{ padding: '3px 6px', color: '#e2e8f0' }}>{p.lon.toFixed(6)}</td>
+                      <td><button onClick={() => removePoint(i)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px' }}>×</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {form.polygon_geo.length === 0 && <span style={{ color: '#475569', fontSize: '11px' }}>אין נקודות פוליגון</span>}
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={save} style={{ padding: '6px 18px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>💾 שמור</button>
+            <button onClick={cancel} style={{ padding: '6px 18px', background: '#374151', color: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>ביטול</button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+          <thead>
+            <tr style={{ background: '#1e293b', color: '#94a3b8' }}>
+              {['שם', 'קטגוריה', 'צבע', 'FL מין-מקס', 'תאריכים', 'שעות', 'סטטוס', 'בשימוש', 'נקודות', ''].map((h, i) => (
+                <th key={i} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 'normal', whiteSpace: 'nowrap', borderBottom: '1px solid #334155' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {closures.length === 0 && !loading && (
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: '24px', color: '#475569' }}>אין סגירות — לחץ "+ סגירה חדשה"</td></tr>
+            )}
+            {closures.map(c => (
+              <tr key={c.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                <td style={{ padding: '7px 10px', color: '#e2e8f0', fontWeight: 'bold' }}>{c.name}</td>
+                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{c.category}</td>
+                <td style={{ padding: '7px 10px' }}><span style={{ display: 'inline-block', width: '18px', height: '18px', borderRadius: '3px', background: c.color, verticalAlign: 'middle' }} title={c.color} /></td>
+                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{c.alt_min != null || c.alt_max != null ? `FL${c.alt_min ?? '?'} – FL${c.alt_max ?? '?'}` : '—'}</td>
+                <td style={{ padding: '7px 10px', color: '#94a3b8' }}>{(c.dates || []).length > 0 ? (c.dates || []).join(', ') : '—'}</td>
+                <td style={{ padding: '7px 10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{c.time_start && c.time_end ? `${c.time_start} – ${c.time_end}` : c.time_start || c.time_end || '—'}</td>
+                <td style={{ padding: '7px 10px' }}>
+                  <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '11px', background: c.closure_status === 'approved' ? '#166534' : '#1e3a5f', color: c.closure_status === 'approved' ? '#86efac' : '#93c5fd' }}>
+                    {c.closure_status === 'approved' ? 'מאושרת' : 'מתואמת'}
+                  </span>
+                </td>
+                <td style={{ padding: '7px 10px', textAlign: 'center' }}>{c.active ? '✅' : '⭕'}</td>
+                <td style={{ padding: '7px 10px', color: '#64748b' }}>{(c.polygon_geo || []).length}</td>
+                <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => openEdit(c)} style={{ background: 'none', border: '1px solid #334155', color: '#93c5fd', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px', marginLeft: '4px' }}>✏️</button>
+                  <button onClick={() => del(c.id)} style={{ background: 'none', border: '1px solid #334155', color: '#f87171', borderRadius: '4px', padding: '3px 8px', cursor: 'pointer', fontSize: '11px' }}>🗑</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const StripWindowAdmin = ({ apiUrl }: { apiUrl: string }) => {
   const [layouts, setLayouts] = useState<any[]>([]);
   const [selId, setSelId] = useState<number | null>(null);
@@ -31350,8 +31594,8 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
   const isAdmin = crewMember?.is_admin ?? true;
   const isTeamLead = !isAdmin && (crewMember?.is_team_lead ?? false);
   const effectiveMode = mode ?? (isAdmin ? 'admin' : 'team_lead');
-  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows';
-  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names'];
+  type TabKey = 'maps' | 'sectors' | 'presets' | 'strips' | 'crew' | 'table_modes' | 'work_groups' | 'aids' | 'serials' | 'blocks' | 'bdh' | 'classic_strips' | 'airfields' | 'base_statuses' | 'aviation_bases' | 'value_lists' | 'contacts' | 'default_names' | 'strip_windows' | 'closures';
+  const teamLeadTabs: TabKey[] = ['presets', 'sectors', 'maps', 'table_modes', 'work_groups', 'aids', 'blocks', 'bdh', 'classic_strips', 'strip_windows', 'airfields', 'base_statuses', 'aviation_bases', 'value_lists', 'contacts', 'default_names', 'closures'];
   const adminOnlyTabs: TabKey[] = ['strips', 'crew', 'serials'];
   const availableTabs = effectiveMode === 'admin' ? [...adminOnlyTabs, ...teamLeadTabs] as TabKey[] : teamLeadTabs as TabKey[];
   const [activeTab, setActiveTab] = useState<TabKey>(effectiveMode === 'admin' ? 'strips' : 'presets');
@@ -32182,6 +32426,7 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
           {availableTabs.includes('aviation_bases') && <button onClick={() => setActiveTab('aviation_bases')} style={sideNavItemStyle(activeTab === 'aviation_bases')}>✈️ בסיסים</button>}
           {availableTabs.includes('value_lists') && <button onClick={() => setActiveTab('value_lists')} style={sideNavItemStyle(activeTab === 'value_lists')}>⚙️ אלמנטים בבסיס</button>}
           {availableTabs.includes('default_names') && <button onClick={() => setActiveTab('default_names')} style={sideNavItemStyle(activeTab === 'default_names')}>🚀 חימושים/מערכות</button>}
+          {availableTabs.includes('closures') && <button onClick={() => setActiveTab('closures')} style={sideNavItemStyle(activeTab === 'closures')}>🚫 סגירות</button>}
 
         </div>{/* end sidebar */}
 
@@ -38137,6 +38382,8 @@ CHARLIE,1,301,`}
         {activeTab === 'default_names' && <DefaultNamesManager />}
 
         {activeTab === 'strip_windows' && <StripWindowAdmin apiUrl={API_URL} />}
+
+        {activeTab === 'closures' && <ClosuresManager />}
 
 
         </div>

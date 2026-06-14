@@ -1185,6 +1185,24 @@ async function initDb() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS closures (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(200) NOT NULL DEFAULT '',
+      category VARCHAR(100) DEFAULT '',
+      color VARCHAR(20) DEFAULT '#ef4444',
+      alt_min INTEGER,
+      alt_max INTEGER,
+      dates JSONB DEFAULT '[]',
+      time_start VARCHAR(5) DEFAULT '',
+      time_end VARCHAR(5) DEFAULT '',
+      closure_status VARCHAR(20) DEFAULT 'coordinated',
+      active BOOLEAN DEFAULT true,
+      polygon_geo JSONB DEFAULT '[]',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   console.log('Database initialized');
 }
 
@@ -1651,6 +1669,8 @@ app.put('/api/strips/:id', async (req, res) => {
     if (req.body.map_zone_alts !== undefined) { updates.push(`map_zone_alts = $${paramIndex++}`); values.push(req.body.map_zone_alts); }
     if (req.body.map_pin_x !== undefined) { updates.push(`map_pin_x = $${paramIndex++}`); values.push(req.body.map_pin_x !== null ? Number(req.body.map_pin_x) : null); }
     if (req.body.map_pin_y !== undefined) { updates.push(`map_pin_y = $${paramIndex++}`); values.push(req.body.map_pin_y !== null ? Number(req.body.map_pin_y) : null); }
+    if (req.body.map_lat !== undefined) { updates.push(`map_lat = $${paramIndex++}`); values.push(req.body.map_lat !== null ? Number(req.body.map_lat) : null); }
+    if (req.body.map_lon !== undefined) { updates.push(`map_lon = $${paramIndex++}`); values.push(req.body.map_lon !== null ? Number(req.body.map_lon) : null); }
 
     if (updates.length > 0) {
       values.push(id);
@@ -6191,6 +6211,49 @@ app.delete('/api/base-statuses/:id', async (req, res) => {
     await pool.query('DELETE FROM base_statuses WHERE id=$1', [req.params.id]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Failed to delete base status' }); }
+});
+
+// --- Closures API ---
+app.get('/api/closures', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM closures ORDER BY id');
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: 'Failed to fetch closures' }); }
+});
+
+app.post('/api/closures', async (req, res) => {
+  try {
+    const { name, category, color, alt_min, alt_max, dates, time_start, time_end, closure_status, active, polygon_geo } = req.body;
+    const result = await pool.query(
+      `INSERT INTO closures (name, category, color, alt_min, alt_max, dates, time_start, time_end, closure_status, active, polygon_geo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [name || '', category || '', color || '#ef4444', alt_min ?? null, alt_max ?? null,
+       JSON.stringify(dates || []), time_start || '', time_end || '',
+       closure_status || 'coordinated', active !== false, JSON.stringify(polygon_geo || [])]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to create closure' }); }
+});
+
+app.put('/api/closures/:id', async (req, res) => {
+  try {
+    const { name, category, color, alt_min, alt_max, dates, time_start, time_end, closure_status, active, polygon_geo } = req.body;
+    const result = await pool.query(
+      `UPDATE closures SET name=$1, category=$2, color=$3, alt_min=$4, alt_max=$5, dates=$6, time_start=$7, time_end=$8, closure_status=$9, active=$10, polygon_geo=$11 WHERE id=$12 RETURNING *`,
+      [name || '', category || '', color || '#ef4444', alt_min ?? null, alt_max ?? null,
+       JSON.stringify(dates || []), time_start || '', time_end || '',
+       closure_status || 'coordinated', active !== false, JSON.stringify(polygon_geo || []), req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: 'Failed to update closure' }); }
+});
+
+app.delete('/api/closures/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM closures WHERE id=$1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete closure' }); }
 });
 
 // --- Aviation Bases API ---
