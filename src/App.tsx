@@ -19683,10 +19683,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={e => {
                       const val = e.target.value;
                       if (isTowerMode) {
-                        // tower mazaa — update session state + persist to parent_base_id only
+                        // tower mazaa — update session state + persist to the same base that is displayed (first in base_status_ids)
                         setLocalTowerMazaa(val);
-                        if (parentBaseId) {
-                          fetch(`${API_URL}/base-statuses/${parentBaseId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
+                        const towerBIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+                        const towerDisplayBase = liveBaseStatuses.find((b: any) => towerBIds.includes(Number(b.id)));
+                        const towerDisplayBaseId = towerDisplayBase ? Number(towerDisplayBase.id) : (towerBIds[0] || null);
+                        if (towerDisplayBaseId) {
+                          fetch(`${API_URL}/base-statuses/${towerDisplayBaseId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
                             .then(r => r.ok ? r.json() : null)
                             .then(updated => { if (updated) setLiveBaseStatuses(prev => prev.map(b => Number(b.id) === Number(updated.id) ? updated : b)); })
                             .catch(() => {});
@@ -19720,9 +19723,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           })()}
           {/* Tower runway selector — שם שדה + מסלולים להמראה/נחיתה */}
           {isTowerMode && activeAirfield && (() => {
-            const runways = airfieldRoutes.filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(activeAirfield.id));
+            // use airfieldRunways (heading_a/heading_b) — already filtered to current airfield
             const allEnds: string[] = [];
-            runways.forEach((r: any) => { if (r.end_a_name) allEnds.push(r.end_a_name); if (r.end_b_name) allEnds.push(r.end_b_name); });
+            (airfieldRunways || []).forEach((rw: any) => { if (rw.heading_a) allEnds.push(rw.heading_a); if (rw.heading_b) allEnds.push(rw.heading_b); });
             // closed end detection — matches route ends to airfield_runways headings, then checks NOTAMs
             const isEndClosed = (end: string): boolean => {
               const matchingRwIds = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
