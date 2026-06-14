@@ -913,6 +913,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   const imgEditorRef = useRef<HTMLImageElement>(null);
   const [imgEditorBounds, setImgEditorBounds] = useState<{left:number;top:number;width:number;height:number}|null>(null);
   const [localMapData, setLocalMapData] = useState<any>(initialMapData ?? null);
+  const [editorHoverCoord, setEditorHoverCoord] = useState<{lat:number;lon:number}|null>(null);
   const [anchorMode, setAnchorMode] = useState(false);
   const [anchorStep, setAnchorStep] = useState<1|2>(1);
   const [pendingAnchor1, setPendingAnchor1] = useState<{x:number;y:number}|null>(null);
@@ -1335,6 +1336,16 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
   };
 
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Geo-coordinate hover display
+    const anchor = getAnchorFromMapData(localMapData);
+    if (anchor) {
+      const pt = getSvgRelativePoint(e);
+      if (pt) {
+        const geo = imagePctToGeo(pt.x, pt.y, anchor);
+        if (isFinite(geo.lat) && isFinite(geo.lon)) setEditorHoverCoord(geo);
+        else setEditorHoverCoord(null);
+      }
+    }
     if (sectorMode && sectorDragRef.current) {
       const pt = getSvgRelativePoint(e);
       if (!pt) return;
@@ -1577,6 +1588,7 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
                 onMouseLeave={() => {
                   if (dragRef.current) { dragRef.current = null; setDragOffset(null); }
                   if (sectorDragRef.current) { sectorDragRef.current = null; setSectorDraft(null); }
+                  setEditorHoverCoord(null);
                 }}
               >
                 {zones.map(z => {
@@ -1672,6 +1684,22 @@ const MapZoneEditor = ({ mapId, mapSrc, onClose, mapData: initialMapData }: { ma
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '13px' }}>טוען מפה...</div>
             )}
             </div>{/* end transform wrapper */}
+            {/* Geo-coordinate hover display — bottom-left, shown when map is anchored */}
+            {currentAnchor && (
+              <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 50, pointerEvents: 'none' }}>
+                {editorHoverCoord ? (
+                  <div style={{ background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em', direction: 'ltr', display: 'inline-block' }}>
+                      ⚓&nbsp;{fmtDms(editorHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(editorHoverCoord.lon, false)}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ background: 'rgba(2,6,23,0.65)', borderRadius: '4px', padding: '2px 7px', border: '1px solid #334155' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>⚓ מעוגן</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Controls panel — right side */}
