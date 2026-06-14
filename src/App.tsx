@@ -3091,6 +3091,7 @@ const DraggableNeighborPanel = ({
   onUpdateNote,
   transferPointConfig,
   onUpdateTransferPointConfig,
+  allPresets = [],
 }: { 
   neighbor: any; 
   subSectors: any[];
@@ -3114,8 +3115,9 @@ const DraggableNeighborPanel = ({
   tableMode?: boolean;
   presetId?: number | string | null;
   onUpdateNote?: (transferId: string, note: string) => void;
-  transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[]; ranges?: { label?: string; alt_min?: number | null; alt_max?: number | null; parity?: string }[] } | null;
-  onUpdateTransferPointConfig?: (sectorId: number, ranges: { label: string; alt_min: number | null; alt_max: number | null; parity: string }[]) => Promise<void>;
+  transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[]; ranges?: { preset_id?: number | null; label?: string; alt_min?: number | null; alt_max?: number | null; parity?: string }[] } | null;
+  onUpdateTransferPointConfig?: (sectorId: number, ranges: { preset_id: number | null; alt_min: number | null; alt_max: number | null; parity: string }[]) => Promise<void>;
+  allPresets?: { id: number; name: string }[];
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -3126,8 +3128,9 @@ const DraggableNeighborPanel = ({
   const [outCollapsed, setOutCollapsed] = useState(false);
   const [inCollapsed, setInCollapsed] = useState(false);
   const [showAltEdit, setShowAltEdit] = useState(false);
-  const [altEditRanges, setAltEditRanges] = useState<{ label: string; alt_min: string; alt_max: string; parity: string }[]>([]);
+  const [altEditRanges, setAltEditRanges] = useState<{ preset_id: string; alt_min: string; alt_max: string; parity: string }[]>([]);
   const [altSaving, setAltSaving] = useState(false);
+  const [partnerRangesCache, setPartnerRangesCache] = useState<{ preset_id: number; preset_name: string; ranges: any[] }[]>([]);
 
   const getNeighborContacts = () => {
     if (!neighborContactsCache) return [];
@@ -3153,6 +3156,15 @@ const DraggableNeighborPanel = ({
     }
     setNeighborContactsOpen(true);
   };
+
+  useEffect(() => {
+    const partnerIds: number[] = Array.isArray(transferPointConfig?.partner_preset_ids) ? (transferPointConfig!.partner_preset_ids as number[]) : [];
+    if (!partnerIds.length) { setPartnerRangesCache([]); return; }
+    fetch(`${API_URL}/workstation-presets/partner-alt-ranges?sector_id=${neighbor.id}&preset_ids=${partnerIds.join(',')}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPartnerRangesCache(data))
+      .catch(() => setPartnerRangesCache([]));
+  }, [neighbor.id, JSON.stringify(transferPointConfig?.partner_preset_ids)]);
 
   const sectorOutgoing = outgoingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
   const sectorIncoming = incomingTransfers.filter(t => Number(t.to_sector_id) === Number(neighbor.id));
@@ -3225,21 +3237,25 @@ const DraggableNeighborPanel = ({
   }
   const hasConflict = conflictingTransferIds.size > 0;
 
-  const altViolationIds = new Set<string>();
+  const altViolationOutgoingIds = new Set<string>();
+  const altViolationIncomingIds = new Set<string>();
   {
     const cfg = transferPointConfig as any;
-    const effRanges: { alt_min: number | null; alt_max: number | null }[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min ?? null, alt_max: cfg?.alt_max ?? null }] : []);
-    if (effRanges.length > 0) {
-      const checkVio = (altStr: string | null | undefined) => {
-        if (!altStr) return false;
-        const m = altStr.match(/\d+/);
-        if (!m) return false;
-        const a = parseInt(m[0]);
-        return !effRanges.some(r => (r.alt_min == null || a >= r.alt_min) && (r.alt_max == null || a <= r.alt_max));
-      };
-      [...sectorOutgoing, ...sectorIncoming].forEach(t => { if (checkVio(t.alt)) altViolationIds.add(String(t.id)); });
-    }
+    const myRanges: { alt_min: number | null; alt_max: number | null }[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min ?? null, alt_max: cfg?.alt_max ?? null }] : []);
+    const partnerRanges: { alt_min: number | null; alt_max: number | null }[] = partnerRangesCache.flatMap(pr => pr.ranges);
+    const makeCheck = (ranges: { alt_min: number | null; alt_max: number | null }[]) => (altStr: string | null | undefined) => {
+      if (!ranges.length || !altStr) return false;
+      const m = altStr.match(/\d+/);
+      if (!m) return false;
+      const a = parseInt(m[0]);
+      return !ranges.some(r => (r.alt_min == null || a >= r.alt_min) && (r.alt_max == null || a <= r.alt_max));
+    };
+    const checkOut = makeCheck(partnerRanges);
+    const checkInc = makeCheck(myRanges);
+    sectorOutgoing.forEach(t => { if (checkOut(t.alt)) altViolationOutgoingIds.add(String(t.id)); });
+    sectorIncoming.forEach(t => { if (checkInc(t.alt)) altViolationIncomingIds.add(String(t.id)); });
   }
+  const hasMyRanges = Array.isArray((transferPointConfig as any)?.ranges) && (transferPointConfig as any).ranges.length > 0;
 
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
@@ -3350,14 +3366,21 @@ const DraggableNeighborPanel = ({
             )}
             {(() => {
               const cfg = transferPointConfig as any;
-              const effRanges: any[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null || (cfg?.parity && cfg.parity !== 'any')) ? [{ alt_min: cfg?.alt_min, alt_max: cfg?.alt_max, parity: cfg?.parity }] : [];
-              if (!effRanges.length) return null;
-              const first = effRanges[0];
+              const myRanges: any[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min, alt_max: cfg?.alt_max, parity: cfg?.parity }] : []);
+              const totalPartner = partnerRangesCache.length;
+              if (!myRanges.length && !totalPartner) return null;
               return (
-                <div style={{ display: 'inline-flex', justifyContent: 'center', marginTop: '3px' }}>
-                  <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    📐 {effRanges.length > 1 ? `${effRanges.length} טווחים` : `${first.alt_min ?? '—'}–${first.alt_max ?? '—'}${first.parity && first.parity !== 'any' ? ` ${first.parity === 'even' ? 'ז' : 'א-ז'}` : ''}`}
-                  </span>
+                <div style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '2px', marginTop: '3px' }}>
+                  {myRanges.length > 0 && (
+                    <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      📐 {myRanges.length > 1 ? `${myRanges.length} טווחים` : `${myRanges[0]?.alt_min ?? '—'}–${myRanges[0]?.alt_max ?? '—'}`}
+                    </span>
+                  )}
+                  {totalPartner > 0 && (
+                    <span style={{ fontSize: '9px', background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}`, borderRadius: '4px', padding: '0px 4px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      {partnerRangesCache.map(pr => (pr.preset_name || '').split(' ').slice(-1)[0] || pr.preset_name).join('/')}
+                    </span>
+                  )}
                 </div>
               );
             })()}
@@ -3374,10 +3397,10 @@ const DraggableNeighborPanel = ({
                 if (!showAltEdit) {
                   const cfg = transferPointConfig as any;
                   const init = Array.isArray(cfg?.ranges) && cfg.ranges.length
-                    ? cfg.ranges.map((r: any) => ({ label: r.label || '', alt_min: r.alt_min != null ? String(r.alt_min) : '', alt_max: r.alt_max != null ? String(r.alt_max) : '', parity: r.parity || 'any' }))
-                    : (cfg?.alt_min != null || cfg?.alt_max != null || (cfg?.parity && cfg.parity !== 'any'))
-                      ? [{ label: '', alt_min: cfg?.alt_min != null ? String(cfg.alt_min) : '', alt_max: cfg?.alt_max != null ? String(cfg.alt_max) : '', parity: cfg?.parity || 'any' }]
-                      : [{ label: '', alt_min: '', alt_max: '', parity: 'any' }];
+                    ? cfg.ranges.map((r: any) => ({ preset_id: r.preset_id != null ? String(r.preset_id) : '', alt_min: r.alt_min != null ? String(r.alt_min) : '', alt_max: r.alt_max != null ? String(r.alt_max) : '', parity: r.parity || 'any' }))
+                    : (cfg?.alt_min != null || cfg?.alt_max != null)
+                      ? [{ preset_id: '', alt_min: cfg?.alt_min != null ? String(cfg.alt_min) : '', alt_max: cfg?.alt_max != null ? String(cfg.alt_max) : '', parity: cfg?.parity || 'any' }]
+                      : [{ preset_id: '', alt_min: '', alt_max: '', parity: 'any' }];
                   setAltEditRanges(init);
                 }
                 setShowAltEdit(v => !v);
@@ -3387,9 +3410,9 @@ const DraggableNeighborPanel = ({
               style={{
                 padding: '3px 7px',
                 fontSize: '11px',
-                background: showAltEdit ? '#422006' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#292524' : '#0f172a',
-                color: showAltEdit ? '#fb923c' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#fbbf24' : '#475569',
-                border: `1px solid ${showAltEdit ? '#92400e' : (transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) ? '#78350f' : '#1e293b'}`,
+                background: showAltEdit ? '#422006' : hasMyRanges ? '#292524' : '#0f172a',
+                color: showAltEdit ? '#fb923c' : hasMyRanges ? '#fbbf24' : '#475569',
+                border: `1px solid ${showAltEdit ? '#92400e' : hasMyRanges ? '#78350f' : '#1e293b'}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
                 flexShrink: 0,
@@ -3436,8 +3459,16 @@ const DraggableNeighborPanel = ({
             onPointerDown={e => e.stopPropagation()}>
             {altEditRanges.map((row, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
-                <input placeholder="עמדה" value={row.label} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
-                  style={{ width: '56px', padding: '2px 3px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }} />
+                <select value={row.preset_id} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, preset_id: e.target.value } : r))}
+                  style={{ width: '80px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }}>
+                  <option value="">-- עמדה --</option>
+                  {allPresets.filter(p =>
+                    String(p.id) !== String(presetId) &&
+                    Array.isArray(transferPointConfig?.partner_preset_ids) &&
+                    (transferPointConfig!.partner_preset_ids as number[]).map(String).includes(String(p.id)) &&
+                    !altEditRanges.some((r2, j) => j !== i && String(r2.preset_id) === String(p.id))
+                  ).map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                </select>
                 <input type="number" placeholder="מינ'" value={row.alt_min} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, alt_min: e.target.value } : r))}
                   style={{ width: '42px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', textAlign: 'center', minWidth: 0 }} />
                 <span style={{ fontSize: '9px', color: '#64748b', flexShrink: 0 }}>–</span>
@@ -3454,12 +3485,12 @@ const DraggableNeighborPanel = ({
               </div>
             ))}
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => [...rs, { label: '', alt_min: '', alt_max: '', parity: 'any' }]); }}
+              <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => [...rs, { preset_id: '', alt_min: '', alt_max: '', parity: 'any' }]); }}
                 style={{ padding: '2px 7px', background: 'transparent', color: lightMode ? '#78350f' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>➕</button>
               <button disabled={altSaving} onClick={async e => {
                 e.stopPropagation();
                 setAltSaving(true);
-                const finalRanges = altEditRanges.map(r => ({ label: r.label, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
+                const finalRanges = altEditRanges.map(r => ({ preset_id: r.preset_id !== '' ? Number(r.preset_id) : null, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
                 await onUpdateTransferPointConfig(Number(neighbor.id), finalRanges);
                 setAltSaving(false);
                 setShowAltEdit(false);
@@ -3501,7 +3532,7 @@ const DraggableNeighborPanel = ({
                     key={t.id}
                     t={t}
                     isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationIds.has(String(t.id))}
+                    isAltViolation={altViolationOutgoingIds.has(String(t.id))}
                     onCancel={onCancelTransfer}
                     onUpdateStripField={onUpdateStripField}
                     lightMode={lightMode}
@@ -3534,7 +3565,7 @@ const DraggableNeighborPanel = ({
                     onReject={onRejectTransfer}
                     onAcceptToMap={onAcceptToMap}
                     isConflict={conflictingTransferIds.has(String(t.id))}
-                    isAltViolation={altViolationIds.has(String(t.id))}
+                    isAltViolation={altViolationIncomingIds.has(String(t.id))}
                     onUpdateStripField={onUpdateStripField}
                     zoom={mapZoom}
                     pan={mapPan}
@@ -20968,7 +20999,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         {/* Sector Panels - Far Left — collapsible, hidden in classic/ground mode */}
         {allSectors.length > 0 && !isClassicMode && !isGroundMode && (
           neighborPanelOpen ? (
-            <div id="neighbor-panel" style={{ width: 215, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
+            <div id="neighbor-panel" style={{ width: 240, background: lightMode ? '#f1f5f9' : '#1e293b', color: lightMode ? '#1e293b' : 'white', display: 'flex', flexDirection: 'column', direction: 'rtl', flexShrink: 0 }}>
               <div style={{ padding: '8px 10px', borderBottom: `1px solid ${lightMode ? '#cbd5e1' : '#334155'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h4 style={{ margin: 0, fontSize: '14px' }}>נקודות העברה</h4>
@@ -21023,6 +21054,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         setLivePresetConfig((prev: any) => prev ? { ...prev, classic_transfer_points: data.classic_transfer_points } : prev);
                       }
                     } : undefined}
+                    allPresets={workstationPresets}
                   />
                 ))}
               </div>

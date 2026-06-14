@@ -3427,6 +3427,28 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
   }
 });
 
+// GET — fetch alt ranges configured by partner presets for a given sector
+app.get('/api/workstation-presets/partner-alt-ranges', async (req, res) => {
+  try {
+    const { sector_id, preset_ids } = req.query;
+    if (!sector_id || !preset_ids) return res.json([]);
+    const ids = String(preset_ids).split(',').map(Number).filter(Boolean);
+    if (!ids.length) return res.json([]);
+    const { rows } = await pool.query('SELECT id, name, classic_transfer_points FROM workstation_presets WHERE id = ANY($1)', [ids]);
+    const result = rows.map(row => {
+      let pts = row.classic_transfer_points || [];
+      if (!Array.isArray(pts)) { try { pts = JSON.parse(pts); } catch { pts = []; } }
+      const entry = pts.find(p => Number(p.sector_id) === Number(sector_id));
+      const ranges = entry?.ranges?.length ? entry.ranges : (entry?.alt_min != null || entry?.alt_max != null ? [{ alt_min: entry.alt_min, alt_max: entry.alt_max, parity: entry.parity || 'any' }] : []);
+      return { preset_id: row.id, preset_name: row.name, ranges };
+    }).filter(r => r.ranges.length > 0);
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching partner alt ranges:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH — update only load thresholds for a preset
 app.patch('/api/workstation-presets/:id/transfer-point', async (req, res) => {
   try {
