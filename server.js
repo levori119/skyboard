@@ -3430,15 +3430,17 @@ app.delete('/api/workstation-presets/:id', async (req, res) => {
 // PATCH — update only load thresholds for a preset
 app.patch('/api/workstation-presets/:id/transfer-point', async (req, res) => {
   try {
-    const { sector_id, alt_min, alt_max, parity } = req.body;
+    const { sector_id, ranges, alt_min, alt_max, parity } = req.body;
     if (sector_id == null) return res.status(400).json({ error: 'sector_id required' });
     const { rows } = await pool.query('SELECT classic_transfer_points FROM workstation_presets WHERE id=$1', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     let pts = rows[0].classic_transfer_points || [];
     if (!Array.isArray(pts)) { try { pts = JSON.parse(pts); } catch { pts = []; } }
     const others = pts.filter((p) => Number(p.sector_id) !== Number(sector_id));
-    const isEmpty = alt_min == null && alt_max == null && (!parity || parity === 'any');
-    const next = isEmpty ? others : [...others, { ...pts.find(p => Number(p.sector_id) === Number(sector_id)) || {}, sector_id: Number(sector_id), alt_min: alt_min ?? null, alt_max: alt_max ?? null, parity: parity || 'any' }];
+    const useRanges = ranges !== undefined;
+    const isEmpty = useRanges ? !Array.isArray(ranges) || !ranges.length : (alt_min == null && alt_max == null && (!parity || parity === 'any'));
+    const entryData = useRanges ? { sector_id: Number(sector_id), ranges } : { sector_id: Number(sector_id), alt_min: alt_min ?? null, alt_max: alt_max ?? null, parity: parity || 'any' };
+    const next = isEmpty ? others : [...others, { ...pts.find(p => Number(p.sector_id) === Number(sector_id)) || {}, ...entryData }];
     await pool.query('UPDATE workstation_presets SET classic_transfer_points=$1 WHERE id=$2', [JSON.stringify(next), req.params.id]);
     res.json({ ok: true, classic_transfer_points: next });
   } catch (err) {

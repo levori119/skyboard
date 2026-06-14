@@ -2855,9 +2855,10 @@ const serializeNoteValue = (text: string, hw: string): string => {
 };
 
 // --- כרטיס מוסר בסקטור ---
-const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lightMode = false, presetId, onUpdateNote }: {
+const OutgoingTransferCard = ({ t, isConflict, isAltViolation = false, onCancel, onUpdateStripField, lightMode = false, presetId, onUpdateNote }: {
   t: any;
   isConflict: boolean;
+  isAltViolation?: boolean;
   onCancel: (id: string) => void;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   lightMode?: boolean;
@@ -2877,8 +2878,8 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
     <>
       <div style={{
         padding: '4px 5px', direction: 'rtl', margin: '2px 0', borderRadius: '6px',
-        border: isConflict ? '1px solid #ef4444' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
-        background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : (lightMode ? '#fffbeb' : '#0d0800'),
+        border: isConflict ? '1px solid #ef4444' : isAltViolation ? '1px solid #f97316' : (lightMode ? '1px solid #d97706' : '1px solid #78350f'),
+        background: isConflict ? (lightMode ? '#fef2f2' : '#450a0a') : isAltViolation ? (lightMode ? '#fff7ed' : '#1c0800') : (lightMode ? '#fffbeb' : '#0d0800'),
       }}>
         {/* שורה 1: 💬 | callsign | sq */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '2px' }}>
@@ -2898,9 +2899,9 @@ const OutgoingTransferCard = ({ t, isConflict, onCancel, onUpdateStripField, lig
             ref={altRef}
             title="לחץ לעדכון גובה"
             onClick={() => { if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setShowHw(true); }}
-            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : '#d97706'}` }}
+            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? (lightMode ? '#b91c1c' : '#fca5a5') : isAltViolation ? (lightMode ? '#c2410c' : '#fb923c') : (lightMode ? '#92400e' : '#fcd34d'), background: isConflict ? (lightMode ? '#fee2e2' : '#7f1d1d') : isAltViolation ? (lightMode ? '#ffedd5' : '#431407') : (lightMode ? '#fef3c7' : '#1c0f00'), padding: '1px 4px', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.5px', border: `1px dashed ${isConflict ? '#ef4444' : isAltViolation ? '#f97316' : '#d97706'}` }}
           >
-            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
+            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{isAltViolation && !isConflict && <span style={{ marginInlineEnd: '2px' }}>📐</span>}{t.alt ? normalizeAlt(t.alt) : '—'}
           </span>
         </div>
         {t.note && !noteOpen && (
@@ -3113,8 +3114,8 @@ const DraggableNeighborPanel = ({
   tableMode?: boolean;
   presetId?: number | string | null;
   onUpdateNote?: (transferId: string, note: string) => void;
-  transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[] } | null;
-  onUpdateTransferPointConfig?: (sectorId: number, cfg: { alt_min: number | null; alt_max: number | null; parity: string }) => Promise<void>;
+  transferPointConfig?: { alt_min?: number | null; alt_max?: number | null; parity?: string; partner_preset_ids?: number[]; ranges?: { label?: string; alt_min?: number | null; alt_max?: number | null; parity?: string }[] } | null;
+  onUpdateTransferPointConfig?: (sectorId: number, ranges: { label: string; alt_min: number | null; alt_max: number | null; parity: string }[]) => Promise<void>;
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isStripDragOver, setIsStripDragOver] = useState(false);
@@ -3125,9 +3126,7 @@ const DraggableNeighborPanel = ({
   const [outCollapsed, setOutCollapsed] = useState(false);
   const [inCollapsed, setInCollapsed] = useState(false);
   const [showAltEdit, setShowAltEdit] = useState(false);
-  const [altEditMin, setAltEditMin] = useState('');
-  const [altEditMax, setAltEditMax] = useState('');
-  const [altEditParity, setAltEditParity] = useState('any');
+  const [altEditRanges, setAltEditRanges] = useState<{ label: string; alt_min: string; alt_max: string; parity: string }[]>([]);
   const [altSaving, setAltSaving] = useState(false);
 
   const getNeighborContacts = () => {
@@ -3225,6 +3224,22 @@ const DraggableNeighborPanel = ({
     });
   }
   const hasConflict = conflictingTransferIds.size > 0;
+
+  const altViolationIds = new Set<string>();
+  {
+    const cfg = transferPointConfig as any;
+    const effRanges: { alt_min: number | null; alt_max: number | null }[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null ? [{ alt_min: cfg?.alt_min ?? null, alt_max: cfg?.alt_max ?? null }] : []);
+    if (effRanges.length > 0) {
+      const checkVio = (altStr: string | null | undefined) => {
+        if (!altStr) return false;
+        const m = altStr.match(/\d+/);
+        if (!m) return false;
+        const a = parseInt(m[0]);
+        return !effRanges.some(r => (r.alt_min == null || a >= r.alt_min) && (r.alt_max == null || a <= r.alt_max));
+      };
+      [...sectorOutgoing, ...sectorIncoming].forEach(t => { if (checkVio(t.alt)) altViolationIds.add(String(t.id)); });
+    }
+  }
 
   const handlePointerDown = (e: React.PointerEvent, subLabel?: string) => {
     e.preventDefault();
@@ -3333,20 +3348,19 @@ const DraggableNeighborPanel = ({
             {neighbor.notes && (
               <div style={{ fontSize: '9px', color: lightMode ? '#92400e' : '#fbbf24', fontStyle: 'italic', marginTop: '1px' }}>{neighbor.notes}</div>
             )}
-            {transferPointConfig && (transferPointConfig.alt_min != null || transferPointConfig.alt_max != null || (transferPointConfig.parity && transferPointConfig.parity !== 'any')) && (
-              <div style={{ display: 'inline-flex', flexWrap: 'wrap', justifyContent: 'center', gap: '3px', marginTop: '3px' }}>
-                {(transferPointConfig.alt_min != null || transferPointConfig.alt_max != null) && (
-                  <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold' }}>
-                    📐 {transferPointConfig.alt_min != null ? transferPointConfig.alt_min : '—'}–{transferPointConfig.alt_max != null ? transferPointConfig.alt_max : '—'}
+            {(() => {
+              const cfg = transferPointConfig as any;
+              const effRanges: any[] = Array.isArray(cfg?.ranges) && cfg.ranges.length ? cfg.ranges : (cfg?.alt_min != null || cfg?.alt_max != null || (cfg?.parity && cfg.parity !== 'any')) ? [{ alt_min: cfg?.alt_min, alt_max: cfg?.alt_max, parity: cfg?.parity }] : [];
+              if (!effRanges.length) return null;
+              const first = effRanges[0];
+              return (
+                <div style={{ display: 'inline-flex', justifyContent: 'center', marginTop: '3px' }}>
+                  <span style={{ fontSize: '9px', background: lightMode ? '#fef9c3' : '#292524', color: lightMode ? '#92400e' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    📐 {effRanges.length > 1 ? `${effRanges.length} טווחים` : `${first.alt_min ?? '—'}–${first.alt_max ?? '—'}${first.parity && first.parity !== 'any' ? ` ${first.parity === 'even' ? 'ז' : 'א-ז'}` : ''}`}
                   </span>
-                )}
-                {transferPointConfig.parity && transferPointConfig.parity !== 'any' && (
-                  <span style={{ fontSize: '9px', background: lightMode ? '#eff6ff' : '#172554', color: lightMode ? '#1d4ed8' : '#93c5fd', border: `1px solid ${lightMode ? '#bfdbfe' : '#1e3a8a'}`, borderRadius: '4px', padding: '0px 5px', fontWeight: 'bold' }}>
-                    {transferPointConfig.parity === 'even' ? 'זוגי' : 'אי-זוגי'}
-                  </span>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
             {hasConflict && (
               <span style={{ fontSize: '10px', background: lightMode ? '#fee2e2' : '#450a0a', color: lightMode ? '#b91c1c' : '#fca5a5', borderRadius: '4px', padding: '1px 5px', fontWeight: 'bold', display: 'inline-block', marginTop: '2px' }}>⚠ קונפליקט גובה</span>
             )}
@@ -3358,9 +3372,13 @@ const DraggableNeighborPanel = ({
               onClick={e => {
                 e.stopPropagation();
                 if (!showAltEdit) {
-                  setAltEditMin(transferPointConfig?.alt_min != null ? String(transferPointConfig.alt_min) : '');
-                  setAltEditMax(transferPointConfig?.alt_max != null ? String(transferPointConfig.alt_max) : '');
-                  setAltEditParity(transferPointConfig?.parity || 'any');
+                  const cfg = transferPointConfig as any;
+                  const init = Array.isArray(cfg?.ranges) && cfg.ranges.length
+                    ? cfg.ranges.map((r: any) => ({ label: r.label || '', alt_min: r.alt_min != null ? String(r.alt_min) : '', alt_max: r.alt_max != null ? String(r.alt_max) : '', parity: r.parity || 'any' }))
+                    : (cfg?.alt_min != null || cfg?.alt_max != null || (cfg?.parity && cfg.parity !== 'any'))
+                      ? [{ label: '', alt_min: cfg?.alt_min != null ? String(cfg.alt_min) : '', alt_max: cfg?.alt_max != null ? String(cfg.alt_max) : '', parity: cfg?.parity || 'any' }]
+                      : [{ label: '', alt_min: '', alt_max: '', parity: 'any' }];
+                  setAltEditRanges(init);
                 }
                 setShowAltEdit(v => !v);
               }}
@@ -3414,51 +3432,42 @@ const DraggableNeighborPanel = ({
 
         {/* Inline alt/parity editor */}
         {showAltEdit && onUpdateTransferPointConfig && (
-          <div style={{ padding: '8px 10px', background: lightMode ? '#fef9c3' : '#1c1008', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#92400e'}`, direction: 'rtl' }}
+          <div style={{ padding: '5px 8px', background: lightMode ? '#fef9c3' : '#1c1008', borderBottom: `1px solid ${lightMode ? '#fde68a' : '#92400e'}`, direction: 'rtl' }}
             onPointerDown={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '10px', color: lightMode ? '#92400e' : '#fbbf24', fontWeight: 'bold', flexShrink: 0 }}>גובה:</span>
-              <input type="number" placeholder="מינ׳" value={altEditMin}
-                onChange={e => setAltEditMin(e.target.value)}
-                style={{ width: '52px', padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
-              <span style={{ fontSize: '10px', color: '#64748b' }}>–</span>
-              <input type="number" placeholder="מקס׳" value={altEditMax}
-                onChange={e => setAltEditMax(e.target.value)}
-                style={{ width: '52px', padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px', textAlign: 'center' }} />
-              <select value={altEditParity} onChange={e => setAltEditParity(e.target.value)}
-                style={{ padding: '3px 4px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '4px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '11px' }}>
-                <option value="any">כולם</option>
-                <option value="even">זוגי</option>
-                <option value="odd">אי-זוגי</option>
-              </select>
+            {altEditRanges.map((row, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '3px', marginBottom: '3px' }}>
+                <input placeholder="עמדה" value={row.label} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, label: e.target.value } : r))}
+                  style={{ width: '56px', padding: '2px 3px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', minWidth: 0 }} />
+                <input type="number" placeholder="מינ'" value={row.alt_min} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, alt_min: e.target.value } : r))}
+                  style={{ width: '42px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', textAlign: 'center', minWidth: 0 }} />
+                <span style={{ fontSize: '9px', color: '#64748b', flexShrink: 0 }}>–</span>
+                <input type="number" placeholder="מקס'" value={row.alt_max} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, alt_max: e.target.value } : r))}
+                  style={{ width: '42px', padding: '2px 2px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', textAlign: 'center', minWidth: 0 }} />
+                <select value={row.parity} onChange={e => setAltEditRanges(rs => rs.map((r, j) => j === i ? { ...r, parity: e.target.value } : r))}
+                  style={{ padding: '2px 1px', background: lightMode ? 'white' : '#0f172a', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', color: lightMode ? '#1e293b' : '#fbbf24', fontSize: '10px', width: '52px', minWidth: 0 }}>
+                  <option value="any">כולם</option>
+                  <option value="even">זוגי</option>
+                  <option value="odd">אי-זוגי</option>
+                </select>
+                <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => rs.filter((_, j) => j !== i)); }}
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '11px', padding: '0', lineHeight: 1, flexShrink: 0 }}>✕</button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <button onClick={e => { e.stopPropagation(); setAltEditRanges(rs => [...rs, { label: '', alt_min: '', alt_max: '', parity: 'any' }]); }}
+                style={{ padding: '2px 7px', background: 'transparent', color: lightMode ? '#78350f' : '#fbbf24', border: `1px solid ${lightMode ? '#fde68a' : '#78350f'}`, borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>➕</button>
               <button disabled={altSaving} onClick={async e => {
                 e.stopPropagation();
                 setAltSaving(true);
-                await onUpdateTransferPointConfig(Number(neighbor.id), {
-                  alt_min: altEditMin !== '' ? Number(altEditMin) : null,
-                  alt_max: altEditMax !== '' ? Number(altEditMax) : null,
-                  parity: altEditParity,
-                });
+                const finalRanges = altEditRanges.map(r => ({ label: r.label, alt_min: r.alt_min !== '' ? Number(r.alt_min) : null, alt_max: r.alt_max !== '' ? Number(r.alt_max) : null, parity: r.parity }));
+                await onUpdateTransferPointConfig(Number(neighbor.id), finalRanges);
                 setAltSaving(false);
                 setShowAltEdit(false);
-              }} style={{ padding: '3px 10px', background: altSaving ? '#374151' : '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: altSaving ? 'default' : 'pointer', flexShrink: 0 }}>
+              }} style={{ padding: '2px 8px', background: altSaving ? '#374151' : '#16a34a', color: 'white', border: 'none', borderRadius: '3px', fontSize: '10px', cursor: altSaving ? 'default' : 'pointer', flexShrink: 0 }}>
                 {altSaving ? '...' : '✓ שמור'}
               </button>
               <button onClick={e => { e.stopPropagation(); setShowAltEdit(false); }}
-                style={{ padding: '3px 8px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
-                ביטול
-              </button>
-              {(transferPointConfig?.alt_min != null || transferPointConfig?.alt_max != null || (transferPointConfig?.parity && transferPointConfig.parity !== 'any')) && (
-                <button onClick={async e => {
-                  e.stopPropagation();
-                  setAltSaving(true);
-                  await onUpdateTransferPointConfig(Number(neighbor.id), { alt_min: null, alt_max: null, parity: 'any' });
-                  setAltSaving(false);
-                  setShowAltEdit(false);
-                }} style={{ padding: '3px 8px', background: 'transparent', color: '#ef4444', border: '1px solid #7f1d1d', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', flexShrink: 0 }}>
-                  ✕ נקה
-                </button>
-              )}
+                style={{ padding: '2px 6px', background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: '3px', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>ביטול</button>
             </div>
           </div>
         )}
@@ -3492,6 +3501,7 @@ const DraggableNeighborPanel = ({
                     key={t.id}
                     t={t}
                     isConflict={conflictingTransferIds.has(String(t.id))}
+                    isAltViolation={altViolationIds.has(String(t.id))}
                     onCancel={onCancelTransfer}
                     onUpdateStripField={onUpdateStripField}
                     lightMode={lightMode}
@@ -3524,6 +3534,7 @@ const DraggableNeighborPanel = ({
                     onReject={onRejectTransfer}
                     onAcceptToMap={onAcceptToMap}
                     isConflict={conflictingTransferIds.has(String(t.id))}
+                    isAltViolation={altViolationIds.has(String(t.id))}
                     onUpdateStripField={onUpdateStripField}
                     zoom={mapZoom}
                     pan={mapPan}
@@ -3596,6 +3607,7 @@ const DraggableIncomingTransferMini = ({
   onReject,
   onAcceptToMap,
   isConflict = false,
+  isAltViolation = false,
   onUpdateStripField,
   zoom = 1,
   pan,
@@ -3607,6 +3619,7 @@ const DraggableIncomingTransferMini = ({
   onReject: (id: string) => void;
   onAcceptToMap: (id: string, x: number, y: number) => void;
   isConflict?: boolean;
+  isAltViolation?: boolean;
   onUpdateStripField?: (stripId: string, field: string, value: string) => void;
   zoom?: number;
   pan?: { x: number; y: number };
@@ -3712,8 +3725,8 @@ const DraggableIncomingTransferMini = ({
       <div 
         onPointerDown={handlePointerDown}
         style={{ 
-          background: isConflict ? '#450a0a' : '#dcfce7', 
-          border: isConflict ? '2px solid #ef4444' : '1px solid #22c55e',
+          background: isConflict ? '#450a0a' : isAltViolation ? '#1c0800' : '#dcfce7',
+          border: isConflict ? '2px solid #ef4444' : isAltViolation ? '1px solid #f97316' : '1px solid #22c55e',
           borderRadius: '4px',
           padding: '5px',
           marginBottom: '4px',
@@ -3740,9 +3753,9 @@ const DraggableIncomingTransferMini = ({
             ref={altRef}
             title={onUpdateStripField ? 'לחץ לעדכון גובה' : undefined}
             onPointerDown={e => { if (onUpdateStripField) { e.stopPropagation(); if (altRef.current) setAnchorRect(altRef.current.getBoundingClientRect()); setEditingAlt(true); } }}
-            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : '#166534', background: isConflict ? '#7f1d1d' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : '#22c55e'}` : 'none' }}
+            style={{ flex: 1, display: 'block', textAlign: 'center', fontSize: '11px', fontWeight: 'bold', color: isConflict ? '#fca5a5' : isAltViolation ? '#fb923c' : '#166534', background: isConflict ? '#7f1d1d' : isAltViolation ? '#431407' : '#bbf7d0', padding: '1px 4px', borderRadius: '4px', cursor: onUpdateStripField ? 'pointer' : 'default', letterSpacing: '0.5px', border: onUpdateStripField ? `1px dashed ${isConflict ? '#ef4444' : isAltViolation ? '#f97316' : '#22c55e'}` : 'none' }}
           >
-            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
+            {isConflict && <span style={{ marginInlineEnd: '3px' }}>⚠</span>}{isAltViolation && !isConflict && <span style={{ marginInlineEnd: '2px' }}>📐</span>}{transfer.alt ? normalizeAlt(transfer.alt) : '—'}
           </span>
           {etaCountdown !== null && (
             <span title="זמן עד להגעה" style={{ fontSize: '9px', fontWeight: 'bold', color: etaOver ? '#ef4444' : '#15803d', background: etaOver ? '#450a0a' : '#bbf7d0', border: `1px solid ${etaOver ? '#dc2626' : '#22c55e'}`, borderRadius: '3px', padding: '1px 3px', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
@@ -20999,11 +21012,11 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     presetId={session.presetId}
                     onUpdateNote={handleUpdateTransferNote}
                     transferPointConfig={(myPresetConfig?.classic_transfer_points || []).find((p: any) => Number(p.sector_id) === Number(n.id)) ?? null}
-                    onUpdateTransferPointConfig={session.presetId ? async (sectorId, cfg) => {
+                    onUpdateTransferPointConfig={session.presetId ? async (sectorId, ranges) => {
                       const res = await fetch(`${API_URL}/workstation-presets/${session.presetId}/transfer-point`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ sector_id: sectorId, ...cfg }),
+                        body: JSON.stringify({ sector_id: sectorId, ranges }),
                       });
                       if (res.ok) {
                         const data = await res.json();
