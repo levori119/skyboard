@@ -19716,40 +19716,37 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const runways = airfieldRoutes.filter((r: any) => r.is_runway && Number(r.airfield_id) === Number(activeAirfield.id));
             const allEnds: string[] = [];
             runways.forEach((r: any) => { if (r.end_a_name) allEnds.push(r.end_a_name); if (r.end_b_name) allEnds.push(r.end_b_name); });
-            const toggleTakeoff = (end: string) => setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]);
-            const toggleLanding = (end: string) => setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]);
+            // closed end detection — matches route ends to airfield_runways headings, then checks NOTAMs
+            const isEndClosed = (end: string): boolean => {
+              const matchingRwIds = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
+              return matchingRwIds.size > 0 && (airfieldRunwayNotams || []).some((n: any) => matchingRwIds.has(n.runway_id) && n.notam_type === 'closed');
+            };
+            const toggleTakeoff = (end: string) => { if (!isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+            const toggleLanding = (end: string) => { if (!isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+            const RunwayEndBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
+              const closed = isEndClosed(end);
+              return (
+                <button
+                  key={end}
+                  onClick={onToggle}
+                  disabled={closed}
+                  title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
+                  style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.4, opacity: closed ? 0.7 : 1 }}>
+                  {closed ? `🔴 ${end}` : end}
+                </button>
+              );
+            };
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '3px 8px', flexShrink: 0 }}>
-                {/* Airfield name */}
                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#cbd5e1', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }} title={activeAirfield.name}>🛬 {activeAirfield.name}</span>
                 {allEnds.length > 0 && <>
-                  {/* Takeoff row */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                     <span style={{ fontSize: '10px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>✈ המראה</span>
-                    {allEnds.map(end => {
-                      const active = towerTakeoffRunways.includes(end);
-                      return (
-                        <button key={`to-${end}`} onClick={() => toggleTakeoff(end)}
-                          title={`${active ? 'בטל' : 'הפעל'} מסלול המראה ${end}`}
-                          style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${active ? '#22c55e' : '#334155'}`, background: active ? '#14532d' : '#1e293b', color: active ? '#86efac' : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
-                          {end}
-                        </button>
-                      );
-                    })}
+                    {allEnds.map(end => <RunwayEndBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
                   </div>
-                  {/* Landing row */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                     <span style={{ fontSize: '10px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>🛬 נחיתה</span>
-                    {allEnds.map(end => {
-                      const active = towerLandingRunways.includes(end);
-                      return (
-                        <button key={`ld-${end}`} onClick={() => toggleLanding(end)}
-                          title={`${active ? 'בטל' : 'הפעל'} מסלול נחיתה ${end}`}
-                          style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#1e3a5f' : '#1e293b', color: active ? '#93c5fd' : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
-                          {end}
-                        </button>
-                      );
-                    })}
+                    {allEnds.map(end => <RunwayEndBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
                   </div>
                 </>}
                 {allEnds.length === 0 && <span style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic' }}>אין מסלולים</span>}
