@@ -32891,10 +32891,10 @@ const ManagementPage = ({ onBack, crewMember, mode }: { onBack: () => void; crew
         {/* Navigation Sidebar — appears on RIGHT in RTL */}
         <div style={{ width: '190px', flexShrink: 0, background: '#1e293b', borderRadius: '12px', alignSelf: 'flex-start', position: 'sticky', top: '10px', maxHeight: 'calc(100vh - 90px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', paddingBottom: '8px' }}>
 
-          {/* Section: ניהול (admin only) */}
+          {/* Section: ניהול מבצעי (admin only) */}
           {effectiveMode === 'admin' && (
             <>
-              <div style={{ padding: '12px 14px 4px', fontSize: '10px', color: '#475569', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.07em' }}>ניהול</div>
+              <div style={{ padding: '10px 14px 6px', fontSize: '12px', color: '#f8fafc', fontWeight: 'bold', letterSpacing: '0.04em', borderRight: '3px solid #3b82f6', marginBottom: '2px', background: 'rgba(59,130,246,0.10)' }}>ניהול מבצעי</div>
               {availableTabs.includes('strips') && <button onClick={() => setActiveTab('strips')} style={sideNavItemStyle(activeTab === 'strips')}>✈ פממים</button>}
               {availableTabs.includes('crew') && <button onClick={() => setActiveTab('crew')} style={sideNavItemStyle(activeTab === 'crew')}>👥 אנשי צוות</button>}
               {availableTabs.includes('serials') && <button onClick={() => setActiveTab('serials')} style={sideNavItemStyle(activeTab === 'serials')}>📄 ספרורים</button>}
