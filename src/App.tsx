@@ -6258,6 +6258,15 @@ const imagePctToGeo = (xImg: number, yImg: number, a: MapGeoAnchor): {lat: numbe
   const ty = (yImg - a.y1) / (a.y2 - a.y1);
   return { lat: a.lat1 + ty * (a.lat2 - a.lat1), lon: a.lon1 + tx * (a.lon2 - a.lon1) };
 };
+const fmtDms = (dec: number, isLat: boolean): string => {
+  const abs = Math.abs(dec);
+  const d = Math.floor(abs);
+  const mFull = (abs - d) * 60;
+  const m = Math.floor(mFull);
+  const s = ((mFull - m) * 60).toFixed(1);
+  const dir = isLat ? (dec >= 0 ? 'N' : 'S') : (dec >= 0 ? 'E' : 'W');
+  return `${d}°${String(m).padStart(2, '0')}'${parseFloat(s) < 10 ? '0' : ''}${s}"${dir}`;
+};
 interface ZoneAltRange { id: number; zone_id: number; name: string; alt_min: number | null; alt_max: number | null; sort_order: number; }
 interface StripZoneAssignment { id: number; strip_id: number; zone_id: number | null; altitude_range_id: number | null; status: string; note: string; coordination_note: string; is_coordinated: boolean; zone_name: string | null; zone_color: string | null; alt_range_name: string | null; alt_min: number | null; alt_max: number | null; pos_x: number | null; pos_y: number | null; requested_zone_ids?: number[]; map_id?: number | null; extra_zones?: {id: number; zone_id: number; zone_name: string | null; zone_color: string | null}[]; }
 
@@ -15295,6 +15304,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [mapImgBounds, setMapImgBounds] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [mapGeoAnchor, setMapGeoAnchor] = useState<MapGeoAnchor | null>(null);
+  const [mapHoverCoord, setMapHoverCoord] = useState<{ lat: number; lon: number; x: number; y: number } | null>(null);
   const mapImgRef = useRef<HTMLImageElement>(null);
   const computeMapImgBounds = (imgEl: HTMLImageElement | null) => {
     if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) { setMapImgBounds(null); return; }
@@ -21109,7 +21119,32 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             }
           } : undefined}
           onClick={() => { setTableRowCtxMenu(null); setTableHeaderMenuKey(null); setVerticalCtxMenu(null); setAltUpdateForm(null); setBtCtxMenu(null); }}
+          onMouseMove={(!tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && mapGeoAnchor) ? (e: React.MouseEvent<HTMLDivElement>) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            const zoom = mapZoomRef.current;
+            const pan = mapPanRef.current;
+            const x_inner = (cx - rect.width / 2 - pan.x) / zoom + rect.width / 2;
+            const y_inner = (cy - rect.height / 2 - pan.y) / zoom + rect.height / 2;
+            const ib = mapImgBoundsRef.current;
+            if (!ib || ib.width === 0 || ib.height === 0) { setMapHoverCoord(null); return; }
+            const xImg = ((x_inner - ib.left) / ib.width) * 100;
+            const yImg = ((y_inner - ib.top) / ib.height) * 100;
+            if (xImg < -5 || xImg > 105 || yImg < -5 || yImg > 105) { setMapHoverCoord(null); return; }
+            const geo = imagePctToGeo(xImg, yImg, mapGeoAnchor);
+            setMapHoverCoord({ lat: geo.lat, lon: geo.lon, x: cx, y: cy });
+          } : undefined}
+          onMouseLeave={mapGeoAnchor ? () => setMapHoverCoord(null) : undefined}
         >
+          {/* Geo-coordinate tooltip on hover (only when map has anchors set) */}
+          {mapHoverCoord && mapGeoAnchor && !tableMode && !isGroundMode && !isClassicMode && !isCivilianMode && (
+            <div style={{ position: 'absolute', left: mapHoverCoord.x + 14, top: mapHoverCoord.y - 14, zIndex: 9998, pointerEvents: 'none', background: 'rgba(2,6,23,0.88)', borderRadius: '5px', padding: '3px 9px', border: '1px solid #334155', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#e2e8f0', letterSpacing: '0.02em' }}>
+                {fmtDms(mapHoverCoord.lat, true)}&nbsp;&nbsp;{fmtDms(mapHoverCoord.lon, false)}
+              </span>
+            </div>
+          )}
           {/* Active takeoff notification banner — shown in ground_mgmt workstation */}
           {isGroundMgmtMode && (() => {
             const visible = activeTakeoffs.filter(t => !dismissedTakeoffs.has(String(t.stripId)));
