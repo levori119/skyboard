@@ -19682,14 +19682,8 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={e => {
                       const val = e.target.value;
                       if (isTowerMode) {
+                        // tower mazaa is session-only — do NOT update all bases
                         setLocalTowerMazaa(val);
-                        const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
-                        if (bIds.length > 0) {
-                          bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
-                            .then(r => r.ok ? r.json() : null)
-                            .then(updated => { if (updated) setLiveBaseStatuses(prev => prev.map(b => Number(b.id) === Number(updated.id) ? updated : b)); })
-                            .catch(() => {}));
-                        }
                       } else {
                         setRegionalMazaa(val);
                         if (myWorkGroupId) {
@@ -19725,43 +19719,40 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             const toggleTakeoff = (end: string) => setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]);
             const toggleLanding = (end: string) => setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]);
             return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '3px 10px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '3px 8px', flexShrink: 0 }}>
                 {/* Airfield name */}
-                <span style={{ fontSize: '11px', color: '#94a3b8', flexShrink: 0 }}>🛬</span>
-                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#e2e8f0', flexShrink: 0, maxWidth: '90px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={activeAirfield.name}>{activeAirfield.name}</span>
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#cbd5e1', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }} title={activeAirfield.name}>🛬 {activeAirfield.name}</span>
                 {allEnds.length > 0 && <>
-                  <div style={{ width: '1px', height: '22px', background: '#334155', flexShrink: 0 }} />
-                  {/* Takeoff runways */}
-                  <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0, whiteSpace: 'nowrap' }}>✈ המראה:</span>
-                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'nowrap' }}>
+                  {/* Takeoff row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span style={{ fontSize: '10px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>✈ המראה</span>
                     {allEnds.map(end => {
                       const active = towerTakeoffRunways.includes(end);
                       return (
                         <button key={`to-${end}`} onClick={() => toggleTakeoff(end)}
                           title={`${active ? 'בטל' : 'הפעל'} מסלול המראה ${end}`}
-                          style={{ padding: '2px 7px', borderRadius: '4px', border: `1px solid ${active ? '#22c55e' : '#334155'}`, background: active ? '#14532d' : '#1e293b', color: active ? '#86efac' : '#94a3b8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
+                          style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${active ? '#22c55e' : '#334155'}`, background: active ? '#14532d' : '#1e293b', color: active ? '#86efac' : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
                           {end}
                         </button>
                       );
                     })}
                   </div>
-                  <div style={{ width: '1px', height: '22px', background: '#334155', flexShrink: 0 }} />
-                  {/* Landing runways */}
-                  <span style={{ fontSize: '10px', color: '#64748b', flexShrink: 0, whiteSpace: 'nowrap' }}>🛬 נחיתה:</span>
-                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'nowrap' }}>
+                  {/* Landing row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <span style={{ fontSize: '10px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>🛬 נחיתה</span>
                     {allEnds.map(end => {
                       const active = towerLandingRunways.includes(end);
                       return (
                         <button key={`ld-${end}`} onClick={() => toggleLanding(end)}
                           title={`${active ? 'בטל' : 'הפעל'} מסלול נחיתה ${end}`}
-                          style={{ padding: '2px 7px', borderRadius: '4px', border: `1px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#1e3a5f' : '#1e293b', color: active ? '#93c5fd' : '#94a3b8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
+                          style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${active ? '#60a5fa' : '#334155'}`, background: active ? '#1e3a5f' : '#1e293b', color: active ? '#93c5fd' : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1.4 }}>
                           {end}
                         </button>
                       );
                     })}
                   </div>
                 </>}
-                {allEnds.length === 0 && <span style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic' }}>אין מסלולים מוגדרים</span>}
+                {allEnds.length === 0 && <span style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic' }}>אין מסלולים</span>}
               </div>
             );
           })()}
