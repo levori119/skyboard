@@ -31321,7 +31321,17 @@ const ClosuresManager = () => {
 
           {/* Dates */}
           <div style={{ marginBottom: '12px' }}>
-            {lbl('מערך תאריכים')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              {lbl('מערך תאריכים')}
+              {form.dates.length > 0 && (
+                <button onClick={() => {
+                  const today = new Date().toISOString().slice(0, 10);
+                  setForm(f => ({ ...f, dates: f.dates.map(() => today) }));
+                }} style={{ padding: '2px 9px', background: '#1a3a2a', color: '#4ade80', border: '1px solid #16a34a', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap', marginBottom: '2px' }}>
+                  📅 שנה הכל להיום
+                </button>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
               {inp({ type: 'date', value: dateInput, onChange: e => setDateInput(e.target.value), style: { flex: 1 } })}
               <button onClick={addDate} style={{ padding: '5px 12px', background: '#1e3a5f', color: '#93c5fd', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>+ הוסף</button>
