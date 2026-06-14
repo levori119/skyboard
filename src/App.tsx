@@ -11164,10 +11164,10 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
 };
 
 // --- Strip Grid Card Layout (SGNode) ---
-interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; blink?: boolean; blinkColor?: string; blinkRate?: number; }
+interface SGCell { id: string; type: 'cell'; fieldKey: string; bgColor?: string; textColor?: string; textBgColor?: string; fontSize?: number; bold?: boolean; italic?: boolean; textAlign?: 'left'|'center'|'right'; blink?: boolean; blinkColor?: string; blinkRate?: number; }
 interface SGSplit { id: string; type: 'split'; direction: 'h'|'v'; sizes: number[]; children: SGNode[]; }
 type SGNode = SGCell | SGSplit;
-interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'; targetCellId?: string; styleBg?: string; styleText?: string; blink?: boolean; blinkColor?: string; blinkRate?: number; }
+interface SGCondition { id: string; query: QGroup | null; target: 'cell'|'strip'|'all'; targetCellId?: string; styleBg?: string; styleText?: string; blink?: boolean; blinkColor?: string; blinkRate?: number; }
 let _sgBlinkStyleInjected = false;
 const ensureSGBlinkStyle = () => {
   if (_sgBlinkStyleInjected) return;
@@ -11344,6 +11344,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
     for (const c of (conds || [])) {
       if (c.target === 'cell' && targetCellId && c.targetCellId !== targetCellId) continue;
       if (c.target === 'strip' && targetCellId !== undefined) continue;
+      if (c.target === 'all' && targetCellId === undefined) continue; // 'all' applies to cells only, not strip wrapper
       let match = false;
       try { match = c.query ? evaluateQuery(strip, c.query) : false; } catch { match = false; }
       if (match) {
@@ -11373,7 +11374,7 @@ const ClassicStripCard = ({ strip, rows, lightMode, onUpdateField, onDragStart, 
           overflow: 'hidden', padding: '1px 4px', minHeight: '20px', minWidth: 0,
           ...(shouldBlink ? { '--sg-bb': bg, '--sg-bt': blinkClr, animation: `sg-cell-blink ${blinkSpd}s step-end infinite` } : {}),
         } as React.CSSProperties}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center' }}>{val}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', textAlign: cell.textAlign || 'center', ...(cell.textBgColor ? { background: cell.textBgColor, borderRadius: '2px', padding: '0 3px' } : {}) }}>{val}</span>
         </div>
       );
     }
@@ -31105,6 +31106,20 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                           style={{ width: '100%', height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
                       </div>
                       <div>
+                        <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>
+                          רקע טקסט:
+                          <span style={{ fontSize: '10px', color: '#475569', marginRight: '4px' }}>(highlight)</span>
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <input type="color" value={selCell.textBgColor || '#facc15'} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: e.target.value })))}
+                            style={{ flex: 1, height: '28px', padding: '1px', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                          {selCell.textBgColor && (
+                            <button onClick={() => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, textBgColor: undefined })))}
+                              style={{ padding: '3px 7px', background: '#334155', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', flexShrink: 0 }} title="הסר רקע טקסט">✕</button>
+                          )}
+                        </div>
+                      </div>
+                      <div>
                         <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '3px' }}>גופן (px):</label>
                         <input type="number" min={8} max={24} value={selCell.fontSize || 12} onChange={e => mutate(t => sgUpdate(t, selCell.id, (n: SGCell) => ({ ...n, fontSize: Number(e.target.value) })))}
                           style={{ width: '100%', padding: '5px 8px', background: '#1e293b', border: '1px solid #334155', borderRadius: '5px', color: 'white', fontSize: '12px' }} />
@@ -31187,6 +31202,7 @@ const StripGridEditor = ({ tableId, tableName, apiUrl, onClose, onSaved }: { tab
                         <select value={c.target} onChange={e => { updateCondition(c.id, { target: e.target.value as any, targetCellId: undefined }); setDirty(true); }}
                           style={{ padding: '4px 6px', background: '#1e293b', border: '1px solid #334155', borderRadius: '4px', color: 'white', fontSize: '12px', direction: 'rtl' }}>
                           <option value="strip">כל הכרטיס</option>
+                          <option value="all">כל התאים</option>
                           <option value="cell">תא ספציפי</option>
                         </select>
                         {c.target === 'cell' && (
