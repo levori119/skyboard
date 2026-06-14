@@ -17854,6 +17854,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
         const map = await res.json();
         setMapImg(map.image_data);
         setCurrentMapId(map.id);
+        setMapGeoAnchor(getAnchorFromMapData(map));
         loadMapZones(map.id);
       }
     } catch (err) {
