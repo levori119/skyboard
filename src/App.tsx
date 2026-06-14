@@ -19683,8 +19683,16 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={e => {
                       const val = e.target.value;
                       if (isTowerMode) {
-                        // tower mazaa is session-only — do NOT update all bases
+                        // tower mazaa — update session state + persist to the primary base only (first in base_status_ids)
                         setLocalTowerMazaa(val);
+                        const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+                        const primaryBId = bIds[0];
+                        if (primaryBId) {
+                          fetch(`${API_URL}/base-statuses/${primaryBId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(updated => { if (updated) setLiveBaseStatuses(prev => prev.map(b => Number(b.id) === Number(updated.id) ? updated : b)); })
+                            .catch(() => {});
+                        }
                       } else {
                         setRegionalMazaa(val);
                         if (myWorkGroupId) {
