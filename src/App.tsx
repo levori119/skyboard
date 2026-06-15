@@ -15400,7 +15400,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // ── Voice recognition (Web Speech API) ──
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean; transferDest?: string; action?: 'alt' | 'transfer' } | null>(null);
+  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean; transferDest?: string; zoneName?: string; action?: 'alt' | 'transfer' | 'zone' | 'accept_zone' } | null>(null);
   const voiceRecogRef = React.useRef<any>(null);
   const voiceResultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
@@ -18231,6 +18231,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return strip;
   };
 
+  // Find a map zone by spoken name (searches mapZones state)
+  const findZoneByVoice = (name: string): MapZone | null => {
+    const lower = name.toLowerCase().trim();
+    if (!lower) return null;
+    let found = mapZones.find(z => z.name.toLowerCase() === lower);
+    if (found) return found;
+    found = mapZones.find(z => {
+      const zn = z.name.toLowerCase();
+      return zn && (lower.includes(zn) || zn.includes(lower));
+    });
+    return found || null;
+  };
+
+  // Detect "לאזור [zone-name]" in speech.  Returns zone name + remaining text.
+  const parseZoneDest = (text: string): { zoneName: string; textWithout: string } | null => {
+    // Match "לאזור" or "לאזורה" followed by zone name
+    const m = text.match(/(?:^|\s)לאזור[ה]?\s+([א-ת][א-ת\s]{0,25}?)(?:\s|$)/);
+    if (!m) return null;
+    const zoneName = m[1].trim();
+    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
+    return { zoneName, textWithout };
+  };
+
+  // Find incoming transfer by callsign match in speech text
+  const findIncomingByVoice = (text: string): any | null => {
+    const lower = text.toLowerCase().replace(/['"]/g, '');
+    for (const t of incomingTransfers) {
+      const cs = (t.callSign || t.callsign || '').toLowerCase().trim();
+      if (cs && lower.includes(cs)) return t;
+    }
+    return null;
+  };
+
   // Find sector/transfer-point by name in speech text (returns the full sector object).
   // Searches allSectors (works for non-classic presets where transfer points are included)
   // AND classic_transfer_points labels (for classic presets where they are NOT in allSectors).
@@ -18289,7 +18322,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     recog.continuous = false;
     recog.maxAlternatives = 3;
     recog.onstart = () => { setVoiceListening(true); setVoiceTranscript(''); setVoiceResult(null); };
-    recog.onresult = (event: any) => {
+    recog.onresult = async (event: any) => {
       const results: any[] = Array.from(event.results);
       const transcript = results.map((r: any) => r[0].transcript).join(' ');
       setVoiceTranscript(transcript);
@@ -18304,8 +18337,25 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
             candidates.push(event.results[ri][ai].transcript);
           }
         }
+        let zone: MapZone | null = null;
+        let incomingT: any = null;
         for (const t of candidates) {
-          // Check for transfer destination ("ל[sector]")
+          // Priority 1: zone assignment ("לאזור [name]")
+          if (!zone && mapZones.length > 0) {
+            const zd = parseZoneDest(t);
+            if (zd) {
+              const z = findZoneByVoice(zd.zoneName);
+              if (z) {
+                zone = z;
+                const cmd = parseVoiceCommand(zd.textWithout, myStrips);
+                if (!alt) alt = cmd.alt;
+                if (!strip) strip = cmd.strip;
+                if (!incomingT) incomingT = findIncomingByVoice(zd.textWithout);
+                continue;
+              }
+            }
+          }
+          // Priority 2: sector transfer ("ל[sector]")
           const td = parseTransferDest(t);
           if (td && !sector) {
             const sec = findSectorByVoice(td.dest);
@@ -18317,17 +18367,37 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               continue;
             }
           }
+          // Priority 3: altitude / callsign only
           const cmd = parseVoiceCommand(t, myStrips);
           if (!alt) alt = cmd.alt;
           if (!strip) strip = cmd.strip;
         }
         // Single strip at workstation → use it without callsign
         if (!strip && myStrips.length === 1) strip = myStrips[0];
+        // If zone command with no strip found, also check incoming transfers
+        if (zone && !strip && !incomingT) {
+          incomingT = findIncomingByVoice(candidates.join(' '));
+        }
         const callsign = strip?.callSign || strip?.callsign || '';
         const stripId = strip ? String(strip.id) : '';
 
-        if (sector && strip) {
-          // ── Transfer command ──
+        if (zone && (strip || incomingT)) {
+          // ── Zone assignment command ──
+          if (incomingT && !strip) {
+            // Accept incoming transfer + assign to zone
+            const inCs = incomingT.callSign || incomingT.callsign || '';
+            const inStripId = parseInt(String(incomingT.strip_id), 10);
+            await handleAcceptTransfer(String(incomingT.id));
+            await doFzSave(inStripId, zone.id, null, 'active', '', '', false);
+            setVoiceResult({ callsign: inCs, alt: alt || '', stripId: String(incomingT.strip_id), ok: true, zoneName: zone.name, action: 'accept_zone' });
+          } else {
+            // Assign existing strip to zone (+ optional alt update)
+            if (alt) handleAltUpdate(stripId, alt);
+            await doFzSave(stripId, zone.id, null, 'active', '', '', false);
+            setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, zoneName: zone.name, action: 'zone' });
+          }
+        } else if (sector && strip) {
+          // ── Sector transfer command ──
           if (alt) handleAltUpdate(stripId, alt);
           handleTransfer(stripId, Number(sector.id));
           setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, transferDest: sector.name, action: 'transfer' });
@@ -18336,7 +18406,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           handleAltUpdate(stripId, alt);
           setVoiceResult({ callsign, alt, stripId, ok: true, action: 'alt' });
         } else {
-          setVoiceResult({ callsign, alt: alt || '', stripId, ok: false, action: alt ? 'transfer' : 'alt' });
+          const missingWhat = zone ? 'zone_strip' : sector ? 'sector_strip' : alt ? 'strip' : 'all';
+          setVoiceResult({ callsign, alt: alt || '', stripId, ok: false, action: zone ? 'zone' : sector ? 'transfer' : 'alt', zoneName: zone?.name, transferDest: sector?.name });
+          void missingWhat;
         }
         setVoiceListening(false);
         if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
@@ -29168,7 +29240,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           {voiceResult !== null && !voiceListening && (
             voiceResult.ok ? (
               <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                {voiceResult.action === 'transfer' ? (
+                {voiceResult.action === 'accept_zone' ? (
+                  <>
+                    <span>✅ {voiceResult.callsign} — התקבל ← אזור {voiceResult.zoneName}</span>
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                  </>
+                ) : voiceResult.action === 'zone' ? (
+                  <>
+                    <span>✅ {voiceResult.callsign} → אזור {voiceResult.zoneName}</span>
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                  </>
+                ) : voiceResult.action === 'transfer' ? (
                   <>
                     <span>✅ {voiceResult.callsign} → {voiceResult.transferDest}</span>
                     {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
@@ -29179,11 +29261,15 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             ) : (
               <div style={{ color: '#fbbf24', fontSize: '13px' }}>
-                {!voiceResult.alt && !voiceResult.transferDest
+                {voiceResult.action === 'zone' && voiceResult.zoneName && !voiceResult.stripId
+                  ? `⚠️ לא זוהה מטוס לאזור "${voiceResult.zoneName}"`
+                  : voiceResult.action === 'zone' && !voiceResult.zoneName
+                  ? '⚠️ לא זוהה אזור'
+                  : !voiceResult.alt && !voiceResult.transferDest && !voiceResult.zoneName
                   ? '⚠️ לא זוהה גובה/יעד'
                   : !voiceResult.stripId
-                  ? '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'
-                  : '⚠️ לא זוהה נקודת העברה'}
+                  ? '⚠️ לא זוהה מטוס'
+                  : '⚠️ לא זוהה נקודת/אזור העברה'}
               </div>
             )
           )}
