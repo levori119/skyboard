@@ -25115,7 +25115,45 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         draggable
                         onDragStart={e => { e.stopPropagation(); e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: si.parentStripId, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(si.parentStripId); setFzDragLabel(si.label); }}
                         onDragEnd={() => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); }}
-                        style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
+                        onPointerDown={e => {
+                          if (e.pointerType === 'mouse') return;
+                          e.preventDefault(); e.stopPropagation();
+                          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                          fzDragIsPin.current = false; fzDragIdRef.current = si.parentStripId;
+                          setFzDragStripId(si.parentStripId); setFzDragLabel(si.label);
+                          setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: si.label });
+                        }}
+                        onPointerMove={e => {
+                          if (fzDragIdRef.current !== si.parentStripId) return;
+                          setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                        }}
+                        onPointerUp={e => {
+                          if (fzDragIdRef.current !== si.parentStripId) return;
+                          e.preventDefault();
+                          const draggedId = si.parentStripId; const label = si.label;
+                          fzDragIsPin.current = false; fzDragIdRef.current = null;
+                          setFzDragStripId(null); setFzDragLabel(null); setSidebarPointerGhost(null);
+                          const overlayEl = fzOverlayRef.current;
+                          if (!overlayEl || !currentMapId) return;
+                          const rect = overlayEl.getBoundingClientRect();
+                          if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+                          const dropX = e.clientX - rect.left; const dropY = e.clientY - rect.top;
+                          const zoom = mapZoomRef.current; const pan = mapPanRef.current;
+                          const rcx = rect.width / 2; const rcy = rect.height / 2;
+                          const contentX = rcx + (dropX - pan.x - rcx) / zoom;
+                          const contentY = rcy + (dropY - pan.y - rcy) / zoom;
+                          const ib = mapImgBoundsRef.current;
+                          const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+                          const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+                          const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+                          const existingS = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                          if (!zone) { doFzSave(draggedId, null, null, existingS?.status || 'בדרך לאזור', existingS?.note || '', existingS?.coordination_note || '', existingS?.is_coordinated || false, pxInMap, pyInMap, []); return; }
+                          if (existingS && existingS.zone_id === zone.id) { doFzSave(draggedId, zone.id, existingS.altitude_range_id, existingS.status, existingS.note, existingS.coordination_note, existingS.is_coordinated, pxInMap, pyInMap, existingS.requested_zone_ids); return; }
+                          const altRS = zoneAltRanges[zone.id] || [];
+                          const presS = existingS ? [...((existingS.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingS.zone_id && existingS.zone_id !== zone.id ? [existingS.zone_id] : [])].filter(id => id !== zone.id) : [];
+                          setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRS, selectedAltId: altRS[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingS?.note || '', displayLabel: label, posX: pxInMap, posY: pyInMap, requestedZoneIds: presS });
+                        }}
+                        style={{ margin: '2px 4px 0', cursor: 'grab', userSelect: 'none', touchAction: 'none', display: 'flex', alignItems: 'center', gap: '6px', background: '#1a0a2e', border: '1px solid #7c3aed', borderRadius: '3px', padding: '3px 8px', direction: 'rtl' }}
                       >
                         <span style={{ fontSize: '9px', color: '#c4b5fd' }}>✂</span>
                         <span style={{ fontSize: '11px', color: '#e2e8f0', fontWeight: 'bold', flex: 1 }}>{si.label}</span>
@@ -25183,12 +25221,90 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   draggable={isFlightZonesMode}
                   onDragStart={isFlightZonesMode ? (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', JSON.stringify({ stripId: s.id, all: true })); fzDragIsPin.current = false; fzDragIdRef.current = s.id; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'all'; fzOverlayRef.current.style.background = 'rgba(14,165,233,0.06)'; fzOverlayRef.current.style.border = '2px dashed #0ea5e9'; fzOverlayRef.current.style.cursor = 'copy'; } setFzDragStripId(s.id); setFzDragLabel(null); } : undefined}
                   onDragEnd={isFlightZonesMode ? () => { fzDragIdRef.current = null; if (fzOverlayRef.current) { fzOverlayRef.current.style.pointerEvents = 'none'; fzOverlayRef.current.style.background = 'transparent'; fzOverlayRef.current.style.border = 'none'; fzOverlayRef.current.style.cursor = 'default'; } setFzDragStripId(null); setFzDragLabel(null); } : undefined}
-                  onPointerDown={isFlightZonesMode ? undefined : (e => {
+                  onPointerDown={(e => {
+                    if (isFlightZonesMode) {
+                      if (e.pointerType === 'mouse') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      fzDragIsPin.current = false;
+                      fzDragIdRef.current = s.id;
+                      setFzDragStripId(s.id);
+                      setFzDragLabel(s.callSign || String(s.id));
+                      setSidebarPointerGhost({ x: e.clientX, y: e.clientY, label: s.callSign || String(s.id) });
+                    } else {
+                      e.preventDefault();
+                      const mapArea = document.getElementById('map-area');
+                      const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
+                      sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
+                      setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
+                    }
+                  })}
+                  onPointerMove={(e => {
+                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
+                    setSidebarPointerGhost(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                  })}
+                  onPointerUp={(e => {
+                    if (!isFlightZonesMode || fzDragIdRef.current !== s.id) return;
                     e.preventDefault();
-                    const mapArea = document.getElementById('map-area');
-                    const startX = mapArea ? mapArea.getBoundingClientRect().right - 60 : e.clientX;
-                    sidebarPointerDragRef.current = { id: s.id, label: s.callSign };
-                    setSidebarPointerGhost({ x: startX, y: e.clientY, label: s.callSign });
+                    const draggedId = s.id;
+                    const label = fzDragLabel;
+                    fzDragIsPin.current = false;
+                    fzDragIdRef.current = null;
+                    setFzDragStripId(null);
+                    setFzDragLabel(null);
+                    setSidebarPointerGhost(null);
+                    const overlayEl = fzOverlayRef.current;
+                    if (!overlayEl || !currentMapId) return;
+                    const rect = overlayEl.getBoundingClientRect();
+                    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+                    const dropX = e.clientX - rect.left;
+                    const dropY = e.clientY - rect.top;
+                    const zoom = mapZoomRef.current;
+                    const pan = mapPanRef.current;
+                    const cx = rect.width / 2; const cy = rect.height / 2;
+                    const contentX = cx + (dropX - pan.x - cx) / zoom;
+                    const contentY = cy + (dropY - pan.y - cy) / zoom;
+                    const ib = mapImgBoundsRef.current;
+                    const pxInMap = ib ? ((contentX - ib.left) / ib.width) * 100 : (contentX / rect.width) * 100;
+                    const pyInMap = ib ? ((contentY - ib.top) / ib.height) * 100 : (contentY / rect.height) * 100;
+                    const _ov = fzOverlayRef.current;
+                    if (_ov) _ov.style.pointerEvents = 'none';
+                    const elUnder = document.elementFromPoint(e.clientX, e.clientY);
+                    const markerElT = elUnder?.closest('[data-marker-sector]') as HTMLElement | null;
+                    if (markerElT) {
+                      const sectorId = parseInt(markerElT.getAttribute('data-marker-sector') || '0', 10);
+                      if (sectorId) {
+                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
+                        handleTransferWithPartialCheck(String(draggedId), sectorId);
+                        return;
+                      }
+                    }
+                    const pinElT = elUnder?.closest('[data-pin-sector]') as HTMLElement | null;
+                    if (pinElT) {
+                      const sectorId = parseInt(pinElT.getAttribute('data-pin-sector') || '0', 10);
+                      if (sectorId) {
+                        const existingT = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                        if (existingT && existingT.status !== 'עוזב אזור') doFzSave(draggedId, existingT.zone_id, existingT.altitude_range_id, 'עוזב אזור', existingT.note, existingT.coordination_note, existingT.is_coordinated, existingT.pos_x ?? undefined, existingT.pos_y ?? undefined, existingT.requested_zone_ids);
+                        handleTransferWithPartialCheck(String(draggedId), sectorId);
+                        return;
+                      }
+                    }
+                    const zone = fzGetZoneAtPoint(pxInMap, pyInMap);
+                    const existingAsgn = stripZoneAssignments.find((a: StripZoneAssignment) => a.strip_id === draggedId);
+                    if (!zone) {
+                      const keepStatus = existingAsgn?.status || 'בדרך לאזור';
+                      doFzSave(draggedId, null, null, keepStatus, existingAsgn?.note || '', existingAsgn?.coordination_note || '', existingAsgn?.is_coordinated || false, pxInMap, pyInMap, []);
+                      return;
+                    }
+                    if (existingAsgn && existingAsgn.zone_id === zone.id) {
+                      doFzSave(draggedId, zone.id, existingAsgn.altitude_range_id, existingAsgn.status, existingAsgn.note, existingAsgn.coordination_note, existingAsgn.is_coordinated, pxInMap, pyInMap, existingAsgn.requested_zone_ids);
+                      return;
+                    }
+                    const altRangesForZoneT = zoneAltRanges[zone.id] || [];
+                    const preservedZonesT = existingAsgn ? [...((existingAsgn.extra_zones||[]) as any[]).map((ez:any)=>ez.zone_id), ...(existingAsgn.zone_id && existingAsgn.zone_id !== zone.id ? [existingAsgn.zone_id] : [])].filter(id => id !== zone.id) : [];
+                    setFzDialog({ stripId: draggedId, zoneName: zone.name, zoneId: zone.id, altRanges: altRangesForZoneT, selectedAltId: altRangesForZoneT[0]?.id ?? null, selectedStatus: 'בדרך לאזור', note: existingAsgn?.note || '', displayLabel: label ?? s.callSign ?? undefined, posX: pxInMap, posY: pyInMap, requestedZoneIds: preservedZonesT });
                   })}
                   style={{ marginBottom: '6px', cursor: isFlightZonesMode ? 'default' : 'grab', userSelect: 'none', display: 'flex', background: (() => { if (isFlightZonesMode && fzDragStripId === s.id) return '#1e3a5f'; if (isFlightZonesMode) { const _asgnC2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnC2) { const _zA3 = [_asgnC2.zone_id, ...(((_asgnC2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfC2 = !_asgnC2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnC2.strip_id) return false; const bz3 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zA3.some(z => bz3.includes(z)) && (_asgnC2.altitude_range_id === null || b.altitude_range_id === null || _asgnC2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); if (_cfC2) return lightMode ? '#fef2f2' : 'rgba(239,68,68,0.13)'; } } return lightMode ? '#f8fafc' : '#1e293b'; })(), border: `1px solid ${(() => { if (isFlightZonesMode) { const _asgnB2 = stripZoneAssignments.find(a => a.strip_id === s.id); if (_asgnB2) { const _zB2 = [_asgnB2.zone_id, ...(((_asgnB2.extra_zones||[]) as any[]).map((e:any)=>e.zone_id))]; const _cfB2 = !_asgnB2.is_coordinated && stripZoneAssignments.some(b => { if (b.strip_id === _asgnB2.strip_id) return false; const bz4 = [b.zone_id, ...((b.extra_zones||[]) as any[]).map((e:any)=>e.zone_id)]; return _zB2.some(z => bz4.includes(z)) && (_asgnB2.altitude_range_id === null || b.altitude_range_id === null || _asgnB2.altitude_range_id === b.altitude_range_id) && !b.is_coordinated; }); return _cfB2 ? '#ef4444' : '#22c55e'; } } return tkPast ? '#ef4444' : (lightMode ? '#cbd5e1' : '#334155'); })()}`, borderRadius: '4px', overflow: 'hidden', direction: 'rtl', touchAction: 'none' }}
                 >
