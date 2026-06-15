@@ -6352,7 +6352,7 @@ function toEmbedUrl(url: string): string {
   return url;
 }
 
-const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly }: {
+const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, airfieldMapSrc, lightMode, allSectors, presetSectors, onUpdateAircraft, onTransfer, onAcceptTransfer, onUpdateStripField, stripAircraftData, onUpdateStripAircraft, onCreateStrip, currentPresetId, currentSectorId, singleTransfers, airfieldRoutes, aviationBases, presetRole, onUpdateStripMeta, crewMemberId, initialUndoDurationMs, initialDatkFilter, initialStatusFilter, initialFilterMode, airfieldElements, elementTypes, onUpdateElementStatus, onUpdateElement, onMergePartial, onSplitPartial, headerButtons, initialDatkShowMinutes, onUpdatePreset, stripsPinned: stripsPinnedProp, onTogglePin, vectorData, airfieldPolygons, airfieldSectors, airfieldStatusTypes, airfieldPolygonStatuses, onUpdatePolygonStatus, onUpdateElementDisplayState, onCreateElement, onDeleteElement, hideStrips, hideElementPanel, externalCatHighlight, externalHiddenElements, topOffset, liveRunwayConflicts, airfieldRunways = [], airfieldRunwayNotams = [], activeTakeoffs = [], airfieldTaxiways = [], showTaxiwayOpenOnly = false, onToggleTaxiwayOpenOnly, mapBottomOverlay }: {
   strips: any[];
   incomingTransfers: any[];
   outgoingTransfers: any[];
@@ -6412,6 +6412,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
   airfieldTaxiways?: any[];
   showTaxiwayOpenOnly?: boolean;
   onToggleTaxiwayOpenOnly?: () => void;
+  mapBottomOverlay?: React.ReactNode;
 }) => {
   const [elemPanelOpen, setElemPanelOpen] = useState(false);
   const [hiddenElements, setHiddenElements] = useState<Set<number>>(new Set());
@@ -9721,6 +9722,11 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
                 setPlacingExistingElement(null);
               }}
             />
+          )}
+          {mapBottomOverlay && (
+            <div style={{ position: 'absolute', bottom: 14, right: 10, zIndex: 200, pointerEvents: 'auto' }}>
+              {mapBottomOverlay}
+            </div>
           )}
           </div>{/* end mapInnerRef — image + overlays stop here; panels above stay fixed */}
 
@@ -19719,48 +19725,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               </div>
             );
           })()}
-          {/* Tower runway selector — שם שדה + מסלולים להמראה/נחיתה */}
-          {isTowerMode && activeAirfield && (() => {
-            // use airfieldRunways (heading_a/heading_b) — already filtered to current airfield
-            const allEnds: string[] = [];
-            (airfieldRunways || []).forEach((rw: any) => { if (rw.heading_a) allEnds.push(rw.heading_a); if (rw.heading_b) allEnds.push(rw.heading_b); });
-            // closed end detection — matches route ends to airfield_runways headings, then checks NOTAMs
-            const isEndClosed = (end: string): boolean => {
-              const matchingRwIds = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
-              return matchingRwIds.size > 0 && (airfieldRunwayNotams || []).some((n: any) => matchingRwIds.has(n.runway_id) && n.notam_type === 'closed');
-            };
-            const toggleTakeoff = (end: string) => { if (!isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
-            const toggleLanding = (end: string) => { if (!isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
-            const RunwayEndBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
-              const closed = isEndClosed(end);
-              return (
-                <button
-                  key={end}
-                  onClick={onToggle}
-                  disabled={closed}
-                  title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
-                  style={{ padding: '1px 6px', borderRadius: '4px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#64748b', fontSize: '11px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.4, opacity: closed ? 0.7 : 1 }}>
-                  {closed ? `🔴 ${end}` : end}
-                </button>
-              );
-            };
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', padding: '3px 8px', flexShrink: 0 }}>
-                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#cbd5e1', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }} title={activeAirfield.name}>🛬 {activeAirfield.name}</span>
-                {allEnds.length > 0 && <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ fontSize: '10px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>✈ המראה</span>
-                    {allEnds.map(end => <RunwayEndBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ fontSize: '10px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '46px', textAlign: 'right' }}>🛬 נחיתה</span>
-                    {allEnds.map(end => <RunwayEndBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
-                  </div>
-                </>}
-                {allEnds.length === 0 && <span style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic' }}>אין מסלולים</span>}
-              </div>
-            );
-          })()}
           {/* Load badge */}
           {loadLevel !== 'none' && !muteLoadAlerts && !isGroundMgmtMode && (
             <div
@@ -21469,6 +21433,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     style={{ background: sessionFilter ? '#7c2d12' : personalFilter ? '#1d4ed8' : adminFilterQuery ? '#1e293b' : 'transparent', border: sessionFilter ? '1px solid #fb923c' : personalFilter ? '1px solid #60a5fa' : adminFilterQuery ? '1px solid #4ade80' : '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', padding: '2px 6px', color: sessionFilter ? '#fed7aa' : personalFilter ? '#93c5fd' : adminFilterQuery ? '#4ade80' : '#94a3b8', fontWeight: (sessionFilter || personalFilter) ? 'bold' : 'normal' }}
                   >{sessionFilter ? '🔍⚡' : personalFilter ? '🔍✓' : '🔍'}</button>
                 </>}
+                mapBottomOverlay={isTowerMode && activeAirfield && (() => {
+                  const _allEnds: string[] = [];
+                  (airfieldRunways || []).forEach((rw: any) => { if (rw.heading_a) _allEnds.push(rw.heading_a); if (rw.heading_b) _allEnds.push(rw.heading_b); });
+                  if (_allEnds.length === 0) return null;
+                  const _isEndClosed = (end: string): boolean => {
+                    const ids = new Set((airfieldRunways || []).filter((rw: any) => rw.heading_a === end || rw.heading_b === end).map((rw: any) => rw.id));
+                    return ids.size > 0 && (airfieldRunwayNotams || []).some((n: any) => ids.has(n.runway_id) && n.notam_type === 'closed');
+                  };
+                  const _toggleTakeoff = (end: string) => { if (!_isEndClosed(end)) setTowerTakeoffRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+                  const _toggleLanding = (end: string) => { if (!_isEndClosed(end)) setTowerLandingRunways(prev => prev.includes(end) ? prev.filter(x => x !== end) : [...prev, end]); };
+                  const RwyBtn = ({ end, active, onToggle, activeColor, activeBg, activeBorder }: { end: string; active: boolean; onToggle: () => void; activeColor: string; activeBg: string; activeBorder: string }) => {
+                    const closed = _isEndClosed(end);
+                    return (
+                      <button onClick={onToggle} disabled={closed}
+                        title={closed ? `מסלול ${end} — סגור (NOTAM)` : `${active ? 'בטל' : 'הפעל'} מסלול ${end}`}
+                        style={{ padding: '2px 8px', borderRadius: '4px', border: `1px solid ${closed ? '#dc2626' : active ? activeBorder : '#334155'}`, background: closed ? '#1f0000' : active ? activeBg : '#1e293b', color: closed ? '#f87171' : active ? activeColor : '#64748b', fontSize: '12px', fontWeight: 'bold', cursor: closed ? 'not-allowed' : 'pointer', fontFamily: 'monospace', lineHeight: 1.5, opacity: closed ? 0.7 : 1 }}>
+                        {end}
+                      </button>
+                    );
+                  };
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', background: 'rgba(15,23,42,0.92)', border: '1px solid #334155', borderRadius: '8px', padding: '5px 10px', backdropFilter: 'blur(4px)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#4ade80', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '50px', textAlign: 'right' }}>✈ המראה</span>
+                        {_allEnds.map(end => <RwyBtn key={`to-${end}`} end={end} active={towerTakeoffRunways.includes(end)} onToggle={() => _toggleTakeoff(end)} activeColor='#86efac' activeBg='#14532d' activeBorder='#22c55e' />)}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#60a5fa', flexShrink: 0, whiteSpace: 'nowrap', minWidth: '50px', textAlign: 'right' }}>🛬 נחיתה</span>
+                        {_allEnds.map(end => <RwyBtn key={`ld-${end}`} end={end} active={towerLandingRunways.includes(end)} onToggle={() => _toggleLanding(end)} activeColor='#93c5fd' activeBg='#1e3a5f' activeBorder='#60a5fa' />)}
+                      </div>
+                    </div>
+                  );
+                })()}
               />
             );
           })()}
