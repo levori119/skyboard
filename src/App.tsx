@@ -18166,14 +18166,69 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return null;
   };
 
-  // Find strip by callsign match in speech text
-  const findStripByVoice = (text: string, strips: any[]): any | null => {
+  // Parse a voice command into { strip, alt, remainingText } handling split formations.
+  // Handles: "פיל 400" | "פיל 3 400" (formation index) | "פיל 3/400" etc.
+  const parseVoiceCommand = (
+    text: string,
+    strips: any[]
+  ): { strip: any | null; alt: string | null; remainingText: string } => {
     const lower = text.toLowerCase().replace(/['"]/g, '');
+
+    // 1. Find longest matching callsign in text
+    let matchedCs = '';
+    let matchedPos = -1;
     for (const s of strips) {
       const cs = (s.callSign || s.callsign || '').toLowerCase().trim();
-      if (cs && lower.includes(cs)) return s;
+      if (!cs) continue;
+      const pos = lower.indexOf(cs);
+      if (pos >= 0 && cs.length > matchedCs.length) { matchedCs = cs; matchedPos = pos; }
     }
-    return null;
+
+    // All strips sharing the matched callsign (could be multiple split parts)
+    const siblings = matchedCs
+      ? strips.filter(s => (s.callSign || s.callsign || '').toLowerCase().trim() === matchedCs)
+      : [];
+
+    let afterCallsign = matchedPos >= 0 ? lower.slice(matchedPos + matchedCs.length).trim() : lower;
+    let chosenStrip: any = siblings[0] ?? null;
+
+    // 2. If split formation (multiple siblings), look for formation index right after callsign
+    if (siblings.length > 1) {
+      const idxMatch = afterCallsign.match(/^(\d+)/);
+      if (idxMatch) {
+        const formIdx = parseInt(idxMatch[1], 10);
+        const specific = siblings.find(s => {
+          let raw = s.aircraft_indices;
+          if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+          return Array.isArray(raw) && (raw as number[]).includes(formIdx);
+        });
+        if (specific) {
+          chosenStrip = specific;
+          afterCallsign = afterCallsign.slice(idxMatch[0].length).trim(); // consume index
+        }
+      }
+    } else if (siblings.length === 1 && siblings[0].aircraft_indices) {
+      // Single split part — if a formation index appears right after callsign, consume it
+      let raw = siblings[0].aircraft_indices;
+      if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = null; } }
+      if (Array.isArray(raw) && (raw as number[]).length > 0) {
+        const idxMatch = afterCallsign.match(/^(\d+)/);
+        if (idxMatch && (raw as number[]).includes(parseInt(idxMatch[1], 10))) {
+          afterCallsign = afterCallsign.slice(idxMatch[0].length).trim(); // consume index
+        }
+      }
+    }
+
+    // 3. Parse altitude from remaining text after callsign (+ consumed index)
+    const alt = parseAltFromSpeech(afterCallsign) ?? parseAltFromSpeech(text);
+
+    return { strip: chosenStrip, alt, remainingText: afterCallsign };
+  };
+
+  // Find strip by callsign match in speech text (simple, used as fallback)
+  const findStripByVoice = (text: string, strips: any[]): any | null => {
+    const { strip } = parseVoiceCommand(text, strips);
+    return strip;
   };
 
   // Find sector/transfer-point by name in speech text (returns the full sector object)
@@ -18233,10 +18288,17 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           const td = parseTransferDest(t);
           if (td && !sector) {
             const sec = findSectorByVoice(td.dest);
-            if (sec) { sector = sec; if (!alt) alt = parseAltFromSpeech(td.textWithout); if (!strip) strip = findStripByVoice(td.textWithout, myStrips); continue; }
+            if (sec) {
+              sector = sec;
+              const cmd = parseVoiceCommand(td.textWithout, myStrips);
+              if (!alt) alt = cmd.alt;
+              if (!strip) strip = cmd.strip;
+              continue;
+            }
           }
-          if (!alt) alt = parseAltFromSpeech(t);
-          if (!strip) strip = findStripByVoice(t, myStrips);
+          const cmd = parseVoiceCommand(t, myStrips);
+          if (!alt) alt = cmd.alt;
+          if (!strip) strip = cmd.strip;
         }
         // Single strip at workstation → use it without callsign
         if (!strip && myStrips.length === 1) strip = myStrips[0];
