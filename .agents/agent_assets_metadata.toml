@@ -54,3 +54,9 @@ id = "hztlNYBU5VCHlFPg80Avo"
 uri = "file://skyking_code.zip"
 type = "unspecified"
 title = "SKY KING — קוד מקור (229 MB)"
+
+[[outputs]]
+id = "Gn0w32ni301i0mw2sgclX"
+uri = "file://project-requirements.xlsx"
+type = "table"
+title = "קובץ דרישות SKY KING"
