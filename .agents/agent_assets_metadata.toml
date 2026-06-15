@@ -60,3 +60,9 @@ id = "Gn0w32ni301i0mw2sgclX"
 uri = "file://project-requirements.xlsx"
 type = "table"
 title = "project-requirements.xlsx — כולל גיליון תיעוד חדש"
+
+[[outputs]]
+id = "aBgee5WZTLeFHVkLJu6V4"
+uri = "file://skyking_db_export.zip"
+type = "unspecified"
+title = "SKY KING — DB Export (SQL dump)"
