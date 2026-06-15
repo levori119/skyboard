@@ -66,3 +66,9 @@ id = "aBgee5WZTLeFHVkLJu6V4"
 uri = "file://skyking_db_export.zip"
 type = "unspecified"
 title = "SKY KING — DB Export (SQL dump)"
+
+[[outputs]]
+id = "b4yQFktHRjrdhp9mP-XSY"
+uri = "file://USER_STORIES_EN.md"
+type = "text"
+title = "SKY KING — User Stories (English)"
