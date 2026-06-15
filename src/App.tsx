@@ -16699,9 +16699,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const towerMazaaStatus: string = (() => {
     if (!isTowerMode) return '';
     if (localTowerMazaa !== '') return localTowerMazaa;
+    const explicitId = myPresetConfig?.mazaa_update_base_id ? Number(myPresetConfig.mazaa_update_base_id) : null;
+    const pBaseId = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
     const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
-    if (bIds.length === 0) return '';
-    const bs = liveBaseStatuses.find((b: any) => bIds.includes(Number(b.id)));
+    const targetId = explicitId || pBaseId || bIds[0] || null;
+    if (!targetId) return '';
+    const bs = liveBaseStatuses.find((b: any) => Number(b.id) === targetId);
     return bs?.air_defense_status || '';
   })();
   const currentMazaaStatus: string = isTowerMode ? towerMazaaStatus : regionalMazaa;
@@ -19683,32 +19686,24 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                     onChange={e => {
                       const val = e.target.value;
                       if (isTowerMode) {
-                        // tower mazaa — update session state + persist to the explicitly-configured mazaa_update_base_id
                         setLocalTowerMazaa(val);
-                        const explicitBaseId = myPresetConfig?.mazaa_update_base_id ? Number(myPresetConfig.mazaa_update_base_id) : null;
-                        const towerBIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
-                        const towerDisplayBase = explicitBaseId
-                          ? liveBaseStatuses.find((b: any) => Number(b.id) === explicitBaseId)
-                          : liveBaseStatuses.find((b: any) => towerBIds.includes(Number(b.id)));
-                        const towerDisplayBaseId = towerDisplayBase ? Number(towerDisplayBase.id) : (explicitBaseId || towerBIds[0] || null);
-                        if (towerDisplayBaseId) {
-                          fetch(`${API_URL}/base-statuses/${towerDisplayBaseId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
-                            .then(r => r.ok ? r.json() : null)
-                            .then(updated => { if (updated) setLiveBaseStatuses(prev => prev.map(b => Number(b.id) === Number(updated.id) ? updated : b)); })
-                            .catch(() => {});
-                        }
                       } else {
                         setRegionalMazaa(val);
                         if (myWorkGroupId) {
                           fetch(`${API_URL}/work-group-mazaa/${myWorkGroupId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mazaa_regional: val }) }).catch(() => {});
                         }
-                        const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
-                        if (bIds.length > 0) {
-                          bIds.forEach(bId => fetch(`${API_URL}/base-statuses/${bId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
-                            .then(r => r.ok ? r.json() : null)
-                            .then(updated => { if (updated) setLiveBaseStatuses(prev => { const next = prev.map(b => Number(b.id) === Number(updated.id) ? updated : b); return next.some(b => Number(b.id) === Number(updated.id)) ? next : [...next, updated]; }); })
-                            .catch(() => {}));
-                        }
+                      }
+                      // עדכן רק את הבסיס היחיד שתואם לעמדה:
+                      // עדיפות: mazaa_update_base_id → parent_base_id → ראשון ב-base_status_ids
+                      const explicitBaseId = myPresetConfig?.mazaa_update_base_id ? Number(myPresetConfig.mazaa_update_base_id) : null;
+                      const pBaseId = myPresetConfig?.parent_base_id ? Number(myPresetConfig.parent_base_id) : null;
+                      const bIds: number[] = Array.isArray(myPresetConfig?.base_status_ids) ? myPresetConfig.base_status_ids.map(Number) : [];
+                      const targetBaseId = explicitBaseId || pBaseId || bIds[0] || null;
+                      if (targetBaseId) {
+                        fetch(`${API_URL}/base-statuses/${targetBaseId}/air-defense`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ air_defense_status: val }) })
+                          .then(r => r.ok ? r.json() : null)
+                          .then(updated => { if (updated) setLiveBaseStatuses(prev => { const next = prev.map(b => Number(b.id) === Number(updated.id) ? updated : b); return next.some(b => Number(b.id) === Number(updated.id)) ? next : [...next, updated]; }); })
+                          .catch(() => {});
                       }
                     }}
                     style={{ fontSize: '12px', fontWeight: 'bold', background: 'transparent', color: hasStatus ? mazaaColor : (lightMode ? '#94a3b8' : '#475569'), border: 'none', outline: 'none', cursor: 'pointer', direction: 'rtl', maxWidth: '100px' }}
