@@ -15400,7 +15400,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   // ── Voice recognition (Web Speech API) ──
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean } | null>(null);
+  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean; transferDest?: string; action?: 'alt' | 'transfer' } | null>(null);
   const voiceRecogRef = React.useRef<any>(null);
   const voiceResultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
@@ -18121,35 +18121,52 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   };
 
   // ── Voice recognition helpers ──
+
+  // Convert Hebrew number words to integer (returns null if none found)
+  const parseHebrewNumber = (text: string): number | null => {
+    const heMap: [RegExp, number][] = [
+      [/חמישה עשר אלף/g,15000],[/ארבעה עשר אלף/g,14000],[/שלושה עשר אלף/g,13000],
+      [/שנים עשר אלף/g,12000],[/אחד עשר אלף/g,11000],[/עשרה אלף/g,10000],
+      [/תשעה עשר אלף/g,19000],[/שמונה עשר אלף/g,18000],[/שבעה עשר אלף/g,17000],
+      [/ששה עשר אלף/g,16000],[/ששת אלפים/g,6000],[/שבעת אלפים/g,7000],
+      [/שמונת אלפים/g,8000],[/תשעת אלפים/g,9000],[/עשרים וחמישה אלף/g,25000],
+      [/עשרים אלף/g,20000],[/שלושים אלף/g,30000],
+      [/חמשת אלפים/g,5000],[/ארבעת אלפים/g,4000],[/שלושת אלפים/g,3000],[/אלפיים/g,2000],
+      [/חמש מאות/g,500],[/ארבע מאות/g,400],[/שלוש מאות/g,300],[/מאתיים/g,200],[/מאה/g,100],
+      [/אלף/g,1000],
+      [/תשעים/g,90],[/שמונים/g,80],[/שבעים/g,70],[/שישים/g,60],[/חמישים/g,50],
+      [/ארבעים/g,40],[/שלושים/g,30],[/עשרים/g,20],
+      [/תשע עשרה/g,19],[/שמונה עשרה/g,18],[/שבע עשרה/g,17],[/שש עשרה/g,16],
+      [/חמש עשרה/g,15],[/ארבע עשרה/g,14],[/שלוש עשרה/g,13],[/שתים עשרה/g,12],
+      [/אחת עשרה/g,11],[/עשר/g,10],[/תשע/g,9],[/שמונה/g,8],[/שבע/g,7],
+      [/שש/g,6],[/חמש/g,5],[/ארבע/g,4],[/שלוש/g,3],[/שניים/g,2],[/שתיים/g,2],[/אחד/g,1],[/אחת/g,1],
+    ];
+    let t = text; let total = 0;
+    for (const [re, val] of heMap) { if (re.test(t)) { total += val; t = t.replace(re, ' '); } }
+    return total > 0 ? total : null;
+  };
+
+  // Parse altitude (single or range) from speech text
   const parseAltFromSpeech = (text: string): string | null => {
-    // 1) digit sequence 2-5 chars (most common in aviation)
+    // 1) Digit range: "300-400" or "300 עד 400"
+    const dRange = text.match(/\b(\d{2,5})\s*[-–]\s*(\d{2,5})\b/) || text.match(/\b(\d{2,5})\s+עד\s+(\d{2,5})\b/);
+    if (dRange) return normalizeAlt(`${dRange[1]}-${dRange[2]}`);
+    // 2) Single digit: "400"
     const d = text.match(/\b(\d{2,5})\b/);
     if (d) return normalizeAlt(d[1]);
-    // 2) Hebrew number words → integer
-    const heMap: [RegExp, number][] = [
-      [/חמישה עשר אלף/g, 15000],[/עשרה אלף/g, 10000],[/שנים עשר אלף/g, 12000],
-      [/שלושה עשר אלף/g, 13000],[/ארבעה עשר אלף/g, 14000],[/ששה עשר אלף/g, 16000],
-      [/שבעה עשר אלף/g, 17000],[/שמונה עשר אלף/g, 18000],[/תשעה עשר אלף/g, 19000],
-      [/עשרים אלף/g, 20000],[/עשרים וחמישה אלף/g, 25000],[/שלושים אלף/g, 30000],
-      [/חמשת אלפים/g, 5000],[/ארבעת אלפים/g, 4000],[/שלושת אלפים/g, 3000],[/אלפיים/g, 2000],
-      [/תשעת אלפים/g, 9000],[/שמונת אלפים/g, 8000],[/שבעת אלפים/g, 7000],[/ששת אלפים/g, 6000],
-      [/אחד עשר אלף/g, 11000],
-      [/חמש מאות/g, 500],[/ארבע מאות/g, 400],[/שלוש מאות/g, 300],[/מאתיים/g, 200],[/מאה/g, 100],
-      [/אלף/g, 1000],
-      [/תשעים/g, 90],[/שמונים/g, 80],[/שבעים/g, 70],[/שישים/g, 60],[/חמישים/g, 50],
-      [/ארבעים/g, 40],[/שלושים/g, 30],[/עשרים/g, 20],
-      [/תשע עשרה/g, 19],[/שמונה עשרה/g, 18],[/שבע עשרה/g, 17],[/שש עשרה/g, 16],
-      [/חמש עשרה/g, 15],[/ארבע עשרה/g, 14],[/שלוש עשרה/g, 13],[/שתים עשרה/g, 12],
-      [/אחת עשרה/g, 11],[/עשר/g, 10],[/תשע/g, 9],[/שמונה/g, 8],[/שבע/g, 7],
-      [/שש/g, 6],[/חמש/g, 5],[/ארבע/g, 4],[/שלוש/g, 3],[/שניים/g, 2],[/שתיים/g, 2],[/אחד/g, 1],[/אחת/g, 1],
-    ];
-    let t = text;
-    let total = 0;
-    for (const [re, val] of heMap) { if (re.test(t)) { total += val; t = t.replace(re, ' '); } }
-    if (total > 0) return String(total);
+    // 3) Hebrew range: "שלוש מאות עד ארבע מאות"
+    const heParts = text.split(/\s+עד\s+/);
+    if (heParts.length === 2) {
+      const n1 = parseHebrewNumber(heParts[0]); const n2 = parseHebrewNumber(heParts[1]);
+      if (n1 && n2) return normalizeAlt(`${n1}-${n2}`);
+    }
+    // 4) Hebrew single number
+    const hn = parseHebrewNumber(text);
+    if (hn) return String(hn);
     return null;
   };
 
+  // Find strip by callsign match in speech text
   const findStripByVoice = (text: string, strips: any[]): any | null => {
     const lower = text.toLowerCase().replace(/['"]/g, '');
     for (const s of strips) {
@@ -18157,6 +18174,33 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       if (cs && lower.includes(cs)) return s;
     }
     return null;
+  };
+
+  // Find sector/transfer-point by name in speech text (returns the full sector object)
+  const findSectorByVoice = (destWord: string): any | null => {
+    const lower = destWord.toLowerCase().trim();
+    if (!lower) return null;
+    const sectors: any[] = allSectors || [];
+    // Exact match
+    let found = sectors.find((s: any) => (s.name || '').toLowerCase() === lower);
+    if (found) return found;
+    // Partial: sector name contained in destWord or vice-versa
+    found = sectors.find((s: any) => {
+      const sn = (s.name || '').toLowerCase();
+      return sn && (lower.includes(sn) || sn.includes(lower));
+    });
+    return found || null;
+  };
+
+  // Extract transfer destination from speech: "לצארלי" or "ל צארלי"
+  // Returns { dest: string (sector name without ל), textWithout: string }
+  const parseTransferDest = (text: string): { dest: string; textWithout: string } | null => {
+    // "ל" followed by Hebrew word (sector name), allowing optional space after ל
+    const m = text.match(/\bל\s*([א-ת][א-ת\s]{1,20}?)(?:\s|$)/);
+    if (!m) return null;
+    const dest = m[1].trim();
+    const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
+    return { dest, textWithout };
   };
 
   const startVoiceAlt = () => {
@@ -18170,28 +18214,46 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     recog.maxAlternatives = 3;
     recog.onstart = () => { setVoiceListening(true); setVoiceTranscript(''); setVoiceResult(null); };
     recog.onresult = (event: any) => {
-      const results: SpeechRecognitionResult[] = Array.from(event.results);
-      const transcript = results.map((r: SpeechRecognitionResult) => r[0].transcript).join(' ');
+      const results: any[] = Array.from(event.results);
+      const transcript = results.map((r: any) => r[0].transcript).join(' ');
       setVoiceTranscript(transcript);
       if (results[results.length - 1].isFinal) {
-        // Try all alternatives for better alt detection
+        // Try all alternatives for best match
         let alt: string | null = null;
         let strip: any = null;
+        let sector: any = null;
+        const candidates: string[] = [];
         for (let ri = 0; ri < event.results.length; ri++) {
           for (let ai = 0; ai < event.results[ri].length; ai++) {
-            const t = event.results[ri][ai].transcript;
-            if (!alt) alt = parseAltFromSpeech(t);
-            if (!strip) strip = findStripByVoice(t, myStrips);
+            candidates.push(event.results[ri][ai].transcript);
           }
         }
-        // If only one strip at workstation, use it without needing callsign
+        for (const t of candidates) {
+          // Check for transfer destination ("ל[sector]")
+          const td = parseTransferDest(t);
+          if (td && !sector) {
+            const sec = findSectorByVoice(td.dest);
+            if (sec) { sector = sec; if (!alt) alt = parseAltFromSpeech(td.textWithout); if (!strip) strip = findStripByVoice(td.textWithout, myStrips); continue; }
+          }
+          if (!alt) alt = parseAltFromSpeech(t);
+          if (!strip) strip = findStripByVoice(t, myStrips);
+        }
+        // Single strip at workstation → use it without callsign
         if (!strip && myStrips.length === 1) strip = myStrips[0];
-        if (alt && strip) {
-          const callsign = strip.callSign || strip.callsign || '';
-          setVoiceResult({ callsign, alt, stripId: String(strip.id), ok: true });
-          handleAltUpdate(String(strip.id), alt);
+        const callsign = strip?.callSign || strip?.callsign || '';
+        const stripId = strip ? String(strip.id) : '';
+
+        if (sector && strip) {
+          // ── Transfer command ──
+          if (alt) handleAltUpdate(stripId, alt);
+          handleTransfer(stripId, Number(sector.id));
+          setVoiceResult({ callsign, alt: alt || '', stripId, ok: true, transferDest: sector.name, action: 'transfer' });
+        } else if (alt && strip) {
+          // ── Altitude-only command ──
+          handleAltUpdate(stripId, alt);
+          setVoiceResult({ callsign, alt, stripId, ok: true, action: 'alt' });
         } else {
-          setVoiceResult({ callsign: strip?.callSign || strip?.callsign || '', alt: alt || '', stripId: strip ? String(strip.id) : '', ok: false });
+          setVoiceResult({ callsign, alt: alt || '', stripId, ok: false, action: alt ? 'transfer' : 'alt' });
         }
         setVoiceListening(false);
         if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
@@ -29022,12 +29084,23 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           )}
           {voiceResult !== null && !voiceListening && (
             voiceResult.ok ? (
-              <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
-                ✅ {voiceResult.callsign} — גובה {voiceResult.alt}
+              <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {voiceResult.action === 'transfer' ? (
+                  <>
+                    <span>✅ {voiceResult.callsign} → {voiceResult.transferDest}</span>
+                    {voiceResult.alt && <span style={{ fontSize: '12px', color: '#6ee7b7' }}>גובה: {voiceResult.alt}</span>}
+                  </>
+                ) : (
+                  <span>✅ {voiceResult.callsign} — גובה {voiceResult.alt}</span>
+                )}
               </div>
             ) : (
               <div style={{ color: '#fbbf24', fontSize: '13px' }}>
-                {!voiceResult.alt ? '⚠️ לא זוהה גובה בדיבור' : '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'}
+                {!voiceResult.alt && !voiceResult.transferDest
+                  ? '⚠️ לא זוהה גובה/יעד'
+                  : !voiceResult.stripId
+                  ? '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'
+                  : '⚠️ לא זוהה נקודת העברה'}
               </div>
             )
           )}
