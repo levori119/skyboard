@@ -29000,6 +29000,39 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           </button>
         </div>
       )}
+      {/* Voice recognition feedback overlay */}
+      {(voiceListening || voiceResult !== null) && (
+        <div style={{
+          position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
+          color: 'white', borderRadius: '12px', padding: '12px 22px', fontSize: '14px',
+          direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
+          display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'none',
+        }}>
+          {voiceListening && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px', animation: 'voicePulse 1s ease-in-out infinite' }}>🎤</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>מאזין בעברית...</span>
+            </div>
+          )}
+          {voiceTranscript && (
+            <div style={{ color: '#cbd5e1', fontSize: '12px', fontStyle: 'italic', maxWidth: '320px', wordBreak: 'break-word' }}>
+              "{voiceTranscript}"
+            </div>
+          )}
+          {voiceResult !== null && !voiceListening && (
+            voiceResult.ok ? (
+              <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
+                ✅ {voiceResult.callsign} — גובה {voiceResult.alt}
+              </div>
+            ) : (
+              <div style={{ color: '#fbbf24', fontSize: '13px' }}>
+                {!voiceResult.alt ? '⚠️ לא זוהה גובה בדיבור' : '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'}
+              </div>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -29287,39 +29320,6 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
               )}
             </div>
           </div>
-        </div>
-      )}
-      {/* Voice recognition feedback overlay */}
-      {(voiceListening || voiceResult !== null) && (
-        <div style={{
-          position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
-          color: 'white', borderRadius: '12px', padding: '12px 22px', fontSize: '14px',
-          direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
-          display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'none',
-        }}>
-          {voiceListening && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '18px', animation: 'voicePulse 1s ease-in-out infinite' }}>🎤</span>
-              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>מאזין בעברית...</span>
-            </div>
-          )}
-          {voiceTranscript && (
-            <div style={{ color: '#cbd5e1', fontSize: '12px', fontStyle: 'italic', maxWidth: '320px', wordBreak: 'break-word' }}>
-              "{voiceTranscript}"
-            </div>
-          )}
-          {voiceResult !== null && !voiceListening && (
-            voiceResult.ok ? (
-              <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
-                ✅ {voiceResult.callsign} — גובה {voiceResult.alt}
-              </div>
-            ) : (
-              <div style={{ color: '#fbbf24', fontSize: '13px' }}>
-                {!voiceResult.alt ? '⚠️ לא זוהה גובה בדיבור' : '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'}
-              </div>
-            )
-          )}
         </div>
       )}
       {/* Toast notification */}
