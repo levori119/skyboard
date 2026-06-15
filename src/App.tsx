@@ -15174,7 +15174,7 @@ const AdminDashboard: React.FC<{
 };
 
 // --- דשבורד עמדה ---
-const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets, uiScale, onUiScaleChange }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[]; uiScale?: number; onUiScaleChange?: (s: number) => void }) => {
+const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }: { session: WorkstationSession; onLogout: () => void; onCrewChange?: (newCrewMember: CrewMember) => void; workstationPresets: any[] }) => {
   const pendingStripUpdatesRef = React.useRef<Map<string|number, Record<string, any>>>(new Map());
   const [liveRunwayConflicts, setLiveRunwayConflicts] = React.useState<{routeName:string;conflicts:{type:string;name:string;callsign:string}[];recommendations:{id:number;name:string;category:string;display_state:string;blocking_statuses:string[];allowed_statuses:string[]}[]}[]>([]);
   const [activeTakeoffs, setActiveTakeoffs] = React.useState<{stripId:number|string;callsign:string;runway:string;routeName:string}[]>([]);
@@ -20345,17 +20345,6 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets, 
             title={themeMode === 'light' ? 'עבור למצב תכלת' : themeMode === 'ocean' ? 'עבור למצב לילה' : 'עבור למצב יום'}
             style={{ background: themeMode === 'ocean' ? '#1e3a5c' : themeMode === 'light' ? '#334155' : '#1e293b', border: `1px solid ${themeMode === 'ocean' ? '#38bdf8' : 'transparent'}`, borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', fontSize: '15px', lineHeight: 1, display: 'flex', alignItems: 'center', gap: '3px' }}
           >{themeMode === 'light' ? '🌊' : themeMode === 'ocean' ? '🌙' : '☀️'}</button>
-          {onUiScaleChange && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: '#0f172a', borderRadius: '6px', padding: '2px 4px', border: '1px solid #334155' }} title="זום ממשק">
-              {([1, 1.5, 2] as number[]).map(s => (
-                <button key={s} onClick={() => onUiScaleChange(s)}
-                  title={`זום ×${s}`}
-                  style={{ background: (uiScale ?? 1) === s ? '#3b82f6' : 'transparent', color: (uiScale ?? 1) === s ? 'white' : '#94a3b8', border: 'none', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '11px', fontWeight: (uiScale ?? 1) === s ? 'bold' : 'normal', lineHeight: 1.4 }}>
-                  ×{s}
-                </button>
-              ))}
-            </div>
-          )}
           <button onClick={() => {
             if (showNotepad) {
               const canvas = notepadCanvasRef.current;
@@ -39531,38 +39520,13 @@ export default function App() {
   const [managementMode, setManagementMode] = useState<'admin' | 'team_lead'>('admin');
   const [workstationPresets, setWorkstationPresets] = useState<any[]>([]);
 
-  // UI Scale — global CSS zoom persisted in localStorage
-  const [uiScale, setUiScaleState] = useState<number>(() => {
-    const saved = localStorage.getItem('sky_king_ui_scale');
-    return saved ? Number(saved) : 1;
-  });
-  const [showScalePrompt, setShowScalePrompt] = useState(false);
-
-  const setUiScale = (s: number) => {
-    setUiScaleState(s);
-    localStorage.setItem('sky_king_ui_scale', String(s));
-    (document.documentElement.style as any).zoom = s === 1 ? '' : String(s);
-  };
-
-  // Apply stored theme preference + UI scale immediately on app load
+  // Apply stored theme preference immediately on app load
   useEffect(() => {
     const t = localStorage.getItem('bt-themeMode');
     const isLight = t === 'light' || (!t && localStorage.getItem('bt-lightMode') === 'true');
     const isOcean = t === 'ocean';
     document.body.classList.toggle('light-mode', isLight);
     document.body.classList.toggle('ocean-mode', isOcean);
-
-    // Apply stored zoom
-    const savedScale = localStorage.getItem('sky_king_ui_scale');
-    if (savedScale && Number(savedScale) !== 1) {
-      (document.documentElement.style as any).zoom = savedScale;
-    }
-
-    // Auto-detect large external monitor (≥1920px, DPR≤1.25 means non-Retina)
-    const alreadyPrompted = localStorage.getItem('sky_king_scale_prompted');
-    if (!alreadyPrompted && window.screen.width >= 1920 && window.devicePixelRatio <= 1.25) {
-      setShowScalePrompt(true);
-    }
   }, []);
 
   // Load workstation presets so load-mode thresholds are available in SectorDashboard
@@ -39622,39 +39586,13 @@ export default function App() {
     }
   };
 
-  // Large-screen auto-scale prompt (shown once when monitor ≥1920px non-Retina detected)
-  const ScalePrompt = showScalePrompt ? (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'rtl' }}>
-      <div style={{ background: '#1e293b', border: '2px solid #3b82f6', borderRadius: '14px', padding: '32px 36px', textAlign: 'center', color: 'white', maxWidth: '420px', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
-        <div style={{ fontSize: '40px', marginBottom: '12px' }}>🖥️</div>
-        <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>מסך גדול זוהה</div>
-        <div style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '24px', lineHeight: 1.6 }}>
-          רזולוציה: {window.screen.width}×{window.screen.height}<br />
-          רוצה להגדיל את הממשק ×2 כדי שיתאים למסך?
-        </div>
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-          <button
-            onClick={() => { setUiScale(2); localStorage.setItem('sky_king_scale_prompted', '1'); setShowScalePrompt(false); }}
-            style={{ background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 28px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
-            ×2 הגדל
-          </button>
-          <button
-            onClick={() => { localStorage.setItem('sky_king_scale_prompted', '1'); setShowScalePrompt(false); }}
-            style={{ background: '#334155', color: '#94a3b8', border: 'none', borderRadius: '8px', padding: '10px 24px', fontSize: '14px', cursor: 'pointer' }}>
-            השאר כך
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
-
   if (page === 'management') {
-    return <>{ScalePrompt}<ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
+    return <><ConfirmModal /><ManagementPage onBack={() => setPage('login')} crewMember={managementCrewMember} mode={managementMode} /></>;
   }
 
   if (!session || page === 'login') {
-    return <>{ScalePrompt}<ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
+    return <><ConfirmModal /><WorkstationLogin onLogin={handleLogin} onManagement={(cm, mode) => { setManagementCrewMember(cm); setManagementMode(mode); setPage('management'); }} /></>;
   }
 
-  return <>{ScalePrompt}<ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} uiScale={uiScale} onUiScaleChange={setUiScale} /></VirtualKeyboardProvider></>;
+  return <><ConfirmModal /><VirtualKeyboardProvider><SectorDashboard session={session} onLogout={handleLogout} onCrewChange={handleCrewChange} workstationPresets={workstationPresets} /></VirtualKeyboardProvider></>;
 }
