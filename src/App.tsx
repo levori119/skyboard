@@ -23525,7 +23525,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       {zone.polygon.length >= 3 && (
                         <polygon points={pts} fill={lightMode ? 'rgba(0,0,0,0.06)' : 'none'} fillOpacity={1} stroke={strokeColor} strokeWidth={lightMode ? 0.5 : 0.35} strokeOpacity={1} strokeDasharray="none" />
                       )}
-                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="2.8" fontWeight="bold" style={{ userSelect: 'none' }}>{zone.name}</text>
+                      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill={textColor} fontSize="1.3" fontWeight="normal" style={{ userSelect: 'none' }}>{zone.name}</text>
                     </g>
                   );
                 })}
