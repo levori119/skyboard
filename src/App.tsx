@@ -18231,27 +18231,48 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     return strip;
   };
 
-  // Find sector/transfer-point by name in speech text (returns the full sector object)
+  // Find sector/transfer-point by name in speech text (returns the full sector object).
+  // Searches allSectors (works for non-classic presets where transfer points are included)
+  // AND classic_transfer_points labels (for classic presets where they are NOT in allSectors).
   const findSectorByVoice = (destWord: string): any | null => {
     const lower = destWord.toLowerCase().trim();
     if (!lower) return null;
     const sectors: any[] = allSectors || [];
-    // Exact match
+
+    // 1. Exact name match in allSectors
     let found = sectors.find((s: any) => (s.name || '').toLowerCase() === lower);
     if (found) return found;
-    // Partial: sector name contained in destWord or vice-versa
+    // 2. Partial name match in allSectors
     found = sectors.find((s: any) => {
       const sn = (s.name || '').toLowerCase();
       return sn && (lower.includes(sn) || sn.includes(lower));
     });
-    return found || null;
+    if (found) return found;
+    // 3. label_he match in allSectors
+    found = sectors.find((s: any) => {
+      const sl = (s.label_he || '').toLowerCase();
+      return sl && (lower === sl || lower.includes(sl) || sl.includes(lower));
+    });
+    if (found) return found;
+
+    // 4. For classic presets: search classic_transfer_points by label field
+    const tfPts: any[] = (myPresetConfig?.classic_transfer_points || []);
+    for (const pt of tfPts) {
+      const lbl = (pt.label || pt.name || pt.label_he || '').toLowerCase();
+      if (lbl && (lower === lbl || lower.includes(lbl) || lbl.includes(lower))) {
+        return { id: pt.sector_id, name: pt.label || pt.name || String(pt.sector_id) };
+      }
+    }
+
+    return null;
   };
 
   // Extract transfer destination from speech: "לצארלי" or "ל צארלי"
   // Returns { dest: string (sector name without ל), textWithout: string }
+  // NOTE: \b does NOT work with Hebrew in JS regex (Hebrew chars are non-\w).
+  //       Use (?:^|\s) instead to match ל at start of string or after whitespace.
   const parseTransferDest = (text: string): { dest: string; textWithout: string } | null => {
-    // "ל" followed by Hebrew word (sector name), allowing optional space after ל
-    const m = text.match(/\bל\s*([א-ת][א-ת\s]{1,20}?)(?:\s|$)/);
+    const m = text.match(/(?:^|\s)ל\s*([א-ת][א-ת\s]{1,20}?)(?:\s|$)/);
     if (!m) return null;
     const dest = m[1].trim();
     const textWithout = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim();
