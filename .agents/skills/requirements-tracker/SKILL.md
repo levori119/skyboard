@@ -47,7 +47,7 @@ Reply to user with one line: `✅ נרשם בקובץ הדרישות` — then p
 
 | Col | Header | Content |
 |---|---|---|
-| A | תאריך | YYYY-MM-DD (auto) |
+| A | תאריך ושעה | YYYY-MM-DD HH:MM (auto) |
 | B | קטגוריה | תקלה / תכולה חדשה / שיפור לתכולה קיימת |
 | C | תיאור | Short Hebrew description |
 | D | בוצע? | Left empty for user |
