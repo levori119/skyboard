@@ -8522,7 +8522,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}`}</style>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}@keyframes voicePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.15)}}`}</style>
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
@@ -15397,6 +15397,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [showBrightnessPanel, setShowBrightnessPanel] = useState(false);
   const [showClosuresPanel, setShowClosuresPanel] = useState(false);
   const [allClosures, setAllClosures] = useState<any[]>([]);
+  // ── Voice recognition (Web Speech API) ──
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceResult, setVoiceResult] = useState<{ callsign: string; alt: string; stripId: string; ok: boolean } | null>(null);
+  const voiceRecogRef = React.useRef<any>(null);
+  const voiceResultTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [enabledClosureIds, setEnabledClosureIds] = useState<Set<number>>(new Set());
   const fetchClosuresForMap = React.useCallback(() => {
     fetch(`${API_URL}/closures`).then(r => r.json()).then((d: any) => setAllClosures(Array.isArray(d) ? d : [])).catch(() => {});
@@ -18114,6 +18120,90 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
     }
   };
 
+  // ── Voice recognition helpers ──
+  const parseAltFromSpeech = (text: string): string | null => {
+    // 1) digit sequence 2-5 chars (most common in aviation)
+    const d = text.match(/\b(\d{2,5})\b/);
+    if (d) return normalizeAlt(d[1]);
+    // 2) Hebrew number words → integer
+    const heMap: [RegExp, number][] = [
+      [/חמישה עשר אלף/g, 15000],[/עשרה אלף/g, 10000],[/שנים עשר אלף/g, 12000],
+      [/שלושה עשר אלף/g, 13000],[/ארבעה עשר אלף/g, 14000],[/ששה עשר אלף/g, 16000],
+      [/שבעה עשר אלף/g, 17000],[/שמונה עשר אלף/g, 18000],[/תשעה עשר אלף/g, 19000],
+      [/עשרים אלף/g, 20000],[/עשרים וחמישה אלף/g, 25000],[/שלושים אלף/g, 30000],
+      [/חמשת אלפים/g, 5000],[/ארבעת אלפים/g, 4000],[/שלושת אלפים/g, 3000],[/אלפיים/g, 2000],
+      [/תשעת אלפים/g, 9000],[/שמונת אלפים/g, 8000],[/שבעת אלפים/g, 7000],[/ששת אלפים/g, 6000],
+      [/אחד עשר אלף/g, 11000],
+      [/חמש מאות/g, 500],[/ארבע מאות/g, 400],[/שלוש מאות/g, 300],[/מאתיים/g, 200],[/מאה/g, 100],
+      [/אלף/g, 1000],
+      [/תשעים/g, 90],[/שמונים/g, 80],[/שבעים/g, 70],[/שישים/g, 60],[/חמישים/g, 50],
+      [/ארבעים/g, 40],[/שלושים/g, 30],[/עשרים/g, 20],
+      [/תשע עשרה/g, 19],[/שמונה עשרה/g, 18],[/שבע עשרה/g, 17],[/שש עשרה/g, 16],
+      [/חמש עשרה/g, 15],[/ארבע עשרה/g, 14],[/שלוש עשרה/g, 13],[/שתים עשרה/g, 12],
+      [/אחת עשרה/g, 11],[/עשר/g, 10],[/תשע/g, 9],[/שמונה/g, 8],[/שבע/g, 7],
+      [/שש/g, 6],[/חמש/g, 5],[/ארבע/g, 4],[/שלוש/g, 3],[/שניים/g, 2],[/שתיים/g, 2],[/אחד/g, 1],[/אחת/g, 1],
+    ];
+    let t = text;
+    let total = 0;
+    for (const [re, val] of heMap) { if (re.test(t)) { total += val; t = t.replace(re, ' '); } }
+    if (total > 0) return String(total);
+    return null;
+  };
+
+  const findStripByVoice = (text: string, strips: any[]): any | null => {
+    const lower = text.toLowerCase().replace(/['"]/g, '');
+    for (const s of strips) {
+      const cs = (s.callSign || s.callsign || '').toLowerCase().trim();
+      if (cs && lower.includes(cs)) return s;
+    }
+    return null;
+  };
+
+  const startVoiceAlt = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('הדפדפן שלך לא תומך בזיהוי קולי.\nהשתמש ב-Chrome או Edge.'); return; }
+    if (voiceListening) { voiceRecogRef.current?.stop(); return; }
+    const recog = new SR();
+    recog.lang = 'he-IL';
+    recog.interimResults = true;
+    recog.continuous = false;
+    recog.maxAlternatives = 3;
+    recog.onstart = () => { setVoiceListening(true); setVoiceTranscript(''); setVoiceResult(null); };
+    recog.onresult = (event: any) => {
+      const results: SpeechRecognitionResult[] = Array.from(event.results);
+      const transcript = results.map((r: SpeechRecognitionResult) => r[0].transcript).join(' ');
+      setVoiceTranscript(transcript);
+      if (results[results.length - 1].isFinal) {
+        // Try all alternatives for better alt detection
+        let alt: string | null = null;
+        let strip: any = null;
+        for (let ri = 0; ri < event.results.length; ri++) {
+          for (let ai = 0; ai < event.results[ri].length; ai++) {
+            const t = event.results[ri][ai].transcript;
+            if (!alt) alt = parseAltFromSpeech(t);
+            if (!strip) strip = findStripByVoice(t, myStrips);
+          }
+        }
+        // If only one strip at workstation, use it without needing callsign
+        if (!strip && myStrips.length === 1) strip = myStrips[0];
+        if (alt && strip) {
+          const callsign = strip.callSign || strip.callsign || '';
+          setVoiceResult({ callsign, alt, stripId: String(strip.id), ok: true });
+          handleAltUpdate(String(strip.id), alt);
+        } else {
+          setVoiceResult({ callsign: strip?.callSign || strip?.callsign || '', alt: alt || '', stripId: strip ? String(strip.id) : '', ok: false });
+        }
+        setVoiceListening(false);
+        if (voiceResultTimerRef.current) clearTimeout(voiceResultTimerRef.current);
+        voiceResultTimerRef.current = setTimeout(() => setVoiceResult(null), 5000);
+      }
+    };
+    recog.onerror = () => setVoiceListening(false);
+    recog.onend = () => setVoiceListening(false);
+    recog.start();
+    voiceRecogRef.current = recog;
+  };
+
   const logActivity = React.useCallback((eventType: string, options: {
     severity?: 'normal' | 'warning' | 'critical';
     stripId?: string;
@@ -19800,6 +19890,20 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
             >📈 עומס</button>
           )}
+          {/* כפתור זיהוי קולי */}
+          <button
+            onClick={startVoiceAlt}
+            title={voiceListening ? 'לחץ לעצור האזנה' : 'זיהוי קולי — אמור גובה לסטריפ'}
+            style={{
+              background: voiceListening ? '#7f1d1d' : '#1e293b',
+              color: voiceListening ? '#fca5a5' : '#94a3b8',
+              border: `1px solid ${voiceListening ? '#ef4444' : '#475569'}`,
+              borderRadius: '4px', padding: '4px 10px', fontSize: '12px',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px',
+              whiteSpace: 'nowrap',
+              animation: voiceListening ? 'voicePulse 1s ease-in-out infinite' : 'none',
+            }}
+          >{voiceListening ? '⏹ מאזין...' : '🎤 קול'}</button>
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
@@ -29183,6 +29287,39 @@ const StickyNotesLayer = ({ presetId, presetName, crewName, notes, setNotes }: {
               )}
             </div>
           </div>
+        </div>
+      )}
+      {/* Voice recognition feedback overlay */}
+      {(voiceListening || voiceResult !== null) && (
+        <div style={{
+          position: 'fixed', bottom: '70px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9998, background: '#0f172a', border: `2px solid ${voiceListening ? '#ef4444' : (voiceResult?.ok ? '#22c55e' : '#f59e0b')}`,
+          color: 'white', borderRadius: '12px', padding: '12px 22px', fontSize: '14px',
+          direction: 'rtl', boxShadow: '0 6px 24px rgba(0,0,0,0.7)', minWidth: '260px', textAlign: 'center',
+          display: 'flex', flexDirection: 'column', gap: '6px', pointerEvents: 'none',
+        }}>
+          {voiceListening && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px', animation: 'voicePulse 1s ease-in-out infinite' }}>🎤</span>
+              <span style={{ color: '#fca5a5', fontWeight: 'bold' }}>מאזין בעברית...</span>
+            </div>
+          )}
+          {voiceTranscript && (
+            <div style={{ color: '#cbd5e1', fontSize: '12px', fontStyle: 'italic', maxWidth: '320px', wordBreak: 'break-word' }}>
+              "{voiceTranscript}"
+            </div>
+          )}
+          {voiceResult !== null && !voiceListening && (
+            voiceResult.ok ? (
+              <div style={{ color: '#86efac', fontWeight: 'bold', fontSize: '15px' }}>
+                ✅ {voiceResult.callsign} — גובה {voiceResult.alt}
+              </div>
+            ) : (
+              <div style={{ color: '#fbbf24', fontSize: '13px' }}>
+                {!voiceResult.alt ? '⚠️ לא זוהה גובה בדיבור' : '⚠️ לא זוהה מטוס — יש יותר מסטריפ אחד'}
+              </div>
+            )
+          )}
         </div>
       )}
       {/* Toast notification */}
