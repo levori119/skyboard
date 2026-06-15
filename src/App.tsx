@@ -2386,16 +2386,17 @@ const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose
     loadCount();
   }, [saved, crewMemberId]);
 
-  const getCoords = (e: any) => {
+  const isDrawingRef = useRef(false);
+
+  const getCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    if (e.touches && e.touches[0]) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const startDrawing = (e: any) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    isDrawingRef.current = true;
     setIsDrawing(true);
     const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
@@ -2409,8 +2410,8 @@ const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose
     }
   };
 
-  const draw = (e: any) => {
-    if (!isDrawing) return;
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
     e.preventDefault();
     const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
@@ -2418,6 +2419,11 @@ const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose
       ctx.lineTo(x, y); 
       ctx.stroke(); 
     }
+  };
+
+  const stopDrawingLearn = () => {
+    isDrawingRef.current = false;
+    setIsDrawing(false);
   };
 
   const clearCanvas = () => {
@@ -2465,14 +2471,11 @@ const LearnDigitsOverlay = ({ onClose, crewMemberId, crewMemberName }: { onClose
           ref={canvasRef} 
           width={150} 
           height={150} 
-          style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '8px', touchAction: 'none', display: 'block', margin: '0 auto' }}
-          onMouseDown={startDrawing} 
-          onMouseMove={draw} 
-          onMouseUp={() => setIsDrawing(false)}
-          onMouseLeave={() => setIsDrawing(false)}
-          onTouchStart={startDrawing} 
-          onTouchMove={draw} 
-          onTouchEnd={() => setIsDrawing(false)} 
+          style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '8px', touchAction: 'none', display: 'block', margin: '0 auto', cursor: 'crosshair' }}
+          onPointerDown={startDrawing}
+          onPointerMove={draw}
+          onPointerUp={stopDrawingLearn}
+          onPointerCancel={stopDrawingLearn}
         />
         
         <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
@@ -2521,18 +2524,20 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
     };
   }, []);
 
-  const getCoords = (e: any) => {
+  const isDrawingRef = useRef(false);
+
+  const getCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    if (e.touches && e.touches[0]) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
-  const startDrawing = (e: any) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+    isDrawingRef.current = true;
     setIsDrawing(true);
     setRecognized(null);
+    if (timerRef.current) clearTimeout(timerRef.current);
     const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) {
@@ -2545,8 +2550,8 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
     }
   };
 
-  const draw = (e: any) => {
-    if (!isDrawing) return;
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
     e.preventDefault();
     const { x, y } = getCoords(e);
     const ctx = canvasRef.current?.getContext('2d');
@@ -2559,6 +2564,7 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
   };
 
   const stopDrawing = () => {
+    isDrawingRef.current = false;
     setIsDrawing(false);
   };
 
@@ -2791,14 +2797,11 @@ const HandwritingOverlay = ({ onComplete, onCancel, anchorRect }: { onComplete: 
         ref={canvasRef} 
         width={250} 
         height={130} 
-        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '250px', height: '130px' }}
-        onMouseDown={startDrawing} 
-        onMouseMove={draw} 
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing} 
-        onTouchMove={draw} 
-        onTouchEnd={stopDrawing} 
+        style={{ background: '#ffffff', border: '2px solid #cbd5e1', borderRadius: '6px', touchAction: 'none', display: 'block', width: '250px', height: '130px', cursor: 'crosshair' }}
+        onPointerDown={startDrawing}
+        onPointerMove={draw}
+        onPointerUp={stopDrawing}
+        onPointerCancel={stopDrawing}
       />
       
       {/* Canvas controls */}
