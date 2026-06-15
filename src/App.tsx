@@ -19833,6 +19833,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               title="הצג את כל פ״מ שנגרר ללוח מכל עמדות קבוצת העבודה"
             >🌐 כל המכלול</button>
           )}
+          {/* כפתור חוזי עומס */}
+          {!isGroundMgmtMode && (
+            <button
+              onClick={() => setShowLoadForecast(v => !v)}
+              title="חוזי עומס — גרף עומס לפי שעה"
+              style={{ background: showLoadForecast ? '#7c3aed' : '#1e293b', color: showLoadForecast ? '#e9d5ff' : '#94a3b8', border: `1px solid ${showLoadForecast ? '#7c3aed' : '#475569'}`, borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+            >📈 עומס</button>
+          )}
           {/* כפתור דש בורד מנהל */}
           {myPresetConfig?.show_dashboard && (
             <button
