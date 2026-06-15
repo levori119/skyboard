@@ -5,6 +5,7 @@
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
+Update `project-requirements.xlsx` after **every** user request in the conversation (log each request as a row in the Excel file using the requirements-tracker skill).
 
 # System Architecture
 
