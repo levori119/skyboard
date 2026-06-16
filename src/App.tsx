@@ -8522,7 +8522,7 @@ const GroundView = ({ strips, incomingTransfers, outgoingTransfers, airfield, ai
           </div>
 
           {/* ── Alert panels — FIXED position relative to map container, not inner pan/zoom ── */}
-          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}@keyframes voicePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.15)}}`}</style>
+          <style>{`@keyframes af-elem-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.elem-blink{animation:af-elem-blink var(--blink-rate,1s) step-end infinite}@keyframes conflict-ring{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}50%{box-shadow:0 0 0 8px rgba(239,68,68,0),0 0 24px rgba(239,68,68,0.9);border-color:#fca5a5}100%{box-shadow:0 0 0 0 rgba(239,68,68,0.9),0 0 12px rgba(239,68,68,0.6);border-color:#ef4444}}.conflict-ring{animation:conflict-ring 0.7s ease-in-out infinite}@keyframes conflict-alert-flash{0%,100%{box-shadow:0 0 16px rgba(239,68,68,0.5)}50%{box-shadow:0 0 32px rgba(239,68,68,1),0 0 60px rgba(239,68,68,0.5)}}.conflict-alert-flash{animation:conflict-alert-flash 0.8s ease-in-out infinite}@keyframes accept-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 12px rgba(34,197,94,0.7)}50%{outline:3px solid transparent;outline-offset:2px;box-shadow:none}}.accept-green-flash{animation:accept-green-flash 0.55s ease-in-out 9;z-index:10;position:relative}@keyframes transfer-out-green-flash{0%,100%{outline:3px solid #22c55e;outline-offset:2px;box-shadow:0 0 16px rgba(34,197,94,0.8)}50%{outline:3px solid rgba(34,197,94,0.25);outline-offset:2px;box-shadow:none}}.transfer-out-flash{animation:transfer-out-green-flash 0.7s ease-in-out infinite;z-index:10;position:relative}@keyframes rw-closed-blink{0%,49%{opacity:1}50%,100%{opacity:0.15}}.rw-closed-line{animation:rw-closed-blink 0.85s step-end infinite}@keyframes voicePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.15)}}`}</style>
 
           {/* Route conflict warning panel — prominent burst alert */}
           {visibleConflicts.length > 0 && (
@@ -15893,6 +15893,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
   const [contactsSummaryFlashing, setContactsSummaryFlashing] = useState(false);
   const [acceptFlashStripId, setAcceptFlashStripId] = useState<string | null>(null);
   const acceptFlashTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [transferredOutIds, setTransferredOutIds] = useState<Set<string>>(new Set());
+  const transferredOutTimers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const prevOutgoingTransfersRef = React.useRef<any[]>([]);
   React.useEffect(() => {
     const existing = document.getElementById('accept-flash-style');
     if (existing) existing.remove();
@@ -17069,7 +17072,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
       s.status !== 'cancelled' && s.status !== 'rejected' &&
       Array.isArray(s.table_preset_ids) && s.table_preset_ids.map(Number).includes(pid)
     );
-    return assigned.length ? [...myStrips, ...assigned] : myStrips;
+    // Include recently-transferred-out strips (accepted by receiver) for a brief visual confirmation
+    const assignedSet = new Set(assigned.map((s: any) => s.id));
+    const transferredGhosts = strips.filter((s: any) =>
+      transferredOutIds.has(String(s.id)) && !querySet.has(s.id) && !assignedSet.has(s.id)
+    ).map((s: any) => ({ ...s, _transferredOut: true }));
+    const base = assigned.length ? [...myStrips, ...assigned] : myStrips;
+    return transferredGhosts.length ? [...base, ...transferredGhosts] : base;
   })();
 
   // Full-picture strips: all strips from any preset in the same work group.
@@ -17634,6 +17643,22 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
           }
           transferNoteTrackRef.current.set(String(t.id), t.note || null);
         });
+        // Detect accepted transfers: were in prev outgoing but gone now (accepted by receiver)
+        const freshOutIds = new Set(freshOutgoing.map((t: any) => String(t.id)));
+        prevOutgoingTransfersRef.current.forEach((t: any) => {
+          if (!freshOutIds.has(String(t.id)) && t.strip_id) {
+            const sid = 's' + t.strip_id;
+            setTransferredOutIds(prev => { const next = new Set(prev); next.add(sid); return next; });
+            const existingTimer = transferredOutTimers.current.get(sid);
+            if (existingTimer) clearTimeout(existingTimer);
+            const timer = setTimeout(() => {
+              setTransferredOutIds(prev => { const next = new Set(prev); next.delete(sid); return next; });
+              transferredOutTimers.current.delete(sid);
+            }, 5000);
+            transferredOutTimers.current.set(sid, timer);
+          }
+        });
+        prevOutgoingTransfersRef.current = freshOutgoing;
         setOutgoingTransfers(freshOutgoing);
       }
       fetch(`${API_URL}/transfers/pending-all`).then(r => r.ok ? r.json() : []).then(data => setAllPendingTransfers(data)).catch(() => {});
@@ -22351,6 +22376,13 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                   );
                 }
                 case 'alt': {
+                  if ((s as any)._transferredOut) {
+                    return (
+                      <td key={col.key} style={{ padding: '6px 8px', verticalAlign: 'middle' }}>
+                        <span style={{ display: 'inline-block', background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 'bold', fontSize: '11px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #22c55e55', whiteSpace: 'nowrap', direction: 'rtl' }}>✓ פ"מ הועבר</span>
+                      </td>
+                    );
+                  }
                   const altCellKey = s.id + '__alt';
                   const altEditing = tableEditingCell === altCellKey;
                   if (col.editable === 'keyboard' || col.editable === 'both') {
@@ -23126,7 +23158,7 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                       <tr
                         key={s.id}
                         data-strip-id={s.id}
-                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : ''].filter(Boolean).join(' ') || undefined}
+                        className={[isRowAltConflict ? 'alt-conflict-flash' : (isRowDeviation && !isRowDeviationAck ? 'block-deviation-flash' : ''), acceptFlashStripId && String(s.id) === acceptFlashStripId ? 'accept-green-flash' : '', (s as any)._transferredOut ? 'transfer-out-flash' : ''].filter(Boolean).join(' ') || undefined}
                         draggable
                         onDragStart={e => { e.dataTransfer.setData('text/strip-id-for-transfer', s.id); setTableDragRow(s.id); }}
                         onDragOver={e => {
