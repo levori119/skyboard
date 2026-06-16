@@ -5,6 +5,28 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SkyKing</title>
+    <script>
+      (function () {
+        var sizeMap = { '15.6': 1.00, '16': 1.05, '18': 1.22, '24': 1.65 };
+        var stored = localStorage.getItem('bt-screenSize');
+        var s = (stored && sizeMap[stored]) ? sizeMap[stored] : null;
+
+        if (!s) {
+          var w = screen.width * (window.devicePixelRatio || 1);
+          var h = screen.height * (window.devicePixelRatio || 1);
+          var diag = Math.sqrt(w * w + h * h);
+          s = 1.00;
+          if (diag >= 3600 && diag < 4200) s = 1.05;
+          if (diag >= 4200 && diag < 5000) s = 1.22;
+          if (diag >= 5000) s = 1.65;
+        }
+
+        document.documentElement.style.setProperty('--s', s);
+        document.documentElement.setAttribute('data-screen',
+          s >= 1.65 ? '24' : s >= 1.22 ? '18' : s >= 1.05 ? '16' : '15'
+        );
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

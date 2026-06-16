@@ -1,5 +1,9 @@
 /* App.css - עיצוב דסק לפיד כחול */
 
+:root {
+  --s: 1; /* scale factor — overridden by index.html script */
+}
+
 @keyframes fzpin-conflict-flash {
   0%, 100% { filter: drop-shadow(0 0 3px #ef4444) brightness(1); opacity: 1; }
   50%       { filter: drop-shadow(0 0 10px #ef4444) brightness(1.5); opacity: 0.65; }
@@ -95,7 +99,7 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  height: 3px;
+  height: calc(3px * var(--s));
   background: rgba(255, 255, 255, 0.75);
   border-radius: 0 0 12px 12px;
   animation: undoTimerBar linear forwards;
@@ -280,26 +284,26 @@ body {
 
 .de {
   display: grsk-containerid;
-  grid-template-columns: 350px 1fr;
-  gap: 20px;
+  grid-template-columns: calc(350px * var(--s)) 1fr;
+  gap: calc(20px * var(--s));
   height: 95vh;
-  padding: 20px;
+  padding: calc(20px * var(--s));
 }
 
 .strip-list {
   background: rgba(30, 41, 59, 0.5);
   border-radius: 12px;
-  padding: 15px;
+  padding: calc(15px * var(--s));
   overflow-y: auto;
   border: 1px solid #334155;
 }
 
 .flight-strip {
   background: var(--strip-bg);
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 12px;
-  border-right: 6px solid var(--accent-blue);
+  border-radius: calc(8px * var(--s));
+  padding: calc(15px * var(--s));
+  margin-bottom: calc(12px * var(--s));
+  border-right: calc(6px * var(--s)) solid var(--accent-blue);
   box-shadow: 0 4px 6px rgba(0,0,0,0.3);
   cursor: grab;
   transition: transform 0.2s;
@@ -323,14 +327,14 @@ body {
 .canvas-area {
   background: rgba(255,255,255,0.05);
   border: 1px dashed #475569;
-  height: 60px;
+  height: calc(60px * var(--s));
   margin-top: 10px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #64748b;
-  font-size: 12px;
+  font-size: calc(12px * var(--s));
 }
 
 /* =====================================================

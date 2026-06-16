@@ -24,6 +24,9 @@ const VKContext = createContext<VKContextType>({
 
 export const useVK = () => useContext(VKContext);
 
+const _vkScale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
+const sc = (n: number): number => Math.round(n * _vkScale);
+
 const HEB_ROWS: string[][] = [
   ['פ', 'ם', 'ן', 'ו', 'ט', 'א', 'ר', 'ק', "'", '/'],
   ['ף', 'ך', 'ל', 'ח', 'י', 'ע', 'כ', 'ג', 'ד', 'ש'],
@@ -43,7 +46,7 @@ function NumericKeyboard({ value, setValue }: { value: string; setValue: (v: str
   const clear = () => setValue('');
 
   const btnStyle: React.CSSProperties = {
-    width: '60px', height: '52px', fontSize: '21px', fontWeight: 'bold',
+    width: `${sc(60)}px`, height: `${sc(52)}px`, fontSize: `${sc(21)}px`, fontWeight: 'bold',
     border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer',
     background: '#1e293b', color: '#e2e8f0', display: 'flex',
     alignItems: 'center', justifyContent: 'center', transition: 'background 0.1s',
@@ -104,7 +107,7 @@ function FullKeyboard({ value, setValue, onEnter }: { value: string; setValue: (
   const keyH = 38;
 
   const keyStyle: React.CSSProperties = {
-    minWidth: '32px', height: `${keyH}px`, fontSize: '15px', fontWeight: '600',
+    minWidth: `${sc(32)}px`, height: `${sc(keyH)}px`, fontSize: `${sc(15)}px`, fontWeight: '600',
     border: '1px solid #334155', borderRadius: '6px', cursor: 'pointer',
     background: '#1e293b', color: '#e2e8f0', display: 'flex',
     alignItems: 'center', justifyContent: 'center',

@@ -11,6 +11,13 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', i
 
 const API_URL = '/api';
 
+// Screen-size scale helper — reads CSS var --s set by index.html before React loads
+const scale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
+const sc = (n: number): number => Math.round(n * scale);
+
+// Map bt-screenSize values to --s values
+const SCREEN_SCALE_MAP: Record<string, number> = { '15.6': 1.00, '16': 1.05, '18': 1.22, '24': 1.65 };
+
 // --- דיאלוג אישור מותאם (במקום confirm()) ---
 type ConfirmFn = (msg: string) => Promise<boolean>;
 let _showConfirm: ConfirmFn = (msg) => Promise.resolve(window.confirm(msg));
@@ -401,9 +408,9 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
       <div style={{ 
         background: 'white', 
         color: '#1e293b',
-        padding: '40px', 
-        borderRadius: '16px', 
-        minWidth: '450px',
+        padding: `${sc(40)}px`, 
+        borderRadius: `${sc(16)}px`, 
+        minWidth: `${sc(450)}px`,
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
       }}>
         {/* Logo */}
@@ -475,8 +482,8 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
             </g>
           </svg>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
-            <div style={{ fontSize: '13px', color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
+            <div style={{ fontSize: `${sc(28)}px`, fontWeight: '800', color: '#0f172a', letterSpacing: '3px', fontFamily: 'monospace' }}>SKY KING</div>
+            <div style={{ fontSize: `${sc(13)}px`, color: '#64748b', letterSpacing: '1px', marginTop: '2px' }}>לוח שמיים</div>
           </div>
         </div>
         <p style={{ margin: '0 0 20px', color: '#64748b', textAlign: 'center' }}>מערכת ניהול אווירי טקטי</p>
@@ -493,10 +500,10 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                 onFocus={() => setShowCrewDropdown(true)}
                 style={{
                   width: '100%',
-                  padding: '15px 20px',
+                  padding: `${sc(15)}px ${sc(20)}px`,
                   borderRadius: '10px',
                   border: '2px solid #e2e8f0',
-                  fontSize: '16px',
+                  fontSize: `${sc(16)}px`,
                   boxSizing: 'border-box',
                   direction: 'rtl',
                   background: 'white',
@@ -535,11 +542,11 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
                         }}
                         style={{
                           width: '100%',
-                          padding: '12px 20px',
+                          padding: `${sc(12)}px ${sc(20)}px`,
                           background: 'white',
                           border: 'none',
                           borderBottom: '1px solid #e2e8f0',
-                          fontSize: '16px',
+                          fontSize: `${sc(16)}px`,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -586,12 +593,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               <button
                 onClick={() => setShowWorkstationSelect(true)}
                 style={{
-                  padding: '20px',
+                  padding: `${sc(20)}px`,
                   background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
-                  fontSize: '18px',
+                  fontSize: `${sc(18)}px`,
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   display: 'flex',
@@ -608,12 +615,12 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               <button
                 onClick={() => setShowHandwritingCalibration(true)}
                 style={{
-                  padding: '20px',
+                  padding: `${sc(20)}px`,
                   background: 'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
-                  fontSize: '18px',
+                  fontSize: `${sc(18)}px`,
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   display: 'flex',
@@ -670,7 +677,13 @@ const WorkstationLogin = ({ onLogin, onManagement }: { onLogin: (session: Workst
               return (
                 <button
                   key={opt.value}
-                  onClick={() => { localStorage.setItem('bt-screenSize', opt.value); setScreenSize(opt.value); }}
+                  onClick={() => {
+                    const sv = SCREEN_SCALE_MAP[opt.value] || 1;
+                    localStorage.setItem('bt-screenSize', opt.value);
+                    document.documentElement.style.setProperty('--s', String(sv));
+                    document.documentElement.setAttribute('data-screen', opt.value.replace('.6', ''));
+                    setScreenSize(opt.value);
+                  }}
                   style={{
                     flex: 1,
                     padding: '10px 4px',

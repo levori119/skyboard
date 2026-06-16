@@ -12,6 +12,9 @@ type Tab = 'reminders' | 'timer' | 'stopwatch';
 
 const pad2 = (n: number) => String(Math.floor(n)).padStart(2, '0');
 
+const _clockScale = parseFloat(document.documentElement.style.getPropertyValue('--s') || '1') || 1;
+const sc = (n: number): number => Math.round(n * _clockScale);
+
 function fmtDuration(totalSeconds: number) {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -172,18 +175,18 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
           <div
             style={{
               position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-              zIndex: 9500, width: '260px',
+              zIndex: 9500, width: `${sc(260)}px`,
               background: panelBg, border: `2px solid #3b82f6`,
-              borderRadius: '10px', boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+              borderRadius: `${sc(10)}px`, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
               direction: 'rtl', overflow: 'hidden',
             }}
           >
             {/* Big clock header */}
-            <div style={{ background: '#0a1628', padding: '6px 10px 4px', textAlign: 'center', borderBottom: `1px solid ${border}` }}>
-              <div style={{ fontFamily: 'monospace', fontSize: '26px', fontWeight: 'bold', color: '#7dd3fc', letterSpacing: '2px', lineHeight: 1 }}>
-                {timeStr}<span style={{ fontSize: '15px', color: '#475569' }}>:{secStr}</span>
+            <div style={{ background: '#0a1628', padding: `${sc(6)}px ${sc(10)}px ${sc(4)}px`, textAlign: 'center', borderBottom: `1px solid ${border}` }}>
+              <div style={{ fontFamily: 'monospace', fontSize: `${sc(26)}px`, fontWeight: 'bold', color: '#7dd3fc', letterSpacing: '2px', lineHeight: 1 }}>
+                {timeStr}<span style={{ fontSize: `${sc(15)}px`, color: '#475569' }}>:{secStr}</span>
               </div>
-              <div style={{ fontSize: '10px', color: '#475569', marginTop: '1px' }}>
+              <div style={{ fontSize: `${sc(10)}px`, color: '#475569', marginTop: '1px' }}>
                 {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
               </div>
             </div>
@@ -196,7 +199,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
                 { key: 'stopwatch', label: '🏃 סטופר' },
               ] as { key: Tab; label: string }[]).map(t => (
                 <button key={t.key} onClick={() => setTab(t.key)} style={{
-                  flex: 1, padding: '5px 3px', fontSize: '11px', fontWeight: tab === t.key ? 'bold' : 'normal',
+                  flex: 1, padding: `${sc(5)}px 3px`, fontSize: `${sc(11)}px`, fontWeight: tab === t.key ? 'bold' : 'normal',
                   background: tab === t.key ? (lightMode ? '#e0f2fe' : '#0c2a40') : 'transparent',
                   color: tab === t.key ? '#38bdf8' : sub,
                   border: 'none', borderBottom: tab === t.key ? '2px solid #38bdf8' : '2px solid transparent',
@@ -205,7 +208,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
               ))}
             </div>
 
-            <div style={{ padding: '7px', maxHeight: '220px', overflowY: 'auto' }}>
+            <div style={{ padding: '7px', maxHeight: `${sc(220)}px`, overflowY: 'auto' }}>
               {/* REMINDERS TAB */}
               {tab === 'reminders' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -236,7 +239,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
                         background: r.triggered ? (lightMode ? '#f0fdf4' : '#052e16') : (lightMode ? '#f8fafc' : '#1e293b'),
                         border: `1px solid ${r.triggered ? '#22c55e' : border}`, borderRadius: '5px', padding: '4px 6px',
                       }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: '12px', color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: '36px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 'bold', fontSize: `${sc(12)}px`, color: r.triggered ? '#4ade80' : '#38bdf8', minWidth: `${sc(36)}px` }}>
                           {pad2(r.hour)}:{pad2(r.minute)}
                         </span>
                         <span style={{ flex: 1, fontSize: '11px', color: r.triggered ? '#4ade80' : text, textDecoration: r.triggered ? 'line-through' : 'none' }}>{r.text}</span>
@@ -252,18 +255,18 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
               {/* TIMER TAB */}
               {tab === 'timer' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: '48px', fontWeight: 'bold', letterSpacing: '3px', color: timerDone ? '#ef4444' : timerRunning ? '#4ade80' : '#7dd3fc', textAlign: 'center', lineHeight: 1, width: '100%' }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: `${sc(48)}px`, fontWeight: 'bold', letterSpacing: '3px', color: timerDone ? '#ef4444' : timerRunning ? '#4ade80' : '#7dd3fc', textAlign: 'center', lineHeight: 1, width: '100%' }}>
                     {timerSecs > 0 || timerRunning ? fmtDuration(timerSecs) : (
                       <input
                         value={timerInput}
                         onChange={e => setTimerInput(e.target.value)}
                         placeholder="05:00"
                         onFocus={e => e.target.select()}
-                        style={{ width: '180px', textAlign: 'center', fontFamily: 'monospace', fontSize: '40px', background: 'transparent', border: `1px solid ${border}`, borderRadius: '8px', color: '#7dd3fc', padding: '4px 8px' }}
+                        style={{ width: `${sc(180)}px`, textAlign: 'center', fontFamily: 'monospace', fontSize: `${sc(40)}px`, background: 'transparent', border: `1px solid ${border}`, borderRadius: '8px', color: '#7dd3fc', padding: '4px 8px' }}
                       />
                     )}
                   </div>
-                  {timerDone && <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px', animation: 'blink 0.6s step-end infinite' }}>⏰ הטיימר הסתיים!</div>}
+                  {timerDone && <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: `${sc(16)}px`, animation: 'blink 0.6s step-end infinite' }}>⏰ הטיימר הסתיים!</div>}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {!timerRunning ? (
                       <button onClick={timerSecs > 0 ? () => setTimerRunning(true) : startTimer}
@@ -288,7 +291,7 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
               {/* STOPWATCH TAB */}
               {tab === 'stopwatch' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: '48px', fontWeight: 'bold', letterSpacing: '2px', color: swRunning ? '#4ade80' : '#7dd3fc', textAlign: 'center', lineHeight: 1 }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: `${sc(48)}px`, fontWeight: 'bold', letterSpacing: '2px', color: swRunning ? '#4ade80' : '#7dd3fc', textAlign: 'center', lineHeight: 1 }}>
                     {fmtDuration(swElapsed)}
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -339,18 +342,18 @@ export function ClockWidget({ lightMode }: { lightMode?: boolean }) {
           background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => setActiveAlert(null)}>
           <div style={{
-            background: '#0f172a', border: '3px solid #f59e0b', borderRadius: '14px',
-            padding: '28px 36px', textAlign: 'center', maxWidth: '360px',
+            background: '#0f172a', border: '3px solid #f59e0b', borderRadius: `${sc(14)}px`,
+            padding: `${sc(28)}px ${sc(36)}px`, textAlign: 'center', maxWidth: '360px',
             boxShadow: '0 0 60px rgba(245,158,11,0.4)', direction: 'rtl',
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '48px', marginBottom: '8px' }}>⏰</div>
-            <div style={{ fontSize: '28px', fontFamily: 'monospace', fontWeight: 'bold', color: '#fbbf24', marginBottom: '12px' }}>
+            <div style={{ fontSize: `${sc(48)}px`, marginBottom: '8px' }}>⏰</div>
+            <div style={{ fontSize: `${sc(28)}px`, fontFamily: 'monospace', fontWeight: 'bold', color: '#fbbf24', marginBottom: '12px' }}>
               {pad2(activeAlert.hour)}:{pad2(activeAlert.minute)}
             </div>
-            <div style={{ fontSize: '18px', color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.4 }}>{activeAlert.text}</div>
+            <div style={{ fontSize: `${sc(18)}px`, color: '#e2e8f0', marginBottom: '20px', lineHeight: 1.4 }}>{activeAlert.text}</div>
             <button
               onClick={() => setActiveAlert(null)}
-              style={{ padding: '10px 32px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
+              style={{ padding: `${sc(10)}px ${sc(32)}px`, background: '#f59e0b', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: `${sc(16)}px`, fontWeight: 'bold' }}
             >אישור</button>
           </div>
         </div>
