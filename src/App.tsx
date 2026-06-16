@@ -23148,12 +23148,12 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                             setTableGroupDragKey(null); setTableGroupDragOverKey(null);
                           }}
                           style={{
-                            background: isDragOverGroup ? '#1d4ed8' : (themeMode === 'light' ? '#6d28d9' : themeMode === 'ocean' ? '#164e6a' : '#1e1b4b'),
-                            borderTop: `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0e7490' : '#4c1d95'}`,
-                            borderBottom: isDragOverGroup ? '3px solid #3b82f6' : `3px solid ${themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#0e7490' : '#4c1d95'}`,
+                            background: isDragOverGroup ? '#1d4ed8' : (themeMode === 'light' ? '#ede9fe' : themeMode === 'ocean' ? '#0c4a6e' : '#1e1b4b'),
+                            borderTop: `3px solid ${themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
+                            borderBottom: isDragOverGroup ? '3px solid #3b82f6' : `3px solid ${themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95'}`,
                             cursor: 'pointer',
                             opacity: tableGroupDragKey === item.groupKey ? 0.5 : 1,
-                            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(109,40,217,0.25)' : themeMode === 'ocean' ? '0 2px 8px rgba(14,116,144,0.3)' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
+                            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(109,40,217,0.15)' : themeMode === 'ocean' ? '0 2px 8px rgba(14,165,233,0.2)' : 'inset 0 0 0 1px #7c3aed33, 0 2px 8px rgba(124,58,237,0.15)'
                           }}
                           onClick={e => {
                             if ((e.target as HTMLElement).closest('[data-drag-handle]')) return;
@@ -23166,10 +23166,10 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         >
                           <td colSpan={columns.length + 3 + (showFullPicture ? 1 : 0)} style={{ padding: '0', direction: 'rtl' }}>
                             <div style={{ position: 'sticky', right: 0, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 12px' }}>
-                              <span data-drag-handle style={{ color: T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
-                              <span style={{ fontSize: '11px', color: themeMode === 'ocean' ? '#22d3ee' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
-                              <span style={{ background: themeMode === 'light' ? '#fff' : themeMode === 'ocean' ? '#0e7490' : '#4c1d95', color: themeMode === 'light' ? '#5b21b6' : '#fff', fontWeight: 'bold', fontSize: '13px', padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', boxShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{item.groupKey}</span>
-                              <span style={{ background: themeMode === 'light' ? 'rgba(255,255,255,0.3)' : themeMode === 'ocean' ? 'rgba(0,0,0,0.25)' : '#2e1065', color: themeMode === 'ocean' ? '#cffafe' : '#fff', fontWeight: 'bold', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
+                              <span data-drag-handle style={{ color: themeMode === 'light' ? '#7c3aed' : T.muted, fontSize: '14px', cursor: 'grab', flexShrink: 0 }}>⠿</span>
+                              <span style={{ fontSize: '11px', color: themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#38bdf8' : '#a78bfa', transition: 'transform 0.15s', transform: item.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▾</span>
+                              <span style={{ background: themeMode === 'light' ? '#7c3aed' : themeMode === 'ocean' ? '#0ea5e9' : '#4c1d95', color: '#fff', fontWeight: 'bold', fontSize: '13px', padding: '3px 12px', borderRadius: '5px', letterSpacing: '0.02em', boxShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{item.groupKey}</span>
+                              <span style={{ background: themeMode === 'light' ? '#ddd6fe' : themeMode === 'ocean' ? 'rgba(14,165,233,0.25)' : '#2e1065', color: themeMode === 'light' ? '#5b21b6' : themeMode === 'ocean' ? '#7dd3fc' : '#fff', fontWeight: 'bold', fontSize: '12px', padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>{item.count}</span>
                             </div>
                           </td>
                         </tr>
