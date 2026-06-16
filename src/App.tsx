@@ -18,6 +18,102 @@ const sc = (n: number): number => Math.round(n * scale);
 // Map bt-screenSize values to --s values
 const SCREEN_SCALE_MAP: Record<string, number> = { '15.6': 1.00, '16': 1.05, '18': 1.22, '24': 1.65 };
 
+// ─── Aircraft Icon System ─────────────────────────────────────────────────────
+type AircraftIconType = 'f15'|'f16'|'f35'|'b707'|'gulfstream'|'c130'|'yasur'|'apache'|'blackhawk'|'naval-blackhawk'|'uav'|'jet';
+function getSquadronAircraftType(sq: string): AircraftIconType {
+  const s = String(sq || '').trim().replace(/^0+/, '');
+  if (['133','106','69'].includes(s)) return 'f15';
+  if (['101','109','107','201','119','253'].includes(s)) return 'f16';
+  if (['140','116','117'].includes(s)) return 'f35';
+  if (s === '120') return 'b707';
+  if (s === '122') return 'gulfstream';
+  if (['103','131'].includes(s)) return 'c130';
+  if (['118','114'].includes(s)) return 'yasur';
+  if (['113','190'].includes(s)) return 'apache';
+  if (['123','124'].includes(s)) return 'blackhawk';
+  if (s === '193') return 'naval-blackhawk';
+  if (['160','200','161','166','210'].includes(s)) return 'uav';
+  return 'jet';
+}
+function isHeliAircraftType(t: AircraftIconType): boolean {
+  return ['yasur','apache','blackhawk','naval-blackhawk'].includes(t);
+}
+function getHeliPngSrc(t: AircraftIconType): string {
+  return t === 'yasur' ? '/heli-yasur.png' : '/heli-yanshuf.png';
+}
+function renderAircraftSvgPaths(t: AircraftIconType): React.ReactNode {
+  switch (t) {
+    case 'f15': return (<>
+      <polygon points="50,4 54,24 56,60 52,86 48,86 44,60 46,24" fill="white" opacity="0.95"/>
+      <polygon points="50,20 90,70 82,72 50,44 18,72 10,70" fill="white" opacity="0.95"/>
+      <polygon points="52,64 68,84 64,87 52,76" fill="white" opacity="0.9"/>
+      <polygon points="48,64 32,84 36,87 48,76" fill="white" opacity="0.9"/>
+      <ellipse cx="55" cy="54" rx="3.5" ry="9" fill="white" opacity="0.7"/>
+      <ellipse cx="45" cy="54" rx="3.5" ry="9" fill="white" opacity="0.7"/>
+    </>);
+    case 'f16': return (<>
+      <polygon points="50,4 54,26 55,68 51,88 49,88 45,68 46,26" fill="white" opacity="0.95"/>
+      <polygon points="50,22 86,66 80,69 52,46 48,46 20,69 14,66" fill="white" opacity="0.95"/>
+      <polygon points="50,70 58,82 54,86 50,82 46,86 42,82" fill="white" opacity="0.9"/>
+    </>);
+    case 'f35': return (<>
+      <polygon points="50,5 57,26 58,68 52,87 48,87 42,68 43,26" fill="white" opacity="0.95"/>
+      <polygon points="50,24 82,60 76,65 52,46 48,46 24,65 18,60" fill="white" opacity="0.95"/>
+      <polygon points="50,70 58,82 54,86 50,82 46,86 42,82" fill="white" opacity="0.85"/>
+    </>);
+    case 'b707': return (<>
+      <rect x="47.5" y="8" width="5" height="74" rx="2.5" fill="white" opacity="0.95"/>
+      <polygon points="50,30 90,64 88,68 50,50 12,68 10,64" fill="white" opacity="0.95"/>
+      <ellipse cx="75" cy="58" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(-28 75 58)"/>
+      <ellipse cx="65" cy="52" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(-28 65 52)"/>
+      <ellipse cx="35" cy="52" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(28 35 52)"/>
+      <ellipse cx="25" cy="58" rx="2.5" ry="5" fill="white" opacity="0.85" transform="rotate(28 25 58)"/>
+      <rect x="40" y="76" width="20" height="3.5" rx="1.5" fill="white" opacity="0.9"/>
+    </>);
+    case 'gulfstream': return (<>
+      <rect x="48" y="10" width="4" height="78" rx="2" fill="white" opacity="0.95"/>
+      <polygon points="50,36 84,60 82,64 50,52 18,64 16,60" fill="white" opacity="0.95"/>
+      <ellipse cx="56.5" cy="68" rx="3" ry="7" fill="white" opacity="0.85"/>
+      <ellipse cx="43.5" cy="68" rx="3" ry="7" fill="white" opacity="0.85"/>
+      <rect x="38" y="76" width="24" height="3.5" rx="1.5" fill="white" opacity="0.9"/>
+    </>);
+    case 'c130': return (<>
+      <rect x="44" y="10" width="12" height="78" rx="4" fill="white" opacity="0.95"/>
+      <polygon points="8,42 92,42 90,48 50,52 10,48" fill="white" opacity="0.9"/>
+      <circle cx="24" cy="45" r="5.5" fill="white" opacity="0.8"/>
+      <circle cx="37" cy="44" r="5.5" fill="white" opacity="0.8"/>
+      <circle cx="63" cy="44" r="5.5" fill="white" opacity="0.8"/>
+      <circle cx="76" cy="45" r="5.5" fill="white" opacity="0.8"/>
+      <rect x="40" y="82" width="20" height="4" rx="2" fill="white" opacity="0.85"/>
+    </>);
+    case 'apache': return (<>
+      <ellipse cx="50" cy="44" rx="44" ry="8" fill="white" opacity="0.15"/>
+      <polygon points="50,12 54,20 55,64 52,80 48,80 45,64 46,20" fill="white" opacity="0.95"/>
+      <polygon points="45,44 16,54 14,58 38,50" fill="white" opacity="0.85"/>
+      <polygon points="55,44 84,54 86,58 62,50" fill="white" opacity="0.85"/>
+      <rect x="48.5" y="73" width="3" height="18" rx="1.5" fill="white" opacity="0.9"/>
+      <ellipse cx="50" cy="73" rx="10" ry="2.5" fill="white" opacity="0.5"/>
+    </>);
+    case 'blackhawk':
+    case 'naval-blackhawk': return (<>
+      <ellipse cx="50" cy="44" rx="44" ry="9" fill="white" opacity="0.15"/>
+      <polygon points="50,14 58,22 59,64 53,80 47,80 41,64 42,22" fill="white" opacity="0.95"/>
+      <polygon points="48,68 52,68 52,90 48,90" fill="white" opacity="0.85"/>
+      <ellipse cx="50" cy="69" rx="11" ry="2.8" fill="white" opacity="0.5"/>
+    </>);
+    case 'uav': return (<>
+      <rect x="47.5" y="28" width="5" height="48" rx="2.5" fill="white" opacity="0.95"/>
+      <polygon points="6,48 94,48 94,52 50,56 6,52" fill="white" opacity="0.95"/>
+      <polygon points="45,68 55,68 57,84 50,82 43,84" fill="white" opacity="0.85"/>
+    </>);
+    default: return (<>
+      <polygon points="50,4 54,26 55,68 51,88 49,88 45,68 46,26" fill="white" opacity="0.95"/>
+      <polygon points="50,22 85,64 79,67 50,45 21,67 15,64" fill="white" opacity="0.95"/>
+      <polygon points="50,70 57,82 53,86 50,82 47,86 43,82" fill="white" opacity="0.85"/>
+    </>);
+  }
+}
+
 // --- דיאלוג אישור מותאם (במקום confirm()) ---
 type ConfirmFn = (msg: string) => Promise<boolean>;
 let _showConfirm: ConfirmFn = (msg) => Promise.resolve(window.confirm(msg));
@@ -24353,8 +24449,9 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               );
               const iconSize = Math.max(18, 24 / mapZoom);
               const planeTypeStr = String((strip as any)?.plane_type || '');
-              const isHeliType = planeTypeStr.includes('מסוק') || sqRaw.includes('124') || sqRaw.includes('123') || sqRaw.includes('118');
-              const heliSrc = sqRaw.includes('124') ? '/heli-yasur.png' : '/heli-yanshuf.png';
+              const acType = getSquadronAircraftType(sqRaw);
+              const isHeliType = planeTypeStr.includes('מסוק') || isHeliAircraftType(acType);
+              const heliSrc = getHeliPngSrc(acType);
               const heliW = fzPinDisplay === 'icon' ? Math.max(44, 62 / mapZoom) : Math.max(36, 54 / mapZoom);
               // Ring colour: white when map is dark, black when map is bright
               const ringV = Math.round(255 * Math.max(0, Math.min(1, 1 - (mapBrightness - 0.2) / 1.6)));
@@ -24436,22 +24533,29 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
                         const rot = Math.round(hue - 38);
                         imgFilter = `sepia(1) hue-rotate(${rot}deg) saturate(8) brightness(1.25) drop-shadow(0 0 ${heliW*0.2}px ${sqColor}) drop-shadow(0 0 ${heliW*0.35}px ${sqColor}bb) drop-shadow(0 0 ${heliW*0.5}px ${sqColor}66)`;
                       }
-                      if (fzPinDisplay === 'icon' && !isHeliType) {
+                      if (fzPinDisplay === 'icon') {
+                        if (isHeliType) {
+                          return (
+                            <img
+                              src={heliSrc}
+                              alt=""
+                              draggable={false}
+                              onDragStart={e => e.preventDefault()}
+                              className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : a.status === 'באזור' ? 'fzpin-active' : ''}
+                              style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
+                            />
+                          );
+                        }
                         return (
-                          <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none' }} draggable={false}>
-                            <polygon points="50,5 60,40 95,45 60,55 65,90 50,80 35,90 40,55 5,45 40,40" fill="white" opacity="0.95"/>
+                          <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
+                            {renderAircraftSvgPaths(acType)}
                           </svg>
                         );
                       }
                       return (
-                        <img
-                          src={heliSrc}
-                          alt=""
-                          draggable={false}
-                          onDragStart={e => e.preventDefault()}
-                          className={hasConflict ? 'fzpin-conflict' : fzAnimPaused ? '' : a.status === 'בדרך לאזור' ? 'fzpin-heading' : a.status === 'עוזב אזור' ? 'fzpin-leaving' : a.status === 'באזור' ? 'fzpin-active' : ''}
-                          style={{ width: heliW, height: 'auto', display: 'block', filter: imgFilter, pointerEvents: 'none' }}
-                        />
+                        <svg width={heliW} height={heliW} viewBox="0 0 100 100" style={{ display: 'block', filter: imgFilter, pointerEvents: 'none', overflow: 'visible' }} draggable={false}>
+                          {renderAircraftSvgPaths(acType)}
+                        </svg>
                       );
                     })()}
                     {/* Note indicator — moved to top-left */}
@@ -24500,13 +24604,14 @@ const SectorDashboard = ({ session, onLogout, onCrewChange, workstationPresets }
               const pixY = ib.top + (si.posY! / 100) * ib.height;
               const parentStrip = strips.find((s: any) => parseInt(String(s.id).replace(/^s/,''),10) === parseInt(String(si.parentStripId).replace(/^s/,''),10));
               const sqRaw = String((parentStrip as any)?.sq || (parentStrip as any)?.squadron || '');
-              const sqColor = sqRaw.includes('118') ? '#f97316' : sqRaw.includes('123') ? '#06b6d4' : sqRaw.includes('124') ? '#a855f7' : (si.zoneColor || '#3b82f6');
-              const isYasur = sqRaw.includes('124');
-              const heliSrc = isYasur ? '/heli-yasur.png' : '/heli-yanshuf.png';
+              const splitAcType = getSquadronAircraftType(sqRaw);
+              const sqColor = (si.zoneColor || '#3b82f6');
+              const heliSrc = getHeliPngSrc(splitAcType);
               const heliW = Math.max(28, 40 / mapZoom);
               const fontSize = Math.max(8, 10 / mapZoom);
               const stColors: Record<string, string> = { 'בדרך לאזור': '#f59e0b', 'באזור': '#22c55e', 'עוזב אזור': '#f97316' };
               const stColor = stColors[si.status || ''] || sqColor;
+              const isYasur = splitAcType === 'yasur';
               const filterStr = `sepia(1) hue-rotate(${isYasur ? 270 : 180}deg) saturate(8) brightness(1.3) drop-shadow(0 0 4px ${sqColor})`;
               return (
                 <div
